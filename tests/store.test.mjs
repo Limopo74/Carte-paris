@@ -258,3 +258,10 @@ test('rappel de sauvegarde', () => {
   saveState(st, { ...base(), lastExport: 1234 });
   assert.equal(loadState(st).lastExport, 1234);
 });
+
+test('voix activée par défaut, réglage conservé', () => {
+  assert.equal(loadState(memStorage()).voice, true);
+  const st = memStorage();
+  saveState(st, { ...base(), voice: false });
+  assert.equal(loadState(st).voice, false);
+});

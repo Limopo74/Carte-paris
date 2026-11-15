@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <meta name="theme-color" content="#1f2a44">
   <meta name="description" content="Mes lieux préférés à Paris, et ce qui est près de moi.">
+  <!-- Verrouillage : l'appli ne peut charger ou envoyer des données qu'à ces adresses. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' https://data.geopf.fr https://nominatim.openstreetmap.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin">
   <title>Ma carte de Paris</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
@@ -44,6 +47,19 @@
 
   <div id="crosshair" class="crosshair" hidden aria-hidden="true">
     <svg viewBox="0 0 48 48" width="48" height="48"><circle cx="24" cy="24" r="9" fill="none" stroke="#1f2a44" stroke-width="3"/><circle cx="24" cy="24" r="2.5" fill="#1f2a44"/><path d="M24 2v12M24 34v12M2 24h12M34 24h12" stroke="#1f2a44" stroke-width="3" stroke-linecap="round"/></svg>
+  </div>
+
+  <div id="compass" class="compass" hidden role="dialog" aria-modal="true" aria-labelledby="compassName">
+    <p class="compass-label">Vers</p>
+    <h2 id="compassName" class="compass-name"></h2>
+    <svg class="compass-arrow" viewBox="0 0 100 100" width="220" height="220" aria-hidden="true"><path d="M50 6 80 86 50 70 20 86Z" fill="#fff" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></svg>
+    <p class="compass-dist" aria-live="polite"></p>
+    <p class="compass-hint"></p>
+    <div class="compass-actions">
+      <a class="btn compass-go" target="_blank" rel="noopener">Y aller avec Google Maps</a>
+      <button type="button" class="btn compass-mute" aria-pressed="true">🔊 Voix</button>
+      <button type="button" class="btn compass-close">Fermer</button>
+    </div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -251,3 +251,32 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px 4px 6px;
   border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 15px;
 }
+
+/* Boussole */
+.compass {
+  position: fixed; inset: 0; z-index: 1200; background: var(--ink); color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 24px 20px calc(24px + var(--safe-b)); text-align: center;
+}
+.compass-label { margin: 0; opacity: .7; font-size: 15px; }
+.compass-name { margin: 0; font-size: 24px; overflow-wrap: anywhere; }
+.compass-arrow { transition: transform .25s ease-out; margin: 18px 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
+@media (prefers-reduced-motion: reduce) { .compass-arrow { transition: none; } }
+.compass-dist { margin: 0; font-size: 26px; font-weight: 700; }
+.compass-hint { margin: 0; min-height: 40px; opacity: .8; font-size: 15px; max-width: 320px; }
+.compass-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin-top: 12px; }
+.compass .btn { background: #fff; color: var(--ink); border-color: #fff; }
+.compass .compass-close, .compass .compass-mute { background: transparent; color: #fff; border-color: rgba(255,255,255,.5); }
+
+/* Station, étapes du parcours, cases à cocher */
+.metro-pin {
+  width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #003ca6; border: 3px solid #003ca6;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px;
+}
+.step-pin, .step-num {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center; flex: none; border: 2px solid #fff;
+}
+.check-row { cursor: pointer; }
+.check { width: 22px; height: 22px; flex: none; accent-color: var(--ink); }
+ol.items { padding: 0; }

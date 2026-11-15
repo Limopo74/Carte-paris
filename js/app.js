@@ -7,10 +7,14 @@ import {
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
-import { searchPoints } from './search.js';
+import { searchPoints, fold } from './search.js';
+import {
+  bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
+  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance,
+} from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (7)';
+const VERSION = '15 novembre 2026 (9)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -52,7 +56,7 @@ fetch('data/stations.json')
     if (!Array.isArray(j?.stations)) return;
     stations = j.stations.filter((x) => typeof x.n === 'string' && Number.isFinite(x.lat) && Number.isFinite(x.lng));
     stationsSource = typeof j.source === 'string' ? j.source : '';
-    if (view === 'near' && here) renderNear();
+    if (view === 'near' && origin) renderNear();
   })
   .catch(() => { /* pas encore de données : la fonction reste discrète */ });
 
@@ -194,7 +198,7 @@ function setFilter(id) {
 function refresh() {
   renderChips();
   renderMarkers();
-  if (view === 'near' && here) renderNear();
+  if (view === 'near' && origin) renderNear();
 }
 
 /* ---------- Feuille du bas (avec retour Android) ---------- */
@@ -229,6 +233,7 @@ function closeSheet(fromHistory = false) {
   draftLayer.clearLayers();
   nearLayer.clearLayers();
   if (moving) stopMove();
+  stopFollow();
   const cb = onSheetClose;
   onSheetClose = null;
   if (cb) cb();
@@ -241,35 +246,59 @@ function closeSheet(fromHistory = false) {
 }
 
 window.addEventListener('popstate', () => {
+  if (compassOpen) return; // le retour ferme d'abord la boussole
   if (!sheet.hidden) { historyPushed = false; closeSheet(true); }
 });
 document.getElementById('sheetClose').addEventListener('click', () => closeSheet());
 
 /* ---------- Localisation ---------- */
 
-let here = null; // { lat, lng, acc, time }
+let here = null; // dernière position GPS : { lat, lng, acc, time }
+const LAST_KEY = 'carte-paris.derniere-position'; // reste sur le téléphone, jamais envoyée
+try {
+  const last = JSON.parse(storage.getItem(LAST_KEY) ?? 'null');
+  if (last && Number.isFinite(last.lat) && Number.isFinite(last.lng) && Number.isFinite(last.time)) here = last;
+} catch { /* rien */ }
+const GEO_ERRORS = {
+  1: 'Localisation refusée. Autorise-la pour ce site : touche le cadenas à gauche de l\'adresse dans Chrome, puis Autorisations.',
+  2: 'Position introuvable pour le moment (dans le métro ou un bâtiment, le GPS passe mal).',
+  3: 'La position met trop de temps à arriver.',
+};
 
-function locate() {
+function remember(fix) {
+  here = fix;
+  try { storage.setItem(LAST_KEY, JSON.stringify(fix)); } catch { /* facultatif */ }
+}
+
+/**
+ * Position la plus précise obtenue en quelques secondes : on s'arrête dès qu'elle est à 25 m près,
+ * sinon on garde la meilleure au bout de 6 s (15 s au plus si rien n'arrive).
+ */
+function locate({ wait = 6000, good = 25 } = {}) {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error('Ce téléphone ne donne pas sa position à l\'appli.'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
+    if (!('geolocation' in navigator)) { reject(new Error('Ce téléphone ne donne pas sa position à l\'appli.')); return; }
+    const samples = [];
+    let lastErr = null;
+    let finished = false;
+    let id = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (id != null) navigator.geolocation.clearWatch(id);
+      clearTimeout(t1); clearTimeout(t2);
+      const best = bestFix(samples);
+      if (best) { remember(best); resolve(best); } else reject(lastErr ?? new Error(GEO_ERRORS[3]));
+    };
+    id = navigator.geolocation.watchPosition(
       (pos) => {
-        here = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
-        resolve(here);
+        samples.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() });
+        if (pos.coords.accuracy <= good) finish();
       },
-      (err) => {
-        const msg = {
-          1: 'Localisation refusée. Autorise-la pour ce site : touche le cadenas à gauche de l\'adresse dans Chrome, puis Autorisations.',
-          2: 'Position introuvable pour le moment. Vérifie que la localisation du téléphone est activée.',
-          3: 'La position met trop de temps à arriver. Réessaie, si possible près d\'une fenêtre ou dehors.',
-        }[err.code] ?? 'Position indisponible.';
-        reject(new Error(msg));
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      (err) => { lastErr = new Error(GEO_ERRORS[err.code] ?? 'Position indisponible.'); lastErr.code = err.code; if (err.code === 1) finish(); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
     );
+    const t1 = setTimeout(() => { if (samples.length) finish(); }, wait);
+    const t2 = setTimeout(finish, 15000);
   });
 }
 
@@ -462,7 +491,9 @@ function openDetail(id, back = null) {
     more.replaceChildren();
     const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
     actions.replaceChildren(
-      el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn primary', onclick: () => openCompass(p) }, '🧭 Boussole'),
+        el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
@@ -583,24 +614,65 @@ function openSearch(initial = '') {
   input.focus();
 }
 
-/* ---------- Autour de moi ---------- */
+/* ---------- Autour de moi (ou autour d'une station) ---------- */
+
+// Centre des cercles : ma position GPS, ma dernière position connue ou une station choisie.
+let origin = null; // { lat, lng, acc, time, kind: 'gps' | 'last' | 'station', label }
 
 async function openNear() {
-  toast('Recherche de ta position…');
+  stopFollow();
+  toast('Recherche de ta position… (quelques secondes pour plus de précision)');
   try {
-    await locate();
+    const fix = await locate();
+    hideToast();
+    origin = { ...fix, kind: 'gps' };
+    renderNear(true);
   } catch (e) {
-    toast(e.message, true);
-    return;
+    hideToast();
+    offerFallback(e);
   }
-  hideToast();
-  renderNear(true);
+}
+
+/** Pas de GPS : proposer la dernière position connue ou une station. */
+function offerFallback(e) {
+  const age = here ? Date.now() - here.time : Infinity;
+  openSheet('Position introuvable', el('div', { class: 'stack' },
+    el('p', {}, e.message),
+    here && age < 2 * 3600 * 1000
+      ? el('button', { type: 'button', class: 'btn primary', onclick: () => { origin = { ...here, kind: 'last' }; renderNear(true); } },
+        `Utiliser ma dernière position (${timeAgoShort(here.time)})`)
+      : null,
+    el('button', { type: 'button', class: 'btn', onclick: () => openStationPicker() }, 'Ⓜ Choisir une station de métro'),
+    el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Réessayer'),
+  ));
+}
+
+function timeAgoShort(t) {
+  const min = Math.round((Date.now() - t) / 60000);
+  return min < 1 ? 'à l\'instant' : min < 60 ? `il y a ${min} min` : `il y a ${Math.round(min / 60)} h`;
+}
+
+/** Choisir une station pour voir ce qu'il y a autour en sortant (sans GPS). */
+function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.lat, lng: st.lng, acc: 0, time: Date.now(), kind: 'station', label: st.n }; renderNear(true); }) {
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : Opéra, Bastille…', 'aria-label': 'Nom de la station' });
+  const list = el('ul', { class: 'results' });
+  const run = () => {
+    const q = fold(input.value);
+    const res = q.length < 2 ? [] : stations.filter((st) => fold(st.n).includes(q)).slice(0, 12);
+    list.replaceChildren(...res.map((st) => el('li', {}, el('button', { type: 'button', onclick: () => onPick(st) },
+      el('span', { class: 'res-title' }, `Ⓜ ${st.n}`),
+      el('span', { class: 'res-sub' }, [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · '))))));
+    if (q.length >= 2 && !res.length) list.replaceChildren(el('li', { class: 'empty' }, stations.length ? 'Aucune station de ce nom.' : 'Liste des stations pas encore chargée : réessaie dans un instant.'));
+  };
+  input.addEventListener('input', run);
+  openSheet('Choisir une station', el('div', { class: 'stack' }, input, list), { tall: true });
+  input.focus();
 }
 
 function drawNear() {
   nearLayer.clearLayers();
-  const { lat, lng, acc } = here;
-  if (acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
+  const { lat, lng, acc, kind } = origin;
+  if (kind !== 'station' && acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
   for (const r of state.rings) {
     L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(nearLayer);
     L.marker([lat + r / 111195, lng], {
@@ -608,12 +680,22 @@ function drawNear() {
       icon: L.divIcon({ className: '', html: `<span class="ring-label">${fmtRing(r)}</span>`, iconSize: [0, 0] }),
     }).addTo(nearLayer);
   }
-  L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (kind === 'station') {
+    L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+  } else {
+    L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: kind === 'last' ? '#868e96' : '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  }
+}
+
+function nearTitle() {
+  if (origin.kind === 'station') return `Autour de Ⓜ ${origin.label}`;
+  if (origin.kind === 'last') return `Autour de moi (${timeAgoShort(origin.time)})`;
+  return following ? 'Autour de moi · en direct' : 'Autour de moi';
 }
 
 function renderNear(fit = false) {
   const pts = visible();
-  const groups = groupByRings(pts, here, state.rings);
+  const groups = groupByRings(pts, origin, state.rings);
   const inside = groups.reduce((n, g) => n + g.items.length, 0);
   const farther = pts.length - inside;
   const maxRing = state.rings[state.rings.length - 1];
@@ -628,8 +710,11 @@ function renderNear(fit = false) {
         : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${fmtRing(t.first.ring)}, ${t.last.n} à moins de ${fmtRing(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
   }
-  if (here.acc > 100) {
-    body.push(el('p', { class: 'warn' }, `Position approximative (à ${Math.round(here.acc)} m près) : les petits cercles ne sont pas fiables.`));
+  if (origin.kind !== 'station' && origin.acc > 100) {
+    body.push(el('p', { class: 'warn' }, `Position approximative (à ${Math.round(origin.acc)} m près) : les petits cercles ne sont pas fiables.`));
+  }
+  if (origin.kind === 'last') {
+    body.push(el('p', { class: 'warn' }, `Position d'${timeAgoShort(origin.time)} : si tu as bougé depuis, actualise.`));
   }
   let prev = 0;
   for (const g of groups) {
@@ -645,7 +730,7 @@ function renderNear(fit = false) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${fmtWalk(d)}${p.done ? '' : ' · À faire'}`),
-          stationLine(p) ? el('span', { class: 'item-sub small' }, stationLine(p)) : null)),
+          origin.kind === 'station' ? null : (stationLine(p) ? el('span', { class: 'item-sub small' }, stationLine(p)) : null))),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -658,16 +743,321 @@ function renderNear(fit = false) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${fmtRing(maxRing)}.`));
   }
   if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
-  body.push(el('div', { class: 'row', style: 'margin-top:14px' },
-    el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Actualiser ma position')));
 
-  openSheet('Autour de moi', body, { name: 'near' });
+  // Outils pour se déplacer
+  body.push(el('h3', { class: 'ring-title', style: 'margin-top:16px' }, el('span', {}, 'Se déplacer'), el('span', {}, '')));
+  body.push(el('div', { class: 'stack' },
+    origin.kind === 'gps'
+      ? el('button', { type: 'button', class: `btn ${following ? 'primary' : ''}`, 'aria-pressed': String(following), onclick: () => (following ? stopFollow(true) : startFollow()) },
+        following ? '📡 Suivi en direct : activé (appuie pour arrêter)' : '📡 Suivre ma position en marchant')
+      : null,
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openWayPicker() }, '🚶 Sur mon chemin'),
+      el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker() }, '🗺️ Parcours')),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Ma position'),
+      el('button', { type: 'button', class: 'btn', onclick: () => openStationPicker() }, 'Ⓜ Une station')),
+  ));
+
+  openSheet(nearTitle(), body, { name: 'near' });
   drawNear();
   if (fit) {
-    const bounds = L.latLng(here.lat, here.lng).toBounds(maxRing * 2);
+    const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
     map.fitBounds(bounds, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
   }
 }
+
+/* ---------- Voix (désactivable dans les réglages) ---------- */
+
+function speak(text) {
+  if (state.voice === false || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fr-FR';
+    u.rate = 1;
+    speechSynthesis.speak(u);
+  } catch { /* pas de voix sur ce téléphone */ }
+}
+function silence() { try { speechSynthesis?.cancel(); } catch { /* rien */ } }
+
+/* ---------- Suivi en direct (seulement appli ouverte) ---------- */
+
+let following = false;
+let followId = null;
+let lastRender = { t: 0, lat: 0, lng: 0 };
+const signaled = new Set();
+let wakeLock = null;
+
+async function keepScreenOn(on) {
+  try {
+    if (on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { /* refusé : pas grave */ }
+}
+
+function startFollow() {
+  if (!('geolocation' in navigator)) return;
+  following = true;
+  signaled.clear();
+  for (const p of newlyNear(visible(), origin, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
+  keepScreenOn(true);
+  followId = navigator.geolocation.watchPosition((pos) => {
+    const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
+    if (fix.acc > 150) return; // trop imprécis pour suivre
+    remember(fix);
+    origin = { ...fix, kind: 'gps' };
+    const alerts = newlyNear(visible(), fix, signaled, 100);
+    for (const p of alerts) signaled.add(p.id);
+    if (alerts.length) {
+      try { navigator.vibrate?.([200, 100, 200]); } catch { /* pas de vibreur */ }
+      toast(`À moins de 100 m : ${alerts.map((p) => p.name).join(', ')}`);
+      speak(alerts.map((p) => `${p.name}, à ${spokenDistance(distanceM(fix, p))}`).join('. '));
+    }
+    const moved = distanceM(fix, lastRender);
+    if (view === 'near' && (moved > 15 || Date.now() - lastRender.t > 15000)) {
+      lastRender = { t: Date.now(), lat: fix.lat, lng: fix.lng };
+      const keep = sheetBody.scrollTop;
+      renderNear();
+      sheetBody.scrollTop = keep;
+      map.panTo([fix.lat, fix.lng], { animate: true });
+    }
+  }, () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
+  renderNear();
+  toast('Suivi activé : écran allumé, vibration à 100 m d\'un lieu à faire.');
+  speak('Suivi activé. Je te préviens à 100 mètres d\'un lieu à faire.');
+}
+
+function stopFollow(rerender = false) {
+  if (followId != null) navigator.geolocation.clearWatch(followId);
+  followId = null;
+  if (!following) return;
+  following = false;
+  keepScreenOn(false);
+  silence();
+  if (rerender && view === 'near') renderNear();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (following || compassOpen)) keepScreenOn(true);
+});
+
+/* ---------- Choisir une destination (lieu à moi ou station) ---------- */
+
+function openDestinationPicker(title, onPick) {
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Un de mes lieux ou une station', 'aria-label': 'Destination' });
+  const list = el('ul', { class: 'results' });
+  const run = () => {
+    const q = input.value.trim();
+    const mine = q ? searchPoints(state.points, state.categories, q).slice(0, 8) : [];
+    const sts = fold(q).length >= 2 ? stations.filter((st) => fold(st.n).includes(fold(q))).slice(0, 6) : [];
+    list.replaceChildren(
+      ...mine.map(({ point: p }) => el('li', {}, el('button', { type: 'button', onclick: () => onPick({ lat: p.lat, lng: p.lng, label: p.name }) },
+        el('span', { class: 'res-title' }, p.name), el('span', { class: 'res-sub' }, catOf(p.cat).name)))),
+      ...sts.map((st) => el('li', {}, el('button', { type: 'button', onclick: () => onPick({ lat: st.lat, lng: st.lng, label: `Ⓜ ${st.n}` }) },
+        el('span', { class: 'res-title' }, `Ⓜ ${st.n}`), el('span', { class: 'res-sub' }, 'Station de métro')))),
+    );
+    if (q && !mine.length && !sts.length) list.replaceChildren(el('li', { class: 'empty' }, 'Rien trouvé parmi tes lieux et les stations.'));
+  };
+  input.addEventListener('input', run);
+  openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Tape le nom d\'un de tes lieux ou d\'une station de métro.'), input, list), { tall: true });
+  input.focus();
+}
+
+/* ---------- Sur mon chemin ---------- */
+
+function openWayPicker() {
+  const from = origin;
+  openDestinationPicker('Où vas-tu ?', (dest) => renderWay(from, dest));
+}
+
+function renderWay(from, dest) {
+  const found = onTheWay(visible(), from, dest).filter((x) => distanceM(x.point, dest) > 30);
+  const total = distanceM(from, dest);
+  const body = [
+    el('p', { class: 'summary' }, found.length
+      ? `${plural(found.length, 'lieu', 'lieux')} à faire sur ton chemin, à moins de 5 min de détour.`
+      : 'Aucun lieu à faire sur ton chemin (moins de 5 min de détour).'),
+    el('p', { class: 'help' }, `Trajet : ${fmtDist(total)} · ${fmtWalk(total)}.`),
+    el('ul', { class: 'items' }, found.map(({ point: p, detour }) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderWay(from, dest)) },
+        catDot(p.cat),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, favMark(p), p.name),
+          el('span', { class: 'item-sub' }, detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
+      el('a', { class: 'go', href: mapsUrl(p, distanceM(from, p)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
+    found.length
+      ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
+        found.length > MAX_ROUTE - 1 ? `Itinéraire avec les ${MAX_ROUTE - 1} premiers arrêts` : 'Itinéraire avec ces arrêts')
+      : el('a', { class: 'btn primary', href: routeUrl([dest]), target: '_blank', rel: 'noopener' }, 'Itinéraire direct'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear(true) }, '← Retour'),
+  ];
+  openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true });
+  nearLayer.clearLayers();
+  L.polyline([[from.lat, from.lng], [dest.lat, dest.lng]], { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+  L.circleMarker([from.lat, from.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  L.circleMarker([dest.lat, dest.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1f2a44', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  const b = L.latLngBounds([[from.lat, from.lng], [dest.lat, dest.lng]]).pad(0.25);
+  map.fitBounds(b, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
+}
+
+/* ---------- Parcours du jour ---------- */
+
+function openRoutePicker(selected = new Set()) {
+  const start = origin ?? freshHere();
+  const pts = visible()
+    .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
+    .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
+  const go = el('button', { type: 'button', class: 'btn primary', onclick: () => renderRoute(start, pts.filter((x) => selected.has(x.p.id)).map((x) => x.p)) });
+  const info = el('p', { class: 'help' });
+  const update = () => {
+    go.disabled = selected.size < 2;
+    go.textContent = selected.size < 2 ? 'Choisis au moins 2 lieux' : `Calculer le parcours (${selected.size} lieux)`;
+    info.textContent = `Jusqu'à ${MAX_ROUTE} lieux (limite de Google Maps sur téléphone).`;
+  };
+  const list = el('ul', { class: 'items' }, pts.slice(0, 60).map(({ p, d }) => {
+    const box = el('input', { type: 'checkbox', class: 'check', 'aria-label': p.name });
+    box.checked = selected.has(p.id);
+    box.addEventListener('change', () => {
+      if (box.checked && selected.size >= MAX_ROUTE) { box.checked = false; toast(`${MAX_ROUTE} lieux au plus.`); return; }
+      if (box.checked) selected.add(p.id); else selected.delete(p.id);
+      update();
+    });
+    return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
+        el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? 'Déjà visité' : 'À faire'].filter(Boolean).join(' · ')))));
+  }));
+  update();
+  openSheet('Parcours du jour', el('div', { class: 'stack' }, info, list, go), { tall: true });
+}
+
+function renderRoute(start, chosen) {
+  const route = start ? orderRoute(start, chosen) : chosen;
+  const total = start ? routeLength(start, route) : routeLength(route[0], route.slice(1));
+  let prev = start ?? route[0];
+  const steps = route.map((p, i) => {
+    const leg = distanceM(prev, p);
+    prev = p;
+    return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderRoute(start, chosen)) },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
+        el('span', { class: 'item-sub' }, i === 0 && !start ? 'Départ' : `${fmtDist(leg)} · ${fmtWalk(leg)}`))));
+  });
+  openSheet('Ton parcours', el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${fmtDist(total)} au total · ${fmtWalk(total)} (sans les arrêts).`),
+    el('ol', { class: 'items' }, steps),
+    el('a', { class: 'btn primary', href: routeUrl(route), target: '_blank', rel: 'noopener' }, 'Ouvrir le parcours dans Google Maps'),
+    el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker(new Set(chosen.map((p) => p.id))) }, 'Changer les lieux'),
+  ), { tall: true });
+  nearLayer.clearLayers();
+  const line = [...(start ? [start] : []), ...route].map((p) => [p.lat, p.lng]);
+  L.polyline(line, { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+  route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
+  map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
+}
+
+/* ---------- Boussole « Vers ce lieu » ---------- */
+
+let compassOpen = false;
+let compassStop = null;
+const compassEl = document.getElementById('compass');
+
+function openCompass(p) {
+  if (compassOpen) return;
+  compassOpen = true;
+  let pos = freshHere();
+  let heading = null;
+  const arrow = compassEl.querySelector('.compass-arrow');
+  const dist = compassEl.querySelector('.compass-dist');
+  const hint = compassEl.querySelector('.compass-hint');
+  compassEl.querySelector('.compass-name').textContent = p.name;
+  compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
+  compassEl.hidden = false;
+  history.pushState({ compass: true }, '');
+  keepScreenOn(true);
+
+  // Ce qui a déjà été dit, pour ne pas répéter sans arrêt.
+  const said = { first: false, step: null, dir: null, dirAt: 0, arrived: false };
+  const talk = (d, rel) => {
+    if (d < 20) { if (!said.arrived) { said.arrived = true; speak(`Tu y es. ${p.name}.`); } return; }
+    const dir = rel == null ? null : directionWord(rel);
+    if (!said.first) {
+      said.first = true; said.step = Math.floor(d / 100); said.dir = dir; said.dirAt = Date.now();
+      speak(`Direction ${p.name}. ${spokenDistance(d)}${dir ? `, ${dir}` : ''}.`);
+      return;
+    }
+    const step = Math.floor(d / 100);
+    if (step < said.step) { said.step = step; speak(`Encore ${spokenDistance(d)}${dir ? `, ${dir}` : ''}.`); said.dir = dir; said.dirAt = Date.now(); return; }
+    if (dir && dir !== said.dir && Date.now() - said.dirAt > 8000) { said.dir = dir; said.dirAt = Date.now(); speak(dir); }
+  };
+
+  const draw = () => {
+    if (!pos) { dist.textContent = 'Recherche de ta position…'; arrow.style.opacity = '0.25'; return; }
+    const d = distanceM(pos, p);
+    const b = bearing(pos, p);
+    talk(d, heading == null ? null : relativeAngle(b, heading));
+    if (d < 20) {
+      dist.textContent = 'Tu y es !';
+      hint.textContent = '';
+      arrow.style.opacity = '0.25';
+      return;
+    }
+    dist.textContent = `${fmtDist(d)} · ${fmtWalk(d)}`;
+    arrow.style.opacity = '1';
+    if (heading == null) {
+      arrow.style.transform = `rotate(${b}deg)`;
+      hint.textContent = `Boussole indisponible : la flèche montre la direction avec le nord en haut (vers le ${compassLabel(b)}).`;
+    } else {
+      arrow.style.transform = `rotate(${relativeAngle(b, heading)}deg)`;
+      hint.textContent = pos.acc > 50 ? `Position à ${Math.round(pos.acc)} m près : la direction peut varier.` : 'Tiens le téléphone à plat devant toi.';
+    }
+  };
+
+  const onOrient = (e) => {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+    else if ((e.absolute || e.type === 'deviceorientationabsolute') && e.alpha != null) h = 360 - e.alpha;
+    if (h == null) return;
+    h = (h + (screen.orientation?.angle ?? 0)) % 360;
+    heading = h;
+    draw();
+  };
+  const evt = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+  window.addEventListener(evt, onOrient);
+  const watch = 'geolocation' in navigator
+    ? navigator.geolocation.watchPosition((g) => {
+      pos = { lat: g.coords.latitude, lng: g.coords.longitude, acc: g.coords.accuracy, time: Date.now() };
+      remember(pos);
+      if (distanceM(pos, p) < 20) { try { navigator.vibrate?.(300); } catch { /* rien */ } }
+      draw();
+    }, (err) => { hint.textContent = GEO_ERRORS[err.code] ?? 'Position indisponible.'; }, { enableHighAccuracy: true, maximumAge: 3000 })
+    : null;
+  draw();
+
+  const mute = compassEl.querySelector('.compass-mute');
+  const drawMute = () => { mute.textContent = state.voice === false ? '🔇 Voix coupée' : '🔊 Voix'; mute.setAttribute('aria-pressed', String(state.voice !== false)); };
+  mute.onclick = () => { state.voice = state.voice === false; persist(); if (state.voice === false) silence(); drawMute(); };
+  drawMute();
+
+  compassStop = () => {
+    silence();
+    window.removeEventListener(evt, onOrient);
+    if (watch != null) navigator.geolocation.clearWatch(watch);
+    compassEl.hidden = true;
+    compassOpen = false;
+    compassStop = null;
+    if (!following) keepScreenOn(false);
+  };
+}
+
+function closeCompass(fromHistory = false) {
+  if (!compassStop) return;
+  compassStop();
+  if (!fromHistory) history.back();
+}
+compassEl.querySelector('.compass-close').addEventListener('click', () => closeCompass());
+window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true); });
 
 /* ---------- Réglages ---------- */
 
@@ -746,6 +1136,15 @@ function openSettings() {
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
     el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
     file,
+    section('Voix'),
+    el('button', { type: 'button', class: 'btn', 'aria-pressed': String(state.voice !== false), onclick: () => {
+      state.voice = state.voice === false; persist(); if (state.voice === false) silence(); openSettings();
+      toast(state.voice ? 'Voix activée' : 'Voix désactivée');
+    } }, state.voice === false ? '🔇 Voix désactivée (appuie pour l\'activer)' : '🔊 Voix activée (appuie pour la couper)'),
+    el('p', { class: 'help' }, 'La voix parle pendant la boussole et le suivi en direct. Elle utilise la voix du téléphone, sans internet.'),
+
+    section('Confidentialité'),
+    el('p', { class: 'help' }, 'Tes lieux et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 3 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN) et l\'annuaire (OpenStreetMap). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
     el('p', { class: 'help', style: 'margin-top:18px' }, `Version du ${VERSION}. Carte © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
   ), { tall: true });
 }
