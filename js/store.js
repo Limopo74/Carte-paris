@@ -34,6 +34,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     cat,
     note: String(note ?? ''),
     done: Boolean(done),
+    visited: done ? Date.now() : null,
     fav: Boolean(fav),
     lat: Number(lat),
     lng: Number(lng),
@@ -82,7 +83,8 @@ function cleanCategories(list) {
 const clean = (p) => ({
   id: p.id, name: p.name.trim(), cat: p.cat,
   note: typeof p.note === 'string' ? p.note : '',
-  done: Boolean(p.done), fav: Boolean(p.fav), lat: p.lat, lng: p.lng,
+  done: Boolean(p.done), visited: p.done && Number.isFinite(p.visited) ? p.visited : null,
+  fav: Boolean(p.fav), lat: p.lat, lng: p.lng,
   address: typeof p.address === 'string' ? p.address : '',
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
@@ -209,4 +211,20 @@ export function setFavStyle(state, { icon, color }) {
   if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
   if (!FAV_COLORS.includes(color)) throw new Error('Choisis une couleur dans la liste.');
   return { ...state, fav: { icon, color } };
+}
+
+/** Marque un lieu visité ou non, en notant la date de visite. Modifie le lieu reçu. */
+export function setDone(p, done, now = Date.now()) {
+  if (done && !p.done) p.visited = now;
+  if (!done) p.visited = null;
+  p.done = Boolean(done);
+  return p;
+}
+
+/** Nom explicite du fichier de sauvegarde, ex. « Ma carte de Paris - sauvegarde du 15-11-2026 à 22h05 (42 lieux).json ». */
+export function exportFileName(date, count) {
+  const z = (n) => String(n).padStart(2, '0');
+  const day = `${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()}`;
+  const time = `${z(date.getHours())}h${z(date.getMinutes())}`;
+  return `Ma carte de Paris - sauvegarde du ${day} à ${time} (${count} lieu${count > 1 ? 'x' : ''}).json`;
 }

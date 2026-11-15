@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -203,4 +203,30 @@ test('style des favoris : par défaut, modifiable, conservé, valeurs invalides 
   assert.deepEqual(loadState(st).fav, { icon: '❤️', color: PALETTE[5] });
   st.setItem(KEY, JSON.stringify({ points: [], fav: { icon: '<b>', color: 'javascript:' } }));
   assert.deepEqual(loadState(st).fav, DEFAULT_FAV);
+});
+
+test('date de visite : notée quand on passe à « Déjà visité », effacée sinon, conservée au rechargement', () => {
+  const p = sample();
+  assert.equal(p.visited, null);
+  assert.ok(newPoint({ name: 'a', cat: 'resto', lat: 1, lng: 1, done: true }).visited > 0);
+  setDone(p, true, 1000);
+  assert.equal(p.visited, 1000);
+  setDone(p, true, 2000);
+  assert.equal(p.visited, 1000, 'reste la date de la première visite');
+  setDone(p, false);
+  assert.equal(p.visited, null);
+  assert.equal(p.done, false);
+  setDone(p, true, 3000);
+  const st = memStorage();
+  saveState(st, { ...base(), points: [p] });
+  assert.equal(loadState(st).points[0].visited, 3000);
+  st.setItem(KEY, JSON.stringify({ points: [{ ...sample(), done: true, visited: undefined }] }));
+  assert.equal(loadState(st).points[0].visited, null, 'ancien lieu visité sans date');
+});
+
+test('nom du fichier de sauvegarde : date, heure et nombre de lieux', () => {
+  const d = new Date(2026, 10, 5, 9, 7);
+  assert.equal(exportFileName(d, 42), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (42 lieux).json');
+  assert.equal(exportFileName(d, 1), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (1 lieu).json');
+  assert.doesNotMatch(exportFileName(d, 3), /[\/:*?"<>|]/);
 });

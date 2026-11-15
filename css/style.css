@@ -242,3 +242,6 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .results button { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
 .res-title { font-weight: 600; }
 .res-sub { color: var(--muted); font-size: 14px; }
+
+.summary { margin: 0 0 6px; font-weight: 600; font-size: 15px; }
+.item-sub.small { font-size: 13px; }

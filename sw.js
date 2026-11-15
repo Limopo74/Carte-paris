@@ -1,10 +1,10 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Les fonds de carte et la recherche d'adresses passent toujours par internet.
-const CACHE = 'carte-paris-v3';
+const CACHE = 'carte-paris-v5';
 const FILES = [
-  './', 'index.html', 'css/style.css', 'js/app.js', 'js/geo.js', 'js/store.js', 'js/adresse.js', 'js/search.js', 'js/annuaire.js',
+  './', 'index.html', 'css/style.css', 'js/app.js', 'js/geo.js', 'js/store.js', 'js/adresse.js', 'js/search.js', 'js/annuaire.js', 'js/stats.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png',
+  'icons/icon-192.png', 'icons/icon-512.png', 'data/stations.json',
 ];
 
 self.addEventListener('install', (e) => {
@@ -22,7 +22,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
   // Réseau d'abord (pour avoir la dernière version), cache si pas de réseau.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
         return res;

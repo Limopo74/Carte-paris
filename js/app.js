@@ -2,13 +2,15 @@
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, setFavStyle,
+  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName,
 } from './store.js';
+import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { searchPoints } from './search.js';
 
 const L = window.L;
+const VERSION = '15 novembre 2026 (5)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -39,6 +41,30 @@ function persist() {
 }
 
 const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '?', color: '#495057', icon: '📍' };
+
+/* ---------- Stations de métro et RER ---------- */
+
+let stations = [];
+let stationsSource = '';
+fetch('data/stations.json')
+  .then((r) => (r.ok ? r.json() : null))
+  .then((j) => {
+    if (!Array.isArray(j?.stations)) return;
+    stations = j.stations.filter((x) => typeof x.n === 'string' && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+    stationsSource = typeof j.source === 'string' ? j.source : '';
+    if (view === 'near' && here) renderNear();
+  })
+  .catch(() => { /* pas encore de données : la fonction reste discrète */ });
+
+/** « Ⓜ Opéra (3, 7, 8) · ≈ 4 min » pour la station la plus proche, ou null. */
+function stationLine(p) {
+  const r = nearestStation(stations, p);
+  if (!r || r.d > 2000) return null;
+  const { station: st, d } = r;
+  const parts = [Array.isArray(st.l) ? st.l.join(', ') : '', Array.isArray(st.rer) && st.rer.length ? `RER ${st.rer.join(', ')}` : '']
+    .filter(Boolean).join(' · ');
+  return `Ⓜ ${st.n}${parts ? ` (${parts})` : ''} · ≈ ${walkMinutes(d)} min`;
+}
 
 /* ---------- Petits outils ---------- */
 
@@ -372,7 +398,8 @@ function openForm(draft, existing = null) {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
     if (existing) {
-      Object.assign(existing, { name: n, cat, note: note.value, done, fav });
+      Object.assign(existing, { name: n, cat, note: note.value, fav });
+      setDone(existing, done);
     } else {
       state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '' }));
     }
@@ -412,7 +439,7 @@ function openDetail(id, back = null) {
   const showActions = () => actions.replaceChildren(
     el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.done = !p.done; }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
+      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
       el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
@@ -436,11 +463,21 @@ function openDetail(id, back = null) {
   openSheet([favMark(p), p.name], el('div', { class: 'stack' },
     el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
     d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
+    stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
+    el('div', { class: 'badge' }, ageLine(p)),
     p.note ? el('p', { class: 'note' }, p.note) : null,
     p.address ? el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), p.address) : null,
     actions,
   ));
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+}
+
+/** « Ajouté il y a 8 mois, jamais visité » ou « Visité le 3 mars 2026 ». */
+function ageLine(p) {
+  if (p.done) return p.visited ? `Visité le ${formatDate(p.visited)}` : 'Visité (date non notée)';
+  if (!(p.created > Date.UTC(2025, 0, 1))) return 'Jamais visité';
+  const old = Date.now() - p.created > 30 * 86_400_000;
+  return `Ajouté ${timeAgo(p.created)}${old ? ', jamais visité' : ''}`;
 }
 
 /* ---------- Déplacer un lieu (viseur fixe) ---------- */
@@ -557,6 +594,15 @@ function renderNear(fit = false) {
   const maxRing = state.rings[state.rings.length - 1];
 
   const body = [];
+  if (pts.length) {
+    const t = todoSummary(groups);
+    const msg = !t.last.n
+      ? `Aucun lieu à faire à moins de ${fmtRing(t.last.ring)}.`
+      : t.first.ring === t.last.ring
+        ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${fmtRing(t.last.ring)}.`
+        : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${fmtRing(t.first.ring)}, ${t.last.n} à moins de ${fmtRing(t.last.ring)}.`;
+    body.push(el('p', { class: 'summary' }, msg));
+  }
   if (here.acc > 100) {
     body.push(el('p', { class: 'warn' }, `Position approximative (à ${Math.round(here.acc)} m près) : les petits cercles ne sont pas fiables.`));
   }
@@ -573,7 +619,8 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${fmtWalk(d)}${p.done ? '' : ' · À faire'}`))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${fmtWalk(d)}${p.done ? '' : ' · À faire'}`),
+          stationLine(p) ? el('span', { class: 'item-sub small' }, stationLine(p)) : null)),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -619,14 +666,14 @@ function openSettings() {
     }
   });
 
-  const exportFile = () => new File([exportJSON(state)], `ma-carte-de-paris-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
+  const exportFile = () => new File([exportJSON(state)], exportFileName(new Date(), state.points.length), { type: 'application/json' });
   const download = () => {
     const f = exportFile();
     const url = URL.createObjectURL(f);
     const a = el('a', { href: url, download: f.name });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('Fichier enregistré dans tes Téléchargements');
+    toast(`« ${f.name} » enregistré dans tes Téléchargements`);
   };
   const canShareFile = (() => {
     try { return Boolean(navigator.canShare?.({ files: [exportFile()] })); } catch { return false; }
@@ -641,9 +688,10 @@ function openSettings() {
 
     section('Catégories'),
     el('div', {}, state.categories.map((c) => {
-      const n = state.points.filter((p) => p.cat === c.id).length;
+      const k = categoryCounts(state.points, c.id);
       return el('div', { class: 'cat-row' }, catDot(c.id),
-        el('span', { class: 'cat-name' }, c.name, ' ', el('span', { class: 'cat-count' }, `(${n})`)),
+        el('span', { class: 'cat-name' }, c.name, el('br'),
+          el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
         el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
     })),
     el('button', { type: 'button', class: 'btn', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
@@ -670,6 +718,7 @@ function openSettings() {
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
     el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
     file,
+    el('p', { class: 'help', style: 'margin-top:18px' }, `Version du ${VERSION}. Carte © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
   ), { tall: true });
 }
 
