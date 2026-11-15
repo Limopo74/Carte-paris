@@ -256,13 +256,21 @@ export function suggestedPresets(categories) {
 }
 
 const DAY = 86_400_000;
+
+/** Lieux ajoutés depuis la dernière sauvegarde (tous si jamais sauvegardé). */
+export function unsavedCount(state) {
+  const since = state.lastExport ?? 0;
+  return state.points.filter((p) => p.created > since).length;
+}
+
 /**
- * Faut-il rappeler de sauvegarder ? Oui si au moins 5 lieux, que le plus ancien a plus de 30 jours
- * et que la dernière sauvegarde date de plus de 30 jours (ou n'a jamais été faite).
+ * Faut-il rappeler de sauvegarder ? Oui dès 10 lieux ajoutés sans sauvegarde,
+ * ou s'il y a au moins un lieu ajouté et que la dernière sauvegarde a plus de 7 jours
+ * (ou n'a jamais été faite, à partir de 3 lieux).
  */
 export function backupDue(state, now = Date.now()) {
-  if (state.points.length < 5) return false;
-  const oldest = Math.min(...state.points.map((p) => p.created));
-  if (now - oldest < 30 * DAY) return false;
-  return !state.lastExport || now - state.lastExport > 30 * DAY;
+  const n = unsavedCount(state);
+  if (n >= 10) return true;
+  if (!state.lastExport) return state.points.length >= 3 && n > 0;
+  return n > 0 && now - state.lastExport > 7 * DAY;
 }

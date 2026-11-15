@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, unsavedCount, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -245,15 +245,17 @@ test('catégories toutes prêtes : valides, sans doublon, et celles déjà prés
   assert.ok(names.includes('Bars'));
 });
 
-test('rappel de sauvegarde', () => {
+test('rappel de sauvegarde : souvent', () => {
   const DAY = 86_400_000;
   const now = Date.UTC(2026, 10, 15);
   const pts = (n, age) => Array.from({ length: n }, () => ({ ...sample(), created: now - age * DAY }));
-  assert.equal(backupDue({ points: pts(4, 60), lastExport: null }, now), false, 'moins de 5 lieux');
-  assert.equal(backupDue({ points: pts(6, 10), lastExport: null }, now), false, 'lieux trop récents');
-  assert.equal(backupDue({ points: pts(6, 60), lastExport: null }, now), true, 'jamais sauvegardé');
-  assert.equal(backupDue({ points: pts(6, 60), lastExport: now - 10 * DAY }, now), false);
-  assert.equal(backupDue({ points: pts(6, 60), lastExport: now - 40 * DAY }, now), true);
+  assert.equal(backupDue({ points: pts(2, 1), lastExport: null }, now), false, 'moins de 3 lieux, jamais sauvegardé');
+  assert.equal(backupDue({ points: pts(3, 1), lastExport: null }, now), true, '3 lieux jamais sauvegardés');
+  assert.equal(backupDue({ points: pts(5, 20), lastExport: now - 10 * DAY }, now), false, 'rien de nouveau depuis');
+  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(1, 2)], lastExport: now - 10 * DAY }, now), true, 'un lieu nouveau, sauvegarde de plus de 7 jours');
+  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(1, 1)], lastExport: now - 3 * DAY }, now), false, 'sauvegarde récente');
+  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(10, 1)], lastExport: now - 2 * DAY }, now), true, '10 lieux nouveaux');
+  assert.equal(unsavedCount({ points: [...pts(5, 20), ...pts(4, 1)], lastExport: now - 2 * DAY }), 4);
   const st = memStorage();
   saveState(st, { ...base(), lastExport: 1234 });
   assert.equal(loadState(st).lastExport, 1234);

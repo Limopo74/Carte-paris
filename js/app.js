@@ -2,7 +2,7 @@
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue,
+  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
@@ -14,7 +14,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (9)';
+const VERSION = '15 novembre 2026 (10)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -446,6 +446,7 @@ function openForm(draft, existing = null) {
     renderMarkers();
     if (existing) openDetail(existing.id); else closeSheet();
     if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte`);
+    if (ok && !existing && unsavedCount(state) > 0 && unsavedCount(state) % 10 === 0) setTimeout(remindBackup, 1500);
   };
 
   openSheet(existing ? 'Modifier le lieu' : 'Nouveau lieu', el('div', { class: 'stack' },
@@ -1130,7 +1131,10 @@ function openSettings() {
 
     section('Sauvegarde'),
     el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
-    el('p', { class: backupDue(state) ? 'warn' : 'help' }, state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.'),
+    el('p', { class: backupDue(state) ? 'warn' : 'help' }, [
+      state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.',
+      unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
+    ].join('')),
     el('button', { type: 'button', class: 'btn', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
     canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
@@ -1248,6 +1252,17 @@ function openCategory(id) {
   ), { tall: true });
 }
 
+/** Rappel de sauvegarde avec un bouton pour le faire tout de suite. */
+function remindBackup() {
+  if (!sheet.hidden) return;
+  const n = unsavedCount(state);
+  openSheet('Sauvegarde', el('div', { class: 'stack' },
+    el('p', {}, `${plural(n, 'lieu n\'est', 'lieux ne sont')} pas encore ${n > 1 ? 'sauvegardés' : 'sauvegardé'}. Tes lieux n'existent que sur ce téléphone : une sauvegarde régulière évite de tout perdre.`),
+    el('button', { type: 'button', class: 'btn primary', onclick: openSettings }, 'Sauvegarder maintenant'),
+    el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Plus tard'),
+  ));
+}
+
 /* ---------- Démarrage ---------- */
 
 document.getElementById('btnAdd').addEventListener('click', openAddChoice);
@@ -1263,7 +1278,7 @@ if (state.points.length) {
   toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
-else if (backupDue(state)) toast('Pense à sauvegarder tes lieux : ⚙ Réglages → Exporter mes lieux.');
+else if (backupDue(state)) remindBackup();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
