@@ -14,7 +14,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (12)';
+const VERSION = '15 novembre 2026 (13)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -297,7 +297,7 @@ try {
   if (last && Number.isFinite(last.lat) && Number.isFinite(last.lng) && Number.isFinite(last.time)) here = last;
 } catch { /* rien */ }
 const GEO_ERRORS = {
-  1: 'Localisation refusée. Autorise-la pour ce site : touche le cadenas à gauche de l\'adresse dans Chrome, puis Autorisations.',
+  1: 'Localisation refusée. Dans Chrome : ⋮ → Paramètres → Paramètres des sites → Position, puis autorise limopo74.github.io. Appli installée : appui long sur son icône → Infos sur l\'appli → Autorisations → Position.',
   2: 'Position introuvable pour le moment (dans le métro ou un bâtiment, le GPS passe mal).',
   3: 'La position met trop de temps à arriver.',
 };

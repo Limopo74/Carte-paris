@@ -1,6 +1,6 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Les fonds de carte et la recherche d'adresses passent toujours par internet.
-const CACHE = 'carte-paris-v12';
+const CACHE = 'carte-paris-v13';
 const FILES = [
   './', 'index.html', 'css/style.css', 'js/app.js', 'js/geo.js', 'js/store.js', 'js/adresse.js', 'js/search.js', 'js/annuaire.js', 'js/stats.js', 'js/move.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest',
