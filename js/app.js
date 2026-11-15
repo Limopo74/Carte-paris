@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (28)';
+const VERSION = '16 novembre 2026 (29)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1579,6 +1579,7 @@ function openSettings(section = null) {
   if (section === 'appli') {
     openSheet('ℹ️ Application', el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, '🗺️ Recharger la carte (si elle reste grise)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -1783,6 +1784,26 @@ async function locateOnMap() {
     drawMe();
     btn.setAttribute('aria-pressed', 'true');
     toast(`Cercles à pied : ${state.minuteRings.map((m) => `${m} min`).join(' · ')} (à ${Math.round(fix.acc)} m près)`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+/** Zoom automatique sur ma position, au niveau de la rue (17 : environ 280 m de large sur un téléphone). */
+const ZOOM_RUE = 17;
+const zoomLayer = L.layerGroup().addTo(map);
+async function zoomOnMe() {
+  closeSheet();
+  if (meShown) { map.setView([meShown.lat, meShown.lng], ZOOM_RUE, { animate: false }); return; }
+  toast('Recherche de ta position…');
+  try {
+    const fix = await locate();
+    hideToast();
+    zoomLayer.clearLayers();
+    if (fix.acc > 30) L.circle([fix.lat, fix.lng], { radius: fix.acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(zoomLayer);
+    meMarker(fix.lat, fix.lng).addTo(zoomLayer);
+    map.setView([fix.lat, fix.lng], ZOOM_RUE, { animate: false });
+    if (fix.acc > 100) toast(`Position peu précise (à ${Math.round(fix.acc)} m près).`, true);
   } catch (e) {
     toast(e.message, true);
   }
@@ -1997,7 +2018,7 @@ function showPratique(from, fs, ts) {
 document.getElementById('btnPratique').addEventListener('click', nearestPratique);
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
-document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
+document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
 document.getElementById('btnParis').addEventListener('click', () => {
   closeSheet();
   map.setView(PARIS, 13, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
@@ -2013,7 +2034,7 @@ const HELP = [
     '🚰 : la fontaine à boire et les toilettes les plus proches.',
     '◎ : ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
     'Paris : revenir au centre de Paris.',
-    '↻ : recharger la carte si elle reste grise.',
+    '🔍+ : zoomer sur ta position, au niveau de la rue.',
     'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
   ]],
   ['➕', 'Ajouter un lieu', [
@@ -2062,7 +2083,7 @@ const HELP = [
   ]],
   ['🛠️', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
-    'Carte grise : vérifie internet, puis appuie sur ↻.',
+    'Carte grise : vérifie internet, puis ⚙ → Application → Recharger la carte.',
     'Une nouveauté n\'apparaît pas : ⚙ → Application → Mettre à jour l\'appli.',
     'La voix ne parle pas : monte le volume, et vérifie ⚙ → Voix.',
     'Boussole « indisponible » : ton téléphone ne donne pas son orientation ; la flèche montre alors la direction avec le nord en haut.',
