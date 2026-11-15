@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (24)';
+const VERSION = '16 novembre 2026 (25)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1409,7 +1409,11 @@ window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true);
 
 /* ---------- Réglages ---------- */
 
-function openSettings() {
+/**
+ * Réglages : un sommaire court (tout tient sur un écran), chaque rubrique s'ouvre à part.
+ * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
+ */
+function openSettings(section = null) {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
   const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
   const meInput = el('input', { type: 'text', maxlength: '30', value: state.me ?? '', autocomplete: 'given-name' });
@@ -1427,7 +1431,7 @@ function openSettings() {
         state = { ...r.state, ok: state.ok };
         importPhotos(text, state);
         persist(); refresh();
-        openSettings();
+        openSettings('sauvegarde');
         toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
       } catch (e) {
         toast(e.message || 'Import impossible.', true);
@@ -1470,19 +1474,15 @@ function openSettings() {
   const markExported = () => { state.lastExport = Date.now(); persist(); };
   const download = async () => {
     if (withPhotos.checked) await buildExport(); else exportText = exportJSON(state);
-    if (!state.me && !meAsked) {
-      meAsked = true;
-      toast('Indique d\'abord ton prénom juste en dessous : il sera noté sur chacun de tes lieux exportés. Appuie de nouveau sur Exporter pour continuer sans.', true);
-      meInput.focus();
-      return;
-    }
     const f = exportFile();
     markExported();
     const url = URL.createObjectURL(f);
     const a = el('a', { href: url, download: f.name });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast(`« ${f.name} » enregistré dans tes Téléchargements`);
+    toast(state.me
+      ? `« ${f.name} » enregistré dans tes Téléchargements`
+      : 'Fichier enregistré dans tes Téléchargements. Astuce : indique ton prénom plus bas pour que tes amis sachent de qui viennent ces lieux.');
   };
   const canShareFile = (() => {
     try { return Boolean(navigator.canShare?.({ files: [exportFile()] })); } catch { return false; }
@@ -1490,80 +1490,110 @@ function openSettings() {
   const share = async () => {
     try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); markExported(); } catch { /* annulé */ }
   };
-  const section = (title) => el('h3', { class: 'ring-title', style: 'margin-top:18px' }, el('span', {}, title), el('span', {}, ''));
+  const back = () => openSettings();
+  const backBtn = el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages');
+  const due = backupDue(state);
+  const unsaved = unsavedCount(state);
+  const saveSummary = state.lastExport
+    ? `${timeAgo(state.lastExport).replace(/^./, (c) => c.toUpperCase())}${unsaved ? ` · ${plural(unsaved, 'lieu non sauvegardé', 'lieux non sauvegardés')}` : ' · tout est sauvegardé'}`
+    : 'Jamais sauvegardé';
 
-  openSheet('Réglages', el('div', { class: 'stack' },
+  if (section === 'sauvegarde') {
+    openSheet('💾 Sauvegarde', el('div', { class: 'stack' },
+      el('p', { class: due ? 'warn' : 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. ${saveSummary}.`),
+      nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
+          el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
+      el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
+      canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer un fichier'),
+      el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer les tiens : ta propre sauvegarde ou les lieux d\'un ami.'),
+      file,
+      el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager avec un ami'), el('span', {}, '')),
+      el('label', { class: 'field' }, 'Ton prénom, noté sur chacun de tes lieux exportés', meInput),
+      el('button', { type: 'button', class: 'btn', onclick: () => {
+        state.me = meInput.value.trim().slice(0, 30); persist(); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
+      } }, 'Enregistrer le prénom'),
+      el('p', { class: 'help' }, 'Exporte, envoie le fichier, ton ami l\'importe. Chacun garde ses lieux sur son téléphone.'),
+      backBtn,
+    ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
+    return;
+  }
+
+  if (section === 'categories') {
+    openSheet('🗂️ Catégories', el('div', { class: 'stack' },
+      el('div', {}, state.categories.map((c) => {
+        const k = categoryCounts(state.points, c.id);
+        return el('div', { class: 'cat-row' }, catDot(c.id),
+          el('span', { class: 'cat-name' }, c.name, el('br'),
+            el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
+          el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
+      })),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
+      state.categories.length > 3 ? el('p', { class: 'help' }, 'Au-delà de 3 catégories, elles se choisissent avec le bouton « Catégories ▾ » en haut.') : null,
+      backBtn,
+    ), { tall: true, name: 'settings:categories', again: () => openSettings('categories') });
+    return;
+  }
+
+  if (section === 'cercles') {
+    openSheet('⭕ Cercles', el('div', { class: 'stack' },
+      el('label', { class: 'field' }, 'En mètres', rings),
+      el('p', { class: 'help', id: 'ringsHelp' }, '100 m au minimum, séparés par des virgules. Exemple : 100, 300, 500, 1000'),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+        state.rings = normalizeRings(rings.value);
+        rings.value = state.rings.join(', ');
+        if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
+      } }, 'Enregistrer les mètres'),
+      el('label', { class: 'field' }, 'En minutes à pied', minRings),
+      el('p', { class: 'help' }, 'De 1 à 60 minutes. Exemple : 5, 10, 15, 20. Estimation : 12 min par km, détours compris.'),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+        state.minuteRings = normalizeMinuteRings(minRings.value);
+        minRings.value = state.minuteRings.join(', ');
+        if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
+      } }, 'Enregistrer les minutes'),
+      backBtn,
+    ), { tall: true, name: 'settings:cercles', again: () => openSettings('cercles') });
+    return;
+  }
+
+  if (section === 'appli') {
+    openSheet('ℹ️ Application', el('div', { class: 'stack' },
+      el('button', { type: 'button', class: 'btn primary', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
+      el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
+      el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 4 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN), l\'annuaire (OpenStreetMap) et les fontaines et toilettes (Ville de Paris, sans ta position). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
+      el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
+      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
+      el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
+      backBtn,
+    ), { tall: true, name: 'settings:appli', again: () => openSettings('appli') });
+    return;
+  }
+
+  // Sommaire
+  const row = (icon, title, summary, onclick, warn = false) => el('button', { type: 'button', class: `menu-row${warn ? ' warn-row' : ''}`, onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, icon),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+  const voiceOn = state.voice !== false;
+  const voiceSwitch = el('button', { type: 'button', class: 'menu-row', role: 'switch', 'aria-checked': String(voiceOn), onclick: () => {
+    state.voice = !voiceOn; persist(); if (!state.voice) silence(); openSettings();
+    toast(state.voice ? 'Voix activée' : 'Voix désactivée');
+  } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, voiceOn ? '🔊' : '🔇'),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
+  el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+
+  openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
-
-    section('Sauvegarde'),
-    el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
-    el('p', { class: backupDue(state) ? 'warn' : 'help' }, [
-      state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.',
-      unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
-    ].join('')),
-    nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
-        el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
-    el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
-    el('label', { class: 'field' }, 'Ton prénom (pour qu\'un ami sache de qui viennent tes lieux)', meInput),
-    el('button', { type: 'button', class: 'btn', onclick: () => {
-      state.me = meInput.value.trim().slice(0, 30); persist(); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
-    } }, 'Enregistrer le prénom'),
-    el('p', { class: 'help' }, 'Pour partager tes lieux : exporte, envoie le fichier, ton ami l\'importe. Chacun garde les siens sur son téléphone.'),
-    canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
-    el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
-    el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
-    file,
-    section('Voix'),
-    el('button', { type: 'button', class: 'btn', 'aria-pressed': String(state.voice !== false), onclick: () => {
-      state.voice = state.voice === false; persist(); if (state.voice === false) silence(); openSettings();
-      toast(state.voice ? 'Voix activée' : 'Voix désactivée');
-    } }, state.voice === false ? '🔇 Voix désactivée (appuie pour l\'activer)' : '🔊 Voix activée (appuie pour la couper)'),
-    el('p', { class: 'help' }, 'La voix parle pendant la boussole et le suivi en direct. Elle utilise la voix du téléphone, sans internet.'),
-
-    section('Marche'),
-    el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran (le podomètre du téléphone n'est pas accessible à une appli web). Pas estimés avec 70 cm par pas.`),
-
-    section('Application'),
-    el('button', { type: 'button', class: 'btn', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
-    el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
-
-    section('Catégories'),
-    el('div', {}, state.categories.map((c) => {
-      const k = categoryCounts(state.points, c.id);
-      return el('div', { class: 'cat-row' }, catDot(c.id),
-        el('span', { class: 'cat-name' }, c.name, el('br'),
-          el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
-        el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
-    })),
-    el('button', { type: 'button', class: 'btn', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
-    state.categories.length > 6 ? el('p', { class: 'help' }, 'Au-delà de 6 catégories, la barre du haut défile : pense à regrouper.') : null,
-
-    section('Favoris'),
-    el('div', { class: 'cat-row' }, favBadge(),
-      el('span', { class: 'cat-name' }, 'Icône et couleur des favoris'),
-      el('button', { type: 'button', class: 'btn', onclick: openFavStyle }, 'Modifier')),
-
-    section('Cercles autour de moi'),
-    el('label', { class: 'field' }, 'Taille des cercles (en mètres)', rings),
-    el('p', { class: 'help', id: 'ringsHelp' }, 'Sépare-les par des virgules. 100 m au minimum. Exemple : 100, 300, 500, 1000'),
-    el('button', { type: 'button', class: 'btn primary', onclick: () => {
-      state.rings = normalizeRings(rings.value);
-      rings.value = state.rings.join(', ');
-      if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
-    } }, 'Enregistrer les cercles'),
-    el('label', { class: 'field' }, 'Cercles en minutes à pied', minRings),
-    el('p', { class: 'help' }, 'De 1 à 60 minutes, séparées par des virgules. Exemple : 5, 10, 15, 20. Estimation : 12 min par km, détours compris.'),
-    el('button', { type: 'button', class: 'btn primary', onclick: () => {
-      state.minuteRings = normalizeMinuteRings(minRings.value);
-      minRings.value = state.minuteRings.join(', ');
-      if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
-    } }, 'Enregistrer les minutes'),
-
-    section('Confidentialité'),
-    el('p', { class: 'help' }, 'Tes lieux et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 4 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN), l\'annuaire (OpenStreetMap) et les fontaines et toilettes (Ville de Paris, sans ta position : la recherche se fait sur le téléphone). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
-    el('p', { class: 'help', style: 'margin-top:18px' }, `Version du ${VERSION}. Carte © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
-  ), { tall: true, name: 'settings', again: () => openSettings() });
+    row('💾', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due),
+    row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories')),
+    row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle),
+    row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles')),
+    voiceSwitch,
+    row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
+  ), { name: 'settings', again: () => openSettings(), tall: true });
 }
 
 function favBadge(icon = state.fav.icon, color = state.fav.color) {
@@ -1592,7 +1622,6 @@ function openFavStyle() {
   ), { tall: true, name: 'favstyle', again: () => openFavStyle() });
 }
 
-let meAsked = false; // on ne demande le prénom qu'une fois avant l'export
 
 /** Range les photos contenues dans un fichier de sauvegarde (seulement celles des lieux présents). */
 async function importPhotos(text, st) {
@@ -1622,7 +1651,7 @@ function openCategory(id) {
     try {
       state = id ? updateCategory(state, id, { name: name.value, color, icon }) : addCategory(state, { name: name.value, color, icon });
     } catch (e) { err.textContent = e.message; return; }
-    persist(); refresh(); openSettings();
+    persist(); refresh(); openSettings('categories');
     toast(id ? 'Catégorie modifiée' : 'Catégorie ajoutée');
   };
 
@@ -1630,12 +1659,12 @@ function openCategory(id) {
   const others = state.categories.filter((x) => x.id !== id);
   const doDelete = (moveTo) => {
     try { state = deleteCategory(state, id, moveTo); } catch (e) { err.textContent = e.message; return; }
-    persist(); refresh(); openSettings();
+    persist(); refresh(); openSettings('categories');
     toast('Catégorie supprimée');
   };
   const showButtons = () => zone.replaceChildren(
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: openSettings }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, 'Annuler'),
       el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
     id && others.length ? el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer cette catégorie') : null,
     id && !others.length ? el('p', { class: 'help' }, 'C\'est ta seule catégorie : elle ne peut pas être supprimée.') : null,
@@ -1663,7 +1692,7 @@ function openCategory(id) {
     el('div', { class: 'presets' }, presets.map((pr) => {
       const b = el('button', { type: 'button', class: 'preset', onclick: () => {
         state = addCategory(state, pr);
-        persist(); refresh(); openSettings();
+        persist(); refresh(); openSettings('categories');
         toast(`Catégorie « ${pr.name} » ajoutée`);
       } }, el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, pr.icon), pr.name);
       b.firstChild.style.background = pr.color;
@@ -1686,7 +1715,7 @@ function remindBackup() {
   const n = unsavedCount(state);
   openSheet('Sauvegarde', el('div', { class: 'stack' },
     el('p', {}, `${plural(n, 'lieu n\'est', 'lieux ne sont')} pas encore ${n > 1 ? 'sauvegardés' : 'sauvegardé'}. Tes lieux n'existent que sur ce téléphone : une sauvegarde régulière évite de tout perdre.`),
-    el('button', { type: 'button', class: 'btn primary', onclick: openSettings }, 'Sauvegarder maintenant'),
+    el('button', { type: 'button', class: 'btn primary', onclick: () => openSettings('sauvegarde') }, 'Sauvegarder maintenant'),
     el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Plus tard'),
   ));
 }
