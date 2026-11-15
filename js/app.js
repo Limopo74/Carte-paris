@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (26)';
+const VERSION = '16 novembre 2026 (27)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1600,6 +1600,7 @@ function openSettings(section = null) {
     row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle),
     row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles')),
     voiceSwitch,
+    row('❓', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -1978,19 +1979,94 @@ document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
 
+/* ---------- Aide ---------- */
+
+const HELP = [
+  ['🗺️', 'Les boutons de la carte', [
+    '🔍 en haut : chercher dans tes lieux (et dans l\'annuaire).',
+    'Puces en haut : n\'afficher qu\'une catégorie, les favoris ⭐, ou les lieux d\'une personne 👥.',
+    'M : la station de métro la plus proche.',
+    '🚰 : la fontaine à boire et les toilettes les plus proches.',
+    '◎ : ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
+    '↻ : recharger la carte si elle reste grise.',
+    'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
+  ]],
+  ['➕', 'Ajouter un lieu', [
+    'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
+    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »).',
+    'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
+  ]],
+  ['📍', 'Voir ce qui est autour de moi', [
+    'Appuie sur Autour de moi : tes lieux sont rangés par cercles, du plus proche au plus loin.',
+    'Bouton ⏱ Minutes : des cercles en temps à pied au lieu des mètres.',
+    'Suivre : les cercles te suivent, le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
+    'Chemin : tes lieux à faire sur ton trajet. Parcours : 2 à 4 lieux dans le meilleur ordre.',
+    'Station : voir ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
+  ]],
+  ['🧭', 'Aller à un lieu', [
+    'Touche le lieu sur la carte pour ouvrir sa fiche.',
+    'Y aller : ouvre Google Maps. Boussole : une flèche et une voix te guident.',
+    'Quel métro prendre ? : la ligne à prendre et la correspondance, estimées.',
+  ]],
+  ['📷', 'Photos', [
+    'Dans la fiche, touche la case Photo : Prendre une photo ou Galerie (6 par lieu).',
+    'Touche une photo pour la voir en grand, ✕ pour la supprimer.',
+    'Les photos restent sur ton téléphone.',
+  ]],
+  ['⭐', 'Catégories et favoris', [
+    '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur.',
+    'Dans la fiche : ⭐ Favori. ⚙ → Favoris pour choisir l\'icône et la couleur.',
+  ]],
+  ['👥', 'Partager avec un ami', [
+    '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
+    'Ton ami fait Importer : il choisit « Ajouter comme ses lieux ». Chaque lieu garde le prénom de qui l\'a ajouté.',
+    'Le bouton 👥 en haut affiche tes lieux, les siens ou tous.',
+    'Pour partager l\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
+  ]],
+  ['💾', 'Sauvegarder (important)', [
+    'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : ⚙ → Sauvegarde et partage → Exporter.',
+    'Le fichier va dans tes Téléchargements. Pour le retrouver sur un autre téléphone : Importer.',
+  ]],
+  ['⚡', 'Raccourcis sur l\'icône', [
+    'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
+    'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
+  ]],
+  ['🎨', 'Le code couleur', [
+    'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori · Rouge : supprimer · Gris : le reste.',
+  ]],
+  ['🛠️', 'Ça ne marche pas ?', [
+    'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
+    'Carte grise : vérifie internet, puis appuie sur ↻.',
+    'Une nouveauté n\'apparaît pas : ⚙ → Application → Mettre à jour l\'appli.',
+    'La voix ne parle pas : monte le volume, et vérifie ⚙ → Voix.',
+    'Boussole « indisponible » : ton téléphone ne donne pas son orientation ; la flèche montre alors la direction avec le nord en haut.',
+  ]],
+];
+
+function openHelp() {
+  openSheet('Aide', el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
+    el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
+      el('summary', {}, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, icon), el('span', { class: 'help-title' }, title)),
+      el('ul', {}, lines.map((l) => el('li', {}, l)))))),
+    el('p', { class: 'help' }, `Version du ${VERSION}.`),
+  ), { name: 'help', again: openHelp, tall: true });
+}
+
 /* ---------- Démarrage ---------- */
 
 document.getElementById('btnAdd').addEventListener('click', openAddChoice);
 document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
+document.getElementById('btnHelp').addEventListener('click', openHelp);
 
 renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
 } else {
-  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu.');
+  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu. Le bouton ? en haut à droite explique tout.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
 
