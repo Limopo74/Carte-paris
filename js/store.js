@@ -43,8 +43,11 @@ const cleanFav = (f) => ({
   color: FAV_COLORS.includes(f?.color) ? f.color : DEFAULT_FAV.color,
 });
 
+/** Note d'un lieu : un entier de 0 (pas de note) à 5 étoiles. */
+export const cleanStars = (n) => (Number.isInteger(n) && n >= 0 && n <= 5 ? n : 0);
+
 /** Crée un lieu complet à partir des champs saisis. */
-export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '', owner = '' }) {
+export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '', owner = '', stars = 0 }) {
   return {
     id: makeId(),
     name: String(name ?? '').trim(),
@@ -58,6 +61,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     address: String(address ?? ''),
     hours: String(hours ?? '').slice(0, 300),
     owner: String(owner ?? '').trim().slice(0, 30),
+    stars: cleanStars(stars),
     photos: [],
     created: Date.now(),
   };
@@ -108,6 +112,7 @@ const clean = (p) => ({
   address: typeof p.address === 'string' ? p.address : '',
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
   owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
+  stars: cleanStars(p.stars),
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });

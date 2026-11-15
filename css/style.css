@@ -5,6 +5,7 @@
   --guide: #0b6f80; --guide-bg: #e2f4f6; --guide-bd: #9fd6de;
   --add: #237032; --add-bg: #e5f3e8; --add-bd: #a9d8b4;
   --fav: #7a5100; --fav-bg: #fff3cf; --fav-bd: #f0cf6b;
+  --info: #5f3dc4; --info-bg: #f0ebff; --info-bd: #cdbdf5;
   --ink: #1f2a44;
   --muted: #5b6475;
   --line: #e3e6ec;
@@ -460,3 +461,33 @@ ol.items { padding: 0; }
 .help-item ul { margin: 0; padding: 0 14px 12px 34px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.4; }
 .help-title { flex: 1; }
 @media (prefers-reduced-motion: reduce) { .help-item summary::after { transition: none; } }
+
+/* Violet : aide et réglages */
+.btn.c-info { background: var(--info-bg); color: var(--info); border-color: var(--info-bd); }
+.btn.c-info.solid { background: var(--info); color: #fff; border-color: var(--info); }
+.help-btn { background: var(--info-bg); color: var(--info); border-color: var(--info-bd); }
+/* Réglages : pastille d'icône teintée selon la famille */
+.menu-row .menu-ico { width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; }
+.menu-row.c-add .menu-ico { background: var(--add-bg); box-shadow: inset 0 0 0 1px var(--add-bd); }
+.menu-row.c-guide .menu-ico { background: var(--guide-bg); box-shadow: inset 0 0 0 1px var(--guide-bd); }
+.menu-row.c-fav .menu-ico { background: var(--fav-bg); box-shadow: inset 0 0 0 1px var(--fav-bd); }
+.menu-row.c-info .menu-ico { background: var(--info-bg); box-shadow: inset 0 0 0 1px var(--info-bd); }
+.menu-row.c-add .menu-chev { color: var(--add); }
+.menu-row.c-guide .menu-chev { color: var(--guide); }
+.menu-row.c-fav .menu-chev { color: var(--fav); }
+.menu-row.c-info .menu-chev { color: var(--info); }
+.menu-row.c-guide .switch.on { background: var(--guide); }
+.menu-row.warn-row .menu-ico { background: #fff; }
+/* Bouton Paris */
+.paris-btn { font-size: 12.5px; font-weight: 700; letter-spacing: .01em; }
+/* Ma note en étoiles (★ pleines, différentes de l'emoji ⭐ des favoris) */
+.star-pick { display: flex; gap: 2px; }
+.star-pick button {
+  width: 44px; height: 44px; border: 0; background: none; padding: 0; font-size: 30px; line-height: 1;
+  color: #adb5bd; border-radius: 10px;
+}
+.star-pick button.on { color: #e67700; }
+.star-pick button:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 1px; }
+.stars-ro { color: #a84f00; letter-spacing: 1px; font-size: 13.5px; white-space: nowrap; }
+.stars-ro .off { color: #adb5bd; }
+.item-sub .stars-ro { margin-right: 4px; }

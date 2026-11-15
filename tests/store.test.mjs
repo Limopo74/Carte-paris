@@ -332,3 +332,12 @@ test('photos : identifiants gardés, valeurs douteuses écartées', () => {
   assert.deepEqual(loadState(st).points[0].photos, ['abc-1', 'ok_2']);
   assert.deepEqual(sample().photos, []);
 });
+
+test('note en étoiles : 0 à 5, valeurs farfelues ramenées à 0', async () => {
+  const { newPoint, cleanStars } = await import('../js/store.js');
+  assert.equal(newPoint({ name: 'A', cat: 'resto', lat: 48.86, lng: 2.34, stars: 4 }).stars, 4);
+  assert.equal(newPoint({ name: 'A', cat: 'resto', lat: 48.86, lng: 2.34 }).stars, 0);
+  assert.equal(cleanStars(7), 0);
+  assert.equal(cleanStars(2.5), 0);
+  assert.equal(cleanStars('3'), 0);
+});

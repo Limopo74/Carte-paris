@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (27)';
+const VERSION = '16 novembre 2026 (28)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -544,12 +544,29 @@ function runLaunchAction() {
 }
 
 /** Formulaire de création (draft) ou de modification (existing). */
+/** Étoiles en lecture seule (★★★☆☆), ou rien si le lieu n'est pas noté. */
+function starsText(n) {
+  return n ? el('span', { class: 'stars-ro', 'aria-label': `${n} étoile${n > 1 ? 's' : ''} sur 5`, role: 'img' }, '★'.repeat(n), el('span', { class: 'off' }, '☆'.repeat(5 - n))) : null;
+}
+
+/** Rangée de 5 étoiles à toucher. Toucher l'étoile déjà choisie retire la note. */
+function starPicker(value, onPick) {
+  const box = el('div', { class: 'star-pick', role: 'group', 'aria-label': 'Ma note' });
+  const draw = (v) => box.replaceChildren(...[1, 2, 3, 4, 5].map((i) => el('button', {
+    type: 'button', class: i <= v ? 'on' : '', 'aria-label': `${i} étoile${i > 1 ? 's' : ''}`, 'aria-pressed': String(i === v),
+    onclick: () => { const nv = i === v ? 0 : i; draw(nv); onPick(nv); },
+  }, i <= v ? '★' : '☆')));
+  draw(value);
+  return box;
+}
+
 function openForm(draft, existing = null) {
   const firstCat = filterCat !== 'all' ? filterCat : state.categories[0].id;
   const v = existing ?? { name: draft.name ?? '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
   let cat = v.cat;
   let done = v.done;
   let fav = v.fav;
+  let stars = v.stars ?? 0;
 
   const name = el('input', { type: 'text', value: v.name, maxlength: '80', autocomplete: 'off', enterkeyhint: 'next', required: true });
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
@@ -583,10 +600,10 @@ function openForm(draft, existing = null) {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
     if (existing) {
-      Object.assign(existing, { name: n, cat, note: note.value, fav });
+      Object.assign(existing, { name: n, cat, note: note.value, fav, stars });
       setDone(existing, done);
     } else {
-      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '' }));
+      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars }));
     }
     const ok = persist();
     renderMarkers();
@@ -602,6 +619,7 @@ function openForm(draft, existing = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     el('label', { class: 'field' }, 'Note (facultatif)', note),
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
+    el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     err,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
@@ -677,6 +695,7 @@ function openDetail(id, back = null) {
         hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
         stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
         el('div', { class: 'badge' }, ageLine(p)))),
+    starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     p.note ? el('p', { class: 'note' }, p.note) : null,
     p.address ? el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), p.address) : null,
     actions,
@@ -895,7 +914,7 @@ function openSearch(initial = '') {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done ? null : 'À faire'].filter(Boolean).join(' · ')))))));
+          el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
   const updateDir = () => {
@@ -1059,7 +1078,7 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, hoursTag(p), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, starsText(p.stars), hoursTag(p), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, '🧭'),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
@@ -1442,9 +1461,9 @@ function openSettings(section = null) {
     if (from && from === state.me) { doImport(''); return; }
     const other = el('input', { type: 'text', maxlength: '30', value: from, placeholder: 'Prénom', 'aria-label': 'Prénom de la personne' });
     openSheet('À qui sont ces lieux ?', el('div', { class: 'stack' },
-      el('button', { type: 'button', class: 'btn', onclick: () => doImport('') }, 'Ce sont mes lieux (sauvegarde)'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => doImport('') }, 'Ce sont mes lieux (sauvegarde)'),
       el('label', { class: 'field' }, 'Lieux d\'une autre personne', other),
-      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
         const name = other.value.trim();
         if (!name) { other.focus(); toast('Indique son prénom.', true); return; }
         doImport(name);
@@ -1505,13 +1524,13 @@ function openSettings(section = null) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
       el('button', { type: 'button', class: 'btn c-add solid', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
-      canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
-      el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer un fichier'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => file.click() }, '⬆  Importer un fichier'),
       el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer les tiens : ta propre sauvegarde ou les lieux d\'un ami.'),
       file,
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager avec un ami'), el('span', {}, '')),
       el('label', { class: 'field' }, 'Ton prénom, noté sur chacun de tes lieux exportés', meInput),
-      el('button', { type: 'button', class: 'btn', onclick: () => {
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => {
         state.me = meInput.value.trim().slice(0, 30); persist(); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
       } }, 'Enregistrer le prénom'),
       el('p', { class: 'help' }, 'Exporte, envoie le fichier, ton ami l\'importe. Chacun garde ses lieux sur son téléphone.'),
@@ -1540,14 +1559,14 @@ function openSettings(section = null) {
     openSheet('⭕ Cercles', el('div', { class: 'stack' },
       el('label', { class: 'field' }, 'En mètres', rings),
       el('p', { class: 'help', id: 'ringsHelp' }, '100 m au minimum, séparés par des virgules. Exemple : 100, 300, 500, 1000'),
-      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
         state.rings = normalizeRings(rings.value);
         rings.value = state.rings.join(', ');
         if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
       } }, 'Enregistrer les mètres'),
       el('label', { class: 'field' }, 'En minutes à pied', minRings),
       el('p', { class: 'help' }, 'De 1 à 60 minutes. Exemple : 5, 10, 15, 20. Estimation : 12 min par km, détours compris.'),
-      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
         state.minuteRings = normalizeMinuteRings(minRings.value);
         minRings.value = state.minuteRings.join(', ');
         if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
@@ -1559,7 +1578,7 @@ function openSettings(section = null) {
 
   if (section === 'appli') {
     openSheet('ℹ️ Application', el('div', { class: 'stack' },
-      el('button', { type: 'button', class: 'btn primary', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
+      el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -1567,6 +1586,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn c-guide', style: 'min-height:0' }, 'Se guider'),
         el('span', { class: 'btn c-add', style: 'min-height:0' }, 'Ajouter, garder'),
         el('span', { class: 'btn c-fav', style: 'min-height:0' }, 'Favori'),
+        el('span', { class: 'btn c-info', style: 'min-height:0' }, 'Aide, réglages'),
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
@@ -1580,12 +1600,12 @@ function openSettings(section = null) {
   }
 
   // Sommaire
-  const row = (icon, title, summary, onclick, warn = false) => el('button', { type: 'button', class: `menu-row${warn ? ' warn-row' : ''}`, onclick },
+  const row = (icon, title, summary, onclick, warn = false, family = 'c-info') => el('button', { type: 'button', class: `menu-row ${family}${warn ? ' warn-row' : ''}`, onclick },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, icon),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
   const voiceOn = state.voice !== false;
-  const voiceSwitch = el('button', { type: 'button', class: 'menu-row', role: 'switch', 'aria-checked': String(voiceOn), onclick: () => {
+  const voiceSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(voiceOn), onclick: () => {
     state.voice = !voiceOn; persist(); if (!state.voice) silence(); openSettings();
     toast(state.voice ? 'Voix activée' : 'Voix désactivée');
   } },
@@ -1595,10 +1615,10 @@ function openSettings(section = null) {
 
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
-    row('💾', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due),
-    row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories')),
-    row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle),
-    row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles')),
+    row('💾', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
+    row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
+    row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
+    row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
     voiceSwitch,
     row('❓', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
@@ -1623,7 +1643,7 @@ function openFavStyle() {
     el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: openSettings }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
         state = setFavStyle(state, { icon, color });
         persist(); refresh(); openSettings();
         toast('Favoris modifiés');
@@ -1674,7 +1694,7 @@ function openCategory(id) {
   const showButtons = () => zone.replaceChildren(
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer')),
     id && others.length ? el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer cette catégorie') : null,
     id && !others.length ? el('p', { class: 'help' }, 'C\'est ta seule catégorie : elle ne peut pas être supprimée.') : null,
   );
@@ -1724,7 +1744,7 @@ function remindBackup() {
   const n = unsavedCount(state);
   openSheet('Sauvegarde', el('div', { class: 'stack' },
     el('p', {}, `${plural(n, 'lieu n\'est', 'lieux ne sont')} pas encore ${n > 1 ? 'sauvegardés' : 'sauvegardé'}. Tes lieux n'existent que sur ce téléphone : une sauvegarde régulière évite de tout perdre.`),
-    el('button', { type: 'button', class: 'btn primary', onclick: () => openSettings('sauvegarde') }, 'Sauvegarder maintenant'),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => openSettings('sauvegarde') }, 'Sauvegarder maintenant'),
     el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Plus tard'),
   ));
 }
@@ -1978,6 +1998,10 @@ document.getElementById('btnPratique').addEventListener('click', nearestPratique
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
+document.getElementById('btnParis').addEventListener('click', () => {
+  closeSheet();
+  map.setView(PARIS, 13, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
+});
 
 /* ---------- Aide ---------- */
 
@@ -1988,6 +2012,7 @@ const HELP = [
     'M : la station de métro la plus proche.',
     '🚰 : la fontaine à boire et les toilettes les plus proches.',
     '◎ : ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
+    'Paris : revenir au centre de Paris.',
     '↻ : recharger la carte si elle reste grise.',
     'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
   ]],
@@ -2016,6 +2041,7 @@ const HELP = [
   ['⭐', 'Catégories et favoris', [
     '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur.',
     'Dans la fiche : ⭐ Favori. ⚙ → Favoris pour choisir l\'icône et la couleur.',
+    'Ma note : touche les étoiles ★ sous les infos de la fiche (de 1 à 5). Touche la même étoile pour retirer la note.',
   ]],
   ['👥', 'Partager avec un ami', [
     '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
@@ -2032,7 +2058,7 @@ const HELP = [
     'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
   ]],
   ['🎨', 'Le code couleur', [
-    'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori · Rouge : supprimer · Gris : le reste.',
+    'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori · Violet : aide et réglages · Rouge : supprimer · Gris : le reste.',
   ]],
   ['🛠️', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
