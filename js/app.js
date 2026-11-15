@@ -1,4 +1,6 @@
 // Interface de « Ma carte de Paris ».
+import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
+const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -20,7 +22,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (34)';
+const VERSION = '16 novembre 2026 (35)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -111,13 +113,31 @@ const ringText = (m) => {
 };
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 /** Pastille de catégorie : son icône sur sa couleur. */
+/** Icône dessinée (élément), à partir d'un nom de la liste fixe. */
+function ico(name, opts = {}) {
+  const s = el('span', { class: 'ico', 'aria-hidden': 'true' });
+  s.innerHTML = svgIcon(name, opts);
+  return s;
+}
+/** Icône de catégorie ou de favori : dessin moderne si disponible, sinon l'emoji. */
+function glyph(emoji, opts = {}) {
+  const s = el('span', { class: 'ico', 'aria-hidden': 'true' });
+  s.innerHTML = glyphHTML(emoji, opts);
+  return s;
+}
+
 function catDot(catId) {
   const c = catOf(catId);
-  const d = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, c.icon);
+  const d = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, glyph(c.icon, { filled: true }));
   d.style.background = c.color;
   return d;
 }
-const favMark = (p) => (p.fav ? el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, `${state.fav.icon} `) : null);
+const favMark = (p) => {
+  if (!p.fav) return null;
+  const m = el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, glyph(state.fav.icon, { filled: true }));
+  m.style.color = state.fav.color;
+  return m;
+};
 
 /** Grille de choix (icônes ou couleurs) à boutons pressés. */
 function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
@@ -126,7 +146,7 @@ function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
     const b = el('button', {
       type: 'button', class: colors ? 'swatch' : 'icon-choice', 'aria-pressed': String(v === cur),
       'aria-label': names[i] ?? v, onclick: () => { onPick(v); draw(v); },
-    }, colors ? null : v);
+    }, colors ? null : glyph(v, { filled: true }));
     if (colors) b.style.background = v;
     return b;
   }));
@@ -186,7 +206,7 @@ function renderMarkers() {
     const c = catOf(p.cat);
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
-    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}">${c.icon}${p.fav ? `<span class="pin-fav">${state.fav.icon}</span>` : ''}</span>`;
+    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 16] }),
       zIndexOffset: p.fav ? 500 : 0,
@@ -227,7 +247,7 @@ function renderChips() {
   const box = document.getElementById('chips');
   fill(box, ...[
     chip('Tout', !filterCats.size, () => { filterCats.clear(); refresh(); }),
-    chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
+    chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
     ...state.categories.map(catChip),
     // Lieux reçus d'autres personnes : choisir de qui on affiche les lieux
     owners(state.points).length
@@ -236,7 +256,7 @@ function renderChips() {
       : null,
   ].filter(Boolean));
   const star = box.querySelector('.star');
-  if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
+  if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; star.style.color = '#fff'; } else star.style.color = state.fav.color;
   // La catégorie choisie reste visible dans la barre
   const on = lastToggled && box.querySelector(`.chip[data-cat="${lastToggled}"]`);
   if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -581,7 +601,7 @@ function openForm(draft, existing = null) {
   const drawDone = () => fill(doneSeg, 
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
     segBtn('Déjà visité', done, () => { done = true; drawDone(); }),
-    segBtn(`${state.fav.icon} Favori`, fav, () => { fav = !fav; drawDone(); }));
+    segBtn([glyph(state.fav.icon, { filled: true }), ' Favori'], fav, () => { fav = !fav; drawDone(); }));
   drawDone();
 
   const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Endroit choisi sur la carte'));
@@ -659,12 +679,12 @@ function openDetail(id, back = null) {
       el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
         el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller'),
       el('div', { class: 'row3' },
-        el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, '🧭 Boussole'),
+        el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
         el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back), 'aria-label': 'Quel métro prendre' }, el('b', { 'aria-hidden': 'true' }, 'M'), ' Métro'),
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, '📷 Photo')),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: `btn ${p.done ? '' : 'c-add'}`, onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : '✓ Déjà visité'),
-        el('button', { type: 'button', class: `btn ${p.fav ? '' : 'c-fav'}`, onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
+        el('button', { type: 'button', class: `btn ${p.fav ? '' : 'c-fav'}`, onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? ['Retirer ', glyph(state.fav.icon, { filled: true })] : [glyph(state.fav.icon, { filled: true }), ' Favori'])),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
         moreBtn),
@@ -783,8 +803,8 @@ function openPhotos(p, back) {
   openSheet(`Photos · ${p.name}`, el('div', { class: 'stack' },
     p.photos.length ? grid : el('p', { class: 'help' }, 'Aucune photo pour l\'instant.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-add solid', disabled: full, onclick: () => camera.click() }, '📷 Prendre une photo'),
-      el('button', { type: 'button', class: 'btn c-add', disabled: full, onclick: () => gallery.click() }, '🖼 Galerie')),
+      el('button', { type: 'button', class: 'btn c-add solid', disabled: full, onclick: () => camera.click() }, ico('camera'), 'Prendre une photo'),
+      el('button', { type: 'button', class: 'btn c-add', disabled: full, onclick: () => gallery.click() }, ico('image-plus'), 'Galerie')),
     full ? el('p', { class: 'help' }, `${MAX_PHOTOS} photos au plus par lieu.`) : null,
     el('p', { class: 'help' }, 'Les photos sont réduites et restent sur ton téléphone. Leur position GPS est effacée.'),
     camera, gallery,
@@ -1050,18 +1070,18 @@ function renderNear(fit = false) {
   // Outils pour se déplacer, en haut pour les voir tout de suite
   const tool = (icon, label, onclick, pressed = null, family = 'c-guide') => el('button', {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
-  }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, icon), label);
+  }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
   body.push(el('div', { class: 'tools' },
     origin.kind === 'gps'
-      ? tool('📡', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
-      : tool('↻', 'Ma position', openNear),
-    tool('🚶', 'Chemin', () => openWayPicker()),
-    tool('🗺️', 'Parcours', () => openRoutePicker()),
+      ? tool('radio', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
+      : tool('refresh-cw', 'Ma position', openNear),
+    tool('footprints', 'Chemin', () => openWayPicker()),
+    tool('route', 'Parcours', () => openRoutePicker()),
     tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
     // Bascule des cercles : affiche ce qu'on obtiendra en appuyant
     el('button', { type: 'button', class: 'tool', onclick: () => { state.ringUnit = inMinutes() ? 'm' : 'min'; persist(); renderNear(true); },
       'aria-label': inMinutes() ? 'Cercles en mètres' : 'Cercles en minutes à pied' },
-    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, inMinutes() ? '📏' : '⏱'), inMinutes() ? 'Mètres' : 'Minutes'),
+    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico(inMinutes() ? 'ruler' : 'timer')), inMinutes() ? 'Mètres' : 'Minutes'),
   ));
   if (pts.length) {
     const t = todoSummary(groups);
@@ -1095,7 +1115,7 @@ function renderNear(fit = false) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, starsText(p.stars), hoursTag(p), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, '🧭'),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -1534,7 +1554,7 @@ function openSettings(section = null) {
     : 'Jamais sauvegardé';
 
   if (section === 'sauvegarde') {
-    openSheet('💾 Sauvegarde', el('div', { class: 'stack' },
+    openSheet([ico('save'), ' Sauvegarde'], el('div', { class: 'stack' },
       el('p', { class: due ? 'warn' : 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. ${saveSummary}.`),
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
@@ -1556,7 +1576,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'categories') {
-    openSheet('🗂️ Catégories', el('div', { class: 'stack' },
+    openSheet([ico('tags'), ' Catégories'], el('div', { class: 'stack' },
       el('p', { class: 'help' }, 'L\'ordre ici est celui de la barre du haut. Flèches pour déplacer, Modifier pour le nom, l\'icône et la couleur.'),
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
@@ -1586,7 +1606,7 @@ function openSettings(section = null) {
 
   if (section === 'outils') {
     const list = normalizeTools(state.mapTools);
-    openSheet('↕️ Boutons de la carte', el('div', { class: 'stack' },
+    openSheet([ico('arrow-up-down'), ' Boutons de la carte'], el('div', { class: 'stack' },
       el('p', { class: 'help' }, 'De haut en bas, comme à droite de la carte. Le dernier est le plus près de ton pouce. Décoche un bouton pour le cacher.'),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
@@ -1602,7 +1622,7 @@ function openSettings(section = null) {
         });
         return el('div', { class: `cat-row${shown ? '' : ' off'}` },
           el('label', { class: 'tool-check' }, box,
-            el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, info.icon),
+            el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
             el('span', { class: 'cat-name' }, info.name)),
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
           el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
@@ -1614,7 +1634,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'cercles') {
-    openSheet('⭕ Cercles', el('div', { class: 'stack' },
+    openSheet([ico('target'), ' Cercles'], el('div', { class: 'stack' },
       el('label', { class: 'field' }, 'En mètres', rings),
       el('p', { class: 'help', id: 'ringsHelp' }, '100 m au minimum, séparés par des virgules. Exemple : 100, 300, 500, 1000'),
       el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
@@ -1635,7 +1655,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'appli') {
-    openSheet('ℹ️ Application', el('div', { class: 'stack' },
+    openSheet([ico('info'), ' Application'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, '🗺️ Recharger la carte (si elle reste grise)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
@@ -1660,7 +1680,7 @@ function openSettings(section = null) {
 
   // Sommaire
   const row = (icon, title, summary, onclick, warn = false, family = 'c-info') => el('button', { type: 'button', class: `menu-row ${family}${warn ? ' warn-row' : ''}`, onclick },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, icon),
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
   const voiceOn = state.voice !== false;
@@ -1668,26 +1688,27 @@ function openSettings(section = null) {
     state.voice = !voiceOn; persist(); if (!state.voice) silence(); openSettings();
     toast(state.voice ? 'Voix activée' : 'Voix désactivée');
   } },
-  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, voiceOn ? '🔊' : '🔇'),
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(voiceOn ? 'volume-2' : 'volume-x')),
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
   el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
-    row('💾', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
-    row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
-    row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
-    row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
-    row('↕️', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
+    row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
+    row('tags', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
+    row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
+    row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     voiceSwitch,
-    row('❓', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
-    row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
+    row('circle-help', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
+    row('info', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
 
 function favBadge(icon = state.fav.icon, color = state.fav.color) {
-  const b = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, icon);
+  const b = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, glyph(icon, { filled: true }));
   b.style.background = '#fff';
+  b.style.color = color;
   b.style.boxShadow = `0 0 0 3px ${color}`;
   return b;
 }
@@ -1925,7 +1946,7 @@ function renderMetroPlan(p, from, back) {
     el('ol', { class: 'plan' }, steps),
     plan.type === 'walk' ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, firstTarget ? '🧭 Vers la station' : '🧭 Boussole'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
@@ -1980,7 +2001,7 @@ function showNearestMetro(from, note = null) {
     el('p', { class: 'help' }, stationLabel(st)),
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, '🧭 Boussole'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
     el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
@@ -2081,11 +2102,11 @@ document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
-  pratique: { el: 'btnPratique', icon: '🚰', name: 'Fontaine et toilettes' },
+  pratique: { el: 'btnPratique', icon: 'droplets', name: 'Fontaine et toilettes' },
   metro: { el: 'btnMetro', icon: 'Ⓜ', name: 'Métro le plus proche' },
-  locate: { el: 'btnLocate', icon: '◎', name: 'Ma position et cercles de temps' },
+  locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et cercles de temps' },
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
-  zoom: { el: 'btnZoomMe', icon: '🔍', name: 'Zoom sur ma position' },
+  zoom: { el: 'btnZoomMe', icon: 'zoom-in', name: 'Zoom sur ma position' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -2105,7 +2126,7 @@ document.getElementById('btnParis').addEventListener('click', () => {
 /* ---------- Aide ---------- */
 
 const HELP = [
-  ['🗺️', 'Les boutons de la carte', [
+  ['map', 'Les boutons de la carte', [
     'En haut : 🔍 chercher dans tes lieux (et dans l\'annuaire), ? cette aide.',
     'Puces en haut : n\'afficher qu\'une catégorie, les favoris, ou les lieux d\'une personne 👥. Fais glisser la barre pour voir toutes les catégories. Tu peux en choisir plusieurs ; touche-la encore pour la retirer, ou « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre réglable, et boutons à cacher, dans ⚙ → Boutons de la carte) :',
@@ -2116,19 +2137,19 @@ const HELP = [
     'Loupe + : zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
     'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
   ]],
-  ['➕', 'Ajouter un lieu', [
+  ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
     'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »).',
     'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
   ]],
-  ['📍', 'Voir ce qui est autour de moi', [
+  ['map-pinned', 'Voir ce qui est autour de moi', [
     'Appuie sur Autour de moi : tes lieux sont rangés par cercles, du plus proche au plus loin.',
-    'Bouton ⏱ Minutes : des cercles en temps à pied au lieu des mètres.',
+    'Bouton Minutes : des cercles en temps à pied au lieu des mètres.',
     'Suivre : les cercles te suivent, le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
     'Chemin : tes lieux à faire sur ton trajet. Parcours : 2 à 4 lieux dans le meilleur ordre.',
     'Station : voir ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
   ]],
-  ['🧭', 'La fiche d\'un lieu', [
+  ['compass', 'La fiche d\'un lieu', [
     'Touche le lieu sur la carte pour ouvrir sa fiche.',
     'La grande barre « Y aller » ouvre Google Maps (à pied, ou en transports au-delà de 1 km). Elle indique le temps à pied.',
     'Boussole : une flèche et une voix te guident jusqu\'au lieu.',
@@ -2137,34 +2158,34 @@ const HELP = [
     'Étoiles : ta note, de 1 à 5. Touche la même étoile pour la retirer.',
     'En dessous : Déjà visité, Favori, Modifier, et ⋯ Plus (horaires, déplacer, supprimer).',
   ]],
-  ['📷', 'Photos', [
+  ['camera', 'Photos', [
     'Dans la fiche, le bouton 📷 Photo ouvre l\'appareil photo (6 photos par lieu).',
     'Ensuite, touche la vignette à gauche de la fiche : voir les photos, en ajouter depuis la Galerie, ou ✕ pour en supprimer.',
     'Touche une photo pour la voir en grand. Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
-  ['⭐', 'Catégories et favoris', [
+  ['star', 'Catégories et favoris', [
     '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur, et leur ordre avec ↑ ↓ (c\'est l\'ordre de la barre du haut).',
     '« Icônes seules en haut » : la barre n\'affiche que les logos, pour en voir plus d\'un coup.',
     'Dans la fiche : bouton Favori. ⚙ → Favoris pour choisir l\'icône et la couleur (❤️ évite la confusion avec les étoiles de note).',
   ]],
-  ['👥', 'Partager avec un ami', [
+  ['users', 'Partager avec un ami', [
     '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
     'Ton ami fait Importer : il choisit « Ajouter comme ses lieux ». Chaque lieu garde le prénom de qui l\'a ajouté.',
     'Le bouton 👥 en haut affiche tes lieux, les siens ou tous.',
     'Pour partager l\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
   ]],
-  ['💾', 'Sauvegarder (important)', [
+  ['save', 'Sauvegarder (important)', [
     'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : ⚙ → Sauvegarde et partage → Exporter.',
     'Le fichier va dans tes Téléchargements. Pour le retrouver sur un autre téléphone : Importer.',
   ]],
-  ['⚡', 'Raccourcis sur l\'icône', [
+  ['zap', 'Raccourcis sur l\'icône', [
     'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
   ]],
-  ['🎨', 'Le code couleur', [
+  ['palette', 'Le code couleur', [
     'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori · Violet : aide et réglages · Rouge : supprimer · Gris : le reste.',
   ]],
-  ['🛠️', 'Ça ne marche pas ?', [
+  ['wrench', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
     'Carte grise : vérifie internet, puis ⚙ → Application → Recharger la carte.',
     'Perdu sur la carte : bouton Paris, ou la loupe + pour revenir sur toi.',
@@ -2178,7 +2199,7 @@ function openHelp() {
   openSheet('Aide', el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
-      el('summary', {}, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, icon), el('span', { class: 'help-title' }, title)),
+      el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
       el('ul', {}, lines.map((l) => el('li', {}, l)))))),
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
   ), { name: 'help', again: openHelp, tall: true });

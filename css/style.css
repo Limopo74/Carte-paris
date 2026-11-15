@@ -512,3 +512,33 @@ ol.items { padding: 0; }
 .tool-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .cat-row.off .tool-prev, .cat-row.off .cat-name { opacity: .45; }
 .map-btn[hidden] { display: none; }
+
+/* Icônes dessinées (Lucide) */
+.ico { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: none; }
+.ico svg { width: 1.2em; height: 1.2em; }
+.btn .ico svg { width: 20px; height: 20px; }
+.cat-ico { color: #fff; }
+.cat-ico .ico svg { width: 62%; height: 62%; min-width: 13px; min-height: 13px; }
+.cat-ico .ico { width: 100%; height: 100%; }
+.pin { color: #fff; }
+.pin svg { display: block; }
+.pin-fav { display: inline-flex; align-items: center; justify-content: center; background: #fff; }
+.fav-mark { display: inline-flex; vertical-align: -2px; margin-right: 6px; }
+.fav-mark .ico svg { width: 18px; height: 18px; }
+.chip.star .ico svg { width: 20px; height: 20px; }
+.tool-ico .ico svg { width: 22px; height: 22px; }
+.menu-ico .ico svg { width: 22px; height: 22px; }
+.menu-row.c-add .menu-ico { color: var(--add); }
+.menu-row.c-guide .menu-ico { color: var(--guide); }
+.menu-row.c-fav .menu-ico { color: var(--fav); }
+.menu-row.c-info .menu-ico { color: var(--info); }
+.help-ico { color: var(--info); background: var(--info-bg); border-radius: 10px; width: 36px; height: 36px; }
+.go-compass .ico svg { width: 22px; height: 22px; }
+.icon-choice .ico svg { width: 24px; height: 24px; }
+.icon-choice { color: var(--ink); }
+#sheetTitle .ico svg { width: 22px; height: 22px; }
+#sheetTitle .ico { margin-right: 4px; vertical-align: -3px; }
+.tool-prev .ico svg { width: 20px; height: 20px; }
+.fav-btn-ico, .btn .ico + * {}
+.seg .ico svg, .btn .ico svg { vertical-align: middle; }
+.btn.c-fav .ico { color: #e8a200; }
