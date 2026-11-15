@@ -17,7 +17,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (18)';
+const VERSION = '15 novembre 2026 (19)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -873,16 +873,14 @@ function renderNear(fit = false) {
     origin.kind === 'gps'
       ? tool('📡', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
       : tool('↻', 'Ma position', openNear),
-    tool('🚶', 'Mon chemin', () => openWayPicker()),
+    tool('🚶', 'Chemin', () => openWayPicker()),
     tool('🗺️', 'Parcours', () => openRoutePicker()),
     tool('Ⓜ', 'Station', () => openStationPicker()),
+    // Bascule des cercles : affiche ce qu'on obtiendra en appuyant
+    el('button', { type: 'button', class: 'tool', onclick: () => { state.ringUnit = inMinutes() ? 'm' : 'min'; persist(); renderNear(true); },
+      'aria-label': inMinutes() ? 'Cercles en mètres' : 'Cercles en minutes à pied' },
+    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, inMinutes() ? '📏' : '⏱'), inMinutes() ? 'Mètres' : 'Minutes'),
   ));
-  const unitBtn = (label, unit) => el('button', { type: 'button', 'aria-pressed': String(state.ringUnit === unit || (unit === 'm' && !inMinutes())), onclick: () => {
-    if ((unit === 'min') === inMinutes()) return;
-    state.ringUnit = unit; persist(); renderNear(true);
-  } }, label);
-  body.push(el('div', { class: 'seg unit-seg', role: 'group', 'aria-label': 'Cercles' },
-    unitBtn('📏 En mètres', 'm'), unitBtn('⏱ En minutes à pied', 'min')));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
