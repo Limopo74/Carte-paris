@@ -42,7 +42,7 @@ Pas de compte, pas de synchronisation entre appareils, pas de temps de trajet en
 ## Choix de construction (proposés par Claude)
 - Appli web installable : un seul dossier statique, HTML, CSS et JavaScript sans framework.
 - Carte : Leaflet avec les fonds OpenStreetMap, centrée sur Paris.
-- Adresses : API Adresse de l'État (api-adresse.data.gouv.fr), avec suggestions pendant la saisie. Quand on ajoute un point à sa position, l'adresse est retrouvée automatiquement.
+- Adresses : service de géocodage de l’IGN, qui reprend l’API Adresse de la Base Adresse Nationale (data.geopf.fr/geocodage ; l’ancienne adresse api-adresse.data.gouv.fr a été arrêtée fin janvier 2026), avec suggestions pendant la saisie. Quand on ajoute un point à sa position, l'adresse est retrouvée automatiquement.
 - Points enregistrés dans le stockage du navigateur (localStorage).
 - Cercles par défaut : 100 m, 300 m, 500 m, 1 km, modifiables dans les réglages.
 - Temps de marche estimé : 12 min par km.

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#1f2a44">
+  <meta name="description" content="Mes lieux préférés à Paris, et ce qui est près de moi.">
+  <title>Ma carte de Paris</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="map" aria-label="Carte de Paris"></div>
+
+  <header class="top">
+    <div class="chips" role="group" aria-label="Afficher">
+      <button type="button" class="chip" data-cat="all" aria-pressed="true">Tout</button>
+      <button type="button" class="chip" data-cat="resto" aria-pressed="false"><span class="dot resto"></span>Restos</button>
+      <button type="button" class="chip" data-cat="boutique" aria-pressed="false"><span class="dot boutique"></span>Boutiques</button>
+      <button type="button" class="chip" data-cat="culture" aria-pressed="false"><span class="dot culture"></span>Culture</button>
+    </div>
+  </header>
+
+  <nav class="bottom" aria-label="Actions">
+    <button type="button" id="btnSettings" class="big-btn square" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+    </button>
+    <button type="button" id="btnAdd" class="big-btn">
+      <span aria-hidden="true" class="plus">+</span> Ajouter
+    </button>
+    <button type="button" id="btnNear" class="big-btn primary">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2.5"/></svg>
+      Autour de moi
+    </button>
+  </nav>
+
+  <section id="sheet" class="sheet" hidden aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h2 id="sheetTitle"></h2>
+      <button type="button" id="sheetClose" class="icon-btn" aria-label="Fermer">✕</button>
+    </div>
+    <div id="sheetBody" class="sheet-body"></div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

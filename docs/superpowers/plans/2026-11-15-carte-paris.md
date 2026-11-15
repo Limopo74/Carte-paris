@@ -6,7 +6,7 @@
 
 **Architecture :** dossier statique hébergé sur GitHub Pages. Une logique pure (distances, cercles, stockage), testée avec `node --test`, et une interface Leaflet par-dessus. Un service worker garde en cache l'appli, mais pas les fonds de carte.
 
-**Tech Stack :** HTML, CSS, JavaScript en modules ES sans framework ; Leaflet 1.9 copié dans le dépôt ; tuiles OpenStreetMap ; API Adresse (`https://api-adresse.data.gouv.fr`).
+**Tech Stack :** HTML, CSS, JavaScript en modules ES sans framework ; Leaflet 1.9 copié dans le dépôt ; tuiles OpenStreetMap ; géocodage IGN (`https://data.geopf.fr/geocodage`, ex-API Adresse).
 
 **Spec :** `docs/superpowers/specs/2026-11-15-carte-paris-design.md`
 
