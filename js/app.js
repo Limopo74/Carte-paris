@@ -1,5 +1,5 @@
 // Interface de « Ma carte de Paris ».
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
@@ -14,7 +14,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (13)';
+const VERSION = '15 novembre 2026 (14)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -90,6 +90,14 @@ function el(tag, attrs = {}, ...children) {
 const fmtDist = (m) => (m < 15 ? 'à côté' : m < 1000 ? `${Math.ceil(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
 const fmtRing = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toLocaleString('fr-FR')} km`);
 const fmtWalk = (m) => `≈ ${walkMinutes(m)} min à pied`;
+// Cercles d'« Autour de moi » : en mètres, ou en minutes à pied (rayons calculés depuis les minutes).
+const inMinutes = () => state.ringUnit === 'min';
+const nearRings = () => (inMinutes() ? state.minuteRings.map(minutesToMeters) : state.rings);
+const ringText = (m) => {
+  if (!inMinutes()) return fmtRing(m);
+  const i = nearRings().indexOf(m);
+  return `${i >= 0 ? state.minuteRings[i] : walkMinutes(m)} min`;
+};
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 /** Pastille de catégorie : son icône sur sa couleur. */
 function catDot(catId) {
@@ -712,22 +720,24 @@ function drawNear() {
   const { lat, lng, acc, kind } = origin;
   if (kind !== 'station' && acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
   const c0 = map.latLngToContainerPoint([lat, lng]);
-  for (const r of state.rings) {
+  for (const r of nearRings()) {
     L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(nearLayer);
   }
-  // Étiquettes à droite des cercles (à l'est), en commençant par le plus grand :
+  // Étiquettes des cercles, en commençant par le plus grand :
   // on n'affiche que celles qui ont la place, pour qu'elles ne se chevauchent pas.
-  let lastLabelPx = Infinity;
-  for (const r of [...state.rings].reverse()) {
-    const east = [lat, lng + r / (111195 * Math.cos((lat * Math.PI) / 180))];
-    const px = map.latLngToContainerPoint(east).x - c0.x;
-    if (px < 30 || lastLabelPx - px < 52) continue;
-    lastLabelPx = px;
-    L.marker(east, {
+  // Une étiquette sur deux à gauche (ouest), pour qu'elles aient la place.
+  const last = { 1: Infinity, [-1]: Infinity };
+  [...nearRings()].reverse().forEach((r, i) => {
+    const side = i % 2 === 0 ? 1 : -1;
+    const pos = [lat, lng + side * r / (111195 * Math.cos((lat * Math.PI) / 180))];
+    const px = Math.abs(map.latLngToContainerPoint(pos).x - c0.x);
+    if (px < 30 || last[side] - px < 46) return;
+    last[side] = px;
+    L.marker(pos, {
       interactive: false, keyboard: false, zIndexOffset: 2500,
-      icon: L.divIcon({ className: '', html: `<span class="ring-label">${fmtRing(r)}</span>`, iconSize: [0, 0] }),
+      icon: L.divIcon({ className: '', html: `<span class="ring-label">${ringText(r)}</span>`, iconSize: [0, 0] }),
     }).addTo(nearLayer);
-  }
+  });
   if (kind === 'station') {
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
   } else {
@@ -743,10 +753,10 @@ function nearTitle() {
 
 function renderNear(fit = false) {
   const pts = visible();
-  const groups = groupByRings(pts, origin, state.rings);
+  const groups = groupByRings(pts, origin, nearRings());
   const inside = groups.reduce((n, g) => n + g.items.length, 0);
   const farther = pts.length - inside;
-  const maxRing = state.rings[state.rings.length - 1];
+  const maxRing = nearRings().at(-1);
 
   const body = [];
   // Outils pour se déplacer, en haut pour les voir tout de suite
@@ -761,13 +771,19 @@ function renderNear(fit = false) {
     tool('🗺️', 'Parcours', () => openRoutePicker()),
     tool('Ⓜ', 'Station', () => openStationPicker()),
   ));
+  const unitBtn = (label, unit) => el('button', { type: 'button', 'aria-pressed': String(state.ringUnit === unit || (unit === 'm' && !inMinutes())), onclick: () => {
+    if ((unit === 'min') === inMinutes()) return;
+    state.ringUnit = unit; persist(); renderNear(true);
+  } }, label);
+  body.push(el('div', { class: 'seg unit-seg', role: 'group', 'aria-label': 'Cercles' },
+    unitBtn('📏 En mètres', 'm'), unitBtn('⏱ En minutes à pied', 'min')));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
-      ? `Aucun lieu à faire à moins de ${fmtRing(t.last.ring)}.`
+      ? `Aucun lieu à faire à moins de ${ringText(t.last.ring)}.`
       : t.first.ring === t.last.ring
-        ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${fmtRing(t.last.ring)}.`
-        : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${fmtRing(t.first.ring)}, ${t.last.n} à moins de ${fmtRing(t.last.ring)}.`;
+        ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.last.ring)}.`
+        : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
   }
   if (origin.kind !== 'station' && origin.acc > 100) {
@@ -782,7 +798,7 @@ function renderNear(fit = false) {
     prev = g.ring;
     if (!g.items.length) continue;
     body.push(el('h3', { class: 'ring-title' },
-      el('span', {}, from === 0 ? `Moins de ${fmtRing(g.ring)}` : `De ${fmtRing(from)} à ${fmtRing(g.ring)}`),
+      el('span', {}, from === 0 ? `Moins de ${ringText(g.ring)}` : `De ${ringText(from)} à ${ringText(g.ring)}`),
       el('span', {}, String(g.items.length))));
     body.push(el('ul', { class: 'items' }, g.items.map(({ point: p, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderNear()) },
@@ -795,11 +811,11 @@ function renderNear(fit = false) {
   if (!inside) {
     const what = [filterCat === 'all' ? 'lieu' : `lieu « ${catOf(filterCat).name} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
     body.push(el('p', { class: 'empty' }, state.points.length
-      ? `Aucun ${what} à moins de ${fmtRing(maxRing)}.`
+      ? `Aucun ${what} à moins de ${ringText(maxRing)}.`
       : 'Tu n\'as encore aucun lieu. Appuie sur « + Ajouter » pour commencer.'));
   }
   if (farther > 0 && inside) {
-    body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${fmtRing(maxRing)}.`));
+    body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${ringText(maxRing)}.`));
   }
   if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
   body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, '↻ Actualiser ma position'));
@@ -1108,6 +1124,7 @@ window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true);
 
 function openSettings() {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
+  const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
   const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
   const count = state.points.length;
 
@@ -1175,6 +1192,13 @@ function openSettings() {
       rings.value = state.rings.join(', ');
       if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
     } }, 'Enregistrer les cercles'),
+    el('label', { class: 'field' }, 'Cercles en minutes à pied', minRings),
+    el('p', { class: 'help' }, 'De 1 à 60 minutes, séparées par des virgules. Exemple : 5, 10, 15, 20. Estimation : 12 min par km, détours compris.'),
+    el('button', { type: 'button', class: 'btn primary', onclick: () => {
+      state.minuteRings = normalizeMinuteRings(minRings.value);
+      minRings.value = state.minuteRings.join(', ');
+      if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
+    } }, 'Enregistrer les minutes'),
 
     section('Sauvegarde'),
     el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),

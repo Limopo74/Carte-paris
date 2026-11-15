@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, DEFAULT_RINGS } from '../js/geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
 
 const notreDame = { lat: 48.852968, lng: 2.349902 };
 const eiffel = { lat: 48.858370, lng: 2.294481 };
@@ -61,4 +61,13 @@ test('lien Google Maps : à pied sous 1 km, transports à partir de 1 km', () =>
   assert.match(mapsUrl(p, 999), /travelmode=walking/);
   assert.match(mapsUrl(p, 1000), /travelmode=transit/);
   assert.match(mapsUrl(p, 10), /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=48\.85,2\.35&/);
+});
+
+test('cercles en minutes à pied', () => {
+  assert.deepEqual(DEFAULT_MINUTE_RINGS, [5, 10, 15, 20]);
+  assert.equal(minutesToMeters(10), 641);
+  assert.equal(minutesToMeters(5), 320);
+  for (const m of [5, 10, 15, 20]) assert.ok(walkMinutes(minutesToMeters(m)) <= m, `${m} min`);
+  assert.deepEqual(normalizeMinuteRings('15, 5, 5, 90, x, 0'), [5, 15, 60]);
+  assert.deepEqual(normalizeMinuteRings(''), [5, 10, 15, 20]);
 });

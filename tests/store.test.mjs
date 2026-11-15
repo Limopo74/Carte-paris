@@ -267,3 +267,14 @@ test('voix activée par défaut, réglage conservé', () => {
   saveState(st, { ...base(), voice: false });
   assert.equal(loadState(st).voice, false);
 });
+
+test('unité des cercles : mètres par défaut, minutes conservées', () => {
+  const s0 = loadState(memStorage());
+  assert.equal(s0.ringUnit, 'm');
+  assert.deepEqual(s0.minuteRings, [5, 10, 15, 20]);
+  const st = memStorage();
+  saveState(st, { ...base(), ringUnit: 'min', minuteRings: [3, 8] });
+  const s1 = loadState(st);
+  assert.equal(s1.ringUnit, 'min');
+  assert.deepEqual(s1.minuteRings, [3, 8]);
+});

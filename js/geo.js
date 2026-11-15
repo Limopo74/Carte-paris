@@ -58,3 +58,22 @@ export function mapsUrl(point, d) {
   const mode = d < WALK_LIMIT_M ? 'walking' : 'transit';
   return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&travelmode=${mode}`;
 }
+
+// Cercles en minutes à pied : même règle que walkMinutes (12 min/km, trajet 1,3 fois la ligne droite).
+export const DEFAULT_MINUTE_RINGS = [5, 10, 15, 20];
+const M_PER_MIN = 1000 / (MIN_PER_KM * DETOUR); // ≈ 64 m à vol d'oiseau par minute de marche
+
+/** Rayon à vol d'oiseau (m) correspondant à `min` minutes de marche. */
+export function minutesToMeters(min) {
+  return Math.floor(min * M_PER_MIN); // arrondi vers le bas : le cercle « 5 min » reste à 5 min ou moins
+}
+
+/** Cercles en minutes saisis librement : entiers de 1 à 60, triés, sans doublon. */
+export function normalizeMinuteRings(input) {
+  const raw = Array.isArray(input) ? input : String(input ?? '').split(/[,;\s]+/);
+  const vals = raw.map((v) => Math.round(Number(String(v).trim())))
+    .filter((n) => Number.isFinite(n) && n >= 1)
+    .map((n) => Math.min(60, n));
+  const uniq = [...new Set(vals)].sort((a, b) => a - b);
+  return uniq.length ? uniq : [...DEFAULT_MINUTE_RINGS];
+}

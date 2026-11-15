@@ -332,3 +332,6 @@ ol.items { padding: 0; }
   flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #003ca6; color: #003ca6;
   display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;
 }
+
+.unit-seg { margin-bottom: 10px; }
+.unit-seg button { min-height: 44px; font-size: 14px; }
