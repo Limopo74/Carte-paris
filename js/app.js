@@ -2,7 +2,7 @@
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (32)';
+const VERSION = '16 novembre 2026 (34)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -173,11 +173,11 @@ const meLayer = L.layerGroup().addTo(map);
 const nearLayer = L.layerGroup().addTo(map);
 const draftLayer = L.layerGroup().addTo(map);
 
-let filterCat = 'all';
+let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 const visible = () => state.points.filter((p) =>
-  (filterCat === 'all' || p.cat === filterCat) && (!favOnly || p.fav) && (personFilter === 'all' || p.owner === personFilter));
+  (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && (personFilter === 'all' || p.owner === personFilter));
 
 function renderMarkers() {
   pointsLayer.clearLayers();
@@ -213,19 +213,20 @@ function showDraft(lat, lng) {
 /* ---------- Barre de filtres ---------- */
 
 function renderChips() {
-  if (filterCat !== 'all' && !state.categories.some((c) => c.id === filterCat)) filterCat = 'all';
+  for (const id of filterCats) if (!state.categories.some((c) => c.id === id)) filterCats.delete(id);
   const chip = (label, pressed, onclick, extra = {}) =>
     el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria, title: extra.aria }, label);
   // Toutes les catégories, dans l'ordre choisi, en faisant défiler. Appui long : modifier la catégorie.
   const catChip = (c) => {
-    const b = chip(state.chipIcons ? catDot(c.id) : [catDot(c.id), c.name], filterCat === c.id, () => setFilter(filterCat === c.id ? 'all' : c.id), // 2e appui : retour à « Tout »
+    const b = chip(state.chipIcons ? catDot(c.id) : [catDot(c.id), c.name], filterCats.has(c.id), () => toggleCat(c.id), // plusieurs à la fois ; 2e appui : la retire
       { class: state.chipIcons ? 'icon-only' : '', aria: state.chipIcons ? c.name : null });
+    b.dataset.cat = c.id;
     b.addEventListener('contextmenu', (e) => { e.preventDefault(); openCategory(c.id); });
     return b;
   };
   const box = document.getElementById('chips');
   fill(box, ...[
-    chip('Tout', filterCat === 'all', () => setFilter('all')),
+    chip('Tout', !filterCats.size, () => { filterCats.clear(); refresh(); }),
     chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
     ...state.categories.map(catChip),
     // Lieux reçus d'autres personnes : choisir de qui on affiche les lieux
@@ -237,8 +238,9 @@ function renderChips() {
   const star = box.querySelector('.star');
   if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
   // La catégorie choisie reste visible dans la barre
-  const on = box.querySelector('.chip[aria-pressed="true"]:not(.star)');
-  if (on && filterCat !== 'all') on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const on = lastToggled && box.querySelector(`.chip[data-cat="${lastToggled}"]`);
+  if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  lastToggled = null;
 }
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
@@ -259,9 +261,11 @@ function openPersonPicker() {
   ), { name: 'personpick', again: openPersonPicker });
 }
 
-/** Toutes les catégories en grands boutons : un appui pour choisir. */
-function setFilter(id) {
-  filterCat = id;
+/** Ajoute ou retire une catégorie du filtre du haut. */
+let lastToggled = null;
+function toggleCat(id) {
+  if (filterCats.has(id)) filterCats.delete(id); else filterCats.add(id);
+  lastToggled = id;
   refresh();
 }
 
@@ -556,7 +560,7 @@ function starPicker(value, onPick) {
 }
 
 function openForm(draft, existing = null) {
-  const firstCat = filterCat !== 'all' ? filterCat : state.categories[0].id;
+  const firstCat = filterCats.size === 1 ? [...filterCats][0] : state.categories[0].id;
   const v = existing ?? { name: draft.name ?? '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
   let cat = v.cat;
   let done = v.done;
@@ -1095,7 +1099,7 @@ function renderNear(fit = false) {
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
-    const what = [filterCat === 'all' ? 'lieu' : `lieu « ${catOf(filterCat).name} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
+    const what = [!filterCats.size ? 'lieu' : `lieu « ${[...filterCats].map((id) => catOf(id).name).join(' », « ')} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
     body.push(el('p', { class: 'empty' }, state.points.length
       ? `Aucun ${what} à moins de ${ringText(maxRing)}.`
       : 'Tu n\'as encore aucun lieu. Appuie sur « + Ajouter » pour commencer.'));
@@ -1583,18 +1587,27 @@ function openSettings(section = null) {
   if (section === 'outils') {
     const list = normalizeTools(state.mapTools);
     openSheet('↕️ Boutons de la carte', el('div', { class: 'stack' },
-      el('p', { class: 'help' }, 'De haut en bas, comme à droite de la carte. Le dernier est le plus près de ton pouce.'),
+      el('p', { class: 'help' }, 'De haut en bas, comme à droite de la carte. Le dernier est le plus près de ton pouce. Décoche un bouton pour le cacher.'),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
         const move = (delta) => { state.mapTools = moveTool(list, t, delta); persist(); applyToolOrder(); openSettings('outils');
           requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
-        return el('div', { class: 'cat-row' },
-          el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, info.icon),
-          el('span', { class: 'cat-name' }, info.name),
+        const shown = !cleanHidden(state.hiddenTools).includes(t);
+        const box = el('input', { type: 'checkbox', class: 'check', checked: shown, 'aria-label': `Afficher ${info.name}` });
+        box.addEventListener('change', () => {
+          const h = new Set(cleanHidden(state.hiddenTools));
+          if (box.checked) h.delete(t); else h.add(t);
+          state.hiddenTools = [...h]; persist(); applyToolOrder(); openSettings('outils');
+          toast(box.checked ? `${info.name} : affiché` : `${info.name} : caché`);
+        });
+        return el('div', { class: `cat-row${shown ? '' : ' off'}` },
+          el('label', { class: 'tool-check' }, box,
+            el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, info.icon),
+            el('span', { class: 'cat-name' }, info.name)),
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
           el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
       })),
-      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); persist(); applyToolOrder(); openSettings('outils'); toast('Ordre d\'origine remis'); } }, 'Remettre l\'ordre d\'origine'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
@@ -1665,7 +1678,7 @@ function openSettings(section = null) {
     row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
     row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
-    row('↕️', 'Boutons de la carte', 'Changer leur ordre', () => openSettings('outils'), false, 'c-guide'),
+    row('↕️', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     voiceSwitch,
     row('❓', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
@@ -2076,7 +2089,12 @@ const TOOL_INFO = {
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
-  for (const t of normalizeTools(state.mapTools)) box.append(document.getElementById(TOOL_INFO[t].el));
+  const hidden = cleanHidden(state.hiddenTools);
+  for (const t of normalizeTools(state.mapTools)) {
+    const b = document.getElementById(TOOL_INFO[t].el);
+    b.hidden = hidden.includes(t);
+    box.append(b);
+  }
 }
 applyToolOrder();
 document.getElementById('btnParis').addEventListener('click', () => {
@@ -2089,8 +2107,8 @@ document.getElementById('btnParis').addEventListener('click', () => {
 const HELP = [
   ['🗺️', 'Les boutons de la carte', [
     'En haut : 🔍 chercher dans tes lieux (et dans l\'annuaire), ? cette aide.',
-    'Puces en haut : n\'afficher qu\'une catégorie, les favoris, ou les lieux d\'une personne 👥. Fais glisser la barre pour voir toutes les catégories. Touche encore la catégorie choisie pour revenir à Tout. Appui long : la modifier.',
-    'À droite (ordre réglable dans ⚙ → Boutons de la carte) :',
+    'Puces en haut : n\'afficher qu\'une catégorie, les favoris, ou les lieux d\'une personne 👥. Fais glisser la barre pour voir toutes les catégories. Tu peux en choisir plusieurs ; touche-la encore pour la retirer, ou « Tout » pour tout revoir. Appui long : la modifier.',
+    'À droite (ordre réglable, et boutons à cacher, dans ⚙ → Boutons de la carte) :',
     '🚰 la fontaine à boire et les toilettes les plus proches.',
     'M la station de métro la plus proche.',
     '◎ ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',

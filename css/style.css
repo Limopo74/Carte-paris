@@ -508,3 +508,7 @@ ol.items { padding: 0; }
 
 .tool-prev { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; background: #fff; }
 .tool-prev.txt { font-size: 10.5px; font-weight: 700; }
+
+.tool-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.cat-row.off .tool-prev, .cat-row.off .cat-name { opacity: .45; }
+.map-btn[hidden] { display: none; }

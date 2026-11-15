@@ -359,3 +359,9 @@ test('ordre des boutons de la carte : valide, complété, déplaçable', async (
   assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
+
+test('boutons cachés : noms connus seulement', async () => {
+  const { cleanHidden } = await import('../js/store.js');
+  assert.deepEqual(cleanHidden(['zoom', 'pirate', 'zoom', 'metro']), ['metro', 'zoom']);
+  assert.deepEqual(cleanHidden(null), []);
+});

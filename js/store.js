@@ -119,7 +119,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -137,7 +137,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools),
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -149,7 +149,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools) }));
     return true;
   } catch {
     return false;
@@ -263,6 +263,11 @@ export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom'];
 export function normalizeTools(list) {
   const out = Array.isArray(list) ? list.filter((t, i) => MAP_TOOLS.includes(t) && list.indexOf(t) === i) : [];
   return [...out, ...MAP_TOOLS.filter((t) => !out.includes(t))];
+}
+
+/** Boutons de la carte masqués : seulement des noms connus, sans doublon. */
+export function cleanHidden(list) {
+  return Array.isArray(list) ? MAP_TOOLS.filter((t) => list.includes(t)) : [];
 }
 
 /** Déplace un bouton de la carte d'une place. Renvoie la nouvelle liste. */
