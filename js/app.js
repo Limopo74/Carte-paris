@@ -10,7 +10,7 @@ import { searchPlaces } from './annuaire.js';
 import { searchPoints } from './search.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (6)';
+const VERSION = '15 novembre 2026 (7)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -311,6 +311,13 @@ map.on('contextmenu', (e) => {
   addAt(e.latlng.lat, e.latlng.lng);
 });
 
+// Résultats d'adresse imprécis : le point serait au milieu d'une rue ou d'une ville.
+const ROUGH = {
+  street: 'Sans numéro : le point sera au milieu de la rue',
+  locality: 'Lieu-dit entier : position approximative',
+  municipality: 'Ville entière : position approximative',
+};
+
 /** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
 function openPlaceSearch(initial = '', autoRun = false) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
@@ -339,7 +346,8 @@ function openPlaceSearch(initial = '', autoRun = false) {
     }
     if (A.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
-        el('ul', { class: 'results' }, A.map((r) => row(r.label, null, () => openForm({ lat: r.lat, lng: r.lng, address: r.label })))));
+        el('ul', { class: 'results' }, A.map((r) => row(r.label, ROUGH[r.type] ?? null,
+          () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null })))));
     }
     const failed = places.status === 'rejected' || addrs.status === 'rejected';
     if (P.length || A.length) {
@@ -392,7 +400,9 @@ function openForm(draft, existing = null) {
   };
   const accWarn = draft.acc > 100
     ? el('p', { class: 'warn' }, `Position peu précise (à ${Math.round(draft.acc)} m près). Le point peut être mal placé : tu pourras le déplacer depuis sa fiche.`)
-    : null;
+    : draft.rough
+      ? el('p', { class: 'warn' }, `${draft.rough}. Vérifie sur la carte ; tu pourras le déplacer depuis sa fiche (⋯ Plus → Déplacer).`)
+      : null;
 
   const save = () => {
     const n = name.value.trim();

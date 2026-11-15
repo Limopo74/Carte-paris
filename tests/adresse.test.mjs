@@ -11,7 +11,9 @@ test('lecture des résultats du géocodage', () => {
       { properties: { label: 'sans géométrie' } },
     ],
   };
-  assert.deepEqual(parseFeatures(json), [{ label: '1 Rue de Rivoli 75004 Paris', lat: 48.8534, lng: 2.3488 }]);
+  assert.deepEqual(parseFeatures(json), [{ label: '1 Rue de Rivoli 75004 Paris', lat: 48.8534, lng: 2.3488, type: 'housenumber' }]);
+  const street = { features: [{ geometry: { coordinates: [2.3, 48.84] }, properties: { label: 'Rue de Vaugirard 75015 Paris', type: 'street' } }] };
+  assert.equal(parseFeatures(street)[0].type, 'street');
   assert.deepEqual(parseFeatures(null), []);
   assert.deepEqual(parseFeatures({}), []);
 });

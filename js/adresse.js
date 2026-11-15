@@ -16,7 +16,8 @@ export function reverseUrl(lat, lng) {
   return u.toString();
 }
 
-/** Transforme la réponse GeoJSON en [{label, lat, lng}], en écartant ce qui est illisible. */
+/** Transforme la réponse GeoJSON en [{label, lat, lng, type}], en écartant ce qui est illisible.
+ * type : 'housenumber' (adresse précise), 'street' (milieu de la rue), 'locality' ou 'municipality' (lieu-dit, ville). */
 export function parseFeatures(json) {
   const list = Array.isArray(json?.features) ? json.features : [];
   const out = [];
@@ -26,7 +27,8 @@ export function parseFeatures(json) {
     if (!Array.isArray(c) || typeof label !== 'string') continue;
     const [lng, lat] = c;
     if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    out.push({ label, lat, lng });
+    const type = typeof f.properties.type === 'string' ? f.properties.type : 'housenumber';
+    out.push({ label, lat, lng, type });
   }
   return out;
 }
