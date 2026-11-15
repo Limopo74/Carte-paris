@@ -491,3 +491,10 @@ ol.items { padding: 0; }
 .stars-ro { color: #a84f00; letter-spacing: 1px; font-size: 13.5px; white-space: nowrap; }
 .stars-ro .off { color: #adb5bd; }
 .item-sub .stars-ro { margin-right: 4px; }
+
+/* Fiche : grande barre « Y aller » + 3 boutons nommés (proposition E) */
+.btn.go-bar { min-height: 56px; font-size: 17px; font-weight: 700; gap: 10px; border-radius: 14px; }
+.btn.go-bar span { font-size: 20px; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.row3 .btn { padding-inline: 4px; white-space: nowrap; font-size: 15px; gap: 5px; }
+.row3 .btn b { font-weight: 800; font-size: 17px; }

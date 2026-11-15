@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (29)';
+const VERSION = '16 novembre 2026 (30)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -657,10 +657,12 @@ function openDetail(id, back = null) {
     more.replaceChildren();
     const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
     actions.replaceChildren(
-      el('div', { class: 'row' },
+      el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
+        el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller'),
+      el('div', { class: 'row3' },
         el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, '🧭 Boussole'),
-        el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller')),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back) }, 'Ⓜ Quel métro prendre ?'),
+        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back), 'aria-label': 'Quel métro prendre' }, el('b', { 'aria-hidden': 'true' }, 'M'), ' Métro'),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, '📷 Photo')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: `btn ${p.done ? '' : 'c-add'}`, onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : '✓ Déjà visité'),
         el('button', { type: 'button', class: `btn ${p.fav ? '' : 'c-fav'}`, onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
@@ -719,10 +721,7 @@ const newPhotoId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toS
 /** Vignette de la fiche : la première photo (avec le nombre), ou une case « Ajouter une photo ». */
 function photoThumb(p, back) {
   const photos = p.photos ?? [];
-  if (!photos.length) {
-    return el('button', { type: 'button', class: 'thumb empty', onclick: () => openPhotos(p, back) },
-      el('span', { class: 'thumb-ico', 'aria-hidden': 'true' }, '📷'), 'Photo');
-  }
+  if (!photos.length) return null; // le bouton « 📷 Photo » de la fiche suffit
   const img = el('img', { alt: `Photo de ${p.name}`, class: 'thumb-img' });
   photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
   return el('button', { type: 'button', class: 'thumb', onclick: () => openPhotos(p, back), 'aria-label': `Voir les ${photos.length} photo${photos.length > 1 ? 's' : ''}` },
@@ -730,29 +729,47 @@ function photoThumb(p, back) {
 }
 
 /** Écran des photos d'un lieu : prendre, choisir, voir en grand, supprimer. */
+/** Réduit et range les photos choisies dans le lieu. Renvoie le nombre ajouté (0 si rien ou erreur). */
+async function savePhotos(p, files) {
+  p.photos = p.photos ?? [];
+  const list = [...(files ?? [])].slice(0, MAX_PHOTOS - p.photos.length);
+  if (!list.length) return 0;
+  toast('Enregistrement de la photo…');
+  try {
+    for (const f of list) {
+      const blob = await compressImage(f);
+      const id = newPhotoId();
+      await putPhoto(id, blob);
+      p.photos.push(id);
+    }
+    persist();
+    hideToast();
+    toast(list.length > 1 ? `${list.length} photos ajoutées` : 'Photo ajoutée');
+    return list.length;
+  } catch (e) {
+    toast(e.message || 'La photo n\'a pas pu être enregistrée.', true);
+    return 0;
+  }
+}
+
+/** Bouton « Photo » de la fiche : ouvre directement l'appareil photo, puis revient à la fiche. */
+function quickPhoto(p, back) {
+  if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { openPhotos(p, back); toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const n = await savePhotos(p, camera.files);
+    camera.remove();
+    if (n) openDetail(p.id, back);
+  });
+  document.body.append(camera);
+  camera.click();
+}
+
 function openPhotos(p, back) {
   p.photos = p.photos ?? [];
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   const gallery = el('input', { type: 'file', accept: 'image/*', hidden: true, multiple: true });
-  const add = async (files) => {
-    const list = [...(files ?? [])].slice(0, MAX_PHOTOS - p.photos.length);
-    if (!list.length) return;
-    toast('Enregistrement de la photo…');
-    try {
-      for (const f of list) {
-        const blob = await compressImage(f);
-        const id = newPhotoId();
-        await putPhoto(id, blob);
-        p.photos.push(id);
-      }
-      persist();
-      hideToast();
-      openPhotos(p, back);
-      toast(list.length > 1 ? `${list.length} photos ajoutées` : 'Photo ajoutée');
-    } catch (e) {
-      toast(e.message || 'La photo n\'a pas pu être enregistrée.', true);
-    }
-  };
+  const add = async (files) => { if (await savePhotos(p, files)) openPhotos(p, back); };
   camera.addEventListener('change', () => { add(camera.files); camera.value = ''; });
   gallery.addEventListener('change', () => { add(gallery.files); gallery.value = ''; });
 
@@ -2028,13 +2045,14 @@ document.getElementById('btnParis').addEventListener('click', () => {
 
 const HELP = [
   ['🗺️', 'Les boutons de la carte', [
-    '🔍 en haut : chercher dans tes lieux (et dans l\'annuaire).',
-    'Puces en haut : n\'afficher qu\'une catégorie, les favoris ⭐, ou les lieux d\'une personne 👥.',
-    'M : la station de métro la plus proche.',
-    '🚰 : la fontaine à boire et les toilettes les plus proches.',
-    '◎ : ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
+    'En haut : 🔍 chercher dans tes lieux (et dans l\'annuaire), ? cette aide.',
+    'Puces en haut : n\'afficher qu\'une catégorie (« Catégories ▾ » au-delà de 3), les favoris, ou les lieux d\'une personne 👥.',
+    'À droite, de haut en bas :',
+    '🚰 la fontaine à boire et les toilettes les plus proches.',
+    'M la station de métro la plus proche.',
+    '◎ ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
     'Paris : revenir au centre de Paris.',
-    '🔍+ : zoomer sur ta position, au niveau de la rue.',
+    'Loupe + : zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
     'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
   ]],
   ['➕', 'Ajouter un lieu', [
@@ -2049,20 +2067,23 @@ const HELP = [
     'Chemin : tes lieux à faire sur ton trajet. Parcours : 2 à 4 lieux dans le meilleur ordre.',
     'Station : voir ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
   ]],
-  ['🧭', 'Aller à un lieu', [
+  ['🧭', 'La fiche d\'un lieu', [
     'Touche le lieu sur la carte pour ouvrir sa fiche.',
-    'Y aller : ouvre Google Maps. Boussole : une flèche et une voix te guident.',
-    'Quel métro prendre ? : la ligne à prendre et la correspondance, estimées.',
+    'La grande barre « Y aller » ouvre Google Maps (à pied, ou en transports au-delà de 1 km). Elle indique le temps à pied.',
+    'Boussole : une flèche et une voix te guident jusqu\'au lieu.',
+    'Métro : la ligne à prendre et la correspondance, estimées, avec un lien vers l\'appli Île-de-France Mobilités.',
+    'Photo : ouvre directement l\'appareil photo.',
+    'Étoiles : ta note, de 1 à 5. Touche la même étoile pour la retirer.',
+    'En dessous : Déjà visité, Favori, Modifier, et ⋯ Plus (horaires, déplacer, supprimer).',
   ]],
   ['📷', 'Photos', [
-    'Dans la fiche, touche la case Photo : Prendre une photo ou Galerie (6 par lieu).',
-    'Touche une photo pour la voir en grand, ✕ pour la supprimer.',
-    'Les photos restent sur ton téléphone.',
+    'Dans la fiche, le bouton 📷 Photo ouvre l\'appareil photo (6 photos par lieu).',
+    'Ensuite, touche la vignette à gauche de la fiche : voir les photos, en ajouter depuis la Galerie, ou ✕ pour en supprimer.',
+    'Touche une photo pour la voir en grand. Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['⭐', 'Catégories et favoris', [
     '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur.',
-    'Dans la fiche : ⭐ Favori. ⚙ → Favoris pour choisir l\'icône et la couleur.',
-    'Ma note : touche les étoiles ★ sous les infos de la fiche (de 1 à 5). Touche la même étoile pour retirer la note.',
+    'Dans la fiche : bouton Favori. ⚙ → Favoris pour choisir l\'icône et la couleur (❤️ évite la confusion avec les étoiles de note).',
   ]],
   ['👥', 'Partager avec un ami', [
     '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
@@ -2084,6 +2105,7 @@ const HELP = [
   ['🛠️', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
     'Carte grise : vérifie internet, puis ⚙ → Application → Recharger la carte.',
+    'Perdu sur la carte : bouton Paris, ou la loupe + pour revenir sur toi.',
     'Une nouveauté n\'apparaît pas : ⚙ → Application → Mettre à jour l\'appli.',
     'La voix ne parle pas : monte le volume, et vérifie ⚙ → Voix.',
     'Boussole « indisponible » : ton téléphone ne donne pas son orientation ; la flèche montre alors la direction avec le nord en haut.',
