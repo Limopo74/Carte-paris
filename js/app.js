@@ -19,7 +19,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (21)';
+const VERSION = '15 novembre 2026 (22)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -668,7 +668,7 @@ function openDetail(id, back = null) {
   openSheet([favMark(p), p.name], el('div', { class: 'stack' },
     el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
     d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
-    p.owner ? el('div', { class: 'badge' }, `👤 Lieu de ${p.owner}`) : null,
+    p.owner || owners(state.points).length ? el('div', { class: 'badge' }, `👤 Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
     stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
     el('div', { class: 'badge' }, ageLine(p)),
@@ -1332,6 +1332,12 @@ function openSettings() {
   const exportFile = () => new File([exportJSON(state)], exportFileName(new Date(), state.points.length), { type: 'application/json' });
   const markExported = () => { state.lastExport = Date.now(); persist(); };
   const download = () => {
+    if (!state.me && !meAsked) {
+      meAsked = true;
+      toast('Indique d\'abord ton prénom juste en dessous : il sera noté sur chacun de tes lieux exportés. Appuie de nouveau sur Exporter pour continuer sans.', true);
+      meInput.focus();
+      return;
+    }
     const f = exportFile();
     markExported();
     const url = URL.createObjectURL(f);
@@ -1444,6 +1450,8 @@ function openFavStyle() {
       } }, 'Enregistrer')),
   ), { tall: true, name: 'favstyle', again: () => openFavStyle() });
 }
+
+let meAsked = false; // on ne demande le prénom qu'une fois avant l'export
 
 /** Création (id null) ou modification d'une catégorie. */
 function openCategory(id) {

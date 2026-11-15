@@ -313,3 +313,15 @@ test('prénom et compteur de marche conservés', () => {
   assert.deepEqual(s.walk, { day: '2026-11-15', m: 1234 });
   assert.deepEqual(loadState(memStorage()).walk, { day: '', m: 0 });
 });
+
+test('export : chaque lieu porte le prénom de qui l\'a ajouté', () => {
+  const marie = { ...base(), me: 'Marie', points: [sample(), { ...sample(), id: 'x', owner: 'Paul' }] };
+  const pts = JSON.parse(exportJSON(marie)).points;
+  assert.deepEqual(pts.map((p) => p.owner), ['Marie', 'Paul']);
+  // réimporté chez Marie : ses lieux redeviennent les siens
+  const r = mergeImport({ ...base(), me: 'Marie' }, exportJSON(marie), '');
+  assert.deepEqual(r.state.points.map((p) => p.owner), ['', 'Paul']);
+  // chez Léa : chaque lieu garde son auteur
+  const l = mergeImport({ ...base(), me: 'Léa' }, exportJSON(marie), 'Marie');
+  assert.deepEqual(l.state.points.map((p) => p.owner), ['Marie', 'Paul']);
+});

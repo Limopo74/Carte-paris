@@ -153,7 +153,9 @@ export function saveState(storage, state) {
 export function exportJSON(state) {
   return JSON.stringify({
     app: 'carte-paris', version: 2, exported: new Date().toISOString(), owner: state.me ?? '',
-    categories: state.categories, fav: state.fav, rings: state.rings, points: state.points,
+    categories: state.categories, fav: state.fav, rings: state.rings,
+    // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
+    points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
   }, null, 2);
 }
 
