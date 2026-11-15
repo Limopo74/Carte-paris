@@ -353,3 +353,13 @@ ol.items { padding: 0; }
 .tag.open { background: #d3f9d8; color: #1b5e20; }
 .tag.closed { background: #eceff3; color: #495057; }
 .badge.hours.open { color: #1b5e20; font-weight: 600; }
+
+/* Choix de la catégorie quand il y en a plus de 3 */
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cat-choice {
+  display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 15px;
+}
+.cat-choice[aria-pressed="true"] { border: 3px solid var(--ink); background: var(--soft); }
+.cat-choice-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.cat-choice:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; }

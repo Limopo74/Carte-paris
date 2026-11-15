@@ -17,7 +17,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (17)';
+const VERSION = '15 novembre 2026 (18)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -207,13 +207,35 @@ function renderChips() {
   if (filterCat !== 'all' && !state.categories.some((c) => c.id === filterCat)) filterCat = 'all';
   const chip = (label, pressed, onclick, extra = {}) =>
     el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria }, label);
+  // Plus de 3 catégories : un seul bouton « Catégories ▾ » qui les montre toutes d'un coup.
+  const many = state.categories.length > 3;
+  const current = filterCat === 'all' ? null : catOf(filterCat);
   document.getElementById('chips').replaceChildren(
     chip('Tout', filterCat === 'all', () => setFilter('all')),
     chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
-    ...state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id))),
+    ...(many
+      ? [chip(current ? [catDot(current.id), current.name, ' ▾'] : 'Catégories ▾', Boolean(current), openCategoryPicker,
+        { class: 'cat-pick', aria: current ? `Catégorie : ${current.name}. Changer` : 'Choisir une catégorie' })]
+      : state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id)))),
   );
   const star = document.querySelector('#chips .star');
   if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
+}
+
+/** Toutes les catégories en grands boutons : un appui pour choisir. */
+function openCategoryPicker() {
+  const pick = (id) => {
+    setFilter(id);
+    if (navStack.length > 1) history.back(); // revenir à l'écran d'avant (ex. Autour de moi), déjà filtré
+    else closeSheet();
+  };
+  const btn = (id, label, dot, count) => el('button', {
+    type: 'button', class: 'cat-choice', 'aria-pressed': String(filterCat === id), onclick: () => pick(id),
+  }, dot, el('span', { class: 'cat-choice-name' }, label), el('span', { class: 'cat-count' }, String(count)));
+  openSheet('Afficher', el('div', { class: 'cat-grid' },
+    btn('all', 'Tout', el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, '🗺️'), state.points.length),
+    ...state.categories.map((c) => btn(c.id, c.name, catDot(c.id), categoryCounts(state.points, c.id).total)),
+  ), { name: 'catpick', again: openCategoryPicker });
 }
 
 function setFilter(id) {
