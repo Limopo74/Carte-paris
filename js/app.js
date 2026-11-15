@@ -14,7 +14,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (10)';
+const VERSION = '15 novembre 2026 (11)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -129,12 +129,28 @@ const hideToast = () => { document.getElementById('toast').hidden = true; };
 /* ---------- Carte ---------- */
 
 const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(PARIS, 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
 
+// Pastilles plus petites quand on voit une grande partie de Paris, pour éviter qu'elles se chevauchent.
+const mapEl = document.getElementById('map');
+const scalePins = () => mapEl.classList.toggle('z-far', map.getZoom() < 15);
+map.on('zoomend', scalePins);
+map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); });
+scalePins();
+
+/** Point « moi » toujours au-dessus des lieux. */
+function meMarker(lat, lng, grey = false) {
+  return L.marker([lat, lng], {
+    interactive: false, keyboard: false, zIndexOffset: 3000,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="me-dot${grey ? ' grey' : ''}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
+  });
+}
+
 const pointsLayer = L.layerGroup().addTo(map);
+const meLayer = L.layerGroup().addTo(map);
 const nearLayer = L.layerGroup().addTo(map);
 const draftLayer = L.layerGroup().addTo(map);
 
@@ -208,10 +224,19 @@ const sheetTitle = document.getElementById('sheetTitle');
 const sheetBody = document.getElementById('sheetBody');
 let onSheetClose = null;
 let historyPushed = false;
-let view = null; // 'near' quand la liste « Autour de moi » est affichée
+let view = null; // nom de l'écran affiché ('near' pour « Autour de moi »…)
+// Pile des écrans ouverts, pour que le retour d'Android revienne à l'écran précédent.
+// Chaque écran a un nom et, s'il peut être rouvert, une fonction « again ».
+let navStack = [];
 
-function openSheet(title, body, { onClose = null, tall = false, name = null } = {}) {
+function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
   if (moving && name !== 'move') stopMove();
+  const prevClose = onSheetClose;
+  if (prevClose && name !== view) { onSheetClose = null; prevClose(); }
+  const key = name ?? `anon-${navStack.length}`;
+  const at = navStack.findIndex((e) => e.name === key);
+  if (at >= 0) navStack = navStack.slice(0, at); // on revient à un écran déjà ouvert : on oublie ceux d'après
+  navStack.push({ name: key, again });
   view = name;
   sheetTitle.replaceChildren(...[title].flat().filter(Boolean));
   sheetBody.replaceChildren(...[body].flat().filter(Boolean));
@@ -229,6 +254,7 @@ function closeSheet(fromHistory = false) {
   if (sheet.hidden) return;
   sheet.hidden = true;
   view = null;
+  navStack = [];
   sheetBody.replaceChildren();
   draftLayer.clearLayers();
   nearLayer.clearLayers();
@@ -247,7 +273,18 @@ function closeSheet(fromHistory = false) {
 
 window.addEventListener('popstate', () => {
   if (compassOpen) return; // le retour ferme d'abord la boussole
-  if (!sheet.hidden) { historyPushed = false; closeSheet(true); }
+  if (sheet.hidden) return;
+  // Revenir à l'écran précédent qui sait se rouvrir, sinon fermer.
+  navStack.pop();
+  while (navStack.length && !navStack.at(-1).again) navStack.pop();
+  if (navStack.length) {
+    const prev = navStack.pop();
+    history.pushState({ sheet: true }, '');
+    prev.again();
+  } else {
+    historyPushed = false;
+    closeSheet(true);
+  }
 });
 document.getElementById('sheetClose').addEventListener('click', () => closeSheet());
 
@@ -311,7 +348,7 @@ function openAddChoice() {
     el('button', { type: 'button', class: 'btn big primary', onclick: addAtPosition }, '📍  À ma position'),
     el('button', { type: 'button', class: 'btn big', onclick: () => openPlaceSearch() }, '🔎  Avec un nom ou une adresse'),
     el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, à l\'endroit voulu.'),
-  ));
+  ), { name: 'add', again: openAddChoice });
 }
 
 /** Ouvre le formulaire à une position et cherche l'adresse en arrière-plan. */
@@ -393,7 +430,7 @@ function openPlaceSearch(initial = '', autoRun = false) {
   openSheet('Nom ou adresse', el('div', { class: 'stack' },
     el('label', { class: 'field' }, 'Lieu ou adresse', input),
     el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
-    info, out), { tall: true, onClose: () => ctrl?.abort() });
+    info, out), { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim())) });
   if (autoRun) run(); else input.focus();
 }
 
@@ -460,7 +497,7 @@ function openForm(draft, existing = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
       el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
-  ), { tall: true });
+  ), { tall: true, name: 'form' });
 
   showDraft(existing ? existing.lat : draft.lat, existing ? existing.lng : draft.lng);
   if (!existing && !v.name) name.focus({ preventScroll: true });
@@ -493,7 +530,7 @@ function openDetail(id, back = null) {
     const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
     actions.replaceChildren(
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn primary', onclick: () => openCompass(p) }, '🧭 Boussole'),
+        el('button', { type: 'button', class: 'btn', onclick: () => openCompass(p) }, '🧭 Boussole'),
         el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
@@ -525,7 +562,7 @@ function openDetail(id, back = null) {
     p.note ? el('p', { class: 'note' }, p.note) : null,
     p.address ? el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), p.address) : null,
     actions,
-  ));
+  ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
 }
 
@@ -611,7 +648,7 @@ function openSearch(initial = '') {
   };
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet('Chercher dans mes lieux', el('div', { class: 'stack' }, input, info, list, toDirectory), { tall: true });
+  openSheet('Chercher dans mes lieux', el('div', { class: 'stack' }, input, info, list, toDirectory), { tall: true, name: 'search', again: () => openSearch(input.value) });
   input.focus();
 }
 
@@ -645,7 +682,7 @@ function offerFallback(e) {
       : null,
     el('button', { type: 'button', class: 'btn', onclick: () => openStationPicker() }, 'Ⓜ Choisir une station de métro'),
     el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Réessayer'),
-  ));
+  ), { name: 'fallback' });
 }
 
 function timeAgoShort(t) {
@@ -666,7 +703,7 @@ function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.l
     if (q.length >= 2 && !res.length) list.replaceChildren(el('li', { class: 'empty' }, stations.length ? 'Aucune station de ce nom.' : 'Liste des stations pas encore chargée : réessaie dans un instant.'));
   };
   input.addEventListener('input', run);
-  openSheet('Choisir une station', el('div', { class: 'stack' }, input, list), { tall: true });
+  openSheet('Choisir une station', el('div', { class: 'stack' }, input, list), { tall: true, name: 'station', again: () => openStationPicker(onPick) });
   input.focus();
 }
 
@@ -674,17 +711,27 @@ function drawNear() {
   nearLayer.clearLayers();
   const { lat, lng, acc, kind } = origin;
   if (kind !== 'station' && acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
+  const c0 = map.latLngToContainerPoint([lat, lng]);
   for (const r of state.rings) {
     L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(nearLayer);
-    L.marker([lat + r / 111195, lng], {
-      interactive: false, keyboard: false,
+  }
+  // Étiquettes à droite des cercles (à l'est), en commençant par le plus grand :
+  // on n'affiche que celles qui ont la place, pour qu'elles ne se chevauchent pas.
+  let lastLabelPx = Infinity;
+  for (const r of [...state.rings].reverse()) {
+    const east = [lat, lng + r / (111195 * Math.cos((lat * Math.PI) / 180))];
+    const px = map.latLngToContainerPoint(east).x - c0.x;
+    if (px < 30 || lastLabelPx - px < 52) continue;
+    lastLabelPx = px;
+    L.marker(east, {
+      interactive: false, keyboard: false, zIndexOffset: 2500,
       icon: L.divIcon({ className: '', html: `<span class="ring-label">${fmtRing(r)}</span>`, iconSize: [0, 0] }),
     }).addTo(nearLayer);
   }
   if (kind === 'station') {
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
   } else {
-    L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: kind === 'last' ? '#868e96' : '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+    meMarker(lat, lng, kind === 'last').addTo(nearLayer);
   }
 }
 
@@ -702,6 +749,18 @@ function renderNear(fit = false) {
   const maxRing = state.rings[state.rings.length - 1];
 
   const body = [];
+  // Outils pour se déplacer, en haut pour les voir tout de suite
+  const tool = (icon, label, onclick, pressed = null) => el('button', {
+    type: 'button', class: `tool${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
+  }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, icon), label);
+  body.push(el('div', { class: 'tools' },
+    origin.kind === 'gps'
+      ? tool('📡', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
+      : tool('↻', 'Ma position', openNear),
+    tool('🚶', 'Mon chemin', () => openWayPicker()),
+    tool('🗺️', 'Parcours', () => openRoutePicker()),
+    tool('Ⓜ', 'Station', () => openStationPicker()),
+  ));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -730,8 +789,7 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${fmtWalk(d)}${p.done ? '' : ' · À faire'}`),
-          origin.kind === 'station' ? null : (stationLine(p) ? el('span', { class: 'item-sub small' }, stationLine(p)) : null))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -744,28 +802,14 @@ function renderNear(fit = false) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${fmtRing(maxRing)}.`));
   }
   if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
+  body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, '↻ Actualiser ma position'));
 
-  // Outils pour se déplacer
-  body.push(el('h3', { class: 'ring-title', style: 'margin-top:16px' }, el('span', {}, 'Se déplacer'), el('span', {}, '')));
-  body.push(el('div', { class: 'stack' },
-    origin.kind === 'gps'
-      ? el('button', { type: 'button', class: `btn ${following ? 'primary' : ''}`, 'aria-pressed': String(following), onclick: () => (following ? stopFollow(true) : startFollow()) },
-        following ? '📡 Suivi en direct : activé (appuie pour arrêter)' : '📡 Suivre ma position en marchant')
-      : null,
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openWayPicker() }, '🚶 Sur mon chemin'),
-      el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker() }, '🗺️ Parcours')),
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Ma position'),
-      el('button', { type: 'button', class: 'btn', onclick: () => openStationPicker() }, 'Ⓜ Une station')),
-  ));
-
-  openSheet(nearTitle(), body, { name: 'near' });
-  drawNear();
+  openSheet(nearTitle(), body, { name: 'near', again: () => renderNear() });
   if (fit) {
     const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
     map.fitBounds(bounds, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
   }
+  drawNear();
 }
 
 /* ---------- Voix (désactivable dans les réglages) ---------- */
@@ -861,7 +905,7 @@ function openDestinationPicker(title, onPick) {
     if (q && !mine.length && !sts.length) list.replaceChildren(el('li', { class: 'empty' }, 'Rien trouvé parmi tes lieux et les stations.'));
   };
   input.addEventListener('input', run);
-  openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Tape le nom d\'un de tes lieux ou d\'une station de métro.'), input, list), { tall: true });
+  openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Tape le nom d\'un de tes lieux ou d\'une station de métro.'), input, list), { tall: true, name: 'dest', again: () => openDestinationPicker(title, onPick) });
   input.focus();
 }
 
@@ -893,7 +937,7 @@ function renderWay(from, dest) {
       : el('a', { class: 'btn primary', href: routeUrl([dest]), target: '_blank', rel: 'noopener' }, 'Itinéraire direct'),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear(true) }, '← Retour'),
   ];
-  openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true });
+  openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true, name: 'way', again: () => renderWay(from, dest) });
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [dest.lat, dest.lng]], { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
   L.circleMarker([from.lat, from.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
@@ -929,7 +973,7 @@ function openRoutePicker(selected = new Set()) {
         el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? 'Déjà visité' : 'À faire'].filter(Boolean).join(' · ')))));
   }));
   update();
-  openSheet('Parcours du jour', el('div', { class: 'stack' }, info, list, go), { tall: true });
+  openSheet('Parcours du jour', el('div', { class: 'stack' }, info, list, go), { tall: true, name: 'routepick', again: () => openRoutePicker(selected) });
 }
 
 function renderRoute(start, chosen) {
@@ -949,7 +993,7 @@ function renderRoute(start, chosen) {
     el('ol', { class: 'items' }, steps),
     el('a', { class: 'btn primary', href: routeUrl(route), target: '_blank', rel: 'noopener' }, 'Ouvrir le parcours dans Google Maps'),
     el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker(new Set(chosen.map((p) => p.id))) }, 'Changer les lieux'),
-  ), { tall: true });
+  ), { tall: true, name: 'route', again: () => renderRoute(start, chosen) });
   nearLayer.clearLayers();
   const line = [...(start ? [start] : []), ...route].map((p) => [p.lat, p.lng]);
   L.polyline(line, { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
@@ -1104,6 +1148,9 @@ function openSettings() {
   openSheet('Réglages', el('div', { class: 'stack' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
 
+    el('button', { type: 'button', class: 'btn', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
+    el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
+
     section('Catégories'),
     el('div', {}, state.categories.map((c) => {
       const k = categoryCounts(state.points, c.id);
@@ -1150,7 +1197,7 @@ function openSettings() {
     section('Confidentialité'),
     el('p', { class: 'help' }, 'Tes lieux et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 3 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN) et l\'annuaire (OpenStreetMap). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
     el('p', { class: 'help', style: 'margin-top:18px' }, `Version du ${VERSION}. Carte © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
-  ), { tall: true });
+  ), { tall: true, name: 'settings', again: () => openSettings() });
 }
 
 function favBadge(icon = state.fav.icon, color = state.fav.color) {
@@ -1176,7 +1223,7 @@ function openFavStyle() {
         persist(); refresh(); openSettings();
         toast('Favoris modifiés');
       } }, 'Enregistrer')),
-  ), { tall: true });
+  ), { tall: true, name: 'favstyle', again: () => openFavStyle() });
 }
 
 /** Création (id null) ou modification d'une catégorie. */
@@ -1249,7 +1296,7 @@ function openCategory(id) {
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
     err, zone,
-  ), { tall: true });
+  ), { tall: true, name: `category:${id ?? 'new'}`, again: () => openCategory(id) });
 }
 
 /** Rappel de sauvegarde avec un bouton pour le faire tout de suite. */
@@ -1262,6 +1309,45 @@ function remindBackup() {
     el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Plus tard'),
   ));
 }
+
+/* ---------- Actualiser : ma position, la carte, l'appli ---------- */
+
+async function locateOnMap() {
+  toast('Recherche de ta position…');
+  try {
+    const fix = await locate();
+    hideToast();
+    meLayer.clearLayers();
+    if (fix.acc > 30) L.circle([fix.lat, fix.lng], { radius: fix.acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
+    meMarker(fix.lat, fix.lng).addTo(meLayer);
+    map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), 16));
+    toast(`Te voilà (à ${Math.round(fix.acc)} m près)`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function reloadMap() {
+  if (!navigator.onLine) { toast('Pas de connexion internet : la carte ne peut pas se recharger.', true); return; }
+  map.invalidateSize();
+  tiles.redraw();
+  toast('Carte rechargée');
+}
+
+async function updateApp() {
+  if (!navigator.onLine) { toast('Pas de connexion internet : impossible de vérifier les mises à jour.', true); return; }
+  toast('Recherche de la dernière version…');
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k))); // tes lieux ne sont pas dans ce cache : rien n'est perdu
+  } catch { /* on recharge quand même */ }
+  location.reload();
+}
+
+document.getElementById('btnLocate').addEventListener('click', locateOnMap);
+document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
 
 /* ---------- Démarrage ---------- */
 
