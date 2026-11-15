@@ -11,6 +11,23 @@ export const ICONS = [
 export const DEFAULT_ICON = '📍';
 export const FAV_COLORS = ['#f2a900', ...PALETTE];
 export const DEFAULT_FAV = { icon: '⭐', color: '#f2a900' };
+/** Catégories proposées en un appui dans « Nouvelle catégorie ». */
+export const PRESETS = [
+  { name: 'Restos', icon: '🍽️', color: '#d9480f' },
+  { name: 'Boulangeries', icon: '🥐', color: '#9c6644' },
+  { name: 'Douceurs', icon: '🍰', color: '#c2255c' },
+  { name: 'Cafés', icon: '☕', color: '#9c6644' },
+  { name: 'Bars', icon: '🍷', color: '#c2255c' },
+  { name: 'Boutiques', icon: '🛍️', color: '#1971c2' },
+  { name: 'Mode', icon: '👗', color: '#1971c2' },
+  { name: 'Librairies', icon: '📚', color: '#0c8599' },
+  { name: 'Musées', icon: '🏛️', color: '#7b2cbf' },
+  { name: 'Spectacles', icon: '🎭', color: '#7b2cbf' },
+  { name: 'Cinémas', icon: '🎬', color: '#7b2cbf' },
+  { name: 'Parcs et jardins', icon: '🌳', color: '#2b8a3e' },
+  { name: 'Bien-être', icon: '🧘', color: '#0c8599' },
+  { name: 'Pratique', icon: '💊', color: '#495057' },
+];
 export const DEFAULT_CATEGORIES = [
   { id: 'resto', name: 'Restos', color: '#d9480f', icon: '🍽️' },
   { id: 'boutique', name: 'Boutiques', color: '#1971c2', icon: '🛍️' },
@@ -91,7 +108,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV } });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -108,7 +125,8 @@ export function loadState(storage) {
     const points = (Array.isArray(obj.points) ? obj.points : [])
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), ok: true };
+    const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, ok: true };
   } catch {
     return { ...empty(), ok: false };
   }
@@ -117,7 +135,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null }));
     return true;
   } catch {
     return false;
@@ -227,4 +245,24 @@ export function exportFileName(date, count) {
   const day = `${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()}`;
   const time = `${z(date.getHours())}h${z(date.getMinutes())}`;
   return `Ma carte de Paris - sauvegarde du ${day} à ${time} (${count} lieu${count > 1 ? 'x' : ''}).json`;
+}
+
+const foldName = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** Catégories toutes prêtes que la personne n'a pas encore (même nom, accents et majuscules ignorés). */
+export function suggestedPresets(categories) {
+  const have = new Set(categories.map((c) => foldName(c.name)));
+  return PRESETS.filter((p) => !have.has(foldName(p.name)));
+}
+
+const DAY = 86_400_000;
+/**
+ * Faut-il rappeler de sauvegarder ? Oui si au moins 5 lieux, que le plus ancien a plus de 30 jours
+ * et que la dernière sauvegarde date de plus de 30 jours (ou n'a jamais été faite).
+ */
+export function backupDue(state, now = Date.now()) {
+  if (state.points.length < 5) return false;
+  const oldest = Math.min(...state.points.map((p) => p.created));
+  if (now - oldest < 30 * DAY) return false;
+  return !state.lastExport || now - state.lastExport > 30 * DAY;
 }

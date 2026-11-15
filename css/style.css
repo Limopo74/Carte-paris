@@ -245,3 +245,9 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 
 .summary { margin: 0 0 6px; font-weight: 600; font-size: 15px; }
 .item-sub.small { font-size: 13px; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.preset {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px 4px 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 15px;
+}

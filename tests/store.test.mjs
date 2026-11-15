@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -229,4 +229,32 @@ test('nom du fichier de sauvegarde : date, heure et nombre de lieux', () => {
   assert.equal(exportFileName(d, 42), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (42 lieux).json');
   assert.equal(exportFileName(d, 1), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (1 lieu).json');
   assert.doesNotMatch(exportFileName(d, 3), /[\/:*?"<>|]/);
+});
+
+test('catégories toutes prêtes : valides, sans doublon, et celles déjà présentes ne sont pas reproposées', () => {
+  assert.ok(PRESETS.length >= 12);
+  for (const p of PRESETS) {
+    assert.ok(ICONS.includes(p.icon), p.name);
+    assert.ok(PALETTE.includes(p.color), p.name);
+    assert.ok(p.name.length <= 20, p.name);
+    assert.doesNotThrow(() => addCategory(base(), p));
+  }
+  assert.equal(new Set(PRESETS.map((p) => p.name)).size, PRESETS.length);
+  const names = suggestedPresets([{ id: 'x', name: 'cafes', color: PALETTE[0], icon: '☕' }, ...DEFAULT_CATEGORIES]).map((p) => p.name);
+  assert.ok(!names.includes('Cafés') && !names.includes('Restos') && !names.includes('Boutiques'));
+  assert.ok(names.includes('Bars'));
+});
+
+test('rappel de sauvegarde', () => {
+  const DAY = 86_400_000;
+  const now = Date.UTC(2026, 10, 15);
+  const pts = (n, age) => Array.from({ length: n }, () => ({ ...sample(), created: now - age * DAY }));
+  assert.equal(backupDue({ points: pts(4, 60), lastExport: null }, now), false, 'moins de 5 lieux');
+  assert.equal(backupDue({ points: pts(6, 10), lastExport: null }, now), false, 'lieux trop récents');
+  assert.equal(backupDue({ points: pts(6, 60), lastExport: null }, now), true, 'jamais sauvegardé');
+  assert.equal(backupDue({ points: pts(6, 60), lastExport: now - 10 * DAY }, now), false);
+  assert.equal(backupDue({ points: pts(6, 60), lastExport: now - 40 * DAY }, now), true);
+  const st = memStorage();
+  saveState(st, { ...base(), lastExport: 1234 });
+  assert.equal(loadState(st).lastExport, 1234);
 });

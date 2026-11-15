@@ -2,7 +2,7 @@
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName,
+  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
@@ -10,7 +10,7 @@ import { searchPlaces } from './annuaire.js';
 import { searchPoints } from './search.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (5)';
+const VERSION = '15 novembre 2026 (6)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -436,17 +436,32 @@ function openDetail(id, back = null) {
   const actions = el('div', { class: 'stack' });
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
 
-  const showActions = () => actions.replaceChildren(
-    el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
-      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
-      el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer')),
-    el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer'),
-    back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour à la liste') : null,
-  );
+  const more = el('div', { class: 'stack' });
+  const toggleMore = (btn) => {
+    const open = more.hasChildNodes();
+    btn.setAttribute('aria-expanded', String(!open));
+    btn.textContent = open ? '⋯ Plus' : '⋯ Moins';
+    if (open) { more.replaceChildren(); return; }
+    more.replaceChildren(
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
+        el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer')),
+      el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer'));
+  };
+  const showActions = () => {
+    more.replaceChildren();
+    const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
+    actions.replaceChildren(
+      el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
+        el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
+      el('div', { class: 'row' },
+        back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+        moreBtn),
+      more,
+    );
+  };
   const askDelete = () => actions.replaceChildren(
     el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' },
@@ -667,8 +682,10 @@ function openSettings() {
   });
 
   const exportFile = () => new File([exportJSON(state)], exportFileName(new Date(), state.points.length), { type: 'application/json' });
+  const markExported = () => { state.lastExport = Date.now(); persist(); };
   const download = () => {
     const f = exportFile();
+    markExported();
     const url = URL.createObjectURL(f);
     const a = el('a', { href: url, download: f.name });
     document.body.append(a); a.click(); a.remove();
@@ -679,7 +696,7 @@ function openSettings() {
     try { return Boolean(navigator.canShare?.({ files: [exportFile()] })); } catch { return false; }
   })();
   const share = async () => {
-    try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); } catch { /* annulé */ }
+    try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); markExported(); } catch { /* annulé */ }
   };
   const section = (title) => el('h3', { class: 'ring-title', style: 'margin-top:18px' }, el('span', {}, title), el('span', {}, ''));
 
@@ -713,6 +730,7 @@ function openSettings() {
 
     section('Sauvegarde'),
     el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
+    el('p', { class: backupDue(state) ? 'warn' : 'help' }, state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.'),
     el('button', { type: 'button', class: 'btn', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
     canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
@@ -798,13 +816,27 @@ function openCategory(id) {
   };
   showButtons();
 
+  const presets = id ? [] : suggestedPresets(state.categories);
+  const presetBox = presets.length ? el('div', {},
+    el('div', { class: 'legend' }, 'Toutes prêtes (un appui suffit)'),
+    el('div', { class: 'presets' }, presets.map((pr) => {
+      const b = el('button', { type: 'button', class: 'preset', onclick: () => {
+        state = addCategory(state, pr);
+        persist(); refresh(); openSettings();
+        toast(`Catégorie « ${pr.name} » ajoutée`);
+      } }, el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, pr.icon), pr.name);
+      b.firstChild.style.background = pr.color;
+      return b;
+    })),
+    el('div', { class: 'legend', style: 'margin-top:14px' }, 'Ou sur mesure')) : null;
+
   openSheet(id ? 'Modifier la catégorie' : 'Nouvelle catégorie', el('div', { class: 'stack' },
+    presetBox,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
     err, zone,
   ), { tall: true });
-  if (!id) name.focus();
 }
 
 /* ---------- Démarrage ---------- */
@@ -822,6 +854,7 @@ if (state.points.length) {
   toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
+else if (backupDue(state)) toast('Pense à sauvegarder tes lieux : ⚙ Réglages → Exporter mes lieux.');
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
