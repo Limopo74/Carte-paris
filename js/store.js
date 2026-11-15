@@ -44,7 +44,7 @@ const cleanFav = (f) => ({
 });
 
 /** Crée un lieu complet à partir des champs saisis. */
-export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '' }) {
+export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '', owner = '' }) {
   return {
     id: makeId(),
     name: String(name ?? '').trim(),
@@ -57,6 +57,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     lng: Number(lng),
     address: String(address ?? ''),
     hours: String(hours ?? '').slice(0, 300),
+    owner: String(owner ?? '').trim().slice(0, 30),
     created: Date.now(),
   };
 }
@@ -105,12 +106,13 @@ const clean = (p) => ({
   fav: Boolean(p.fav), lat: p.lat, lng: p.lng,
   address: typeof p.address === 'string' ? p.address : '',
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
+  owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 } });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -128,7 +130,10 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), ok: true };
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []),
+      me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
+      walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
+      ok: true };
   } catch {
     return { ...empty(), ok: false };
   }
@@ -137,7 +142,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 } }));
     return true;
   } catch {
     return false;
@@ -147,7 +152,7 @@ export function saveState(storage, state) {
 /** Texte du fichier de sauvegarde. */
 export function exportJSON(state) {
   return JSON.stringify({
-    app: 'carte-paris', version: 2, exported: new Date().toISOString(),
+    app: 'carte-paris', version: 2, exported: new Date().toISOString(), owner: state.me ?? '',
     categories: state.categories, fav: state.fav, rings: state.rings, points: state.points,
   }, null, 2);
 }
@@ -156,7 +161,20 @@ export function exportJSON(state) {
  * Ajoute les catégories et les lieux d'un fichier de sauvegarde, sans doublon (même id).
  * Ne modifie pas l'état reçu. Lève une erreur si le fichier n'est pas une sauvegarde valide.
  */
-export function mergeImport(state, text) {
+/** Prénom indiqué dans un fichier de sauvegarde ('' s'il n'y en a pas ou si le fichier est illisible). */
+export function fileOwner(text) {
+  try {
+    const o = JSON.parse(text)?.owner;
+    return typeof o === 'string' ? o.trim().slice(0, 30) : '';
+  } catch { return ''; }
+}
+
+/**
+ * `owner` : à qui appartiennent les lieux du fichier ('' = ce sont les miens, par exemple une sauvegarde).
+ * Les lieux qu'un ami avait lui-même reçus d'une autre personne gardent le nom de cette personne,
+ * et ceux qui portent mon prénom redeviennent les miens.
+ */
+export function mergeImport(state, text, owner = '') {
   let obj;
   try {
     obj = JSON.parse(text);
@@ -183,7 +201,10 @@ export function mergeImport(state, text) {
     if (!validatePoint(p, [...catIds])) { skipped++; continue; }
     if (known.has(p.id)) continue;
     known.add(p.id);
-    points.push(clean(p));
+    const c = clean(p);
+    if (owner) c.owner = c.owner || owner;
+    if (state.me && c.owner === state.me) c.owner = '';
+    points.push(c);
     added++;
   }
   return { state: { ...state, points, categories }, added, skipped };
@@ -275,4 +296,11 @@ export function backupDue(state, now = Date.now()) {
   if (n >= 10) return true;
   if (!state.lastExport) return state.points.length >= 3 && n > 0;
   return n > 0 && now - state.lastExport > 7 * DAY;
+}
+
+/** Les personnes dont j'ai des lieux (sans moi), avec leur nombre de lieux. */
+export function owners(points) {
+  const m = new Map();
+  for (const p of points) if (p.owner) m.set(p.owner, (m.get(p.owner) ?? 0) + 1);
+  return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }

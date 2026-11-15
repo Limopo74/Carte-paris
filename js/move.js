@@ -115,3 +115,27 @@ export function spokenDistance(m) {
   const km = (m / 1000).toFixed(1).replace('.', ',');
   return `${km} kilomètre${m >= 2000 ? 's' : ''}`;
 }
+
+// Compteur de balade : on n'ajoute que des pas de marche plausibles entre deux positions GPS.
+export const STRIDE_M = 0.7; // longueur moyenne d'un pas
+
+/** Mètres à ajouter entre deux positions : 0 si trop imprécis, immobile, ou si le saut est trop grand. */
+export function walkSegment(prev, fix) {
+  if (!prev || !fix || prev.acc > 30 || fix.acc > 30) return 0;
+  const d = distanceM(prev, fix);
+  const dt = (fix.time - prev.time) / 1000;
+  if (d < 5 || dt <= 0) return 0; // bruit GPS à l'arrêt
+  if (d / dt > 3) return 0; // plus de 3 m/s (11 km/h) : métro, vélo ou saut de GPS
+  return d;
+}
+
+/** Pas estimés pour une distance. */
+export function stepsFor(m) {
+  return Math.round(m / STRIDE_M);
+}
+
+/** Date du jour au format AAAA-MM-JJ (heure du téléphone). */
+export function dayKey(date = new Date()) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${z(date.getMonth() + 1)}-${z(date.getDate())}`;
+}

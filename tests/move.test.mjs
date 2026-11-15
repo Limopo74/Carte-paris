@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bearing, relativeAngle, compassLabel, bestFix, detourM, onTheWay, MAX_DETOUR_M,
-  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance,
+  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from '../js/move.js';
 import { distanceM } from '../js/geo.js';
 
@@ -108,4 +108,16 @@ test('voix : direction et distance en mots', () => {
   assert.equal(spokenDistance(3), '10 mètres');
   assert.equal(spokenDistance(1234), '1,2 kilomètre');
   assert.equal(spokenDistance(2500), '2,5 kilomètres');
+});
+
+test('compteur de balade : seulement la marche plausible', () => {
+  const a = { ...O, acc: 10, time: 0 };
+  const b = { ...off(O, 20, 0), acc: 10, time: 15000 }; // 20 m en 15 s
+  assert.ok(Math.abs(walkSegment(a, b) - 20) < 1);
+  assert.equal(walkSegment(a, { ...off(O, 3, 0), acc: 10, time: 15000 }), 0, 'bruit à l\'arrêt');
+  assert.equal(walkSegment(a, { ...off(O, 300, 0), acc: 10, time: 15000 }), 0, 'trop rapide');
+  assert.equal(walkSegment(a, { ...b, acc: 60 }), 0, 'imprécis');
+  assert.equal(walkSegment(null, b), 0);
+  assert.equal(stepsFor(700), 1000);
+  assert.equal(dayKey(new Date(2026, 10, 5)), '2026-11-05');
 });

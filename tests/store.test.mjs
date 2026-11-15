@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, unsavedCount, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, unsavedCount, fileOwner, owners, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -283,4 +283,33 @@ test('unité des cercles : mètres par défaut, minutes conservées', () => {
   const s1 = loadState(st);
   assert.equal(s1.ringUnit, 'min');
   assert.deepEqual(s1.minuteRings, [3, 8]);
+});
+
+test('plusieurs personnes : les lieux d\'un ami gardent son prénom', () => {
+  const paul = { ...base(), me: 'Paul', points: [sample(), { ...sample(), id: 'lea1', owner: 'Léa' }, { ...sample(), id: 'moi1', owner: 'Marie' }] };
+  const text = exportJSON(paul);
+  assert.equal(fileOwner(text), 'Paul');
+  assert.equal(fileOwner('pas du json'), '');
+  const moi = { ...base(), me: 'Marie', points: [] };
+  const r = mergeImport(moi, text, 'Paul');
+  const by = Object.fromEntries(r.state.points.map((p) => [p.id, p.owner]));
+  assert.equal(by[paul.points[0].id], 'Paul');
+  assert.equal(by.lea1, 'Léa');
+  assert.equal(by.moi1, '', 'un lieu à mon prénom redevient le mien');
+  assert.deepEqual(owners(r.state.points), [{ name: 'Léa', n: 1 }, { name: 'Paul', n: 1 }]);
+});
+
+test('ma propre sauvegarde : les lieux restent les miens', () => {
+  const moi = { ...base(), me: 'Marie', points: [sample()] };
+  const r = mergeImport({ ...base(), me: 'Marie' }, exportJSON(moi), '');
+  assert.equal(r.state.points[0].owner, '');
+});
+
+test('prénom et compteur de marche conservés', () => {
+  const st = memStorage();
+  saveState(st, { ...base(), me: '  Marie  ', walk: { day: '2026-11-15', m: 1234 } });
+  const s = loadState(st);
+  assert.equal(s.me, 'Marie');
+  assert.deepEqual(s.walk, { day: '2026-11-15', m: 1234 });
+  assert.deepEqual(loadState(memStorage()).walk, { day: '', m: 0 });
 });

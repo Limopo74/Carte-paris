@@ -3,6 +3,7 @@ import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesT
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
@@ -10,14 +11,15 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
+import { metroPlan } from './metroplan.js';
 import { searchPoints, fold } from './search.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
-  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance,
+  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (19)';
+const VERSION = '15 novembre 2026 (21)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -167,8 +169,9 @@ const draftLayer = L.layerGroup().addTo(map);
 
 let filterCat = 'all';
 let favOnly = false;
+let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 const visible = () => state.points.filter((p) =>
-  (filterCat === 'all' || p.cat === filterCat) && (!favOnly || p.fav));
+  (filterCat === 'all' || p.cat === filterCat) && (!favOnly || p.fav) && (personFilter === 'all' || p.owner === personFilter));
 
 function renderMarkers() {
   pointsLayer.clearLayers();
@@ -210,16 +213,39 @@ function renderChips() {
   // Plus de 3 catégories : un seul bouton « Catégories ▾ » qui les montre toutes d'un coup.
   const many = state.categories.length > 3;
   const current = filterCat === 'all' ? null : catOf(filterCat);
-  document.getElementById('chips').replaceChildren(
+  document.getElementById('chips').replaceChildren(...[
     chip('Tout', filterCat === 'all', () => setFilter('all')),
     chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
     ...(many
       ? [chip(current ? [catDot(current.id), current.name, ' ▾'] : 'Catégories ▾', Boolean(current), openCategoryPicker,
         { class: 'cat-pick', aria: current ? `Catégorie : ${current.name}. Changer` : 'Choisir une catégorie' })]
       : state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id)))),
-  );
+    // Lieux reçus d'autres personnes : choisir de qui on affiche les lieux
+    owners(state.points).length
+      ? chip(personFilter === 'all' ? '👥 Tous ▾' : personFilter === '' ? '👤 Moi ▾' : `👤 ${personFilter} ▾`, personFilter !== 'all', openPersonPicker,
+        { class: 'cat-pick', aria: 'Choisir de qui afficher les lieux' })
+      : null,
+  ].filter(Boolean));
   const star = document.querySelector('#chips .star');
   if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
+}
+
+/** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
+function openPersonPicker() {
+  const pick = (who) => {
+    personFilter = who;
+    refresh();
+    if (navStack.length > 1) history.back(); else closeSheet();
+  };
+  const mine = state.points.filter((p) => !p.owner).length;
+  const btn = (who, label, icon, count) => el('button', {
+    type: 'button', class: 'cat-choice', 'aria-pressed': String(personFilter === who), onclick: () => pick(who),
+  }, el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, icon), el('span', { class: 'cat-choice-name' }, label), el('span', { class: 'cat-count' }, String(count)));
+  openSheet('Lieux de…', el('div', { class: 'cat-grid' },
+    btn('all', 'Tout le monde', '👥', state.points.length),
+    btn('', state.me ? `Moi (${state.me})` : 'Moi', '👤', mine),
+    ...owners(state.points).map((o) => btn(o.name, o.name, '👤', o.n)),
+  ), { name: 'personpick', again: openPersonPicker });
 }
 
 /** Toutes les catégories en grands boutons : un appui pour choisir. */
@@ -615,6 +641,7 @@ function openDetail(id, back = null) {
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => openCompass(p) }, '🧭 Boussole'),
         el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller')),
+      el('button', { type: 'button', class: 'btn', onclick: () => showMetroPlan(p, back) }, 'Ⓜ Quel métro prendre ?'),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
@@ -641,6 +668,7 @@ function openDetail(id, back = null) {
   openSheet([favMark(p), p.name], el('div', { class: 'stack' },
     el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
     d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
+    p.owner ? el('div', { class: 'badge' }, `👤 Lieu de ${p.owner}`) : null,
     hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
     stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
     el('div', { class: 'badge' }, ageLine(p)),
@@ -743,7 +771,7 @@ function openSearch(initial = '') {
 
   const run = () => {
     const pos = freshHere();
-    const res = searchPoints(state.points, state.categories, input.value, pos);
+    const res = searchPoints(visible(), state.categories, input.value, pos);
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
       : res.length ? `${plural(res.length, 'lieu', 'lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun lieu ne correspond.';
@@ -890,6 +918,9 @@ function renderNear(fit = false) {
         : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
   }
+  if (following) {
+    body.push(el('p', { class: 'help' }, `🚶 Cette balade : ${walkText(walkSession)} · aujourd'hui : ${walkText(todayWalk())}`));
+  }
   if (origin.kind !== 'station' && origin.acc > 100) {
     body.push(el('p', { class: 'warn' }, `Position approximative (à ${Math.round(origin.acc)} m près) : les petits cercles ne sont pas fiables.`));
   }
@@ -947,6 +978,27 @@ function speak(text) {
 }
 function silence() { try { speechSynthesis?.cancel(); } catch { /* rien */ } }
 
+/* ---------- Compteur de balade (seulement appli ouverte, suivi ou boussole) ---------- */
+
+let walkPrev = null;
+let walkSession = 0;
+let walkSavedAt = 0;
+
+function countWalk(fix) {
+  const today = dayKey();
+  if (state.walk?.day !== today) state.walk = { day: today, m: 0 };
+  const seg = walkSegment(walkPrev, fix);
+  if (fix.acc <= 30) walkPrev = fix;
+  if (!seg) return;
+  state.walk.m += seg;
+  walkSession += seg;
+  if (Date.now() - walkSavedAt > 30000) { walkSavedAt = Date.now(); persist(); }
+}
+function walkText(m) {
+  return `${fmtDist(m).replace('à côté', '0 m')} · ≈ ${stepsFor(m).toLocaleString('fr-FR')} pas`;
+}
+const todayWalk = () => (state.walk?.day === dayKey() ? state.walk.m : 0);
+
 /* ---------- Suivi en direct (seulement appli ouverte) ---------- */
 
 let following = false;
@@ -965,12 +1017,15 @@ async function keepScreenOn(on) {
 function startFollow() {
   if (!('geolocation' in navigator)) return;
   following = true;
+  walkPrev = null;
+  walkSession = 0;
   signaled.clear();
   for (const p of newlyNear(visible(), origin, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
   keepScreenOn(true);
   followId = navigator.geolocation.watchPosition((pos) => {
     const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
     if (fix.acc > 150) return; // trop imprécis pour suivre
+    countWalk(fix);
     remember(fix);
     origin = { ...fix, kind: 'gps' };
     const alerts = newlyNear(visible(), fix, signaled, 100);
@@ -999,6 +1054,7 @@ function stopFollow(rerender = false) {
   followId = null;
   if (!following) return;
   following = false;
+  persist(); // garde le compteur de marche
   keepScreenOn(false);
   silence();
   if (rerender && view === 'near') renderNear();
@@ -1137,6 +1193,10 @@ function openCompass(p) {
   const arrow = compassEl.querySelector('.compass-arrow');
   const dist = compassEl.querySelector('.compass-dist');
   const hint = compassEl.querySelector('.compass-hint');
+  const walkEl = compassEl.querySelector('.compass-walk');
+  walkPrev = null;
+  walkSession = 0;
+  walkEl.textContent = '';
   compassEl.querySelector('.compass-name').textContent = p.name;
   compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
   compassEl.hidden = false;
@@ -1194,6 +1254,8 @@ function openCompass(p) {
   const watch = 'geolocation' in navigator
     ? navigator.geolocation.watchPosition((g) => {
       pos = { lat: g.coords.latitude, lng: g.coords.longitude, acc: g.coords.accuracy, time: Date.now() };
+      countWalk(pos);
+      walkEl.textContent = `🚶 ${walkText(walkSession)}`;
       remember(pos);
       if (distanceM(pos, p) < 20) { try { navigator.vibrate?.(300); } catch { /* rien */ } }
       draw();
@@ -1208,6 +1270,7 @@ function openCompass(p) {
 
   compassStop = () => {
     silence();
+    persist();
     window.removeEventListener(evt, onOrient);
     if (watch != null) navigator.geolocation.clearWatch(watch);
     compassEl.hidden = true;
@@ -1230,6 +1293,7 @@ window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true);
 function openSettings() {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
   const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
+  const meInput = el('input', { type: 'text', maxlength: '30', value: state.me ?? '', autocomplete: 'given-name' });
   const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
   const count = state.points.length;
 
@@ -1237,15 +1301,32 @@ function openSettings() {
     const f = file.files?.[0];
     file.value = '';
     if (!f) return;
-    try {
-      const r = mergeImport(state, await f.text());
-      state = { ...r.state, ok: state.ok };
-      persist(); refresh();
-      openSettings();
-      toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
-    } catch (e) {
-      toast(e.message || 'Import impossible.', true);
-    }
+    const text = await f.text();
+    const doImport = (owner) => {
+      try {
+        const r = mergeImport(state, text, owner);
+        state = { ...r.state, ok: state.ok };
+        persist(); refresh();
+        openSettings();
+        toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
+      } catch (e) {
+        toast(e.message || 'Import impossible.', true);
+      }
+    };
+    // À qui sont ces lieux ? Le prénom du fichier est proposé ; une sauvegarde à moi reste à moi.
+    const from = fileOwner(text);
+    if (from && from === state.me) { doImport(''); return; }
+    const other = el('input', { type: 'text', maxlength: '30', value: from, placeholder: 'Prénom', 'aria-label': 'Prénom de la personne' });
+    openSheet('À qui sont ces lieux ?', el('div', { class: 'stack' },
+      el('button', { type: 'button', class: 'btn', onclick: () => doImport('') }, 'Ce sont mes lieux (sauvegarde)'),
+      el('label', { class: 'field' }, 'Lieux d\'une autre personne', other),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+        const name = other.value.trim();
+        if (!name) { other.focus(); toast('Indique son prénom.', true); return; }
+        doImport(name);
+      } }, 'Ajouter comme ses lieux'),
+      el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens. Le bouton 👥 en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
+    ), { name: 'importwho' });
   });
 
   const exportFile = () => new File([exportJSON(state)], exportFileName(new Date(), state.points.length), { type: 'application/json' });
@@ -1277,6 +1358,11 @@ function openSettings() {
       unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
     ].join('')),
     el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
+    el('label', { class: 'field' }, 'Ton prénom (pour qu\'un ami sache de qui viennent tes lieux)', meInput),
+    el('button', { type: 'button', class: 'btn', onclick: () => {
+      state.me = meInput.value.trim().slice(0, 30); persist(); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
+    } }, 'Enregistrer le prénom'),
+    el('p', { class: 'help' }, 'Pour partager tes lieux : exporte, envoie le fichier, ton ami l\'importe. Chacun garde les siens sur son téléphone.'),
     canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
     el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
@@ -1287,6 +1373,9 @@ function openSettings() {
       toast(state.voice ? 'Voix activée' : 'Voix désactivée');
     } }, state.voice === false ? '🔇 Voix désactivée (appuie pour l\'activer)' : '🔊 Voix activée (appuie pour la couper)'),
     el('p', { class: 'help' }, 'La voix parle pendant la boussole et le suivi en direct. Elle utilise la voix du téléphone, sans internet.'),
+
+    section('Marche'),
+    el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran (le podomètre du téléphone n'est pas accessible à une appli web). Pas estimés avec 70 cm par pas.`),
 
     section('Application'),
     el('button', { type: 'button', class: 'btn', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
@@ -1474,6 +1563,63 @@ async function updateApp() {
     await Promise.all(keys.map((k) => caches.delete(k))); // tes lieux ne sont pas dans ce cache : rien n'est perdu
   } catch { /* on recharge quand même */ }
   location.reload();
+}
+
+/* ---------- Quel métro prendre pour aller à un lieu ---------- */
+
+async function showMetroPlan(p, back) {
+  await stationsReady;
+  toast('Calcul du trajet…');
+  let from = freshHere();
+  if (!from) {
+    try { from = await locate(); } catch (e) {
+      if (here) from = here; else { toast(e.message, true); return; }
+    }
+  }
+  hideToast();
+  renderMetroPlan(p, from, back);
+}
+
+function renderMetroPlan(p, from, back) {
+  const plan = metroPlan(stations, from, p);
+  const ln = (l) => `ligne ${l}`;
+  const step = (icon, text) => el('li', { class: 'plan-step' }, el('span', { class: 'plan-ico', 'aria-hidden': 'true' }, icon), el('span', {}, text));
+  let steps;
+  let firstTarget = null;
+  if (plan.type === 'walk') {
+    steps = [step('🚶', `À pied, c'est le plus simple : ≈ ${plan.minutes} min.`)];
+  } else {
+    firstTarget = { name: `Ⓜ ${plan.start.n}`, lat: plan.start.lat, lng: plan.start.lng };
+    steps = [
+      step('🚶', `${plan.walkIn} min à pied jusqu'à Ⓜ ${plan.start.n}`),
+      plan.type === 'direct'
+        ? step('Ⓜ', `Prends la ${ln(plan.line)} jusqu'à ${plan.end.n}`)
+        : step('Ⓜ', `Prends la ${ln(plan.line1)} jusqu'à ${plan.via.n}, puis la ${ln(plan.line2)} jusqu'à ${plan.end.n}`),
+      step('🚶', `${plan.walkOut} min à pied jusqu'à ${p.name}`),
+    ];
+  }
+  openSheet(`Vers ${p.name}`, el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, plan.type === 'walk' ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
+    el('ol', { class: 'plan' }, steps),
+    plan.type === 'walk' ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openCompass(firstTarget ?? p) }, firstTarget ? '🧭 Vers la station' : '🧭 Boussole'),
+      el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
+    plan.type === 'walk' ? null : el('a', { class: 'btn', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
+    back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+  ), { name: `plan:${p.id}`, again: () => renderMetroPlan(p, from, back) });
+  nearLayer.clearLayers();
+  meMarker(from.lat, from.lng).addTo(nearLayer);
+  const pts = [[from.lat, from.lng], [p.lat, p.lng]];
+  if (plan.type !== 'walk') {
+    const chain = [from, plan.start, ...(plan.type === 'transfer' ? [plan.via] : []), plan.end, p];
+    L.polyline(chain.map((x) => [x.lat, x.lng]), { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
+    for (const st of chain.slice(1, -1)) {
+      pts.push([st.lat, st.lng]);
+      L.marker([st.lat, st.lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin small">M</span>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(nearLayer);
+    }
+  }
+  map.fitBounds(L.latLngBounds(pts).pad(0.25), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 16, animate: false });
 }
 
 /* ---------- Métro le plus proche, en un appui ---------- */

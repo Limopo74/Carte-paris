@@ -363,3 +363,10 @@ ol.items { padding: 0; }
 .cat-choice[aria-pressed="true"] { border: 3px solid var(--ink); background: var(--soft); }
 .cat-choice-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .cat-choice:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; }
+
+.compass-walk { margin: 0; opacity: .85; font-size: 15px; min-height: 20px; }
+
+/* Trajet en métro */
+.plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.plan-step { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 1.35; }
+.plan-ico { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
