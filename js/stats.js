@@ -49,3 +49,11 @@ export function nearestStation(stations, p) {
   }
   return best;
 }
+
+/** Les `n` stations les plus proches, de la plus proche à la plus loin : [{ station, d }]. */
+export function nearestStations(stations, p, n = 3) {
+  return stations
+    .map((station) => ({ station, d: distanceM(p, station) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, n);
+}

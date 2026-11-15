@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from '../js/stats.js';
+import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from '../js/stats.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 10, 15, 12);
@@ -44,4 +44,17 @@ test('station la plus proche', () => {
   assert.equal(r.station.n, 'Opéra');
   assert.ok(r.d > 100 && r.d < 200);
   assert.equal(nearestStation([], { lat: 48, lng: 2 }), null);
+});
+
+test('les stations les plus proches, dans l\'ordre', () => {
+  const st = [
+    { n: 'Loin', lat: 48.90, lng: 2.40 },
+    { n: 'Opéra', lat: 48.8712, lng: 2.3310 },
+    { n: 'Pyramides', lat: 48.8657, lng: 2.3346 },
+    { n: 'Madeleine', lat: 48.8700, lng: 2.3245 },
+  ];
+  const r = nearestStations(st, { lat: 48.8700, lng: 2.3318 }, 3);
+  assert.deepEqual(r.map((x) => x.station.n), ['Opéra', 'Pyramides', 'Madeleine']);
+  assert.ok(r[0].d < r[1].d && r[1].d < r[2].d);
+  assert.deepEqual(nearestStations([], { lat: 48, lng: 2 }), []);
 });

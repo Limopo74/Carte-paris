@@ -4,7 +4,7 @@ import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
 } from './store.js';
-import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation } from './stats.js';
+import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { searchPoints, fold } from './search.js';
@@ -14,7 +14,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (11)';
+const VERSION = '15 novembre 2026 (12)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1346,6 +1346,58 @@ async function updateApp() {
   location.reload();
 }
 
+/* ---------- Métro le plus proche, en un appui ---------- */
+
+const stationLabel = (st) => [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
+
+async function nearestMetro() {
+  if (!stations.length) { toast('La liste des stations n\'est pas encore chargée : réessaie dans un instant.', true); return; }
+  toast('Recherche du métro le plus proche…');
+  let from;
+  let note = null;
+  try {
+    from = await locate();
+    hideToast();
+  } catch (e) {
+    if (here && Date.now() - here.time < 2 * 3600 * 1000) {
+      from = here;
+      note = `GPS indisponible : calculé depuis ta dernière position (${timeAgoShort(here.time)}).`;
+      hideToast();
+    } else { toast(e.message, true); return; }
+  }
+  showNearestMetro(from, note);
+}
+
+function showNearestMetro(from, note = null) {
+  const list = nearestStations(stations, from, 3);
+  const [first, ...others] = list;
+  const st = first.station;
+  const target = { name: `Ⓜ ${st.n}`, lat: st.lat, lng: st.lng };
+  openSheet(`Ⓜ ${st.n}`, el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${fmtDist(first.d)} · ${fmtWalk(first.d)}`),
+    el('p', { class: 'help' }, stationLabel(st)),
+    note ? el('p', { class: 'warn' }, note) : null,
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openCompass(target) }, '🧭 Boussole'),
+      el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
+    others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
+    el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
+      el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${stationLabel(o)}`))),
+      el('a', { class: 'go', href: mapsUrl(o, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))),
+  ), { name: 'metro', again: () => showNearestMetro(from, note) });
+  nearLayer.clearLayers();
+  L.polyline([[from.lat, from.lng], [st.lat, st.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
+  meMarker(from.lat, from.lng).addTo(nearLayer);
+  for (const { station: o } of others) {
+    L.marker([o.lat, o.lng], { interactive: false, keyboard: false, zIndexOffset: 1500, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin small">M</span>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(nearLayer);
+  }
+  L.marker([st.lat, st.lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+  map.fitBounds(L.latLngBounds([[from.lat, from.lng], [st.lat, st.lng]]).pad(0.6), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
+document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
 
