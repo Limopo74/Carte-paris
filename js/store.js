@@ -2,17 +2,29 @@
 import { normalizeRings, DEFAULT_RINGS } from './geo.js';
 
 export const KEY = 'carte-paris.v1';
-export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#e8590c', '#c2255c', '#0c8599', '#495057'];
+export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#9c6644', '#c2255c', '#0c8599', '#495057'];
+export const ICONS = [
+  '🍽️', '☕', '🍷', '🍺', '🍸', '🥐', '🍰', '🍦', '🍕', '🍜', '🍣', '🥗',
+  '🛍️', '👗', '👟', '📚', '🎁', '💄', '🧀', '🍫', '🏛️', '🖼️', '🎭', '🎬',
+  '🎵', '⛪', '🌳', '🌸', '🏊', '🧘', '💈', '💊', '📍', '⭐', '❤️', '🏠',
+];
+export const DEFAULT_ICON = '📍';
+export const FAV_COLORS = ['#f2a900', ...PALETTE];
+export const DEFAULT_FAV = { icon: '⭐', color: '#f2a900' };
 export const DEFAULT_CATEGORIES = [
-  { id: 'resto', name: 'Restos', color: '#d9480f' },
-  { id: 'boutique', name: 'Boutiques', color: '#1971c2' },
-  { id: 'culture', name: 'Culture', color: '#7b2cbf' },
+  { id: 'resto', name: 'Restos', color: '#d9480f', icon: '🍽️' },
+  { id: 'boutique', name: 'Boutiques', color: '#1971c2', icon: '🛍️' },
+  { id: 'culture', name: 'Culture', color: '#7b2cbf', icon: '🏛️' },
 ];
 const NAME_MAX = 20;
 
 const makeId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const defaults = () => DEFAULT_CATEGORIES.map((c) => ({ ...c }));
+const cleanFav = (f) => ({
+  icon: ICONS.includes(f?.icon) ? f.icon : DEFAULT_FAV.icon,
+  color: FAV_COLORS.includes(f?.color) ? f.color : DEFAULT_FAV.color,
+});
 
 /** Crée un lieu complet à partir des champs saisis. */
 export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '' }) {
@@ -48,7 +60,12 @@ function validCategory(c) {
     typeof c.name === 'string' && c.name.trim().length > 0 &&
     typeof c.color === 'string' && /^#[0-9a-f]{6}$/i.test(c.color);
 }
-const cleanCategory = (c) => ({ id: c.id, name: c.name.trim().slice(0, NAME_MAX), color: c.color.toLowerCase() });
+// Les catégories enregistrées avant l'arrivée des icônes reçoivent celle d'origine, sinon 📍.
+const defaultIcon = (id) => DEFAULT_CATEGORIES.find((d) => d.id === id)?.icon ?? DEFAULT_ICON;
+const cleanCategory = (c) => ({
+  id: c.id, name: c.name.trim().slice(0, NAME_MAX), color: c.color.toLowerCase(),
+  icon: ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id),
+});
 
 function cleanCategories(list) {
   const seen = new Set();
@@ -72,7 +89,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults() });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV } });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -89,7 +106,7 @@ export function loadState(storage) {
     const points = (Array.isArray(obj.points) ? obj.points : [])
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, ok: true };
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), ok: true };
   } catch {
     return { ...empty(), ok: false };
   }
@@ -98,7 +115,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav }));
     return true;
   } catch {
     return false;
@@ -109,7 +126,7 @@ export function saveState(storage, state) {
 export function exportJSON(state) {
   return JSON.stringify({
     app: 'carte-paris', version: 2, exported: new Date().toISOString(),
-    categories: state.categories, rings: state.rings, points: state.points,
+    categories: state.categories, fav: state.fav, rings: state.rings, points: state.points,
   }, null, 2);
 }
 
@@ -150,11 +167,12 @@ export function mergeImport(state, text) {
   return { state: { ...state, points, categories }, added, skipped };
 }
 
-function checkFields({ name, color }) {
+function checkFields({ name, color, icon = DEFAULT_ICON }, keepColor = null) {
   const n = String(name ?? '').trim();
   if (!n) throw new Error('Donne un nom à la catégorie.');
-  if (!PALETTE.includes(color)) throw new Error('Choisis une couleur dans la liste.');
-  return { name: n.slice(0, NAME_MAX), color };
+  if (!PALETTE.includes(color) && color !== keepColor) throw new Error('Choisis une couleur dans la liste.');
+  if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
+  return { name: n.slice(0, NAME_MAX), color, icon };
 }
 
 /** Ajoute une catégorie. Renvoie un nouvel état. */
@@ -165,7 +183,8 @@ export function addCategory(state, fields) {
 
 /** Renomme ou recolore une catégorie. Renvoie un nouvel état. */
 export function updateCategory(state, id, fields) {
-  const f = checkFields(fields);
+  // Une couleur déjà utilisée reste acceptée même si elle a quitté la palette.
+  const f = checkFields(fields, state.categories.find((c) => c.id === id)?.color);
   return { ...state, categories: state.categories.map((c) => (c.id === id ? { ...c, ...f } : c)) };
 }
 
@@ -183,4 +202,11 @@ export function deleteCategory(state, id, moveTo) {
     categories: state.categories.filter((c) => c.id !== id),
     points: state.points.map((p) => (p.cat === id ? { ...p, cat: target.id } : p)),
   };
+}
+
+/** Change l'icône et la couleur des favoris. Renvoie un nouvel état. */
+export function setFavStyle(state, { icon, color }) {
+  if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
+  if (!FAV_COLORS.includes(color)) throw new Error('Choisis une couleur dans la liste.');
+  return { ...state, fav: { icon, color } };
 }

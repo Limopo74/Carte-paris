@@ -1,17 +1,18 @@
 // Interface de « Ma carte de Paris ».
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
 import {
-  KEY, PALETTE, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory,
+  KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
+  addCategory, updateCategory, deleteCategory, setFavStyle,
 } from './store.js';
 import { searchAddress, reverseAddress } from './adresse.js';
+import { searchPlaces } from './annuaire.js';
 import { searchPoints } from './search.js';
 
 const L = window.L;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
-const FAV_COLOR = '#f2a900';
-const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Orange', 'Framboise', 'Turquoise', 'Gris'];
+const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
+const FAV_COLOR_NAMES = ['Doré', ...COLOR_NAMES];
 
 /* ---------- Stockage ---------- */
 
@@ -37,7 +38,7 @@ function persist() {
   return true;
 }
 
-const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '?', color: '#495057' };
+const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '?', color: '#495057', icon: '📍' };
 
 /* ---------- Petits outils ---------- */
 
@@ -60,12 +61,29 @@ const fmtDist = (m) => (m < 15 ? 'à côté' : m < 1000 ? `${Math.ceil(m / 10) *
 const fmtRing = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toLocaleString('fr-FR')} km`);
 const fmtWalk = (m) => `≈ ${walkMinutes(m)} min à pied`;
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+/** Pastille de catégorie : son icône sur sa couleur. */
 function catDot(catId) {
-  const d = el('span', { class: 'dot', 'aria-hidden': 'true' });
-  d.style.background = catOf(catId).color;
+  const c = catOf(catId);
+  const d = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, c.icon);
+  d.style.background = c.color;
   return d;
 }
-const favMark = (p) => (p.fav ? el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, '★ ') : null);
+const favMark = (p) => (p.fav ? el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, `${state.fav.icon} `) : null);
+
+/** Grille de choix (icônes ou couleurs) à boutons pressés. */
+function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
+  const box = el('div', { class: colors ? 'swatches' : 'icon-grid', role: 'group' });
+  const draw = (cur) => box.replaceChildren(...values.map((v, i) => {
+    const b = el('button', {
+      type: 'button', class: colors ? 'swatch' : 'icon-choice', 'aria-pressed': String(v === cur),
+      'aria-label': names[i] ?? v, onclick: () => { onPick(v); draw(v); },
+    }, colors ? null : v);
+    if (colors) b.style.background = v;
+    return b;
+  }));
+  draw(selected);
+  return box;
+}
 
 let toastTimer;
 function toast(msg, isError = false) {
@@ -99,16 +117,15 @@ function renderMarkers() {
   pointsLayer.clearLayers();
   for (const p of visible()) {
     if (moving && moving.id === p.id) continue; // le viseur le remplace pendant le déplacement
-    const color = catOf(p.cat).color;
-    L.circleMarker([p.lat, p.lng], {
-      radius: p.fav ? 10 : 9,
-      color: p.fav ? FAV_COLOR : color,
-      weight: p.fav ? 4 : 3,
-      fillColor: color,
-      fillOpacity: p.done ? 0.25 : 0.9,
-      bubblingMouseEvents: false,
+    const c = catOf(p.cat);
+    // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
+    const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
+    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}">${c.icon}${p.fav ? `<span class="pin-fav">${state.fav.icon}</span>` : ''}</span>`;
+    L.marker([p.lat, p.lng], {
+      icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 16] }),
+      zIndexOffset: p.fav ? 500 : 0,
     })
-      .bindTooltip(p.name, { direction: 'top', offset: [0, -8] })
+      .bindTooltip(p.name, { direction: 'top', offset: [0, -16] })
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
   }
@@ -135,9 +152,11 @@ function renderChips() {
     el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria }, label);
   document.getElementById('chips').replaceChildren(
     chip('Tout', filterCat === 'all', () => setFilter('all')),
-    chip('★', favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
+    chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
     ...state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id))),
   );
+  const star = document.querySelector('#chips .star');
+  if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
 }
 
 function setFilter(id) {
@@ -235,7 +254,7 @@ const freshHere = () => (here && Date.now() - here.time < FRESH_MS ? here : null
 function openAddChoice() {
   openSheet('Ajouter un lieu', el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big primary', onclick: addAtPosition }, '📍  À ma position'),
-    el('button', { type: 'button', class: 'btn big', onclick: openAddressSearch }, '🔎  Avec une adresse'),
+    el('button', { type: 'button', class: 'btn big', onclick: () => openPlaceSearch() }, '🔎  Avec un nom ou une adresse'),
     el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, à l\'endroit voulu.'),
   ));
 }
@@ -266,42 +285,59 @@ map.on('contextmenu', (e) => {
   addAt(e.latlng.lat, e.latlng.lng);
 });
 
-function openAddressSearch() {
-  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : 12 rue de Rivoli', 'aria-describedby': 'addrHelp' });
-  const info = el('p', { class: 'help', id: 'addrHelp' }, 'Tape au moins 3 caractères, puis choisis l\'adresse dans la liste.');
-  const list = el('ul', { class: 'results' });
-  let timer;
+/** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
+function openPlaceSearch(initial = '', autoRun = false) {
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
+  const info = el('p', { class: 'help', id: 'placeHelp' }, 'Tape un nom de lieu ou une adresse, puis appuie sur « Chercher ».');
+  const out = el('div', { class: 'stack' });
   let ctrl;
+
+  const row = (title, sub, onclick) => el('li', {}, el('button', { type: 'button', onclick },
+    el('span', { class: 'res-title' }, title), sub ? el('span', { class: 'res-sub' }, sub) : null));
 
   const run = async () => {
     const q = input.value.trim();
+    if (q.length < 3) { info.textContent = 'Tape au moins 3 caractères.'; return; }
     ctrl?.abort();
-    if (q.length < 3) { list.replaceChildren(); info.textContent = 'Tape au moins 3 caractères, puis choisis l\'adresse dans la liste.'; return; }
     ctrl = new AbortController();
     info.textContent = 'Recherche…';
-    try {
-      const res = await searchAddress(q, ctrl.signal);
-      list.replaceChildren(...res.map((r) => el('li', {},
-        el('button', { type: 'button', onclick: () => openForm({ lat: r.lat, lng: r.lng, address: r.label }) }, r.label))));
-      info.textContent = res.length ? 'Choisis l\'adresse :' : 'Aucune adresse trouvée. Vérifie l\'orthographe ou ajoute le code postal.';
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      list.replaceChildren();
-      info.textContent = 'Le service d\'adresses ne répond pas. Vérifie ta connexion internet.';
+    out.replaceChildren();
+    const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal), searchAddress(q, ctrl.signal)]);
+    if (ctrl.signal.aborted) return;
+    const P = places.status === 'fulfilled' ? places.value : [];
+    const A = addrs.status === 'fulfilled' ? addrs.value : [];
+    if (P.length) {
+      out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Lieux'), el('span', {}, String(P.length))),
+        el('ul', { class: 'results' }, P.map((r) => row(r.name, [r.kind, r.address].filter(Boolean).join(' · '),
+          () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name })))));
     }
+    if (A.length) {
+      out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
+        el('ul', { class: 'results' }, A.map((r) => row(r.label, null, () => openForm({ lat: r.lat, lng: r.lng, address: r.label })))));
+    }
+    const failed = places.status === 'rejected' || addrs.status === 'rejected';
+    if (P.length || A.length) {
+      info.textContent = failed ? 'Une partie de la recherche n\'a pas répondu, les résultats peuvent être incomplets.' : 'Choisis un résultat :';
+    } else {
+      info.textContent = failed
+        ? 'La recherche ne répond pas. Vérifie ta connexion internet, puis réessaie.'
+        : 'Rien trouvé. Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
+    }
+    if (P.length) out.append(el('p', { class: 'help' }, 'Lieux : données © OpenStreetMap. Un petit commerce récent peut manquer.'));
   };
-  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 300); });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); run(); } });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
 
-  openSheet('Avec une adresse', el('div', { class: 'stack' },
-    el('label', { class: 'field' }, 'Adresse', input), info, list), { tall: true, onClose: () => { clearTimeout(timer); ctrl?.abort(); } });
-  input.focus();
+  openSheet('Nom ou adresse', el('div', { class: 'stack' },
+    el('label', { class: 'field' }, 'Lieu ou adresse', input),
+    el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
+    info, out), { tall: true, onClose: () => ctrl?.abort() });
+  if (autoRun) run(); else input.focus();
 }
 
 /** Formulaire de création (draft) ou de modification (existing). */
 function openForm(draft, existing = null) {
   const firstCat = filterCat !== 'all' ? filterCat : state.categories[0].id;
-  const v = existing ?? { name: '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
+  const v = existing ?? { name: draft.name ?? '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
   let cat = v.cat;
   let done = v.done;
   let fav = v.fav;
@@ -320,7 +356,7 @@ function openForm(draft, existing = null) {
   const drawDone = () => doneSeg.replaceChildren(
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
     segBtn('Déjà visité', done, () => { done = true; drawDone(); }),
-    segBtn('★ Favori', fav, () => { fav = !fav; drawDone(); }));
+    segBtn(`${state.fav.icon} Favori`, fav, () => { fav = !fav; drawDone(); }));
   drawDone();
 
   const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Endroit choisi sur la carte'));
@@ -360,7 +396,7 @@ function openForm(draft, existing = null) {
   ), { tall: true });
 
   showDraft(existing ? existing.lat : draft.lat, existing ? existing.lng : draft.lng);
-  if (!existing) name.focus({ preventScroll: true });
+  if (!existing && !v.name) name.focus({ preventScroll: true });
 }
 
 /* ---------- Fiche d'un lieu ---------- */
@@ -377,7 +413,7 @@ function openDetail(id, back = null) {
     el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.done = !p.done; }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
-      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? 'Retirer ★' : '★ Favori')),
+      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
       el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer')),
@@ -473,9 +509,15 @@ function openSearch(initial = '') {
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done ? null : 'À faire'].filter(Boolean).join(' · ')))))));
   };
-  input.addEventListener('input', run);
-  run();
-  openSheet('Chercher dans mes lieux', el('div', { class: 'stack' }, input, info, list), { tall: true });
+  const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
+  const updateDir = () => {
+    const q = input.value.trim();
+    toDirectory.hidden = q.length < 3;
+    toDirectory.textContent = `🔎 Chercher « ${q} » dans l'annuaire`;
+  };
+  input.addEventListener('input', () => { run(); updateDir(); });
+  run(); updateDir();
+  openSheet('Chercher dans mes lieux', el('div', { class: 'stack' }, input, info, list, toDirectory), { tall: true });
   input.focus();
 }
 
@@ -607,6 +649,11 @@ function openSettings() {
     el('button', { type: 'button', class: 'btn', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
     state.categories.length > 6 ? el('p', { class: 'help' }, 'Au-delà de 6 catégories, la barre du haut défile : pense à regrouper.') : null,
 
+    section('Favoris'),
+    el('div', { class: 'cat-row' }, favBadge(),
+      el('span', { class: 'cat-name' }, 'Icône et couleur des favoris'),
+      el('button', { type: 'button', class: 'btn', onclick: openFavStyle }, 'Modifier')),
+
     section('Cercles autour de moi'),
     el('label', { class: 'field' }, 'Taille des cercles (en mètres)', rings),
     el('p', { class: 'help', id: 'ringsHelp' }, 'Sépare-les par des virgules. 100 m au minimum. Exemple : 100, 300, 500, 1000'),
@@ -626,24 +673,46 @@ function openSettings() {
   ), { tall: true });
 }
 
+function favBadge(icon = state.fav.icon, color = state.fav.color) {
+  const b = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, icon);
+  b.style.background = '#fff';
+  b.style.boxShadow = `0 0 0 3px ${color}`;
+  return b;
+}
+
+function openFavStyle() {
+  let { icon, color } = state.fav;
+  const preview = el('div', { class: 'where' });
+  const drawPreview = () => preview.replaceChildren(favBadge(icon, color), ' Aperçu sur la carte');
+  drawPreview();
+  openSheet('Favoris', el('div', { class: 'stack' },
+    preview,
+    el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(ICONS, icon, (v) => { icon = v; drawPreview(); })),
+    el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: openSettings }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+        state = setFavStyle(state, { icon, color });
+        persist(); refresh(); openSettings();
+        toast('Favoris modifiés');
+      } }, 'Enregistrer')),
+  ), { tall: true });
+}
+
 /** Création (id null) ou modification d'une catégorie. */
 function openCategory(id) {
   const c = id ? catOf(id) : null;
   let color = c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
+  let icon = c?.icon ?? '📍';
   const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
   const err = el('p', { class: 'error', role: 'alert' });
-  const swatches = el('div', { class: 'swatches', role: 'group', 'aria-label': 'Couleur' });
-  const drawSwatches = () => swatches.replaceChildren(...PALETTE.map((col, i) => {
-    const b = el('button', { type: 'button', class: 'swatch', 'aria-pressed': String(col === color), 'aria-label': COLOR_NAMES[i], onclick: () => { color = col; drawSwatches(); } });
-    b.style.background = col;
-    return b;
-  }));
-  drawSwatches();
+  const swatches = picker(PALETTE, color, (v) => { color = v; }, { colors: true, names: COLOR_NAMES });
+  const icons = picker(ICONS, icon, (v) => { icon = v; });
   const zone = el('div', { class: 'stack' });
 
   const save = () => {
     try {
-      state = id ? updateCategory(state, id, { name: name.value, color }) : addCategory(state, { name: name.value, color });
+      state = id ? updateCategory(state, id, { name: name.value, color, icon }) : addCategory(state, { name: name.value, color, icon });
     } catch (e) { err.textContent = e.message; return; }
     persist(); refresh(); openSettings();
     toast(id ? 'Catégorie modifiée' : 'Catégorie ajoutée');
@@ -682,6 +751,7 @@ function openCategory(id) {
 
   openSheet(id ? 'Modifier la catégorie' : 'Nouvelle catégorie', el('div', { class: 'stack' },
     el('label', { class: 'field' }, 'Nom', name),
+    el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
     err, zone,
   ), { tall: true });

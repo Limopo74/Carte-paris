@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -15,7 +15,7 @@ const brokenStorage = {
   setItem() { throw new Error('plein'); },
 };
 const ids = (cats) => cats.map((c) => c.id);
-const base = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: structuredClone(DEFAULT_CATEGORIES) });
+const base = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: structuredClone(DEFAULT_CATEGORIES), fav: { ...DEFAULT_FAV } });
 const sample = () => newPoint({ name: 'Café X', cat: 'resto', note: 'le crème', lat: 48.86, lng: 2.35, address: '1 rue X 75001 Paris' });
 
 test('catégories par défaut, palette et clé de stockage', () => {
@@ -104,7 +104,13 @@ test('ajouter une catégorie : nom nettoyé et limité à 20 caractères, couleu
 
 test('modifier une catégorie', () => {
   const s = updateCategory(base(), 'resto', { name: 'Restos & bars', color: PALETTE[2] });
-  assert.deepEqual(s.categories[0], { id: 'resto', name: 'Restos & bars', color: PALETTE[2] });
+  assert.deepEqual(s.categories[0], { id: 'resto', name: 'Restos & bars', color: PALETTE[2], icon: DEFAULT_ICON });
+  const s2 = updateCategory(base(), 'resto', { name: 'Cafés', color: PALETTE[0], icon: '☕' });
+  assert.equal(s2.categories[0].icon, '☕');
+  assert.throws(() => updateCategory(base(), 'resto', { name: 'X', color: PALETTE[0], icon: 'abc' }), /icône/i);
+  const old = { ...base(), categories: [{ id: 'a', name: 'A', color: '#123456', icon: '📍' }] };
+  assert.equal(updateCategory(old, 'a', { name: 'B', color: '#123456', icon: '📍' }).categories[0].name, 'B');
+  assert.throws(() => updateCategory(old, 'a', { name: 'B', color: '#654321', icon: '📍' }), /couleur/i);
   assert.throws(() => updateCategory(base(), 'resto', { name: '', color: PALETTE[2] }), /nom/i);
 });
 
@@ -168,4 +174,33 @@ test('lieux invalides ignorés à l\'import', () => {
   const r = mergeImport(base(), text);
   assert.equal(r.added, 1);
   assert.equal(r.skipped, 3);
+});
+
+test('icônes : une trentaine, celles d\'origine présentes, migration des anciennes catégories', () => {
+  assert.ok(ICONS.length >= 30);
+  assert.equal(new Set(ICONS).size, ICONS.length);
+  for (const c of DEFAULT_CATEGORIES) assert.ok(ICONS.includes(c.icon));
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], rings: [100], categories: [
+    { id: 'resto', name: 'Restos', color: '#d9480f' },
+    { id: 'zz', name: 'Parcs', color: PALETTE[3], icon: 'pas une icône' },
+  ] }));
+  const s = loadState(st);
+  assert.equal(s.categories[0].icon, '🍽️');
+  assert.equal(s.categories[1].icon, DEFAULT_ICON);
+});
+
+test('style des favoris : par défaut, modifiable, conservé, valeurs invalides refusées', () => {
+  assert.deepEqual(DEFAULT_FAV, { icon: '⭐', color: '#f2a900' });
+  assert.equal(FAV_COLORS[0], '#f2a900');
+  assert.deepEqual(loadState(memStorage()).fav, DEFAULT_FAV);
+  const s = setFavStyle(base(), { icon: '❤️', color: PALETTE[5] });
+  assert.deepEqual(s.fav, { icon: '❤️', color: PALETTE[5] });
+  assert.throws(() => setFavStyle(base(), { icon: 'x', color: PALETTE[0] }), /icône/i);
+  assert.throws(() => setFavStyle(base(), { icon: '❤️', color: 'red' }), /couleur/i);
+  const st = memStorage();
+  saveState(st, s);
+  assert.deepEqual(loadState(st).fav, { icon: '❤️', color: PALETTE[5] });
+  st.setItem(KEY, JSON.stringify({ points: [], fav: { icon: '<b>', color: 'javascript:' } }));
+  assert.deepEqual(loadState(st).fav, DEFAULT_FAV);
 });
