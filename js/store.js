@@ -119,7 +119,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 } });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -137,7 +137,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []),
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -149,7 +149,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 } }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools) }));
     return true;
   } catch {
     return false;
@@ -254,6 +254,35 @@ export function deleteCategory(state, id, moveTo) {
     categories: state.categories.filter((c) => c.id !== id),
     points: state.points.map((p) => (p.cat === id ? { ...p, cat: target.id } : p)),
   };
+}
+
+/** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
+export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom'];
+
+/** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
+export function normalizeTools(list) {
+  const out = Array.isArray(list) ? list.filter((t, i) => MAP_TOOLS.includes(t) && list.indexOf(t) === i) : [];
+  return [...out, ...MAP_TOOLS.filter((t) => !out.includes(t))];
+}
+
+/** Déplace un bouton de la carte d'une place. Renvoie la nouvelle liste. */
+export function moveTool(list, id, delta) {
+  const l = normalizeTools(list);
+  const i = l.indexOf(id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= l.length) return l;
+  [l[i], l[j]] = [l[j], l[i]];
+  return l;
+}
+
+/** Déplace une catégorie d'une place (delta = -1 vers le haut, +1 vers le bas). Renvoie un nouvel état. */
+export function moveCategory(state, id, delta) {
+  const list = [...state.categories];
+  const i = list.findIndex((c) => c.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= list.length) return state;
+  [list[i], list[j]] = [list[j], list[i]];
+  return { ...state, categories: list };
 }
 
 /** Change l'icône et la couleur des favoris. Renvoie un nouvel état. */

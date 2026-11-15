@@ -2,7 +2,7 @@
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (30)';
+const VERSION = '16 novembre 2026 (32)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -78,6 +78,11 @@ function stationLine(p) {
 
 /* ---------- Petits outils ---------- */
 
+/** Remplace le contenu d'un élément en ignorant les vides (null, false) : sinon le navigateur écrit « null ». */
+function fill(node, ...kids) {
+  node.replaceChildren(...kids.flat().filter((c) => c != null && c !== false));
+}
+
 function el(tag, attrs = {}, ...children) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -117,7 +122,7 @@ const favMark = (p) => (p.fav ? el('span', { class: 'fav-mark', 'aria-label': 'F
 /** Grille de choix (icônes ou couleurs) à boutons pressés. */
 function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
   const box = el('div', { class: colors ? 'swatches' : 'icon-grid', role: 'group' });
-  const draw = (cur) => box.replaceChildren(...values.map((v, i) => {
+  const draw = (cur) => fill(box, ...values.map((v, i) => {
     const b = el('button', {
       type: 'button', class: colors ? 'swatch' : 'icon-choice', 'aria-pressed': String(v === cur),
       'aria-label': names[i] ?? v, onclick: () => { onPick(v); draw(v); },
@@ -210,25 +215,30 @@ function showDraft(lat, lng) {
 function renderChips() {
   if (filterCat !== 'all' && !state.categories.some((c) => c.id === filterCat)) filterCat = 'all';
   const chip = (label, pressed, onclick, extra = {}) =>
-    el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria }, label);
-  // Plus de 3 catégories : un seul bouton « Catégories ▾ » qui les montre toutes d'un coup.
-  const many = state.categories.length > 3;
-  const current = filterCat === 'all' ? null : catOf(filterCat);
-  document.getElementById('chips').replaceChildren(...[
+    el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria, title: extra.aria }, label);
+  // Toutes les catégories, dans l'ordre choisi, en faisant défiler. Appui long : modifier la catégorie.
+  const catChip = (c) => {
+    const b = chip(state.chipIcons ? catDot(c.id) : [catDot(c.id), c.name], filterCat === c.id, () => setFilter(filterCat === c.id ? 'all' : c.id), // 2e appui : retour à « Tout »
+      { class: state.chipIcons ? 'icon-only' : '', aria: state.chipIcons ? c.name : null });
+    b.addEventListener('contextmenu', (e) => { e.preventDefault(); openCategory(c.id); });
+    return b;
+  };
+  const box = document.getElementById('chips');
+  fill(box, ...[
     chip('Tout', filterCat === 'all', () => setFilter('all')),
     chip(state.fav.icon, favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
-    ...(many
-      ? [chip(current ? [catDot(current.id), current.name, ' ▾'] : 'Catégories ▾', Boolean(current), openCategoryPicker,
-        { class: 'cat-pick', aria: current ? `Catégorie : ${current.name}. Changer` : 'Choisir une catégorie' })]
-      : state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id)))),
+    ...state.categories.map(catChip),
     // Lieux reçus d'autres personnes : choisir de qui on affiche les lieux
     owners(state.points).length
       ? chip(personFilter === 'all' ? '👥 Tous ▾' : personFilter === '' ? '👤 Moi ▾' : `👤 ${personFilter} ▾`, personFilter !== 'all', openPersonPicker,
         { class: 'cat-pick', aria: 'Choisir de qui afficher les lieux' })
       : null,
   ].filter(Boolean));
-  const star = document.querySelector('#chips .star');
+  const star = box.querySelector('.star');
   if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; }
+  // La catégorie choisie reste visible dans la barre
+  const on = box.querySelector('.chip[aria-pressed="true"]:not(.star)');
+  if (on && filterCat !== 'all') on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
@@ -250,21 +260,6 @@ function openPersonPicker() {
 }
 
 /** Toutes les catégories en grands boutons : un appui pour choisir. */
-function openCategoryPicker() {
-  const pick = (id) => {
-    setFilter(id);
-    if (navStack.length > 1) history.back(); // revenir à l'écran d'avant (ex. Autour de moi), déjà filtré
-    else closeSheet();
-  };
-  const btn = (id, label, dot, count) => el('button', {
-    type: 'button', class: 'cat-choice', 'aria-pressed': String(filterCat === id), onclick: () => pick(id),
-  }, dot, el('span', { class: 'cat-choice-name' }, label), el('span', { class: 'cat-count' }, String(count)));
-  openSheet('Afficher', el('div', { class: 'cat-grid' },
-    btn('all', 'Tout', el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, '🗺️'), state.points.length),
-    ...state.categories.map((c) => btn(c.id, c.name, catDot(c.id), categoryCounts(state.points, c.id).total)),
-  ), { name: 'catpick', again: openCategoryPicker });
-}
-
 function setFilter(id) {
   filterCat = id;
   refresh();
@@ -298,8 +293,8 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   if (at >= 0) navStack = navStack.slice(0, at); // on revient à un écran déjà ouvert : on oublie ceux d'après
   navStack.push({ name: key, again });
   view = name;
-  sheetTitle.replaceChildren(...[title].flat().filter(Boolean));
-  sheetBody.replaceChildren(...[body].flat().filter(Boolean));
+  fill(sheetTitle, ...[title].flat().filter(Boolean));
+  fill(sheetBody, ...[body].flat().filter(Boolean));
   sheet.classList.toggle('tall', tall);
   sheet.hidden = false;
   sheetBody.scrollTop = 0;
@@ -315,7 +310,7 @@ function closeSheet(fromHistory = false) {
   sheet.hidden = true;
   view = null;
   navStack = [];
-  sheetBody.replaceChildren();
+  fill(sheetBody, );
   draftLayer.clearLayers();
   nearLayer.clearLayers();
   if (moving) stopMove();
@@ -460,7 +455,7 @@ function openPlaceSearch(initial = '', autoRun = false) {
     ctrl?.abort();
     ctrl = new AbortController();
     info.textContent = 'Recherche…';
-    out.replaceChildren();
+    fill(out, );
     const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal), searchAddress(q, ctrl.signal)]);
     if (ctrl.signal.aborted) return;
     const P = places.status === 'fulfilled' ? places.value : [];
@@ -552,7 +547,7 @@ function starsText(n) {
 /** Rangée de 5 étoiles à toucher. Toucher l'étoile déjà choisie retire la note. */
 function starPicker(value, onPick) {
   const box = el('div', { class: 'star-pick', role: 'group', 'aria-label': 'Ma note' });
-  const draw = (v) => box.replaceChildren(...[1, 2, 3, 4, 5].map((i) => el('button', {
+  const draw = (v) => fill(box, ...[1, 2, 3, 4, 5].map((i) => el('button', {
     type: 'button', class: i <= v ? 'on' : '', 'aria-label': `${i} étoile${i > 1 ? 's' : ''}`, 'aria-pressed': String(i === v),
     onclick: () => { const nv = i === v ? 0 : i; draw(nv); onPick(nv); },
   }, i <= v ? '★' : '☆')));
@@ -575,11 +570,11 @@ function openForm(draft, existing = null) {
 
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   const catSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Catégorie' });
-  const drawCats = () => catSeg.replaceChildren(...state.categories.map((c) =>
+  const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
     segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); })));
   drawCats();
   const doneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'État' });
-  const drawDone = () => doneSeg.replaceChildren(
+  const drawDone = () => fill(doneSeg, 
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
     segBtn('Déjà visité', done, () => { done = true; drawDone(); }),
     segBtn(`${state.fav.icon} Favori`, fav, () => { fav = !fav; drawDone(); }));
@@ -645,8 +640,8 @@ function openDetail(id, back = null) {
     const open = more.hasChildNodes();
     btn.setAttribute('aria-expanded', String(!open));
     btn.textContent = open ? '⋯ Plus' : '⋯ Moins';
-    if (open) { more.replaceChildren(); return; }
-    more.replaceChildren(
+    if (open) { fill(more, ); return; }
+    fill(more, 
       el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, p.hours ? '🕐 Mettre à jour les horaires' : '🕐 Chercher les horaires'),
       p.hours ? el('p', { class: 'help' }, `Horaires OpenStreetMap : ${p.hours}`) : null,
       el('div', { class: 'row' },
@@ -654,9 +649,9 @@ function openDetail(id, back = null) {
         el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer')));
   };
   const showActions = () => {
-    more.replaceChildren();
+    fill(more, );
     const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
-    actions.replaceChildren(
+    fill(actions, 
       el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
         el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller'),
       el('div', { class: 'row3' },
@@ -673,7 +668,7 @@ function openDetail(id, back = null) {
       back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
     );
   };
-  const askDelete = () => actions.replaceChildren(
+  const askDelete = () => fill(actions, 
     el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: showActions }, 'Annuler'),
@@ -926,7 +921,7 @@ function openSearch(initial = '') {
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
       : res.length ? `${plural(res.length, 'lieu', 'lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun lieu ne correspond.';
-    list.replaceChildren(...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
+    fill(list, ...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => openSearch(input.value)) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
@@ -990,10 +985,10 @@ function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.l
   const run = () => {
     const q = fold(input.value);
     const res = q.length < 2 ? [] : stations.filter((st) => fold(st.n).includes(q)).slice(0, 12);
-    list.replaceChildren(...res.map((st) => el('li', {}, el('button', { type: 'button', onclick: () => onPick(st) },
+    fill(list, ...res.map((st) => el('li', {}, el('button', { type: 'button', onclick: () => onPick(st) },
       el('span', { class: 'res-title' }, `Ⓜ ${st.n}`),
       el('span', { class: 'res-sub' }, [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · '))))));
-    if (q.length >= 2 && !res.length) list.replaceChildren(el('li', { class: 'empty' }, stations.length ? 'Aucune station de ce nom.' : 'Liste des stations pas encore chargée : réessaie dans un instant.'));
+    if (q.length >= 2 && !res.length) fill(list, el('li', { class: 'empty' }, stations.length ? 'Aucune station de ce nom.' : 'Liste des stations pas encore chargée : réessaie dans un instant.'));
   };
   input.addEventListener('input', run);
   openSheet('Choisir une station', el('div', { class: 'stack' }, input, list), { tall: true, name: 'station', again: () => openStationPicker(onPick) });
@@ -1228,13 +1223,13 @@ function openDestinationPicker(title, onPick) {
     const q = input.value.trim();
     const mine = q ? searchPoints(state.points, state.categories, q).slice(0, 8) : [];
     const sts = fold(q).length >= 2 ? stations.filter((st) => fold(st.n).includes(fold(q))).slice(0, 6) : [];
-    list.replaceChildren(
+    fill(list, 
       ...mine.map(({ point: p }) => el('li', {}, el('button', { type: 'button', onclick: () => onPick({ lat: p.lat, lng: p.lng, label: p.name }) },
         el('span', { class: 'res-title' }, p.name), el('span', { class: 'res-sub' }, catOf(p.cat).name)))),
       ...sts.map((st) => el('li', {}, el('button', { type: 'button', onclick: () => onPick({ lat: st.lat, lng: st.lng, label: `Ⓜ ${st.n}` }) },
         el('span', { class: 'res-title' }, `Ⓜ ${st.n}`), el('span', { class: 'res-sub' }, 'Station de métro')))),
     );
-    if (q && !mine.length && !sts.length) list.replaceChildren(el('li', { class: 'empty' }, 'Rien trouvé parmi tes lieux et les stations.'));
+    if (q && !mine.length && !sts.length) fill(list, el('li', { class: 'empty' }, 'Rien trouvé parmi tes lieux et les stations.'));
   };
   input.addEventListener('input', run);
   openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Tape le nom d\'un de tes lieux ou d\'une station de métro.'), input, list), { tall: true, name: 'dest', again: () => openDestinationPicker(title, onPick) });
@@ -1558,17 +1553,50 @@ function openSettings(section = null) {
 
   if (section === 'categories') {
     openSheet('🗂️ Catégories', el('div', { class: 'stack' },
-      el('div', {}, state.categories.map((c) => {
+      el('p', { class: 'help' }, 'L\'ordre ici est celui de la barre du haut. Flèches pour déplacer, Modifier pour le nom, l\'icône et la couleur.'),
+      el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
+        const move = (delta) => { state = moveCategory(state, c.id, delta); persist(); refresh(); openSettings('categories');
+          requestAnimationFrame(() => document.querySelector(`[data-move="${c.id}:${delta}"]`)?.focus()); };
+        const last = state.categories.length - 1;
         return el('div', { class: 'cat-row' }, catDot(c.id),
           el('span', { class: 'cat-name' }, c.name, el('br'),
             el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
+          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${c.id}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${c.name}` }, '↑'),
+          el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'),
           el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
-      state.categories.length > 3 ? el('p', { class: 'help' }, 'Au-delà de 3 catégories, elles se choisissent avec le bouton « Catégories ▾ » en haut.') : null,
+      el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
+        state.chipIcons = !state.chipIcons; persist(); refresh(); openSettings('categories');
+        toast(state.chipIcons ? 'Barre du haut : icônes seules' : 'Barre du haut : icône et nom');
+      } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, state.categories[0] ? catDot(state.categories[0].id) : '🏷️'),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
+      el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+      el('p', { class: 'help' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       backBtn,
     ), { tall: true, name: 'settings:categories', again: () => openSettings('categories') });
+    return;
+  }
+
+  if (section === 'outils') {
+    const list = normalizeTools(state.mapTools);
+    openSheet('↕️ Boutons de la carte', el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'De haut en bas, comme à droite de la carte. Le dernier est le plus près de ton pouce.'),
+      el('div', {}, list.map((t, i) => {
+        const info = TOOL_INFO[t];
+        const move = (delta) => { state.mapTools = moveTool(list, t, delta); persist(); applyToolOrder(); openSettings('outils');
+          requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
+        return el('div', { class: 'cat-row' },
+          el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, info.icon),
+          el('span', { class: 'cat-name' }, info.name),
+          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
+          el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
+      })),
+      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); persist(); applyToolOrder(); openSettings('outils'); toast('Ordre d\'origine remis'); } }, 'Remettre l\'ordre d\'origine'),
+      backBtn,
+    ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
   }
 
@@ -1637,6 +1665,7 @@ function openSettings(section = null) {
     row('🗂️', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
     row(state.fav.icon, 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     row('⭕', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row('↕️', 'Boutons de la carte', 'Changer leur ordre', () => openSettings('outils'), false, 'c-guide'),
     voiceSwitch,
     row('❓', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('ℹ️', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
@@ -1653,7 +1682,7 @@ function favBadge(icon = state.fav.icon, color = state.fav.color) {
 function openFavStyle() {
   let { icon, color } = state.fav;
   const preview = el('div', { class: 'where' });
-  const drawPreview = () => preview.replaceChildren(favBadge(icon, color), ' Aperçu sur la carte');
+  const drawPreview = () => fill(preview, favBadge(icon, color), ' Aperçu sur la carte');
   drawPreview();
   openSheet('Favoris', el('div', { class: 'stack' },
     preview,
@@ -1709,7 +1738,7 @@ function openCategory(id) {
     persist(); refresh(); openSettings('categories');
     toast('Catégorie supprimée');
   };
-  const showButtons = () => zone.replaceChildren(
+  const showButtons = () => fill(zone, 
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer')),
@@ -1718,14 +1747,14 @@ function openCategory(id) {
   );
   const askDelete = () => {
     if (!n) {
-      zone.replaceChildren(
+      fill(zone, 
         el('p', { class: 'warn', role: 'alert' }, `Supprimer la catégorie « ${c.name} » ? Elle ne contient aucun lieu.`),
         el('div', { class: 'row' },
           el('button', { type: 'button', class: 'btn', onclick: showButtons }, 'Annuler'),
           el('button', { type: 'button', class: 'btn danger solid', onclick: () => doDelete(null) }, 'Oui, supprimer')));
       return;
     }
-    zone.replaceChildren(
+    fill(zone, 
       el('p', { class: 'warn', role: 'alert' }, `« ${c.name} » contient ${plural(n, 'lieu', 'lieux')}. Dans quelle catégorie les ranger ?`),
       el('div', { class: 'stack' }, others.map((o) => el('button', { type: 'button', class: 'btn', onclick: () => doDelete(o.id) },
         catDot(o.id), `Ranger dans « ${o.name} » et supprimer`))),
@@ -2036,6 +2065,20 @@ document.getElementById('btnPratique').addEventListener('click', nearestPratique
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
+
+/* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
+const TOOL_INFO = {
+  pratique: { el: 'btnPratique', icon: '🚰', name: 'Fontaine et toilettes' },
+  metro: { el: 'btnMetro', icon: 'Ⓜ', name: 'Métro le plus proche' },
+  locate: { el: 'btnLocate', icon: '◎', name: 'Ma position et cercles de temps' },
+  paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
+  zoom: { el: 'btnZoomMe', icon: '🔍', name: 'Zoom sur ma position' },
+};
+function applyToolOrder() {
+  const box = document.querySelector('.map-tools');
+  for (const t of normalizeTools(state.mapTools)) box.append(document.getElementById(TOOL_INFO[t].el));
+}
+applyToolOrder();
 document.getElementById('btnParis').addEventListener('click', () => {
   closeSheet();
   map.setView(PARIS, 13, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
@@ -2046,8 +2089,8 @@ document.getElementById('btnParis').addEventListener('click', () => {
 const HELP = [
   ['🗺️', 'Les boutons de la carte', [
     'En haut : 🔍 chercher dans tes lieux (et dans l\'annuaire), ? cette aide.',
-    'Puces en haut : n\'afficher qu\'une catégorie (« Catégories ▾ » au-delà de 3), les favoris, ou les lieux d\'une personne 👥.',
-    'À droite, de haut en bas :',
+    'Puces en haut : n\'afficher qu\'une catégorie, les favoris, ou les lieux d\'une personne 👥. Fais glisser la barre pour voir toutes les catégories. Touche encore la catégorie choisie pour revenir à Tout. Appui long : la modifier.',
+    'À droite (ordre réglable dans ⚙ → Boutons de la carte) :',
     '🚰 la fontaine à boire et les toilettes les plus proches.',
     'M la station de métro la plus proche.',
     '◎ ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
@@ -2082,7 +2125,8 @@ const HELP = [
     'Touche une photo pour la voir en grand. Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['⭐', 'Catégories et favoris', [
-    '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur.',
+    '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur, et leur ordre avec ↑ ↓ (c\'est l\'ordre de la barre du haut).',
+    '« Icônes seules en haut » : la barre n\'affiche que les logos, pour en voir plus d\'un coup.',
     'Dans la fiche : bouton Favori. ⚙ → Favoris pour choisir l\'icône et la couleur (❤️ évite la confusion avec les étoiles de note).',
   ]],
   ['👥', 'Partager avec un ami', [

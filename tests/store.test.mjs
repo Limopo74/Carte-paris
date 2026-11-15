@@ -341,3 +341,21 @@ test('note en étoiles : 0 à 5, valeurs farfelues ramenées à 0', async () => 
   assert.equal(cleanStars(2.5), 0);
   assert.equal(cleanStars('3'), 0);
 });
+
+test('ordre des catégories : monter, descendre, bornes', async () => {
+  const { moveCategory } = await import('../js/store.js');
+  const st = { categories: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], points: [] };
+  assert.deepEqual(moveCategory(st, 'c', -1).categories.map((c) => c.id), ['a', 'c', 'b']);
+  assert.deepEqual(moveCategory(st, 'a', 1).categories.map((c) => c.id), ['b', 'a', 'c']);
+  assert.equal(moveCategory(st, 'a', -1), st);
+  assert.equal(moveCategory(st, 'c', 1), st);
+  assert.equal(moveCategory(st, 'zz', 1), st);
+});
+
+test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
+  const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
+  assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
+  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'locate', 'paris']);
+  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris']);
+  assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
+});
