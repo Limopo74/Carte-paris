@@ -13,6 +13,7 @@ test('adresse de la requête Nominatim', () => {
   assert.equal(u.searchParams.get('limit'), '8');
   assert.equal(u.searchParams.get('viewbox'), '2.22,48.92,2.47,48.80');
   assert.equal(u.searchParams.get('bounded'), '0');
+  assert.equal(u.searchParams.get('extratags'), '1');
 });
 
 test('adresse courte à partir du détail', () => {
@@ -32,13 +33,13 @@ test('type de lieu en français, vide si inconnu', () => {
 
 test('lecture des résultats : lieux nommés, adresses écartées, entrées cassées ignorées', () => {
   const json = [
-    { lat: '48.8721', lon: '2.3317', name: 'Uniqlo', category: 'shop', type: 'clothes', display_name: 'Uniqlo, 19, Rue Scribe, Paris', address: { house_number: '19', road: 'Rue Scribe', postcode: '75009', city: 'Paris' } },
+    { lat: '48.8721', lon: '2.3317', name: 'Uniqlo', category: 'shop', type: 'clothes', display_name: 'Uniqlo, 19, Rue Scribe, Paris', address: { house_number: '19', road: 'Rue Scribe', postcode: '75009', city: 'Paris' }, extratags: { opening_hours: 'Mo-Sa 10:00-20:00' } },
     { lat: '48.86', lon: '2.33', name: '', category: 'place', type: 'house', display_name: '12, Rue de Rivoli, Paris', address: { road: 'Rue de Rivoli' } },
     { lat: 'x', lon: '2.3', name: 'Cassé', category: 'shop', type: 'bakery' },
     { lat: '48.85', lon: '2.34', name: 'Rue de Rivoli', category: 'highway', type: 'primary', display_name: 'Rue de Rivoli, Paris', address: { road: 'Rue de Rivoli', city: 'Paris' } },
   ];
   assert.deepEqual(parsePlaces(json), [
-    { name: 'Uniqlo', kind: 'Vêtements', address: '19 Rue Scribe 75009 Paris', lat: 48.8721, lng: 2.3317 },
+    { name: 'Uniqlo', kind: 'Vêtements', address: '19 Rue Scribe 75009 Paris', lat: 48.8721, lng: 2.3317, hours: 'Mo-Sa 10:00-20:00' },
   ]);
   assert.deepEqual(parsePlaces(null), []);
   assert.deepEqual(parsePlaces({}), []);

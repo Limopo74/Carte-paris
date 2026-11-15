@@ -10,7 +10,7 @@ export function placesUrl(q) {
   const u = new URL(BASE);
   u.search = new URLSearchParams({
     q, format: 'jsonv2', limit: '8', countrycodes: 'fr', addressdetails: '1',
-    'accept-language': 'fr', viewbox: PARIS_BOX, bounded: '0',
+    'accept-language': 'fr', viewbox: PARIS_BOX, bounded: '0', extratags: '1',
   });
   return u.toString();
 }
@@ -61,7 +61,8 @@ export function parsePlaces(json) {
     const name = typeof r?.name === 'string' ? r.name.trim() : '';
     const kind = kindLabel(r?.category, r?.type);
     if (!name || !kind || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    out.push({ name, kind, address: shortAddress(r.address), lat, lng });
+    const oh = r?.extratags?.opening_hours;
+    out.push({ name, kind, address: shortAddress(r.address), lat, lng, hours: typeof oh === 'string' ? oh.slice(0, 300) : '' });
   }
   return out;
 }

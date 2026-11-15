@@ -7,6 +7,9 @@ import {
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
+import { parseShared } from './share.js';
+import { exportUrl, parseRecords, nearestOf } from './pratique.js';
+import { openState } from './hours.js';
 import { searchPoints, fold } from './search.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
@@ -14,7 +17,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (14)';
+const VERSION = '15 novembre 2026 (17)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -50,7 +53,7 @@ const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '
 
 let stations = [];
 let stationsSource = '';
-fetch('data/stations.json')
+const stationsReady = fetch('data/stations.json')
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => {
     if (!Array.isArray(j?.stations)) return;
@@ -416,7 +419,7 @@ function openPlaceSearch(initial = '', autoRun = false) {
     if (P.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Lieux'), el('span', {}, String(P.length))),
         el('ul', { class: 'results' }, P.map((r) => row(r.name, [r.kind, r.address].filter(Boolean).join(' · '),
-          () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name })))));
+          () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours })))));
     }
     if (A.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
@@ -440,6 +443,55 @@ function openPlaceSearch(initial = '', autoRun = false) {
     el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
     info, out), { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim())) });
   if (autoRun) run(); else input.focus();
+}
+
+/* ---------- Raccourcis de l'icône et partage vers l'appli ---------- */
+
+/** Ajouter ce qui a été partagé depuis une autre appli (Google Maps, site, message…). */
+async function addShared(shared) {
+  const s = parseShared(shared);
+  if (s.lat != null) {
+    addAtShared(s);
+    return;
+  }
+  if (s.address) {
+    toast('Recherche de l\'adresse…');
+    try {
+      const [first] = await searchAddress(s.address);
+      if (first) {
+        hideToast();
+        openForm({ lat: first.lat, lng: first.lng, address: first.label, name: s.name, rough: ROUGH[first.type] ?? null });
+        return;
+      }
+    } catch { /* on passe à la recherche par nom */ }
+  }
+  if (s.query) {
+    openPlaceSearch(s.query, true);
+    return;
+  }
+  openPlaceSearch('');
+  toast('Le partage ne contient ni nom ni adresse : tape le nom du lieu.', true);
+}
+
+function addAtShared(s) {
+  const draft = { lat: s.lat, lng: s.lng, address: s.address, name: s.name };
+  openForm(draft);
+  if (!s.address) reverseAddress(s.lat, s.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
+}
+
+/** Lancé depuis un raccourci de l'icône ou un partage : l'adresse de la page dit quoi faire. */
+function runLaunchAction() {
+  const q = new URLSearchParams(location.search);
+  if (![...q.keys()].length) return;
+  history.replaceState(null, '', location.pathname); // pour ne pas relancer l'action en rechargeant
+  const action = q.get('action');
+  if (action === 'metro') { nearestMetro(); return; }
+  if (action === 'near') { openNear(); return; }
+  if (action === 'add-here') { addAtPosition(); return; }
+  if (action === 'pratique') { nearestPratique(); return; }
+  if (q.has('title') || q.has('text') || q.has('url')) {
+    addShared({ title: q.get('title') ?? '', text: q.get('text') ?? '', url: q.get('url') ?? '' });
+  }
 }
 
 /** Formulaire de création (draft) ou de modification (existing). */
@@ -485,7 +537,7 @@ function openForm(draft, existing = null) {
       Object.assign(existing, { name: n, cat, note: note.value, fav });
       setDone(existing, done);
     } else {
-      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '' }));
+      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '' }));
     }
     const ok = persist();
     renderMarkers();
@@ -528,10 +580,11 @@ function openDetail(id, back = null) {
     btn.textContent = open ? '⋯ Plus' : '⋯ Moins';
     if (open) { more.replaceChildren(); return; }
     more.replaceChildren(
+      el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, p.hours ? '🕐 Mettre à jour les horaires' : '🕐 Chercher les horaires'),
+      p.hours ? el('p', { class: 'help' }, `Horaires OpenStreetMap : ${p.hours}`) : null,
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
-        el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer')),
-      el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer'));
+        el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer'),
+        el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer')));
   };
   const showActions = () => {
     more.replaceChildren();
@@ -544,9 +597,10 @@ function openDetail(id, back = null) {
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
         el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
       el('div', { class: 'row' },
-        back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+        el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
         moreBtn),
       more,
+      back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
     );
   };
   const askDelete = () => actions.replaceChildren(
@@ -565,6 +619,7 @@ function openDetail(id, back = null) {
   openSheet([favMark(p), p.name], el('div', { class: 'stack' },
     el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
     d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
+    hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
     stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
     el('div', { class: 'badge' }, ageLine(p)),
     p.note ? el('p', { class: 'note' }, p.note) : null,
@@ -572,6 +627,35 @@ function openDetail(id, back = null) {
     actions,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+}
+
+/** « Ouvert · ferme à 22:30 », « Fermé · ouvre à 19:00 », ou null si horaires inconnus. */
+function hoursLine(p) {
+  const st = openState(p.hours);
+  if (!st) return null;
+  if (st.open) return st.until ? `Ouvert · ferme à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'Ouvert toute la journée';
+  return st.opensAt ? `Fermé · ouvre à ${st.opensAt.replace(':', 'h')}` : 'Fermé pour aujourd\'hui';
+}
+function hoursTag(p) {
+  const st = openState(p.hours);
+  if (!st) return null;
+  return el('span', { class: `tag ${st.open ? 'open' : 'closed'}` }, st.open ? 'Ouvert' : 'Fermé');
+}
+
+/** Chercher dans OpenStreetMap les horaires d'un lieu déjà enregistré (même nom, à moins de 150 m). */
+async function findHours(p, back) {
+  toast('Recherche des horaires…');
+  try {
+    const res = await searchPlaces(p.name);
+    const hit = res.filter((r) => r.hours && distanceM(r, p) < 150).sort((a, b) => distanceM(a, p) - distanceM(b, p))[0];
+    if (!hit) { toast('Horaires introuvables pour ce lieu dans OpenStreetMap.', true); return; }
+    p.hours = hit.hours;
+    persist();
+    openDetail(p.id, back);
+    toast('Horaires ajoutés');
+  } catch {
+    toast('La recherche ne répond pas. Vérifie ta connexion.', true);
+  }
 }
 
 /** « Ajouté il y a 8 mois, jamais visité » ou « Visité le 3 mars 2026 ». */
@@ -805,7 +889,8 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, hoursTag(p), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, '🧭'),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -1165,6 +1250,25 @@ function openSettings() {
   openSheet('Réglages', el('div', { class: 'stack' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
 
+    section('Sauvegarde'),
+    el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
+    el('p', { class: backupDue(state) ? 'warn' : 'help' }, [
+      state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.',
+      unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
+    ].join('')),
+    el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
+    canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
+    el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
+    el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
+    file,
+    section('Voix'),
+    el('button', { type: 'button', class: 'btn', 'aria-pressed': String(state.voice !== false), onclick: () => {
+      state.voice = state.voice === false; persist(); if (state.voice === false) silence(); openSettings();
+      toast(state.voice ? 'Voix activée' : 'Voix désactivée');
+    } }, state.voice === false ? '🔇 Voix désactivée (appuie pour l\'activer)' : '🔊 Voix activée (appuie pour la couper)'),
+    el('p', { class: 'help' }, 'La voix parle pendant la boussole et le suivi en direct. Elle utilise la voix du téléphone, sans internet.'),
+
+    section('Application'),
     el('button', { type: 'button', class: 'btn', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
     el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
 
@@ -1200,26 +1304,8 @@ function openSettings() {
       if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
     } }, 'Enregistrer les minutes'),
 
-    section('Sauvegarde'),
-    el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
-    el('p', { class: backupDue(state) ? 'warn' : 'help' }, [
-      state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.',
-      unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
-    ].join('')),
-    el('button', { type: 'button', class: 'btn', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
-    canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
-    el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
-    el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer ceux déjà présents.'),
-    file,
-    section('Voix'),
-    el('button', { type: 'button', class: 'btn', 'aria-pressed': String(state.voice !== false), onclick: () => {
-      state.voice = state.voice === false; persist(); if (state.voice === false) silence(); openSettings();
-      toast(state.voice ? 'Voix activée' : 'Voix désactivée');
-    } }, state.voice === false ? '🔇 Voix désactivée (appuie pour l\'activer)' : '🔊 Voix activée (appuie pour la couper)'),
-    el('p', { class: 'help' }, 'La voix parle pendant la boussole et le suivi en direct. Elle utilise la voix du téléphone, sans internet.'),
-
     section('Confidentialité'),
-    el('p', { class: 'help' }, 'Tes lieux et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 3 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN) et l\'annuaire (OpenStreetMap). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
+    el('p', { class: 'help' }, 'Tes lieux et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 4 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN), l\'annuaire (OpenStreetMap) et les fontaines et toilettes (Ville de Paris, sans ta position : la recherche se fait sur le téléphone). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
     el('p', { class: 'help', style: 'margin-top:18px' }, `Version du ${VERSION}. Carte © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
   ), { tall: true, name: 'settings', again: () => openSettings() });
 }
@@ -1372,9 +1458,13 @@ async function updateApp() {
 
 /* ---------- Métro le plus proche, en un appui ---------- */
 
+// Ouvre l'appli Île-de-France Mobilités si elle est installée (Android), sinon son site d'itinéraires.
+const IDFM_APP = 'intent://#Intent;package=com.applidium.vianavigo;S.browser_fallback_url=https%3A%2F%2Fme-deplacer.iledefrance-mobilites.fr%2Fitineraire;end';
+
 const stationLabel = (st) => [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
 
 async function nearestMetro() {
+  await stationsReady;
   if (!stations.length) { toast('La liste des stations n\'est pas encore chargée : réessaie dans un instant.', true); return; }
   toast('Recherche du métro le plus proche…');
   let from;
@@ -1404,6 +1494,7 @@ function showNearestMetro(from, note = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openCompass(target) }, '🧭 Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
+    el('a', { class: 'btn', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
     el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
@@ -1421,6 +1512,81 @@ function showNearestMetro(from, note = null) {
   map.fitBounds(L.latLngBounds([[from.lat, from.lng], [st.lat, st.lng]]).pad(0.6), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
+/* ---------- Fontaine ou toilettes les plus proches, en un appui ---------- */
+
+const PRATIQUE_KEY = 'carte-paris.pratique'; // copie locale des données de la Ville (rafraîchie chaque jour)
+const pratique = { fontaines: null, toilettes: null };
+
+async function loadPratique(kind) {
+  if (pratique[kind]) return pratique[kind];
+  let cached = null;
+  try { cached = JSON.parse(storage.getItem(`${PRATIQUE_KEY}.${kind}`) ?? 'null'); } catch { /* rien */ }
+  const fresh = cached && Date.now() - cached.time < 24 * 3600 * 1000;
+  if (!fresh && navigator.onLine !== false) {
+    try {
+      const res = await fetch(exportUrl(kind), { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const items = parseRecords(await res.json(), kind);
+      if (items.length) {
+        cached = { time: Date.now(), items };
+        try { storage.setItem(`${PRATIQUE_KEY}.${kind}`, JSON.stringify(cached)); } catch { /* trop gros : pas grave */ }
+      }
+    } catch { /* on garde l'ancienne copie s'il y en a une */ }
+  }
+  pratique[kind] = cached?.items ?? [];
+  return pratique[kind];
+}
+
+async function nearestPratique() {
+  toast('Recherche de la fontaine et des toilettes les plus proches…');
+  const [from, fontaines, toilettes] = await Promise.all([
+    locate().catch(() => (here && Date.now() - here.time < 2 * 3600 * 1000 ? here : null)),
+    loadPratique('fontaines'),
+    loadPratique('toilettes'),
+  ]);
+  hideToast();
+  if (!from) { toast(GEO_ERRORS[1], true); return; }
+  if (!fontaines.length && !toilettes.length) {
+    toast('Les données de la Ville de Paris ne répondent pas. Vérifie ta connexion et réessaie.', true);
+    return;
+  }
+  showPratique(from, nearestOf(fontaines, from, 2), nearestOf(toilettes, from, 2));
+}
+
+function showPratique(from, fs, ts) {
+  const block = (title, icon, list) => [
+    el('h3', { class: 'ring-title' }, el('span', {}, title), el('span', {}, '')),
+    list.length
+      ? el('ul', { class: 'items' }, list.map(({ item, d }) => {
+        const target = { name: `${icon} ${item.label}`, lat: item.lat, lng: item.lng };
+        return el('li', { class: 'item' },
+          el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, icon),
+            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`),
+              item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
+          el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, '🧭'),
+          el('a', { class: 'go', href: mapsUrl(item, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
+      }))
+      : el('p', { class: 'empty' }, 'Aucune trouvée.'),
+  ];
+  openSheet('Pratique près de toi', el('div', { class: 'stack' },
+    ...block('Fontaine à boire', '🚰', fs),
+    ...block('Toilettes publiques', '🚻', ts),
+    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour. Les fontaines signalées hors service sont écartées.'),
+  ), { name: 'pratique', again: () => showPratique(from, fs, ts), tall: true });
+  nearLayer.clearLayers();
+  meMarker(from.lat, from.lng).addTo(nearLayer);
+  const pts = [[from.lat, from.lng]];
+  for (const [list, icon] of [[fs, '🚰'], [ts, '🚻']]) {
+    list.forEach(({ item }, i) => {
+      pts.push([item.lat, item.lng]);
+      L.marker([item.lat, item.lng], { interactive: false, keyboard: false, zIndexOffset: i ? 1500 : 2000,
+        icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin${i ? ' far' : ''}">${icon}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+    });
+  }
+  map.fitBounds(L.latLngBounds(pts).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
+document.getElementById('btnPratique').addEventListener('click', nearestPratique);
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnReloadMap').addEventListener('click', reloadMap);
@@ -1440,7 +1606,10 @@ if (state.points.length) {
   toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
-else if (backupDue(state)) remindBackup();
+
+const launched = location.search.length > 1;
+runLaunchAction();
+if (!launched && state.ok && backupDue(state)) remindBackup();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

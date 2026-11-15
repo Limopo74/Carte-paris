@@ -44,7 +44,7 @@ const cleanFav = (f) => ({
 });
 
 /** Crée un lieu complet à partir des champs saisis. */
-export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '' }) {
+export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '' }) {
   return {
     id: makeId(),
     name: String(name ?? '').trim(),
@@ -56,6 +56,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     lat: Number(lat),
     lng: Number(lng),
     address: String(address ?? ''),
+    hours: String(hours ?? '').slice(0, 300),
     created: Date.now(),
   };
 }
@@ -103,6 +104,7 @@ const clean = (p) => ({
   done: Boolean(p.done), visited: p.done && Number.isFinite(p.visited) ? p.visited : null,
   fav: Boolean(p.fav), lat: p.lat, lng: p.lng,
   address: typeof p.address === 'string' ? p.address : '',
+  hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 

@@ -25,6 +25,12 @@ test('catégories par défaut, palette et clé de stockage', () => {
   assert.equal(KEY, 'carte-paris.v1');
 });
 
+test('horaires gardés, coupés à 300 caractères', () => {
+  assert.equal(newPoint({ name: 'a', cat: 'resto', lat: 1, lng: 1, hours: 'Mo-Fr 09:00-18:00' }).hours, 'Mo-Fr 09:00-18:00');
+  assert.equal(newPoint({ name: 'a', cat: 'resto', lat: 1, lng: 1, hours: 'x'.repeat(400) }).hours.length, 300);
+  assert.equal(newPoint({ name: 'a', cat: 'resto', lat: 1, lng: 1 }).hours, '');
+});
+
 test('newPoint remplit les champs, favori faux par défaut', () => {
   const p = sample();
   assert.equal(typeof p.id, 'string');
