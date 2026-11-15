@@ -58,6 +58,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     address: String(address ?? ''),
     hours: String(hours ?? '').slice(0, 300),
     owner: String(owner ?? '').trim().slice(0, 30),
+    photos: [],
     created: Date.now(),
   };
 }
@@ -107,6 +108,7 @@ const clean = (p) => ({
   address: typeof p.address === 'string' ? p.address : '',
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
   owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
+  photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 

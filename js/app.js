@@ -12,6 +12,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
 import { metroPlan } from './metroplan.js';
+import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
@@ -19,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '15 novembre 2026 (22)';
+const VERSION = '15 novembre 2026 (24)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -151,7 +152,7 @@ const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const mapEl = document.getElementById('map');
 const scalePins = () => mapEl.classList.toggle('z-far', map.getZoom() < 15);
 map.on('zoomend', scalePins);
-map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); });
+map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); if (meShown) drawMe(); });
 scalePins();
 
 /** Point « moi » toujours au-dessus des lieux. */
@@ -331,7 +332,7 @@ function closeSheet(fromHistory = false) {
 }
 
 window.addEventListener('popstate', () => {
-  if (compassOpen) return; // le retour ferme d'abord la boussole
+  if (compassOpen || viewerOpen) return; // le retour ferme d'abord la boussole ou la photo
   if (sheet.hidden) return;
   // Revenir à l'écran précédent qui sait se rouvrir, sinon fermer.
   navStack.pop();
@@ -657,6 +658,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: showActions }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+        for (const ph of p.photos ?? []) deletePhoto(ph).catch(() => {});
         state.points = state.points.filter((x) => x.id !== id);
         persist(); renderMarkers();
         if (back) back(); else closeSheet();
@@ -666,18 +668,131 @@ function openDetail(id, back = null) {
   showActions();
 
   openSheet([favMark(p), p.name], el('div', { class: 'stack' },
-    el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
-    d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
-    p.owner || owners(state.points).length ? el('div', { class: 'badge' }, `👤 Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
-    hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
-    stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
-    el('div', { class: 'badge' }, ageLine(p)),
+    el('div', { class: 'detail-top' },
+      photoThumb(p, back),
+      el('div', { class: 'detail-info' },
+        el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
+        d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
+        p.owner || owners(state.points).length ? el('div', { class: 'badge' }, `👤 Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
+        hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
+        stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
+        el('div', { class: 'badge' }, ageLine(p)))),
     p.note ? el('p', { class: 'note' }, p.note) : null,
     p.address ? el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), p.address) : null,
     actions,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
 }
+
+/* ---------- Photos d'un lieu (gardées sur le téléphone) ---------- */
+
+const photoUrls = new Map(); // id -> adresse locale de l'image, le temps de la session
+async function photoUrl(id) {
+  if (photoUrls.has(id)) return photoUrls.get(id);
+  const blob = await getPhoto(id).catch(() => null);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  photoUrls.set(id, url);
+  return url;
+}
+const newPhotoId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+
+/** Vignette de la fiche : la première photo (avec le nombre), ou une case « Ajouter une photo ». */
+function photoThumb(p, back) {
+  const photos = p.photos ?? [];
+  if (!photos.length) {
+    return el('button', { type: 'button', class: 'thumb empty', onclick: () => openPhotos(p, back) },
+      el('span', { class: 'thumb-ico', 'aria-hidden': 'true' }, '📷'), 'Photo');
+  }
+  const img = el('img', { alt: `Photo de ${p.name}`, class: 'thumb-img' });
+  photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
+  return el('button', { type: 'button', class: 'thumb', onclick: () => openPhotos(p, back), 'aria-label': `Voir les ${photos.length} photo${photos.length > 1 ? 's' : ''}` },
+    img, photos.length > 1 ? el('span', { class: 'thumb-count' }, String(photos.length)) : null);
+}
+
+/** Écran des photos d'un lieu : prendre, choisir, voir en grand, supprimer. */
+function openPhotos(p, back) {
+  p.photos = p.photos ?? [];
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  const gallery = el('input', { type: 'file', accept: 'image/*', hidden: true, multiple: true });
+  const add = async (files) => {
+    const list = [...(files ?? [])].slice(0, MAX_PHOTOS - p.photos.length);
+    if (!list.length) return;
+    toast('Enregistrement de la photo…');
+    try {
+      for (const f of list) {
+        const blob = await compressImage(f);
+        const id = newPhotoId();
+        await putPhoto(id, blob);
+        p.photos.push(id);
+      }
+      persist();
+      hideToast();
+      openPhotos(p, back);
+      toast(list.length > 1 ? `${list.length} photos ajoutées` : 'Photo ajoutée');
+    } catch (e) {
+      toast(e.message || 'La photo n\'a pas pu être enregistrée.', true);
+    }
+  };
+  camera.addEventListener('change', () => { add(camera.files); camera.value = ''; });
+  gallery.addEventListener('change', () => { add(gallery.files); gallery.value = ''; });
+
+  const grid = el('div', { class: 'photo-grid' }, p.photos.map((id, i) => {
+    const img = el('img', { alt: `Photo ${i + 1} de ${p.name}` });
+    photoUrl(id).then((u) => { if (u) img.src = u; });
+    return el('div', { class: 'photo-cell' },
+      el('button', { type: 'button', class: 'photo-open', onclick: () => viewPhoto(id, p.name), 'aria-label': `Voir la photo ${i + 1} en grand` }, img),
+      el('button', { type: 'button', class: 'photo-del', 'aria-label': `Supprimer la photo ${i + 1}`, onclick: () => askDeletePhoto(p, id, back) }, '✕'));
+  }));
+  const full = p.photos.length >= MAX_PHOTOS;
+  openSheet(`Photos · ${p.name}`, el('div', { class: 'stack' },
+    p.photos.length ? grid : el('p', { class: 'help' }, 'Aucune photo pour l\'instant.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn primary', disabled: full, onclick: () => camera.click() }, '📷 Prendre une photo'),
+      el('button', { type: 'button', class: 'btn', disabled: full, onclick: () => gallery.click() }, '🖼 Galerie')),
+    full ? el('p', { class: 'help' }, `${MAX_PHOTOS} photos au plus par lieu.`) : null,
+    el('p', { class: 'help' }, 'Les photos sont réduites et restent sur ton téléphone. Leur position GPS est effacée.'),
+    camera, gallery,
+    el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Retour à la fiche'),
+  ), { name: `photos:${p.id}`, again: () => openPhotos(p, back), tall: true });
+}
+
+function askDeletePhoto(p, id, back) {
+  openSheet('Supprimer la photo ?', el('div', { class: 'stack' },
+    el('p', {}, 'Elle sera effacée de ton téléphone. Ce n\'est pas annulable.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openPhotos(p, back) }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: async () => {
+        p.photos = p.photos.filter((x) => x !== id);
+        persist();
+        await deletePhoto(id).catch(() => {});
+        photoUrls.delete(id);
+        openPhotos(p, back);
+        toast('Photo supprimée');
+      } }, 'Oui, supprimer')),
+  ), { name: 'photodel' });
+}
+
+/** Photo en plein écran ; le retour d'Android ou un appui la ferme. */
+async function viewPhoto(id, name) {
+  const u = await photoUrl(id);
+  if (!u) { toast('Photo introuvable.', true); return; }
+  const v = document.getElementById('viewer');
+  v.querySelector('img').src = u;
+  v.querySelector('img').alt = `Photo de ${name}`;
+  v.hidden = false;
+  viewerOpen = true;
+  history.pushState({ viewer: true }, '');
+}
+let viewerOpen = false;
+function closeViewer(fromHistory = false) {
+  if (!viewerOpen) return;
+  viewerOpen = false;
+  document.getElementById('viewer').hidden = true;
+  if (!fromHistory) history.back();
+}
+document.getElementById('viewer').addEventListener('click', () => closeViewer());
+window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); });
 
 /** « Ouvert · ferme à 22:30 », « Fermé · ouvre à 19:00 », ou null si horaires inconnus. */
 function hoursLine(p) {
@@ -849,19 +964,16 @@ function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.l
   input.focus();
 }
 
-function drawNear() {
-  nearLayer.clearLayers();
-  const { lat, lng, acc, kind } = origin;
-  if (kind !== 'station' && acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
+/** Cercles (rayons en mètres) avec leurs étiquettes, sur un calque. */
+function drawRings(layer, lat, lng, radii, label) {
   const c0 = map.latLngToContainerPoint([lat, lng]);
-  for (const r of nearRings()) {
-    L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(nearLayer);
+  for (const r of radii) {
+    L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(layer);
   }
-  // Étiquettes des cercles, en commençant par le plus grand :
-  // on n'affiche que celles qui ont la place, pour qu'elles ne se chevauchent pas.
-  // Une étiquette sur deux à gauche (ouest), pour qu'elles aient la place.
+  // Étiquettes en commençant par le plus grand cercle, une sur deux à gauche (ouest),
+  // seulement celles qui ont la place, pour qu'elles ne se chevauchent pas.
   const last = { 1: Infinity, [-1]: Infinity };
-  [...nearRings()].reverse().forEach((r, i) => {
+  [...radii].reverse().forEach((r, i) => {
     const side = i % 2 === 0 ? 1 : -1;
     const pos = [lat, lng + side * r / (111195 * Math.cos((lat * Math.PI) / 180))];
     const px = Math.abs(map.latLngToContainerPoint(pos).x - c0.x);
@@ -869,9 +981,16 @@ function drawNear() {
     last[side] = px;
     L.marker(pos, {
       interactive: false, keyboard: false, zIndexOffset: 2500,
-      icon: L.divIcon({ className: '', html: `<span class="ring-label">${ringText(r)}</span>`, iconSize: [0, 0] }),
-    }).addTo(nearLayer);
+      icon: L.divIcon({ className: '', html: `<span class="ring-label">${label(r)}</span>`, iconSize: [0, 0] }),
+    }).addTo(layer);
   });
+}
+
+function drawNear() {
+  nearLayer.clearLayers();
+  const { lat, lng, acc, kind } = origin;
+  if (kind !== 'station' && acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
+  drawRings(nearLayer, lat, lng, nearRings(), ringText);
   if (kind === 'station') {
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
   } else {
@@ -1306,6 +1425,7 @@ function openSettings() {
       try {
         const r = mergeImport(state, text, owner);
         state = { ...r.state, ok: state.ok };
+        importPhotos(text, state);
         persist(); refresh();
         openSettings();
         toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
@@ -1329,9 +1449,27 @@ function openSettings() {
     ), { name: 'importwho' });
   });
 
-  const exportFile = () => new File([exportJSON(state)], exportFileName(new Date(), state.points.length), { type: 'application/json' });
+  const withPhotos = el('input', { type: 'checkbox', class: 'check' });
+  const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
+  let exportText = exportJSON(state);
+  const buildExport = async () => {
+    const obj = JSON.parse(exportJSON(state));
+    if (withPhotos.checked) {
+      obj.photos = {};
+      for (const p of state.points) {
+        for (const id of p.photos ?? []) {
+          const b = await getPhoto(id).catch(() => null);
+          if (b) obj.photos[id] = await blobToDataUrl(b);
+        }
+      }
+    }
+    exportText = JSON.stringify(obj);
+  };
+  withPhotos.addEventListener('change', buildExport);
+  const exportFile = () => new File([exportText], exportFileName(new Date(), state.points.length), { type: 'application/json' });
   const markExported = () => { state.lastExport = Date.now(); persist(); };
-  const download = () => {
+  const download = async () => {
+    if (withPhotos.checked) await buildExport(); else exportText = exportJSON(state);
     if (!state.me && !meAsked) {
       meAsked = true;
       toast('Indique d\'abord ton prénom juste en dessous : il sera noté sur chacun de tes lieux exportés. Appuie de nouveau sur Exporter pour continuer sans.', true);
@@ -1363,6 +1501,9 @@ function openSettings() {
       state.lastExport ? `Dernière sauvegarde : ${timeAgo(state.lastExport)}.` : 'Aucune sauvegarde faite pour l\'instant.',
       unsavedCount(state) ? ` ${plural(unsavedCount(state), 'lieu ajouté', 'lieux ajoutés')} depuis.` : ' Tout est sauvegardé.',
     ].join('')),
+    nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
+        el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
     el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
     el('label', { class: 'field' }, 'Ton prénom (pour qu\'un ami sache de qui viennent tes lieux)', meInput),
     el('button', { type: 'button', class: 'btn', onclick: () => {
@@ -1453,6 +1594,19 @@ function openFavStyle() {
 
 let meAsked = false; // on ne demande le prénom qu'une fois avant l'export
 
+/** Range les photos contenues dans un fichier de sauvegarde (seulement celles des lieux présents). */
+async function importPhotos(text, st) {
+  let photos;
+  try { photos = JSON.parse(text)?.photos; } catch { return; }
+  if (!photos || typeof photos !== 'object') return;
+  const wanted = new Set(st.points.flatMap((p) => p.photos ?? []));
+  for (const [id, url] of Object.entries(photos)) {
+    if (!wanted.has(id)) continue;
+    const blob = await dataUrlToBlob(url).catch(() => null);
+    if (blob) await putPhoto(id, blob).catch(() => {});
+  }
+}
+
 /** Création (id null) ou modification d'une catégorie. */
 function openCategory(id) {
   const c = id ? catOf(id) : null;
@@ -1539,16 +1693,38 @@ function remindBackup() {
 
 /* ---------- Actualiser : ma position, la carte, l'appli ---------- */
 
+// Bouton ◎ : ma position avec les cercles de temps à pied (5, 10, 15, 20 min…). Un second appui les retire.
+let meShown = null; // { lat, lng } quand les cercles sont affichés
+
+function drawMe() {
+  meLayer.clearLayers();
+  if (!meShown) return;
+  const { lat, lng, acc } = meShown;
+  if (acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
+  const radii = state.minuteRings.map(minutesToMeters);
+  drawRings(meLayer, lat, lng, radii, (r) => `${state.minuteRings[radii.indexOf(r)]} min`);
+  meMarker(lat, lng).addTo(meLayer);
+}
+
 async function locateOnMap() {
+  const btn = document.getElementById('btnLocate');
+  if (meShown) {
+    meShown = null;
+    drawMe();
+    btn.setAttribute('aria-pressed', 'false');
+    toast('Cercles retirés');
+    return;
+  }
   toast('Recherche de ta position…');
   try {
     const fix = await locate();
     hideToast();
-    meLayer.clearLayers();
-    if (fix.acc > 30) L.circle([fix.lat, fix.lng], { radius: fix.acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
-    meMarker(fix.lat, fix.lng).addTo(meLayer);
-    map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), 16));
-    toast(`Te voilà (à ${Math.round(fix.acc)} m près)`);
+    meShown = fix;
+    const maxR = minutesToMeters(state.minuteRings.at(-1));
+    map.fitBounds(L.latLng(fix.lat, fix.lng).toBounds(maxR * 2), { paddingTopLeft: [10, 60], paddingBottomRight: [70, 90], animate: false });
+    drawMe();
+    btn.setAttribute('aria-pressed', 'true');
+    toast(`Cercles à pied : ${state.minuteRings.map((m) => `${m} min`).join(' · ')} (à ${Math.round(fix.acc)} m près)`);
   } catch (e) {
     toast(e.message, true);
   }

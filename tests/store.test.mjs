@@ -325,3 +325,10 @@ test('export : chaque lieu porte le prénom de qui l\'a ajouté', () => {
   const l = mergeImport({ ...base(), me: 'Léa' }, exportJSON(marie), 'Marie');
   assert.deepEqual(l.state.points.map((p) => p.owner), ['Marie', 'Paul']);
 });
+
+test('photos : identifiants gardés, valeurs douteuses écartées', () => {
+  const st = memStorage();
+  saveState(st, { ...base(), points: [{ ...sample(), photos: ['abc-1', '../x', 42, 'ok_2'] }] });
+  assert.deepEqual(loadState(st).points[0].photos, ['abc-1', 'ok_2']);
+  assert.deepEqual(sample().photos, []);
+});

@@ -370,3 +370,38 @@ ol.items { padding: 0; }
 .plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .plan-step { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 1.35; }
 .plan-ico { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+
+.map-btn[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* Photos : vignette dans la fiche (proposition B) */
+.detail-top { display: flex; gap: 12px; align-items: flex-start; }
+.detail-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.thumb {
+  position: relative; flex: none; width: 96px; height: 96px; border-radius: 14px; overflow: hidden; padding: 0;
+  border: none; background: var(--soft); box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb.empty {
+  border: 2px dashed #c9ced8; box-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: 13px; font-weight: 600; color: var(--ink);
+}
+.thumb-ico { font-size: 24px; }
+.thumb-count {
+  position: absolute; right: 6px; bottom: 6px; min-width: 22px; height: 22px; border-radius: 11px; padding: 0 6px; box-sizing: border-box;
+  background: rgba(31, 42, 68, .85); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.thumb:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.photo-cell { position: relative; aspect-ratio: 1; }
+.photo-open { width: 100%; height: 100%; padding: 0; border: none; border-radius: 12px; overflow: hidden; background: var(--soft); }
+.photo-open img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-del {
+  position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.92); color: var(--danger); font-size: 16px; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.viewer {
+  position: fixed; inset: 0; z-index: 1300; background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px; padding: 16px; box-sizing: border-box;
+}
+.viewer img { max-width: 100%; max-height: calc(100% - 40px); object-fit: contain; border-radius: 6px; }
+.viewer-hint { margin: 0; color: #ccc; font-size: 14px; }
