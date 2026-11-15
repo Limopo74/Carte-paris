@@ -1,4 +1,10 @@
 :root {
+  /* Code couleur des boutons, par famille d'action :
+     bleu nuit = y aller · bleu métro = métro · sarcelle = se guider · vert = ajouter, garder · doré = favori · rouge = supprimer · gris = le reste */
+  --metro: #003ca6; --metro-bg: #e8eefc; --metro-bd: #b9c9f0;
+  --guide: #0b6f80; --guide-bg: #e2f4f6; --guide-bd: #9fd6de;
+  --add: #237032; --add-bg: #e5f3e8; --add-bd: #a9d8b4;
+  --fav: #7a5100; --fav-bg: #fff3cf; --fav-bd: #f0cf6b;
   --ink: #1f2a44;
   --muted: #5b6475;
   --line: #e3e6ec;
@@ -425,3 +431,16 @@ ol.items { padding: 0; }
 .switch.on { background: var(--ink); }
 .switch.on .knob { left: 21px; }
 @media (prefers-reduced-motion: reduce) { .switch, .switch .knob { transition: none; } }
+
+/* Code couleur : teinte claire + texte foncé de la même couleur (lisible), ou plein pour l'action principale */
+.btn.c-metro, .tool.c-metro, .map-btn.c-metro { background: var(--metro-bg); color: var(--metro); border-color: var(--metro-bd); }
+.btn.c-guide, .tool.c-guide, .map-btn.c-guide, .go-compass { background: var(--guide-bg); color: var(--guide); border-color: var(--guide-bd); }
+.btn.c-add, .tool.c-add, .map-btn.c-add { background: var(--add-bg); color: var(--add); border-color: var(--add-bd); }
+.btn.c-fav { background: var(--fav-bg); color: var(--fav); border-color: var(--fav-bd); }
+.btn.c-metro.solid, .tool.c-metro.on { background: var(--metro); color: #fff; border-color: var(--metro); }
+.btn.c-guide.solid, .tool.c-guide.on, .map-btn.c-guide[aria-pressed="true"] { background: var(--guide); color: #fff; border-color: var(--guide); }
+.btn.c-add.solid, .big-btn.c-add.solid { background: var(--add); color: #fff; border-color: var(--add); }
+.tool.c-guide .tool-ico, .tool.c-metro .tool-ico { filter: none; }
+.thumb.empty { border-color: var(--add-bd); background: var(--add-bg); color: var(--add); }
+.legend-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend-colors span { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }

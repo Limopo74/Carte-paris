@@ -20,7 +20,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (25)';
+const VERSION = '16 novembre 2026 (26)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -405,8 +405,8 @@ const freshHere = () => (here && Date.now() - here.time < FRESH_MS ? here : null
 
 function openAddChoice() {
   openSheet('Ajouter un lieu', el('div', { class: 'stack' },
-    el('button', { type: 'button', class: 'btn big primary', onclick: addAtPosition }, '📍  À ma position'),
-    el('button', { type: 'button', class: 'btn big', onclick: () => openPlaceSearch() }, '🔎  Avec un nom ou une adresse'),
+    el('button', { type: 'button', class: 'btn big c-add solid', onclick: addAtPosition }, '📍  À ma position'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch() }, '🔎  Avec un nom ou une adresse'),
     el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, à l\'endroit voulu.'),
   ), { name: 'add', again: openAddChoice });
 }
@@ -605,7 +605,7 @@ function openForm(draft, existing = null) {
     err,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer')),
   ), { tall: true, name: 'form' });
 
   showDraft(existing ? existing.lat : draft.lat, existing ? existing.lng : draft.lng);
@@ -640,12 +640,12 @@ function openDetail(id, back = null) {
     const moreBtn = el('button', { type: 'button', class: 'btn', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, '⋯ Plus');
     actions.replaceChildren(
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn', onclick: () => openCompass(p) }, '🧭 Boussole'),
+        el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, '🧭 Boussole'),
         el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller')),
-      el('button', { type: 'button', class: 'btn', onclick: () => showMetroPlan(p, back) }, 'Ⓜ Quel métro prendre ?'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back) }, 'Ⓜ Quel métro prendre ?'),
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn', onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
-        el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
+        el('button', { type: 'button', class: `btn ${p.done ? '' : 'c-add'}`, onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : '✓ Déjà visité'),
+        el('button', { type: 'button', class: `btn ${p.fav ? '' : 'c-fav'}`, onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? `Retirer ${state.fav.icon}` : `${state.fav.icon} Favori`)),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
         moreBtn),
@@ -748,8 +748,8 @@ function openPhotos(p, back) {
   openSheet(`Photos · ${p.name}`, el('div', { class: 'stack' },
     p.photos.length ? grid : el('p', { class: 'help' }, 'Aucune photo pour l\'instant.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn primary', disabled: full, onclick: () => camera.click() }, '📷 Prendre une photo'),
-      el('button', { type: 'button', class: 'btn', disabled: full, onclick: () => gallery.click() }, '🖼 Galerie')),
+      el('button', { type: 'button', class: 'btn c-add solid', disabled: full, onclick: () => camera.click() }, '📷 Prendre une photo'),
+      el('button', { type: 'button', class: 'btn c-add', disabled: full, onclick: () => gallery.click() }, '🖼 Galerie')),
     full ? el('p', { class: 'help' }, `${MAX_PHOTOS} photos au plus par lieu.`) : null,
     el('p', { class: 'help' }, 'Les photos sont réduites et restent sur ton téléphone. Leur position GPS est effacée.'),
     camera, gallery,
@@ -1013,8 +1013,8 @@ function renderNear(fit = false) {
 
   const body = [];
   // Outils pour se déplacer, en haut pour les voir tout de suite
-  const tool = (icon, label, onclick, pressed = null) => el('button', {
-    type: 'button', class: `tool${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
+  const tool = (icon, label, onclick, pressed = null, family = 'c-guide') => el('button', {
+    type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, icon), label);
   body.push(el('div', { class: 'tools' },
     origin.kind === 'gps'
@@ -1022,7 +1022,7 @@ function renderNear(fit = false) {
       : tool('↻', 'Ma position', openNear),
     tool('🚶', 'Chemin', () => openWayPicker()),
     tool('🗺️', 'Parcours', () => openRoutePicker()),
-    tool('Ⓜ', 'Station', () => openStationPicker()),
+    tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
     // Bascule des cercles : affiche ce qu'on obtiendra en appuyant
     el('button', { type: 'button', class: 'tool', onclick: () => { state.ringUnit = inMinutes() ? 'm' : 'min'; persist(); renderNear(true); },
       'aria-label': inMinutes() ? 'Cercles en mètres' : 'Cercles en minutes à pied' },
@@ -1504,7 +1504,7 @@ function openSettings(section = null) {
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
-      el('button', { type: 'button', class: 'btn primary', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
       canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
       el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer un fichier'),
       el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer les tiens : ta propre sauvegarde ou les lieux d\'un ami.'),
@@ -1529,7 +1529,7 @@ function openSettings(section = null) {
             el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
           el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
       })),
-      el('button', { type: 'button', class: 'btn primary', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
       state.categories.length > 3 ? el('p', { class: 'help' }, 'Au-delà de 3 catégories, elles se choisissent avec le bouton « Catégories ▾ » en haut.') : null,
       backBtn,
     ), { tall: true, name: 'settings:categories', again: () => openSettings('categories') });
@@ -1560,6 +1560,14 @@ function openSettings(section = null) {
   if (section === 'appli') {
     openSheet('ℹ️ Application', el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn primary', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
+      el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
+      el('div', { class: 'legend-colors' },
+        el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
+        el('span', { class: 'btn c-metro', style: 'min-height:0' }, 'Métro'),
+        el('span', { class: 'btn c-guide', style: 'min-height:0' }, 'Se guider'),
+        el('span', { class: 'btn c-add', style: 'min-height:0' }, 'Ajouter, garder'),
+        el('span', { class: 'btn c-fav', style: 'min-height:0' }, 'Favori'),
+        el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 4 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN), l\'annuaire (OpenStreetMap) et les fontaines et toilettes (Ville de Paris, sans ta position). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
@@ -1816,9 +1824,9 @@ function renderMetroPlan(p, from, back) {
     el('ol', { class: 'plan' }, steps),
     plan.type === 'walk' ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openCompass(firstTarget ?? p) }, firstTarget ? '🧭 Vers la station' : '🧭 Boussole'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, firstTarget ? '🧭 Vers la station' : '🧭 Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
-    plan.type === 'walk' ? null : el('a', { class: 'btn', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
+    plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
   ), { name: `plan:${p.id}`, again: () => renderMetroPlan(p, from, back) });
   nearLayer.clearLayers();
@@ -1871,9 +1879,9 @@ function showNearestMetro(from, note = null) {
     el('p', { class: 'help' }, stationLabel(st)),
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openCompass(target) }, '🧭 Boussole'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, '🧭 Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
-    el('a', { class: 'btn', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
+    el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
     el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
