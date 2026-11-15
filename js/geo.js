@@ -3,7 +3,9 @@
 export const DEFAULT_RINGS = [100, 300, 500, 1000];
 export const MIN_RING = 100;
 const EARTH_R = 6371008.8; // rayon moyen de la Terre, en mètres
-const MIN_PER_KM = 12;
+const MIN_PER_KM = 12; // environ 5 km/h
+// À Paris, le trajet à pied réel est en moyenne 1,2 à 1,4 fois plus long que la ligne droite.
+const DETOUR = 1.3;
 const WALK_LIMIT_M = 1000;
 
 /** Distance à vol d'oiseau en mètres entre deux positions {lat, lng}. */
@@ -16,9 +18,9 @@ export function distanceM(a, b) {
   return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Minutes de marche estimées (12 min par km), 1 minute au minimum. */
+/** Minutes de marche estimées depuis une distance à vol d'oiseau, détours compris. 1 minute au minimum. */
 export function walkMinutes(m) {
-  return Math.max(1, Math.ceil((m / 1000) * MIN_PER_KM - 1e-9));
+  return Math.max(1, Math.ceil((m * DETOUR / 1000) * MIN_PER_KM - 1e-9));
 }
 
 /**

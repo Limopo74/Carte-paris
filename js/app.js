@@ -1,11 +1,17 @@
 // Interface de « Ma carte de Paris ».
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl } from './geo.js';
-import { CATEGORIES, KEY, newPoint, loadState, saveState, exportJSON, mergeImport } from './store.js';
+import {
+  KEY, PALETTE, newPoint, loadState, saveState, exportJSON, mergeImport,
+  addCategory, updateCategory, deleteCategory,
+} from './store.js';
 import { searchAddress, reverseAddress } from './adresse.js';
+import { searchPoints } from './search.js';
 
 const L = window.L;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
+const FAV_COLOR = '#f2a900';
+const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Orange', 'Framboise', 'Turquoise', 'Gris'];
 
 /* ---------- Stockage ---------- */
 
@@ -31,6 +37,8 @@ function persist() {
   return true;
 }
 
+const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '?', color: '#495057' };
+
 /* ---------- Petits outils ---------- */
 
 function el(tag, attrs = {}, ...children) {
@@ -48,9 +56,16 @@ function el(tag, attrs = {}, ...children) {
   return n;
 }
 
-const fmtDist = (m) => (m < 15 ? 'à côté' : m < 1000 ? `${Math.round(m / 10) * 10 || Math.round(m)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
+const fmtDist = (m) => (m < 15 ? 'à côté' : m < 1000 ? `${Math.ceil(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
 const fmtRing = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toLocaleString('fr-FR')} km`);
-const catDot = (cat) => el('span', { class: `dot ${cat}`, 'aria-hidden': 'true' });
+const fmtWalk = (m) => `≈ ${walkMinutes(m)} min à pied`;
+const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+function catDot(catId) {
+  const d = el('span', { class: 'dot', 'aria-hidden': 'true' });
+  d.style.background = catOf(catId).color;
+  return d;
+}
+const favMark = (p) => (p.fav ? el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, '★ ') : null);
 
 let toastTimer;
 function toast(msg, isError = false) {
@@ -61,6 +76,7 @@ function toast(msg, isError = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3000);
 }
+const hideToast = () => { document.getElementById('toast').hidden = true; };
 
 /* ---------- Carte ---------- */
 
@@ -74,25 +90,32 @@ const pointsLayer = L.layerGroup().addTo(map);
 const nearLayer = L.layerGroup().addTo(map);
 const draftLayer = L.layerGroup().addTo(map);
 
-let filter = 'all';
-const visible = () => state.points.filter((p) => filter === 'all' || p.cat === filter);
+let filterCat = 'all';
+let favOnly = false;
+const visible = () => state.points.filter((p) =>
+  (filterCat === 'all' || p.cat === filterCat) && (!favOnly || p.fav));
 
 function renderMarkers() {
   pointsLayer.clearLayers();
   for (const p of visible()) {
-    const color = CATEGORIES[p.cat].color;
+    if (moving && moving.id === p.id) continue; // le viseur le remplace pendant le déplacement
+    const color = catOf(p.cat).color;
     L.circleMarker([p.lat, p.lng], {
-      radius: 9, color, weight: 3, fillColor: color, fillOpacity: p.done ? 0.2 : 0.9,
+      radius: p.fav ? 10 : 9,
+      color: p.fav ? FAV_COLOR : color,
+      weight: p.fav ? 4 : 3,
+      fillColor: color,
+      fillOpacity: p.done ? 0.25 : 0.9,
+      bubblingMouseEvents: false,
     })
       .bindTooltip(p.name, { direction: 'top', offset: [0, -8] })
-      .on('click', () => openDetail(p.id))
+      .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
   }
 }
 
-/** Centre la carte sur une position en tenant compte de la feuille du bas. */
+/** Centre la carte sur une position, au milieu de la partie visible au-dessus de la feuille. */
 function centerOn(lat, lng, zoom = map.getZoom()) {
-  const sheet = document.getElementById('sheet');
   const h = sheet.hidden ? 0 : sheet.offsetHeight;
   map.setView([lat, lng], zoom, { animate: false });
   if (h) map.panBy([0, h / 2], { animate: false });
@@ -100,8 +123,33 @@ function centerOn(lat, lng, zoom = map.getZoom()) {
 
 function showDraft(lat, lng) {
   draftLayer.clearLayers();
-  L.circleMarker([lat, lng], { radius: 11, color: '#1f2a44', weight: 3, fillColor: '#ffffff', fillOpacity: 1 }).addTo(draftLayer);
+  L.circleMarker([lat, lng], { radius: 11, color: '#1f2a44', weight: 3, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(draftLayer);
   centerOn(lat, lng, Math.max(map.getZoom(), 17));
+}
+
+/* ---------- Barre de filtres ---------- */
+
+function renderChips() {
+  if (filterCat !== 'all' && !state.categories.some((c) => c.id === filterCat)) filterCat = 'all';
+  const chip = (label, pressed, onclick, extra = {}) =>
+    el('button', { type: 'button', class: `chip ${extra.class ?? ''}`, 'aria-pressed': String(pressed), onclick, 'aria-label': extra.aria }, label);
+  document.getElementById('chips').replaceChildren(
+    chip('Tout', filterCat === 'all', () => setFilter('all')),
+    chip('★', favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
+    ...state.categories.map((c) => chip([catDot(c.id), c.name], filterCat === c.id, () => setFilter(c.id))),
+  );
+}
+
+function setFilter(id) {
+  filterCat = id;
+  refresh();
+}
+
+/** Redessine ce qui dépend des lieux et des filtres. */
+function refresh() {
+  renderChips();
+  renderMarkers();
+  if (view === 'near' && here) renderNear();
 }
 
 /* ---------- Feuille du bas (avec retour Android) ---------- */
@@ -114,9 +162,10 @@ let historyPushed = false;
 let view = null; // 'near' quand la liste « Autour de moi » est affichée
 
 function openSheet(title, body, { onClose = null, tall = false, name = null } = {}) {
+  if (moving && name !== 'move') stopMove();
   view = name;
-  sheetTitle.textContent = title;
-  sheetBody.replaceChildren(...[body].flat());
+  sheetTitle.replaceChildren(...[title].flat().filter(Boolean));
+  sheetBody.replaceChildren(...[body].flat().filter(Boolean));
   sheet.classList.toggle('tall', tall);
   sheet.hidden = false;
   sheetBody.scrollTop = 0;
@@ -134,6 +183,7 @@ function closeSheet(fromHistory = false) {
   sheetBody.replaceChildren();
   draftLayer.clearLayers();
   nearLayer.clearLayers();
+  if (moving) stopMove();
   const cb = onSheetClose;
   onSheetClose = null;
   if (cb) cb();
@@ -186,25 +236,35 @@ function openAddChoice() {
   openSheet('Ajouter un lieu', el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big primary', onclick: addAtPosition }, '📍  À ma position'),
     el('button', { type: 'button', class: 'btn big', onclick: openAddressSearch }, '🔎  Avec une adresse'),
+    el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, à l\'endroit voulu.'),
   ));
+}
+
+/** Ouvre le formulaire à une position et cherche l'adresse en arrière-plan. */
+function addAt(lat, lng, acc = null) {
+  const draft = { lat, lng, address: '', acc };
+  openForm(draft);
+  reverseAddress(lat, lng).then((label) => {
+    if (label && draft.onAddress) draft.onAddress(label);
+  });
 }
 
 async function addAtPosition() {
   toast('Recherche de ta position…');
-  let pos;
   try {
-    pos = await locate();
+    const pos = await locate();
+    hideToast();
+    addAt(pos.lat, pos.lng, pos.acc);
   } catch (e) {
     toast(e.message, true);
-    return;
   }
-  document.getElementById('toast').hidden = true;
-  const draft = { lat: pos.lat, lng: pos.lng, address: '', acc: pos.acc };
-  openForm(draft);
-  reverseAddress(pos.lat, pos.lng).then((label) => {
-    if (label && !sheet.hidden && draft.onAddress) draft.onAddress(label);
-  });
 }
+
+// Appui long sur la carte (ou clic droit sur ordinateur).
+map.on('contextmenu', (e) => {
+  if (moving) return;
+  addAt(e.latlng.lat, e.latlng.lng);
+});
 
 function openAddressSearch() {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : 12 rue de Rivoli', 'aria-describedby': 'addrHelp' });
@@ -240,43 +300,49 @@ function openAddressSearch() {
 
 /** Formulaire de création (draft) ou de modification (existing). */
 function openForm(draft, existing = null) {
-  const v = existing ?? { name: '', cat: filter !== 'all' ? filter : 'resto', note: '', done: false, address: draft.address };
+  const firstCat = filterCat !== 'all' ? filterCat : state.categories[0].id;
+  const v = existing ?? { name: '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
   let cat = v.cat;
   let done = v.done;
+  let fav = v.fav;
 
   const name = el('input', { type: 'text', value: v.name, maxlength: '80', autocomplete: 'off', enterkeyhint: 'next', required: true });
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
   note.value = v.note;
   const err = el('p', { class: 'error', role: 'alert' });
 
-  const segBtn = (label, pressed, onPick, dot) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, dot, label);
+  const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   const catSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Catégorie' });
-  const drawCats = () => catSeg.replaceChildren(...Object.entries(CATEGORIES).map(([k, c]) =>
-    segBtn(c.short, k === cat, () => { cat = k; drawCats(); }, catDot(k))));
+  const drawCats = () => catSeg.replaceChildren(...state.categories.map((c) =>
+    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); })));
   drawCats();
   const doneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'État' });
   const drawDone = () => doneSeg.replaceChildren(
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
-    segBtn('Déjà visité', done, () => { done = true; drawDone(); }));
+    segBtn('Déjà visité', done, () => { done = true; drawDone(); }),
+    segBtn('★ Favori', fav, () => { fav = !fav; drawDone(); }));
   drawDone();
 
-  const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Position choisie'));
-  draft.onAddress = (label) => { if (!v.address) whereText.textContent = label; draft.address = label; };
+  const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Endroit choisi sur la carte'));
+  draft.onAddress = (label) => {
+    draft.address = label;
+    if (!v.address && whereText.isConnected) whereText.textContent = label;
+  };
   const accWarn = draft.acc > 100
-    ? el('p', { class: 'warn' }, `Position peu précise (à ${Math.round(draft.acc)} m près). Le point peut être mal placé : vérifie sur la carte, ou utilise plutôt l'adresse.`)
+    ? el('p', { class: 'warn' }, `Position peu précise (à ${Math.round(draft.acc)} m près). Le point peut être mal placé : tu pourras le déplacer depuis sa fiche.`)
     : null;
 
   const save = () => {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
     if (existing) {
-      Object.assign(existing, { name: n, cat, note: note.value, done });
+      Object.assign(existing, { name: n, cat, note: note.value, done, fav });
     } else {
-      state.points.push(newPoint({ name: n, cat, note: note.value, done, lat: draft.lat, lng: draft.lng, address: draft.address || '' }));
+      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '' }));
     }
     const ok = persist();
     renderMarkers();
-    if (existing) { openDetail(existing.id); } else { closeSheet(); }
+    if (existing) openDetail(existing.id); else closeSheet();
     if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte`);
   };
 
@@ -293,9 +359,7 @@ function openForm(draft, existing = null) {
       el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
   ), { tall: true });
 
-  const lat = existing ? existing.lat : draft.lat;
-  const lng = existing ? existing.lng : draft.lng;
-  showDraft(lat, lng);
+  showDraft(existing ? existing.lat : draft.lat, existing ? existing.lng : draft.lng);
   if (!existing) name.focus({ preventScroll: true });
 }
 
@@ -306,18 +370,18 @@ function openDetail(id, back = null) {
   if (!p) { closeSheet(); return; }
   const pos = freshHere();
   const d = pos ? distanceM(pos, p) : null;
-  const c = CATEGORIES[p.cat];
   const actions = el('div', { class: 'stack' });
+  const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
 
   const showActions = () => actions.replaceChildren(
     el('a', { class: 'btn primary', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' }, 'Y aller avec Google Maps'),
-    el('button', { type: 'button', class: 'btn', onclick: () => {
-      p.done = !p.done;
-      persist(); renderMarkers(); openDetail(id, back);
-    } }, p.done ? 'Remettre en « À faire »' : 'Marquer comme déjà visité'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.done = !p.done; }) }, p.done ? 'Remettre à faire' : 'Déjà visité'),
+      el('button', { type: 'button', class: 'btn', onclick: () => update(() => { p.fav = !p.fav; }) }, p.fav ? 'Retirer ★' : '★ Favori')),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, 'Modifier'),
-      el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer')),
+      el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer')),
+    el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer'),
     back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour à la liste') : null,
   );
   const askDelete = () => actions.replaceChildren(
@@ -333,14 +397,86 @@ function openDetail(id, back = null) {
   );
   showActions();
 
-  openSheet(p.name, el('div', { class: 'stack' },
-    el('div', { class: 'badge' }, catDot(p.cat), c.label, ' · ', p.done ? 'Déjà visité' : 'À faire'),
-    d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · environ ${walkMinutes(d)} min à pied`) : null,
+  openSheet([favMark(p), p.name], el('div', { class: 'stack' },
+    el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
+    d != null ? el('div', { class: 'badge' }, `${fmtDist(d)} · ${fmtWalk(d)}`) : null,
     p.note ? el('p', { class: 'note' }, p.note) : null,
     p.address ? el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), p.address) : null,
     actions,
   ));
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+}
+
+/* ---------- Déplacer un lieu (viseur fixe) ---------- */
+
+let moving = null; // { id }
+const crosshair = document.getElementById('crosshair');
+
+function crosshairY() {
+  const h = sheet.hidden ? 0 : sheet.offsetHeight;
+  return (window.innerHeight - h) / 2;
+}
+
+function startMove(p, back) {
+  moving = { id: p.id };
+  openSheet(`Déplacer « ${p.name} »`, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Fais glisser la carte pour mettre le viseur à la bonne place.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => confirmMove(p, back) }, 'Valider ici')),
+  ), { name: 'move' });
+  renderMarkers();
+  centerOn(p.lat, p.lng, Math.max(map.getZoom(), 17));
+  crosshair.style.top = `${crosshairY()}px`;
+  crosshair.hidden = false;
+}
+
+function stopMove() {
+  moving = null;
+  crosshair.hidden = true;
+  renderMarkers();
+}
+
+function confirmMove(p, back) {
+  const ll = map.containerPointToLatLng([map.getSize().x / 2, crosshairY()]);
+  p.lat = Math.round(ll.lat * 1e6) / 1e6;
+  p.lng = Math.round(ll.lng * 1e6) / 1e6;
+  p.address = '';
+  stopMove();
+  const ok = persist();
+  openDetail(p.id, back);
+  if (ok) toast('Lieu déplacé');
+  reverseAddress(p.lat, p.lng).then((label) => {
+    if (!label || !state.points.includes(p) || p.address) return;
+    p.address = label;
+    persist();
+  });
+}
+
+/* ---------- Chercher dans mes lieux ---------- */
+
+function openSearch(initial = '') {
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Nom, note, adresse, catégorie…', value: initial, 'aria-label': 'Chercher' });
+  const list = el('ul', { class: 'items' });
+  const info = el('p', { class: 'help' });
+
+  const run = () => {
+    const pos = freshHere();
+    const res = searchPoints(state.points, state.categories, input.value, pos);
+    info.textContent = !state.points.length
+      ? 'Tu n\'as encore aucun lieu.'
+      : res.length ? `${plural(res.length, 'lieu', 'lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun lieu ne correspond.';
+    list.replaceChildren(...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => openSearch(input.value)) },
+        catDot(p.cat),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, favMark(p), p.name),
+          el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done ? null : 'À faire'].filter(Boolean).join(' · ')))))));
+  };
+  input.addEventListener('input', run);
+  run();
+  openSheet('Chercher dans mes lieux', el('div', { class: 'stack' }, input, info, list), { tall: true });
+  input.focus();
 }
 
 /* ---------- Autour de moi ---------- */
@@ -353,7 +489,7 @@ async function openNear() {
     toast(e.message, true);
     return;
   }
-  document.getElementById('toast').hidden = true;
+  hideToast();
   renderNear(true);
 }
 
@@ -363,8 +499,7 @@ function drawNear() {
   if (acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(nearLayer);
   for (const r of state.rings) {
     L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(nearLayer);
-    const labelLat = lat + r / 111195;
-    L.marker([labelLat, lng], {
+    L.marker([lat + r / 111195, lng], {
       interactive: false, keyboard: false,
       icon: L.divIcon({ className: '', html: `<span class="ring-label">${fmtRing(r)}</span>`, iconSize: [0, 0] }),
     }).addTo(nearLayer);
@@ -395,19 +530,20 @@ function renderNear(fit = false) {
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderNear()) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
-          el('span', { class: 'item-name' }, p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min à pied${p.done ? '' : ' · À faire'}`))),
+          el('span', { class: 'item-name' }, favMark(p), p.name),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${fmtWalk(d)}${p.done ? '' : ' · À faire'}`))),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
-    const what = filter === 'all' ? 'lieu' : `lieu « ${CATEGORIES[filter].short} »`;
+    const what = [filterCat === 'all' ? 'lieu' : `lieu « ${catOf(filterCat).name} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
     body.push(el('p', { class: 'empty' }, state.points.length
       ? `Aucun ${what} à moins de ${fmtRing(maxRing)}.`
       : 'Tu n\'as encore aucun lieu. Appuie sur « + Ajouter » pour commencer.'));
   }
   if (farther > 0 && inside) {
-    body.push(el('p', { class: 'help' }, `${farther} autre${farther > 1 ? 's' : ''} plus loin que ${fmtRing(maxRing)}.`));
+    body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${fmtRing(maxRing)}.`));
   }
+  if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
   body.push(el('div', { class: 'row', style: 'margin-top:14px' },
     el('button', { type: 'button', class: 'btn', onclick: openNear }, '↻ Actualiser ma position')));
 
@@ -433,9 +569,9 @@ function openSettings() {
     try {
       const r = mergeImport(state, await f.text());
       state = { ...r.state, ok: state.ok };
-      persist(); renderMarkers();
+      persist(); refresh();
       openSettings();
-      toast(`${r.added} lieu${r.added > 1 ? 'x' : ''} ajouté${r.added > 1 ? 's' : ''}${r.skipped ? `, ${r.skipped} illisible${r.skipped > 1 ? 's' : ''} ignoré${r.skipped > 1 ? 's' : ''}` : ''}.`);
+      toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
     } catch (e) {
       toast(e.message || 'Import impossible.', true);
     }
@@ -456,9 +592,22 @@ function openSettings() {
   const share = async () => {
     try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); } catch { /* annulé */ }
   };
+  const section = (title) => el('h3', { class: 'ring-title', style: 'margin-top:18px' }, el('span', {}, title), el('span', {}, ''));
 
   openSheet('Réglages', el('div', { class: 'stack' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
+
+    section('Catégories'),
+    el('div', {}, state.categories.map((c) => {
+      const n = state.points.filter((p) => p.cat === c.id).length;
+      return el('div', { class: 'cat-row' }, catDot(c.id),
+        el('span', { class: 'cat-name' }, c.name, ' ', el('span', { class: 'cat-count' }, `(${n})`)),
+        el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
+    })),
+    el('button', { type: 'button', class: 'btn', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
+    state.categories.length > 6 ? el('p', { class: 'help' }, 'Au-delà de 6 catégories, la barre du haut défile : pense à regrouper.') : null,
+
+    section('Cercles autour de moi'),
     el('label', { class: 'field' }, 'Taille des cercles (en mètres)', rings),
     el('p', { class: 'help', id: 'ringsHelp' }, 'Sépare-les par des virgules. 100 m au minimum. Exemple : 100, 300, 500, 1000'),
     el('button', { type: 'button', class: 'btn primary', onclick: () => {
@@ -466,8 +615,9 @@ function openSettings() {
       rings.value = state.rings.join(', ');
       if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
     } }, 'Enregistrer les cercles'),
-    el('h3', { class: 'ring-title', style: 'margin-top:18px' }, el('span', {}, 'Sauvegarde'), el('span', {}, '')),
-    el('p', { class: 'help' }, `${count} lieu${count > 1 ? 'x' : ''} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
+
+    section('Sauvegarde'),
+    el('p', { class: 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. Exporte-les de temps en temps : si tu changes de téléphone ou vides Chrome, ils seraient perdus.`),
     el('button', { type: 'button', class: 'btn', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
     canShareFile ? el('button', { type: 'button', class: 'btn', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
     el('button', { type: 'button', class: 'btn', onclick: () => file.click() }, '⬆  Importer une sauvegarde'),
@@ -476,23 +626,81 @@ function openSettings() {
   ), { tall: true });
 }
 
+/** Création (id null) ou modification d'une catégorie. */
+function openCategory(id) {
+  const c = id ? catOf(id) : null;
+  let color = c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
+  const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
+  const err = el('p', { class: 'error', role: 'alert' });
+  const swatches = el('div', { class: 'swatches', role: 'group', 'aria-label': 'Couleur' });
+  const drawSwatches = () => swatches.replaceChildren(...PALETTE.map((col, i) => {
+    const b = el('button', { type: 'button', class: 'swatch', 'aria-pressed': String(col === color), 'aria-label': COLOR_NAMES[i], onclick: () => { color = col; drawSwatches(); } });
+    b.style.background = col;
+    return b;
+  }));
+  drawSwatches();
+  const zone = el('div', { class: 'stack' });
+
+  const save = () => {
+    try {
+      state = id ? updateCategory(state, id, { name: name.value, color }) : addCategory(state, { name: name.value, color });
+    } catch (e) { err.textContent = e.message; return; }
+    persist(); refresh(); openSettings();
+    toast(id ? 'Catégorie modifiée' : 'Catégorie ajoutée');
+  };
+
+  const n = id ? state.points.filter((p) => p.cat === id).length : 0;
+  const others = state.categories.filter((x) => x.id !== id);
+  const doDelete = (moveTo) => {
+    try { state = deleteCategory(state, id, moveTo); } catch (e) { err.textContent = e.message; return; }
+    persist(); refresh(); openSettings();
+    toast('Catégorie supprimée');
+  };
+  const showButtons = () => zone.replaceChildren(
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: openSettings }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn primary', onclick: save }, 'Enregistrer')),
+    id && others.length ? el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer cette catégorie') : null,
+    id && !others.length ? el('p', { class: 'help' }, 'C\'est ta seule catégorie : elle ne peut pas être supprimée.') : null,
+  );
+  const askDelete = () => {
+    if (!n) {
+      zone.replaceChildren(
+        el('p', { class: 'warn', role: 'alert' }, `Supprimer la catégorie « ${c.name} » ? Elle ne contient aucun lieu.`),
+        el('div', { class: 'row' },
+          el('button', { type: 'button', class: 'btn', onclick: showButtons }, 'Annuler'),
+          el('button', { type: 'button', class: 'btn danger solid', onclick: () => doDelete(null) }, 'Oui, supprimer')));
+      return;
+    }
+    zone.replaceChildren(
+      el('p', { class: 'warn', role: 'alert' }, `« ${c.name} » contient ${plural(n, 'lieu', 'lieux')}. Dans quelle catégorie les ranger ?`),
+      el('div', { class: 'stack' }, others.map((o) => el('button', { type: 'button', class: 'btn', onclick: () => doDelete(o.id) },
+        catDot(o.id), `Ranger dans « ${o.name} » et supprimer`))),
+      el('button', { type: 'button', class: 'btn', onclick: showButtons }, 'Annuler'));
+  };
+  showButtons();
+
+  openSheet(id ? 'Modifier la catégorie' : 'Nouvelle catégorie', el('div', { class: 'stack' },
+    el('label', { class: 'field' }, 'Nom', name),
+    el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
+    err, zone,
+  ), { tall: true });
+  if (!id) name.focus();
+}
+
 /* ---------- Démarrage ---------- */
 
-document.querySelectorAll('.chip').forEach((chip) => chip.addEventListener('click', () => {
-  filter = chip.dataset.cat;
-  document.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
-  renderMarkers();
-  if (view === 'near' && here) renderNear();
-}));
 document.getElementById('btnAdd').addEventListener('click', openAddChoice);
 document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
+document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 
+renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
 } else {
-  toast('Appuie sur « + Ajouter » pour enregistrer ton premier lieu.');
+  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
 

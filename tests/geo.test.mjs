@@ -17,11 +17,11 @@ test('distance nulle pour un même point', () => {
   assert.equal(distanceM(notreDame, notreDame), 0);
 });
 
-test('temps de marche : 12 min par km, arrondi au-dessus, 1 min au minimum', () => {
+test('temps de marche : 12 min par km sur un trajet 1,3 fois plus long qu\'à vol d\'oiseau', () => {
   assert.equal(walkMinutes(0), 1);
-  assert.equal(walkMinutes(1000), 12);
-  assert.equal(walkMinutes(1001), 13);
-  assert.equal(walkMinutes(250), 3);
+  assert.equal(walkMinutes(1000), 16);
+  assert.equal(walkMinutes(2000), 32);
+  assert.equal(walkMinutes(250), 4);
 });
 
 test('normalisation des cercles', () => {
