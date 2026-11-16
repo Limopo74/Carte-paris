@@ -682,3 +682,10 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 :root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .big-btn.primary, :root[data-theme="dark"] a.go { box-shadow: 0 2px 10px rgba(160, 180, 255, .25); }
 .menu-row.c-metro .menu-ico { background: var(--metro-bg); box-shadow: inset 0 0 0 1px var(--metro-bd); color: var(--metro); }
 .menu-row.c-metro .menu-chev { color: var(--metro); }
+
+/* Cône de direction autour du point bleu */
+.me-wrap { position: relative; overflow: visible; }
+.me-cone { position: absolute; left: -30px; top: -30px; width: 80px; height: 80px; pointer-events: none; transform-origin: 40px 40px; transition: transform .12s linear; }
+.me-cone svg { display: block; }
+.me-dot { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .me-cone { transition: none; } }

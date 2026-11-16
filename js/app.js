@@ -26,7 +26,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (47)';
+const VERSION = '16 novembre 2026 (48)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -212,9 +212,34 @@ scalePins();
 
 /** Point « moi » toujours au-dessus des lieux. */
 function meMarker(lat, lng, grey = false) {
+  // Le cône (direction où tu regardes) apparaît dès que le téléphone donne son orientation.
+  if (!grey) startHeading();
+  const cone = grey ? '' : `<span class="me-cone"${mapHeading == null ? ' hidden' : ''} style="transform:rotate(${mapHeading ?? 0}deg)"><svg viewBox="0 0 80 80" width="80" height="80" aria-hidden="true"><defs><radialGradient id="cg" cx="50%" cy="100%" r="100%"><stop offset="0" stop-color="#4c6ef5" stop-opacity=".55"/><stop offset="1" stop-color="#4c6ef5" stop-opacity="0"/></radialGradient></defs><path d="M40 40 L18 4 A44 44 0 0 1 62 4 Z" fill="url(#cg)"/></svg></span>`;
   return L.marker([lat, lng], {
     interactive: false, keyboard: false, zIndexOffset: 3000,
-    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="me-dot${grey ? ' grey' : ''}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
+    icon: L.divIcon({ className: 'pin-wrap me-wrap', html: `${cone}<span class="me-dot${grey ? ' grey' : ''}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
+  });
+}
+
+/* Orientation du téléphone pour le cône du point bleu (écoutée seulement quand un point bleu est affiché). */
+let mapHeading = null;
+let headingOn = false;
+function startHeading() {
+  if (headingOn) return;
+  headingOn = true;
+  const evt = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+  let last = 0;
+  window.addEventListener(evt, (e) => {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+    else if ((e.absolute || e.type === 'deviceorientationabsolute') && e.alpha != null) h = 360 - e.alpha;
+    if (h == null) return;
+    h = (h + (screen.orientation?.angle ?? 0) + 360) % 360;
+    const now = Date.now();
+    if (now - last < 120 && mapHeading != null && Math.abs(h - mapHeading) < 4) return; // pas plus de 8 images/s
+    last = now;
+    mapHeading = h;
+    for (const c of document.querySelectorAll('.me-cone')) { c.hidden = false; c.style.transform = `rotate(${h}deg)`; }
   });
 }
 
@@ -2888,6 +2913,7 @@ const HELP = [
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche.',
     '{locate-fixed} ta position avec les cercles de temps à pied. Encore un appui pour les retirer.',
+    'Le faisceau bleu autour de ton point montre la direction où tu regardes (si ton téléphone a une boussole).',
     'Paris : revenir au centre de Paris.',
     '{zoom-in} zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
