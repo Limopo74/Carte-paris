@@ -13,7 +13,7 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
-import { metroPlan } from './metroplan.js';
+import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, parseEvents, nearbyEvents, whenText, eventKind, isFleaMarket } from './events.js';
@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (56)';
+const VERSION = '16 novembre 2026 (57)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2003,12 +2003,49 @@ async function goHome() {
   await stationsReady;
   const mine = (state.myStations ?? []).map((s) => ({ ...s, st: stationByName(s.station) })).filter((s) => s.st);
   if (!mine.length) { pickMyStation(true); return; }
-  if (mine.length === 1) { showMetroPlan({ name: `${mine[0].label} (${mine[0].st.n})`, lat: mine[0].st.lat, lng: mine[0].st.lng }); return; }
-  openSheet([ico('house'), ' Rentrer'], el('div', { class: 'menu' }, mine.map((s) => el('button', { type: 'button', class: 'menu-row c-metro', onclick: () => showMetroPlan({ name: `${s.label} (${s.st.n})`, lat: s.st.lat, lng: s.st.lng }) },
+  if (mine.length === 1) { openHomePlan(mine[0]); return; }
+  openSheet([ico('house'), ' Rentrer'], el('div', { class: 'menu' }, mine.map((s) => el('button', { type: 'button', class: 'menu-row c-metro', onclick: () => openHomePlan(s) },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('house')),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, s.label), el('span', { class: 'menu-sub' }, `Ⓜ ${s.st.n}`)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))), { name: 'home' });
 }
+/* Rentrer : les 2 ou 3 stations (métro, RER) les plus proches de toi, avec le temps total
+   jusqu'à ta station Maison depuis chacune ; la plus rapide est marquée. Calcul sur le téléphone. */
+async function openHomePlan(home) {
+  toast('Recherche des stations proches…');
+  let from = freshHere();
+  if (!from) {
+    try { from = await locate(); } catch (e) { if (here) from = here; else { toast(e.message, true); return; } }
+  }
+  hideToast();
+  const dest = { name: `${home.label} (${home.st.n})`, lat: home.st.lat, lng: home.st.lng };
+  const back = () => openHomePlan(home);
+  const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
+  const walk = walkMinutes(distanceM(from, dest));
+  const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
+  const best = opts.reduce((a, o) => (!a || o.plan.minutes < a.plan.minutes ? o : a), null);
+  const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
+  openSheet([ico('house'), ` Rentrer · ${home.label}`], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
+    opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => renderMetroPlan(dest, from, back, o.st) },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, o.st.n),
+          el('span', { class: 'lines' }, lineBadges(o.st), o === best && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
+          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
+      : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
+    best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
+    el('p', { class: 'help' }, 'Métro et RER (là où le RER croise le métro). Estimation sans horaires ; pour le bus, ouvre le trajet puis Google Maps.'),
+    el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
+  ), { name: `home:${home.id ?? home.label}`, again: back });
+  nearLayer.clearLayers();
+  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  for (const o of opts) L.circleMarker([o.st.lat, o.st.lng], { radius: 9, color: '#1F4180', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (opts.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...opts.map((o) => [o.st.lat, o.st.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
 function pickMyStation(thenGo = false) {
   openStationPicker((st) => {
     const label = prompt(`Nom pour la station ${st.n} (ex. Maison, Travail)`, (state.myStations ?? []).length ? 'Travail' : 'Maison');
@@ -2893,9 +2930,9 @@ async function showMetroPlan(p, back) {
   renderMetroPlan(p, from, back);
 }
 
-function renderMetroPlan(p, from, back) {
-  const plan = metroPlan(stations, from, p);
-  const ln = (l) => `ligne ${l}`;
+function renderMetroPlan(p, from, back, start = null) {
+  const plan = metroPlan(stations, from, p, 3, start);
+  const ln = lineName;
   const step = (icon, text) => el('li', { class: 'plan-step' }, el('span', { class: 'plan-ico', 'aria-hidden': 'true' }, icon), el('span', {}, text));
   let steps;
   let firstTarget = null;
@@ -2906,8 +2943,8 @@ function renderMetroPlan(p, from, back) {
     steps = [
       step('🚶', `${plan.walkIn} min à pied jusqu'à Ⓜ ${plan.start.n}`),
       plan.type === 'direct'
-        ? step('Ⓜ', `Prends la ${ln(plan.line)} jusqu'à ${plan.end.n}`)
-        : step('Ⓜ', `Prends la ${ln(plan.line1)} jusqu'à ${plan.via.n}, puis la ${ln(plan.line2)} jusqu'à ${plan.end.n}`),
+        ? step('Ⓜ', `Prends ${ln(plan.line)} jusqu'à ${plan.end.n}`)
+        : step('Ⓜ', `Prends ${ln(plan.line1)} jusqu'à ${plan.via.n}, puis ${ln(plan.line2)} jusqu'à ${plan.end.n}`),
       step('🚶', `${plan.walkOut} min à pied jusqu'à ${p.name}`),
     ];
   }
@@ -2920,7 +2957,7 @@ function renderMetroPlan(p, from, back) {
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
     back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
-  ), { name: `plan:${p.id}`, again: () => renderMetroPlan(p, from, back) });
+  ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng], [p.lat, p.lng]];
@@ -3126,6 +3163,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{house} Rentrer : les 3 stations de métro ou RER les plus proches de toi, avec le temps jusqu\'à chez toi depuis chacune ; la plus rapide est marquée.',
     'Boutons plus colorés : chaque bouton prend la teinte de sa famille. Le bouton « zoom sur ma position » disparaît : Ma position et direction fait déjà ce zoom.',
     'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
     'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
@@ -3153,7 +3191,7 @@ const HELP = [
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
-    '{house} Rentrer : quel métro prendre vers ta station Maison (ou Travail…). Tes stations : {settings} → Mes stations.',
+    '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
     'Sans réseau (métro) : les quartiers que tu as déjà regardés restent affichés, en style Classique, Pastel ou Nuit (environ 3 000 morceaux de carte gardés, les plus anciens s\'effacent).',
