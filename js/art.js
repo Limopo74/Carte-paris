@@ -70,6 +70,7 @@ export function galleriesNear(list, here, date = new Date(), maxM = 1500) {
 /* ---------- 5. Gratuit aujourd'hui (liste fixe, vérifiée à la date ci-dessous) ---------- */
 
 export const FREE_CHECKED = '16 novembre 2026';
+export const FREE_CHECKED_ON = '2026-11-16'; // même date, lisible par l'appli (rappel au bout d'un an)
 export const FREE_SOURCE = 'https://parisjetaime.com/visiter-a-paris/infos/guides/les-musees-et-monuments-gratuits-a-paris';
 // always : collections permanentes des musées de la Ville de Paris ; first-sunday : 1er dimanche du mois ;
 // first-friday-evening : 1er vendredi du mois après 18 h, sauf juillet et août (Louvre).
@@ -126,6 +127,12 @@ const parseDay = (s) => { const [y, m, d] = s.split('-').map(Number); return new
 export function highlightsSoon(date = new Date(), days = 7, list = HIGHLIGHTS) {
   const today = dayStart(date);
   return list.filter((h) => parseDay(h.to) >= today && daysBetween(today, parseDay(h.from)) <= days);
+}
+
+/** Listes fixes à mettre à jour ? Plus aucun temps fort à venir, ou gratuités vérifiées il y a plus d'un an. */
+export function listsStale(date = new Date(), list = HIGHLIGHTS, checkedOn = FREE_CHECKED_ON) {
+  const today = dayStart(date);
+  return !list.some((h) => parseDay(h.to) >= today) || daysBetween(parseDay(checkedOn), today) > 365;
 }
 
 /** « En ce moment : Art Basel Paris (jusqu'au dimanche 24 oct.) » ou « Samedi 5 juin : Nuit Blanche ». */

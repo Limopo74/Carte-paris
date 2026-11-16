@@ -13,7 +13,7 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
-import { isExpo, lastChance, endText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
+import { isExpo, lastChance, endText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (66)';
+const VERSION = '16 novembre 2026 (67)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2313,6 +2313,7 @@ async function openEvents() {
   const top = [
     ...soon.map((h) => el('p', { class: 'hl-line' }, ico('sparkles'), ` ${highlightText(h)} — ${h.what}`)),
     mode === 'all' && freeSpecial.length ? el('p', { class: 'hl-line' }, ico('landmark'), ` Gratuit aujourd'hui : ${freeSpecial.map((f) => `${f.name} (${f.when})`).join(', ')}`) : null,
+    listsStale() ? el('p', { class: 'hl-line' }, ico('refresh-cw'), ' Listes des temps forts et des musées gratuits à mettre à jour : demande-le à Claude.') : null,
   ];
   const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Sorties à afficher' },
     [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos']].map(([m, label]) =>
@@ -2367,8 +2368,8 @@ async function openEvents() {
     ];
   }
   openSheet(title, el('div', { class: 'stack' },
+    seg, // les onglets restent toujours à la même place ; les annonces viennent dessous
     ...top,
-    seg,
     ...body,
     el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'),
       marketsTime ? `Mettre à jour (liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : 'Mettre à jour'),
@@ -3727,6 +3728,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{refresh-cw} Rappel : quand la liste des temps forts n\'a plus rien à venir, ou que celle des musées gratuits a plus d\'un an, Sorties l\'indique en haut. Une mise à jour est aussi préparée par Claude chaque début septembre.',
     '{list-filter} Barre du haut : {settings} → Catégories et listes → « Boutons de la barre du haut » pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
     '{calendar-days} Sorties : nouvel onglet « Expos et art » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',
     '{landmark} Musées gratuits aujourd\'hui (Ville de Paris, 1er dimanche, Louvre le 1er vendredi soir) dans « Gratuit » et « Expos et art » ; les temps forts de la semaine (Nuit Blanche, Art Basel Paris…) en tête de Sorties.',
@@ -3834,7 +3836,7 @@ const HELP = [
     '{calendar-days} Sorties → « Expos et art » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{ticket} Mon billet : fiche → ⋯ Plus → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge).',
-    'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée.',
+    'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon les lieux « Déjà visité ». Chaque case : visités / enregistrés.',

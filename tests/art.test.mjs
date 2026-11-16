@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear,
-  highlightsSoon, highlightText, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
+  highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
 } from '../js/art.js';
 
 const now = new Date(2026, 10, 17, 11, 0); // mardi 17 novembre 2026
@@ -100,4 +100,11 @@ test('billet : heure de départ et billet du jour', () => {
   ];
   assert.equal(ticketToday(pts, now).name, 'Orsay');
   assert.equal(ticketToday(pts, new Date(2026, 10, 17, 15, 40)), null, 'plus de 30 min après');
+});
+
+test('rappel : listes fixes à mettre à jour', () => {
+  assert.equal(listsStale(new Date(2026, 10, 17)), false);
+  assert.equal(listsStale(new Date(2027, 9, 25)), true, 'plus aucun temps fort à venir');
+  assert.equal(listsStale(new Date(2027, 10, 20), [{ name: 'X', from: '2028-06-01', to: '2028-06-01' }]), true, 'gratuités vérifiées il y a plus d\'un an');
+  assert.equal(listsStale(new Date(2027, 5, 1), [{ name: 'X', from: '2027-06-05', to: '2027-06-05' }], '2027-01-10'), false);
 });
