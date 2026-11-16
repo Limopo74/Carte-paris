@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (100)';
+const VERSION = '16 novembre 2026 (101)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -4124,6 +4124,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
     '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
     '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
@@ -4133,7 +4134,6 @@ const HELP = [
     '{palette} Nouvelles couleurs « Papier » : texte encre presque noire sur fond blanc, plus contrasté et plus lisible dehors au soleil ; mode sombre « papier de nuit » plus profond. Les étoiles des notes sont d\'un or plus foncé, enfin assez visible sur le blanc. Première étape de la nouvelle charte : les formes changeront ensuite, écran par écran, en commençant par la fiche.',
     '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
     '{plus} Nouveau lieu et Modifier : « + Nouvelle » au bout des catégories crée une catégorie sans quitter la fiche ; tu reviens avec elle déjà choisie, rien de ce que tu as tapé n\'est perdu.',
-    '{palette} Interface harmonisée (charte « Plaques & pavés ») : un seul arrondi, les mêmes tailles de texte et de boutons partout, des icônes dessinées au lieu des emoji dans les boutons, les mêmes couleurs de qualité de l\'air qu\'à Mon Paris, et un mode sombre sans lueurs. Boussole et Métro des sorties affichent enfin leur nom (et plus « undefined »).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
