@@ -234,21 +234,26 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .where { display: flex; gap: 8px; align-items: flex-start; font-size: 16px; color: var(--muted); margin: 0; }
 
 /* Suggestions d'adresses */
-.results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .results button {
-  width: 100%; text-align: left; min-height: var(--h); padding: 10px 12px; border-radius: var(--r); font-size: 16px;
+  width: 100%; text-align: left; min-height: var(--h); padding: 10px 0; font-size: 16px;
 }
 
 /* Liste autour de moi */
 .ring-title {
-  margin: 14px 0 6px; display: flex; justify-content: space-between;
+  margin: 18px 0 0; padding-top: 8px; border-top: 1.5px solid var(--ink); display: flex; justify-content: space-between; color: var(--ink);
 }
 .ring-title:first-child { margin-top: 0; }
-.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* Charte « Papier » (v96) : une liste = des lignes séparées par un filet fin, sans cadre ni ombre */
+.items > li, .results > li, .help-list > *, .menu > .menu-row { border-bottom: 1px solid var(--line); }
+.items > li { padding: 4px 0; }
+/* pas de filet fin juste avant un intertitre (son trait noir suffit) ni en fin de liste */
+:is(.items > li, .results > li, .help-list > *, .menu > .menu-row):is(:last-child, :has(+ .ring-title)) { border-bottom: 0; }
 .item { display: flex; align-items: stretch; gap: 6px; }
 .item-main {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left;
-  min-height: 56px; padding: 8px 12px;
+  min-height: 56px; padding: 8px 0;
 }
 .item-text { min-width: 0; display: flex; flex-direction: column; }
 .item-name { font-size: 16px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
@@ -503,12 +508,12 @@ ol.items { padding: 0; }
 .viewer-hint { margin: 0; color: #ccc; font-size: 14px; }
 
 /* Réglages : sommaire */
-.menu { display: flex; flex-direction: column; gap: 6px; }
+.menu { display: flex; flex-direction: column; }
 .menu-row {
-  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 12px; text-align: left; font: inherit; color: var(--ink);
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 0; text-align: left; font: inherit; color: var(--ink);
 }
 .menu-row:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.menu-row.warn-row { border-color: var(--warn-bd); background: var(--warn-bg); }
+.menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r-s); background: var(--warn-bg); }
 .menu-ico { flex: none; width: 32px; font-size: 22px; text-align: center; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .menu-title { font-size: 16px; }
@@ -535,7 +540,7 @@ ol.items { padding: 0; }
 .help-btn { font-size: 22px; font-weight: 800; }
 .help-list { display: flex; flex-direction: column; gap: 6px; }
 .help-item summary {
-  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 12px; cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 0; cursor: pointer; list-style: none;
   font-weight: 600; font-size: 16px;
 }
 .help-item summary::-webkit-details-marker { display: none; }
@@ -555,15 +560,11 @@ ol.items { padding: 0; }
 .help-btn { background: var(--info-bg); border-color: var(--info-bd); }
 /* Réglages : pastille d'icône teintée selon la famille */
 .menu-row .menu-ico { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; }
-.menu-row.c-add .menu-ico { background: var(--add-bg); }
-.menu-row.c-fav .menu-ico { background: var(--fav-bg); }
-.menu-row.c-info .menu-ico { background: var(--info-bg); }
 .menu-row.c-add .menu-chev { color: var(--add); }
 .menu-row.c-guide .menu-chev { color: var(--guide); }
 .menu-row.c-fav .menu-chev { color: var(--fav); }
 .menu-row.c-info .menu-chev { color: var(--info); }
 .menu-row.c-guide .switch.on { background: var(--guide); }
-.menu-row.warn-row .menu-ico { background: var(--surface); }
 /* Bouton Paris */
 .paris-btn { letter-spacing: .01em; }
 /* Ma note en étoiles (★ pleines, différentes de l'emoji ⭐ des favoris) */
@@ -618,7 +619,7 @@ ol.items { padding: 0; }
 .menu-row.c-add .menu-ico { color: var(--add); }
 .menu-row.c-fav .menu-ico { color: var(--fav); }
 .menu-row.c-info .menu-ico { color: var(--info); }
-.help-ico { color: var(--info); background: var(--info-bg); border-radius: var(--r); width: 36px; height: 36px; }
+.help-ico { color: var(--info); width: 36px; height: 36px; }
 .go-compass .ico svg { width: 22px; height: 22px; }
 .icon-choice .ico svg { width: 24px; height: 24px; }
 .icon-choice { color: var(--ink); }
@@ -728,10 +729,10 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 :root[data-theme="dark"] .compass .compass-go { background: var(--compass-ink); color: var(--compass-bg); border-color: var(--compass-ink); }
 
 /* Mode sombre : les boutons ressortent du fond (relief léger + contour clair) */
-:root[data-theme="dark"] .btn, :root[data-theme="dark"] .tool, :root[data-theme="dark"] .go-compass, :root[data-theme="dark"] .seg button { box-shadow: var(--pave); }
+:root[data-theme="dark"] .btn, :root[data-theme="dark"] .tool, :root[data-theme="dark"] .seg button { box-shadow: var(--pave); }
 :root[data-theme="dark"] .seg button:not([aria-pressed="true"]) { background: var(--btn); border-color: var(--btn-bd); }
 :root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn { background: var(--btn); border-color: var(--btn-bd); box-shadow: var(--pave); }
-.menu-row.c-metro .menu-ico { background: var(--metro-bg); box-shadow: inset 0 0 0 1px var(--metro-bd); color: var(--metro); }
+.menu-row.c-metro .menu-ico { color: var(--metro); }
 .menu-row.c-metro .menu-chev { color: var(--metro); }
 
 /* Cône de direction autour du point bleu */
@@ -783,7 +784,8 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 }
 #sheetTitle { font-size: 22px; font-weight: 800; font-stretch: 85%; letter-spacing: -.005em; }
 .item-name, .menu-title { font-weight: 700; font-stretch: 92%; }
-.ring-title, .legend { font-family: var(--display); font-size: 11.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.ring-title, .legend { font-family: var(--display); font-size: 11.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.legend { color: var(--muted); }
 
 /* Feuille : papier, coin franc */
 .sheet { background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
@@ -848,16 +850,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tag.closed { color: var(--info); }
 
 /* ---- Listes et cartes de rubrique ---- */
-.item-main, .menu-row, .help-item, .style-card, .cat-row { border-radius: var(--r); }
-.item-main, .menu-row, .ev, .results button, .help-item, .style-card { border: 1.5px solid var(--btn-bd); background: var(--surface); box-shadow: var(--pave); }
-.menu-row .menu-ico { border-radius: var(--r); }
-.menu-row.c-disc .menu-ico { background: var(--disc-bg); box-shadow: inset 0 0 0 1.5px var(--disc); color: var(--disc); }
+.cat-row { border-radius: var(--r); }
+.item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.style-card { border: 1.5px solid var(--btn-bd); border-radius: var(--r-s); background: transparent; }
+.menu-row.c-disc .menu-ico { color: var(--disc); }
 .menu-row.c-disc .menu-chev { color: var(--disc); }
-.menu-row.c-guide .menu-ico { background: var(--guide-bg); box-shadow: inset 0 0 0 1.5px var(--guide); color: var(--guide); }
-.menu-row.c-add .menu-ico { box-shadow: inset 0 0 0 1.5px var(--add); }
-.menu-row.c-fav .menu-ico { box-shadow: inset 0 0 0 1.5px var(--fav); }
-.menu-row.c-info .menu-ico { box-shadow: inset 0 0 0 1.5px var(--info); }
-.go-compass { border-radius: var(--r); border: 2px solid var(--ink); color: var(--ink); }
+.menu-row.c-guide .menu-ico { color: var(--guide); }
+.go-compass { border-radius: var(--r-s); border: 1.5px solid var(--ink); color: var(--ink); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
 .seg button { border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); }
@@ -909,16 +908,15 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 :root[data-theme="dark"] .star-pick button.on { color: var(--fav); }
 .go-dist { font-weight: 600; margin-left: 4px; font-size: 13px; }
 /* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
-a.go, .item .go { color: var(--ink); border: 2px solid var(--ink); box-shadow: var(--pave); border-radius: var(--r); font-family: var(--display); font-weight: 700; }
-:root[data-theme="dark"] a.go { color: var(--ink); background: var(--btn); }
-.menu-group { margin: 14px 2px 4px; } .menu-group:first-of-type { margin-top: 2px; }
+a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow: none; border-radius: var(--r-s); font-family: var(--display); font-weight: 700; }
+.menu-group { margin: 18px 0 0; } .menu-group:first-of-type { margin-top: 2px; }
 .badge .ico svg, .where .ico svg { width: 15px; height: 15px; } .badge .ico, .where .ico { flex: none; margin-right: 4px; vertical-align: -2px; }
 /* Monuments : une ligne de liens sous chaque monument */
 .item.item-col { flex-direction: column; align-items: stretch; gap: 6px; }
 .item-row { display: flex; gap: 8px; align-items: center; }
 .item-row .item-main { flex: 1; min-width: 0; }
 .links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
-.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r); border: 1.5px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: 14px; text-decoration: none; }
+.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r-s); border: 1.5px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: 14px; text-decoration: none; }
 .mini-link .ico svg { width: 16px; height: 16px; }
 
 /* Bouton « Ma position et direction » : plus grand, mis en valeur ; plaque pleine quand il est actif */
@@ -966,11 +964,6 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 .tool.c-info { background: var(--info-bg); } .tool.c-disc { background: var(--disc-bg); }
 .tool { box-shadow: 0 2px 0 color-mix(in srgb, var(--fam) 45%, transparent); }
 
-/* Rubriques (réglages, itinéraire…) : un liseré de la couleur de la famille */
-.menu-row { border-left: 5px solid var(--neutral-bd); }
-.menu-row.c-guide { border-left-color: var(--guide); } .menu-row.c-metro { border-left-color: var(--metro); }
-.menu-row.c-add { border-left-color: var(--add); } .menu-row.c-fav { border-left-color: var(--fav); }
-.menu-row.c-info { border-left-color: var(--info); } .menu-row.c-disc { border-left-color: var(--disc); }
 
 /* Boutons de la carte : teintés de leur famille */
 .map-btn, .map-btn.c-guide { background: var(--aller-bg); }
@@ -985,10 +978,7 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 .big-btn.square { background: var(--info-bg); border-color: var(--info); color: var(--info); }
 
 /* Liens et petites actions de liste */
-a.go, .item .go { background: var(--aller-bg); }
-.go-compass { background: var(--aller-bg); }
-.go-compass.add { background: var(--add-bg); }
-.mini-link { background: var(--disc-bg); }
+a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip:not([aria-pressed="true"]) { background: var(--bg); }
 .btn.danger.solid { --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
 .tools { grid-template-columns: repeat(3, 1fr); } /* 6 outils : 2 rangées de 3 */
@@ -1055,7 +1045,7 @@ a.go, .item .go { background: var(--aller-bg); }
 /* Bouton brique plein en sombre : texte foncé sur brique claire (le blanc n'atteignait pas 4,5:1). */
 
 /* ---------- v66 : Métro dans les listes, temps forts, quartier ---------- */
-.go-compass.go-metro { background: var(--metro-bg); color: var(--metro); border-color: var(--metro); font-family: var(--display); font-weight: 800; font-size: 18px; }
+.go-compass.go-metro { color: var(--metro); border-color: var(--metro); font-family: var(--display); font-weight: 800; font-size: 18px; }
 .hl-line { margin: 0; display: flex; align-items: flex-start; gap: 6px; color: var(--ink); font-weight: 600; font-size: 16px; line-height: 1.35; }
 .hl-line .ico { color: var(--disc); flex: none; margin-top: 1px; }
 .quarter { display: flex; flex-direction: column; gap: 8px; }
@@ -1102,22 +1092,15 @@ a.menu-row { text-decoration: none; }
 a.menu-row .menu-chev { font-size: 20px; }
 
 /* ---- Sorties : cartes à icône de genre (v88) ----
-   Une teinte douce par genre, seulement en fond d'icône : les couleurs des boutons gardent leur sens (bleu = transport…).
+   Charte « Papier » (v96) : l'icône de genre est dessinée en terre cuite (découvrir), sans fond ; les lignes sont séparées par un filet.
    La sortie la plus proche en ce moment est la seule plaque pleine de l'écran (terre cuite = découvrir). */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.ev-list { gap: 8px; }
+.ev-list { gap: 0; }
 .ev {
-  list-style: none; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 12px; padding: 12px; border-radius: var(--r);
+  list-style: none; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 12px; padding: 12px 0;
 }
-.genre { width: 44px; height: 44px; border-radius: var(--r); display: grid; place-items: center; color: var(--ink); background: var(--g-autre); }
+.genre { width: 44px; height: 44px; display: grid; place-items: center; color: var(--disc); }
 .genre .ico svg { width: 22px; height: 22px; display: block; }
-.g-musique { background: var(--g-musique); }
-.g-expo, .g-galerie, .g-musee { background: var(--g-expo); }
-.g-chiner, .g-marche { background: var(--g-chiner); }
-.g-fete { background: var(--g-fete); }
-.g-scene, .g-cine { background: var(--g-scene); }
-.g-balade { background: var(--g-balade); }
-.g-famille { background: var(--g-famille); }
 .ev-main {
   display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
   padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none;
@@ -1136,9 +1119,8 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev-foot .go-compass { width: 48px; }
 
 .ev.feat {
-  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: var(--r);
-  background: var(--pl); color: var(--on-strong);
-  box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 4px var(--plaque-line), 0 3px 0 var(--hard);
+  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: var(--r-s);
+  background: var(--pl); color: var(--on-strong); box-shadow: none; margin-bottom: 8px;
 }
 .ev.feat .genre { width: 52px; height: 52px; border-radius: 50%; background: transparent; color: inherit; border: 1.5px solid currentColor; }
 .ev.feat .genre .ico svg { width: 26px; height: 26px; }

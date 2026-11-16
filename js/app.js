@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (95)';
+const VERSION = '16 novembre 2026 (96)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -4130,6 +4130,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
     '{map-pin} Nouvelle fiche d\'un lieu, façon page de journal : la catégorie et l\'arrondissement au-dessus du nom ; ton commentaire en grand ; Favori et Déjà visité juste en dessous ; « Aujourd\'hui » et le métro côte à côte ; la photo en large. Plus de bouton « Plus » : Modifier, Partager, QR code, Mon billet, Horaires, Déplacer et Supprimer sont rangés en trois rubriques, chacun à un appui.',
     '{palette} Nouvelles couleurs « Papier » : texte encre presque noire sur fond blanc, plus contrasté et plus lisible dehors au soleil ; mode sombre « papier de nuit » plus profond. Les étoiles des notes sont d\'un or plus foncé, enfin assez visible sur le blanc. Première étape de la nouvelle charte : les formes changeront ensuite, écran par écran, en commençant par la fiche.',
     '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
