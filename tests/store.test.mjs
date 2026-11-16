@@ -355,10 +355,10 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'paris', 'sorties', 'locate']); // l'ancien bouton zoom disparaît
-  assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
-  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'velib', 'paris', 'sorties', 'locate'], 'bouton manquant juste avant Ma position');
-  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'paris', 'home', 'sorties', 'locate']);
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'paris', 'sorties', 'planning', 'locate']); // l'ancien bouton zoom disparaît
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'velib', 'paris', 'sorties', 'planning', 'locate'], 'bouton manquant juste avant Ma position');
+  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'paris', 'home', 'sorties', 'planning', 'locate']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
 

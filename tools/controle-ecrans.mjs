@@ -25,7 +25,7 @@ const LIEUX = [
   lieu('a', 'Musée de la Vie romantique', 48.8818, 2.3337, { fav: true, stars: 4, note: 'Le jardin et son salon de thé, au calme.', ticket: { at: now + 3 * 3600e3 } }),
   lieu('b', 'Café des Deux Moulins', 48.8848, 2.3335),
   lieu('c', 'Square d\'Anvers', 48.8829, 2.3446, { done: true, covered: true }),
-  lieu('d', 'Librairie Les Abbesses', 48.8845, 2.3380),
+  lieu('d', 'Librairie Les Abbesses', 48.8845, 2.3380, { ticket: { at: now + 3 * 864e5 } }),
   lieu('e', 'Marché Saint-Quentin', 48.8774, 2.3567),
 ];
 const iso = (t) => new Date(t).toISOString();
@@ -49,6 +49,7 @@ const ECRANS = {
   navigo: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); },
   navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   transports: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Application' }).click(); await feuille(p).locator('button', { hasText: 'Données des transports' }).click(); await p.waitForTimeout(400); },
+  planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
 };

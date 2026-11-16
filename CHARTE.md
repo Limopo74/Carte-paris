@@ -62,4 +62,4 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Les boutons ne changent jamais de place d'un écran à l'autre.
 
 ## 9. Contrôle après chaque changement
-`npm test` (dont ce test de charte), puis `node tools/controle-ecrans.mjs` (voir `tools/README.md`) : 13 écrans à 360 et 412 px, en clair et en sombre, boutons d'au moins 44 px, contraste d'au moins 4,5:1, contrôle axe sans erreur.
+`npm test` (dont ce test de charte), puis `node tools/controle-ecrans.mjs` (voir `tools/README.md`) : 14 écrans à 360 et 412 px, en clair et en sombre, boutons d'au moins 44 px, contraste d'au moins 4,5:1, contrôle axe sans erreur.

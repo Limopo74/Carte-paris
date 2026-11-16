@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (107)';
+const VERSION = '16 novembre 2026 (108)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -59,6 +59,7 @@ function persist() {
     toast('Attention : ce téléphone n\'a pas pu enregistrer. Fais un export dans les réglages.', true);
     return false;
   }
+  updatePlanningCount();
   return true;
 }
 
@@ -731,6 +732,19 @@ function updateNow(force = false) {
     card.querySelector('.now-open').onclick = () => openDetail(tk.id);
     return;
   }
+  // Prochaine sortie prévue (Mon planning) : celle de demain passe avant la suggestion du moment ;
+  // plus tard dans la semaine, elle ne s'affiche que s'il n'y a rien d'autre à proposer.
+  const nx = nowHidden ? null : nextPlanned();
+  const showNext = () => {
+    card.hidden = false;
+    const n = plannedPoints().length;
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `Prévu ${ticketText(nx.ticket.at)}`),
+      el('span', { class: 'now-name' }, nx.name),
+      el('span', { class: 'now-sub' }, n > 1 ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Voir Mon planning'));
+    card.querySelector('.now-open').onclick = () => openPlanning('map');
+  };
+  if (nx && daysUntil(nx.ticket.at) === 1) { showNext(); return; }
   // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
   // le matin cafés et boulangeries, à midi et le soir restos (et bars le soir).
   const slot = timeSlot();
@@ -742,8 +756,11 @@ function updateNow(force = false) {
   // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
   const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
   const useMarket = mk && (!best || (!fits(best.p) && !best.p.fav) || mk.d < best.d);
-  card.hidden = !best && !useMarket;
-  if (card.hidden) return;
+  if (!best && !useMarket) {
+    if (nx) showNext(); else card.hidden = true;
+    return;
+  }
+  card.hidden = false;
   if (useMarket) {
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `${slot.label} · marché`),
@@ -1055,13 +1072,15 @@ function openForm(draft, existing = null) {
       setDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
+      if (Number.isFinite(draft.ticketAt)) np.ticket = { at: draft.ticketAt }; // sortie datée ajoutée depuis Sorties : son heure va dans Mon planning
       state.points.push(np);
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
     const ok = persist();
     renderMarkers();
     if (existing) openDetail(existing.id); else closeSheet();
-    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte`);
+    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${ticketText(draft.ticketAt)}` : ''}`);
+    if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
     if (ok && !existing && unsavedCount(state) > 0 && unsavedCount(state) % 10 === 0) setTimeout(remindBackup, 1500);
   };
 
@@ -2180,7 +2199,12 @@ function openMyParis(from = null) {
     return el('div', { class: `arr l${level}`, style: `grid-column:${c + 1};grid-row:${r + 1}`, role: 'img', 'aria-label': `${ord(Number(n))} : ${e.done} visité${e.done > 1 ? 's' : ''} sur ${e.all}` },
       el('b', {}, ord(Number(n))), el('span', {}, e.all ? `${e.done}/${e.all}` : '–'));
   });
+  const planned = plannedPoints().length;
   openSheet([ico('map'), ' Mon Paris et mes chiffres'], el('div', { class: 'stack' },
+    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-disc', onclick: () => openPlanning('myparis') },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('calendar-clock')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon planning'), el('span', { class: 'menu-sub' }, planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
@@ -2191,6 +2215,59 @@ function openMyParis(from = null) {
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
   findArrondissements();
+}
+
+/* ---------- Mon planning : les billets à venir (Mon billet), rangés par jour. Rien de nouveau n'est gardé. ---------- */
+
+/** Sorties prévues à partir d'aujourd'hui (billets). */
+function plannedPoints() { const t = new Date().setHours(0, 0, 0, 0); return state.points.filter((p) => Number.isFinite(p.ticket?.at) && p.ticket.at >= t); }
+/** Nombre de jours entre aujourd'hui et la date (0 = aujourd'hui, 1 = demain). */
+function daysUntil(at) { const d = new Date(at); return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
+/** La prochaine sortie prévue après aujourd'hui, dans les 7 jours (sinon null). */
+function nextPlanned() { return plannedPoints().filter((p) => { const k = daysUntil(p.ticket.at); return k >= 1 && k <= 7; }).sort((a, b) => a.ticket.at - b.ticket.at)[0] ?? null; }
+/** Le chiffre du bouton Planning de la carte (rien quand aucune sortie n'est prévue). */
+function updatePlanningCount() {
+  const b = document.getElementById('btnPlanning');
+  if (!b) return;
+  const n = plannedPoints().length;
+  const c = b.querySelector('.map-count');
+  c.textContent = n > 9 ? '9+' : String(n);
+  c.hidden = !n;
+  b.setAttribute('aria-label', n ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Mon planning : aucune sortie prévue');
+}
+let planningBack = 'myparis'; // d'où l'on vient : la carte (bouton de la colonne) ou Mon Paris
+function openPlanning(from = null) {
+  if (typeof from === 'string') planningBack = from;
+  track('Mon planning');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const items = state.points.filter((p) => Number.isFinite(p.ticket?.at) && p.ticket.at >= today.getTime()).sort((a, b) => a.ticket.at - b.ticket.at);
+  const back = named('Mon planning', () => openPlanning());
+  const dayLabel = (d) => {
+    const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 864e5);
+    const date = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    return days === 0 ? `Aujourd'hui · ${date}` : days === 1 ? `Demain · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
+  };
+  const groups = [];
+  for (const p of items) {
+    const label = dayLabel(new Date(p.ticket.at));
+    if (groups.at(-1)?.label !== label) groups.push({ label, items: [] });
+    groups.at(-1).items.push(p);
+  }
+  openSheet([ico('calendar-clock'), ' Mon planning'], el('div', { class: 'stack' },
+    groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue pour l\'instant.'),
+    ...groups.flatMap((g) => [
+      el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
+      el('ul', { class: 'items' }, g.items.map((p) => el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, back) },
+          el('span', { class: 'plan-time' }, hmText(new Date(p.ticket.at))),
+          el('span', { class: 'item-text' },
+            el('span', { class: 'item-name' }, p.name),
+            el('span', { class: 'item-sub' }, [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')))),
+        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
+    ]),
+    el('p', { class: 'help' }, 'Pour prévoir une sortie : fiche d\'un lieu → Pratique → Mon billet. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » la note ici avec son heure. Le jour J, le bandeau « Maintenant » te dit quand partir. Tout reste sur ce téléphone.'),
+    planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
+  ), { tall: true, name: 'planning', again: () => openPlanning() });
 }
 
 /* ---------- Mes chiffres (tableau de bord sous Mon Paris) ----------
@@ -2496,7 +2573,8 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
   const later = startsLater(e);
   const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
   return sortieCard({ genre: genreOf(e, { expo }), name: e.title, href: e.url, sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null], feat, kicker,
-    buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep) : null] });
+    buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
+      : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: e.start.getTime() })) : null] });
 };
 
 /** Un musée gratuit aujourd'hui. */
@@ -3768,7 +3846,7 @@ function openSettings(section = null) {
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
-    row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
+    row('map', 'Mon Paris', 'Planning, arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
@@ -4181,6 +4259,7 @@ drawLines();
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
+document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -4191,6 +4270,7 @@ const TOOL_INFO = {
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte' },
+  planning: { el: 'btnPlanning', icon: 'calendar-clock', name: 'Mon planning (sorties prévues)' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -4237,6 +4317,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
     '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
     '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
     '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
@@ -4246,7 +4327,6 @@ const HELP = [
     '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
     '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
     '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
-    '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4262,6 +4342,7 @@ const HELP = [
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
+    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -4331,13 +4412,13 @@ const HELP = [
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
     '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
-    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge).',
+    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {calendar-clock} de la carte (Mon planning).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon les lieux « Déjà visité » : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
     'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
-    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi.',
+    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {calendar-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
   ['users', 'Partager avec un ami', [
@@ -4423,11 +4504,12 @@ if ('serviceWorker' in navigator) {
 // « Maintenant » : la croix cache la suggestion ; si la position est déjà autorisée, on la lit
 // discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
 document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
-setInterval(() => { updateNow(true); drawWx(); }, 5 * 60000);
+setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
+updatePlanningCount();
 loadNavigo(); // fichier de l'appli (rien n'est envoyé) : pour la ligne « Avantage Navigo » des fiches
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
