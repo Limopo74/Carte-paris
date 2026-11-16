@@ -385,3 +385,26 @@ test('listes : créer, reprendre le même nom, renommer, supprimer, export et im
   assert.deepEqual(st.lists, []);
   assert.deepEqual(st.points[0].lists, []);
 });
+
+test('mes réglages par défaut : enregistrer, détecter un changement, revenir, garder dans la sauvegarde', async () => {
+  const { saveMySettings, applyMySettings, sameAsMySettings, exportJSON, mergeImport, DEFAULT_CATEGORIES, loadState, saveState } = await import('../js/store.js');
+  let st = { points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], fav: { icon: '❤️', color: '#c2255c' }, rings: [100, 500], mapStyle: 'night', theme: 'dark', toolsSide: 'left', hiddenTools: ['paris'], voice: false };
+  assert.equal(sameAsMySettings(st), false);
+  st = saveMySettings(st, 1000);
+  assert.equal(sameAsMySettings(st), true);
+  st = { ...st, mapStyle: 'classic', toolsSide: 'right' };
+  assert.equal(sameAsMySettings(st), false);
+  st = applyMySettings(st);
+  assert.equal(st.mapStyle, 'night'); assert.equal(st.toolsSide, 'left'); assert.equal(st.voice, false);
+  assert.deepEqual(st.hiddenTools, ['paris']);
+  // garde après rechargement
+  const mem = new Map(); const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  saveState(storage, st);
+  assert.equal(loadState(storage).mySettings.settings.mapStyle, 'night');
+  // repris depuis ma sauvegarde sur un autre téléphone, sans être appliqué d'office
+  const other = mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [] }, exportJSON(st), '');
+  assert.equal(other.state.mySettings.settings.theme, 'dark');
+  assert.equal(other.state.theme, undefined);
+  // pas repris depuis le fichier d'un ami
+  assert.equal(mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [] }, exportJSON(st), 'Paul').state.mySettings, undefined);
+});

@@ -648,3 +648,6 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 :root[data-theme="dark"] .metro-btn { color: var(--metro); border-color: var(--metro); }
 :root[data-theme="dark"] .badge.hours.open { color: #8fdca0; }
 :root[data-theme="dark"] .ring-label { background: rgba(29, 34, 48, .92); border-color: var(--line); color: var(--ink); }
+
+.my-settings { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.ok-line { margin: 0; display: flex; align-items: center; gap: 4px; color: var(--add); font-weight: 600; font-size: 15px; }

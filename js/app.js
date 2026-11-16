@@ -4,7 +4,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -23,7 +23,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (43)';
+const VERSION = '16 novembre 2026 (44)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2166,6 +2166,7 @@ function openSettings(section = null) {
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('info', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
+    mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
 
@@ -2590,6 +2591,29 @@ document.getElementById('btnParis').addEventListener('click', () => {
   map.setView(PARIS, 13, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
 });
 
+/* ---------- Mes réglages par défaut ---------- */
+
+function applyAllSettings() { applyTheme(); applyMapStyle(); applyToolOrder(); refresh(); }
+function mySettingsBlock() {
+  const ms = state.mySettings;
+  const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
+  const save = () => { state = saveMySettings(state); persist(); openSettings(); toast('Réglages enregistrés par défaut'); };
+  const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); openSettings(); toast('Tes réglages par défaut sont remis'); };
+  return el('div', { class: 'my-settings' },
+    !ms ? [
+      el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer mes réglages par défaut'),
+      el('p', { class: 'help' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons et style de la carte, mode sombre) pour pouvoir y revenir d\'un appui.'),
+    ] : sameAsMySettings(state) ? [
+      el('p', { class: 'ok-line' }, ico('check'), ` Réglages par défaut enregistrés le ${when}.`),
+      el('button', { type: 'button', class: 'btn c-info', onclick: save }, 'Les enregistrer à nouveau'),
+    ] : [
+      el('p', { class: 'help' }, `Tu as changé des réglages depuis ceux enregistrés par défaut le ${when}.`),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer'),
+        el('button', { type: 'button', class: 'btn c-info', onclick: restore }, ico('refresh-cw'), 'Revenir aux miens')),
+    ]);
+}
+
 /* ---------- Aide ---------- */
 
 const HELP = [
@@ -2613,6 +2637,7 @@ const HELP = [
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
     'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
+    'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
     'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
