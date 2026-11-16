@@ -130,7 +130,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -148,7 +148,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations),
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true,
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -190,7 +190,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true }));
     return true;
   } catch {
     return false;

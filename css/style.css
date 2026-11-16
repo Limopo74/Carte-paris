@@ -689,3 +689,15 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .me-cone svg { display: block; }
 .me-dot { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .me-cone { transition: none; } }
+
+/* Badge météo et air, sous la barre du haut */
+.wx-badge { position: fixed; top: 66px; left: 10px; z-index: 499; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--btn-bd); background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; box-shadow: 0 1px 4px rgba(20, 30, 60, .2); }
+.wx-badge b { font-size: 15px; }
+.wx-badge::after { content: ''; position: absolute; inset: -4px 0; }
+.air-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.air-bon { --air: #2b8a3e; } .air-correct { --air: #5c940d; } .air-moyen { --air: #e67700; } .air-mediocre { --air: #d9480f; } .air-tres-mediocre { --air: #c92a2a; } .air-extreme { --air: #862e9c; }
+.air-dot { background: var(--air); }
+.air-card { padding: 12px 14px; border-radius: 12px; border: 2px solid var(--air); font-size: 16px; }
+.market-pin { width: 26px; height: 26px; border-radius: 8px; background: #fff; color: #a54a28; border: 2px solid #a54a28; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+:root[data-theme="dark"] .market-pin { background: #262d3d; color: #ffb08a; border-color: #ffb08a; }

@@ -17,6 +17,7 @@ import { metroPlan } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, parseEvents, nearbyEvents, whenText } from './events.js';
+import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
@@ -26,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (48)';
+const VERSION = '16 novembre 2026 (49)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -338,6 +339,7 @@ function openFilters() {
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
     sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
     sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
+    sw(Boolean(state.showMarkets), 'store', 'Marchés du jour sur la carte', 'Les marchés découverts qui se tiennent aujourd\'hui', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
     el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
     (state.lists ?? []).length
@@ -1840,7 +1842,13 @@ async function openEvents() {
     }
   }
   const list = nearbyEvents(eventsCache.items, origin, 2000).slice(0, 25);
+  const mk = nearestMarkets(await loadMarkets(), origin).filter((m) => m.d <= 2500);
   openSheet([ico('calendar-days'), ' Sorties du jour'], el('div', { class: 'stack' },
+    mk.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Marchés aujourd\'hui'), el('span', {}, String(mk.length))) : null,
+    mk.length ? el('ul', { class: 'items' }, mk.map((m) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openMarket(m, openEvents) },
+      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('store', { size: 18 })),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, [hoursToday(m), `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`].filter(Boolean).join(' · '))))))) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Événements'), el('span', {}, String(list.length))),
     el('p', { class: 'help' }, list.length ? `${plural(list.length, 'sortie', 'sorties')} aujourd'hui à moins de 2 km.` : 'Aucune sortie trouvée aujourd\'hui à moins de 2 km.'),
     el('ul', { class: 'items' }, list.map((e) => el('li', { class: 'item' },
       el(e.url ? 'a' : 'span', { class: 'item-main', ...(e.url ? { href: e.url, target: '_blank', rel: 'noopener' } : {}) },
@@ -1926,6 +1934,84 @@ function openMyStations() {
   ), { tall: true, name: 'mystations', again: openMyStations });
 }
 
+/* ---------- Température et qualité de l'air : petit badge sur la carte ---------- */
+
+let air = null;
+const wxBadge = document.getElementById('wxBadge');
+function drawWx() {
+  if (!meteo && !air) { wxBadge.hidden = true; return; }
+  wxBadge.hidden = false;
+  fill(wxBadge,
+    meteo?.temp != null ? el('b', {}, `${meteo.temp}°`) : null,
+    meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
+    air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
+    air ? `Air ${air.label.toLowerCase()}` : null);
+  wxBadge.setAttribute('aria-label', [meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+}
+const AIR_ADVICE = {
+  bon: 'Parfait pour marcher.', correct: 'Rien à signaler.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
+  mediocre: 'Évite les efforts intenses dehors, surtout près des grands axes.', 'tres-mediocre': 'Limite les efforts dehors ; privilégie les parcs et les rues calmes.',
+  extreme: 'Évite les efforts dehors aujourd\'hui.',
+};
+function openWeather() {
+  openSheet([ico('thermometer-sun'), ' Météo et air'], el('div', { class: 'stack' },
+    meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
+    air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
+    air ? el('p', {}, AIR_ADVICE[air.level]) : null,
+    air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
+    meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
+    el('p', { class: 'help' }, 'Source : Open-Meteo (prévisions européennes CAMS pour l\'air). Valeurs pour le quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
+  ), { name: 'weather', again: openWeather });
+}
+wxBadge.addEventListener('click', openWeather);
+
+/* ---------- Marchés découverts : sur la carte le jour où ils se tiennent, et dans Sorties ---------- */
+
+let markets = null;
+const marketsLayer = L.layerGroup().addTo(map);
+async function loadMarkets() {
+  if (markets) return markets;
+  let cached = null;
+  try { cached = JSON.parse(storage.getItem('carte-paris.marches') ?? 'null'); } catch { /* rien */ }
+  if (!cached || Date.now() - cached.time > 7 * 864e5) {
+    try {
+      const r = await fetch(MARKETS_URL);
+      if (!r.ok) throw new Error(String(r.status));
+      const items = parseMarkets(await r.json());
+      if (items.length) { cached = { time: Date.now(), items }; try { storage.setItem('carte-paris.marches', JSON.stringify(cached)); } catch { /* trop gros */ } }
+    } catch { /* on garde l'ancienne copie */ }
+  }
+  markets = cached?.items ?? [];
+  return markets;
+}
+async function drawMarkets() {
+  marketsLayer.clearLayers();
+  if (!state.showMarkets) return;
+  const list = marketsOn(await loadMarkets());
+  if (!state.showMarkets) return;
+  for (const m of list) {
+    L.marker([m.lat, m.lng], { keyboard: true, title: m.name, alt: m.name, zIndexOffset: -100,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="market-pin">${svgIcon('store', { size: 15, stroke: 2.2 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+      .on('click', () => openMarket(m)).addTo(marketsLayer);
+  }
+  if (!list.length && markets?.length === 0) toast('Les marchés de la Ville de Paris ne répondent pas pour le moment.', true);
+}
+function openMarket(m, back = null) {
+  const d = freshHere() ? distanceM(freshHere(), m) : null;
+  openSheet([ico('store'), ` ${m.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `Aujourd'hui${hoursToday(m) ? ` : ${hoursToday(m)}` : ''}${d != null ? ` · ${fmtWalk(d)}` : ''}`),
+    m.place ? el('p', { class: 'where' }, m.place) : null,
+    m.products ? el('p', { class: 'help' }, m.products) : null,
+    el('p', { class: 'help' }, `Se tient le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'].filter((_, i) => m.days[i]).join(', ')}.`),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Enregistrer')),
+    back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+    el('p', { class: 'help' }, 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
+  ), { name: 'market' });
+}
+
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
 
 let meteo = null;
@@ -1933,12 +2019,17 @@ let meteoAt = 0;
 async function checkMeteo(at) {
   if (Date.now() - meteoAt < 30 * 60 * 1000 || !navigator.onLine) return;
   meteoAt = Date.now();
-  try {
-    const r = await fetch(meteoUrl(at?.lat, at?.lng));
-    const m = readMeteo(await r.json());
-    if (m) { const changed = m.rain !== meteo?.rain; meteo = m; if (changed && view === 'near') renderNear(); }
-  } catch { /* hors ligne : pas d'alerte pluie */ }
+  const [m, a] = await Promise.all([
+    fetch(meteoUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readMeteo).catch(() => null),
+    fetch(airUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readAir).catch(() => null),
+  ]);
+  if (a) air = a;
+  if (m) { const changed = m.rain !== meteo?.rain || (m.temp >= 28) !== (meteo?.temp >= 28); meteo = m; if (changed && view === 'near') renderNear(); }
+  drawWx();
 }
+// Au lancement et toutes les 30 min : météo du dernier endroit connu (ou du centre de Paris), sans demander la position.
+setTimeout(() => checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }), 1500);
+setInterval(() => { if (document.visibilityState === 'visible') checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }); }, 31 * 60 * 1000);
 
 /* ---------- Temps libre : une boucle qui revient au point de départ ---------- */
 
@@ -2907,6 +2998,7 @@ const HELP = [
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
+    'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
     'Puis « Tout », {list-filter} Filtres, {star} favoris et tes catégories. Fais glisser la barre pour toutes les voir.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
@@ -2928,6 +3020,7 @@ const HELP = [
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
     'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
+    '{store} Marchés du jour sur la carte : les marchés découverts qui se tiennent aujourd\'hui (horaires dans leur fiche).',
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
@@ -2947,7 +3040,7 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : les événements du jour à moins de 2 km (agenda de la Ville de Paris).',
+    '{calendar-days} Sorties : les marchés et les événements du jour près de toi (Ville de Paris).',
     '{locate} Où suis-je ? : ton adresse, l\'arrondissement, la station la plus proche, et « Envoyer ma position » à quelqu\'un.',
     'Mètres / Minutes, à côté : la taille des cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
@@ -3023,6 +3116,7 @@ document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 document.getElementById('btnHelp').addEventListener('click', openHelp);
+drawMarkets();
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;
