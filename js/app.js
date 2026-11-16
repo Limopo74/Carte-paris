@@ -12,6 +12,7 @@ import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets } from './pratique.js';
+import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
 import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
@@ -31,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (106)';
+const VERSION = '16 novembre 2026 (107)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1181,6 +1182,7 @@ function openDetail(id, back = null) {
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
+      navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
       el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -2588,7 +2590,8 @@ async function openEvents(start = null) {
   const backNear = () => (fromMap ? null : el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties du jour'];
-  if (!eventsCache || eventsCache.day !== day) {
+  if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
+  else if (!eventsCache || eventsCache.day !== day) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris…'), { name: 'events' });
     try {
       await todayEvents();
@@ -2601,7 +2604,7 @@ async function openEvents(start = null) {
   }
   const mode = eventsMode;
   const back = openEvents;
-  const near3 = nearbyEvents(eventsCache.items, o, 3000);
+  const near3 = nearbyEvents(eventsCache?.items ?? [], o, 3000);
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -2618,14 +2621,23 @@ async function openEvents(start = null) {
     mode === 'all' && freeSpecial.length ? el('p', { class: 'hl-line' }, ico('landmark'), ` Gratuit aujourd'hui : ${freeSpecial.map((f) => `${f.name} (${f.when})`).join(', ')}`) : null,
     listsStale() ? el('p', { class: 'hl-line' }, ico('refresh-cw'), ' Listes des temps forts et des musées gratuits à mettre à jour : demande-le à Claude.') : null,
   ];
-  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Sorties à afficher' },
-    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos']].map(([m, label]) =>
+  const seg = el('div', { class: 'seg tabs4', role: 'group', 'aria-label': 'Sorties à afficher' },
+    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].map(([m, label]) =>
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
   const freeSection = () => [head('Musées gratuits aujourd\'hui', freeAll.length), list(freeAll.map((f) => freeRow(f, back))),
     freeAll.length ? (notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`), null) : null];
 
   let body;
-  if (mode === 'art') {
+  const nvNear = mode === 'navigo' ? navigoNear(navigoItems ?? [], o, 2000, 5).slice(0, 30) : [];
+  if (mode === 'navigo') {
+    const within = nvNear.filter((x) => x.d <= 2000).length;
+    body = [
+      el('p', { class: 'help' }, 'Réductions et services pour les abonnés Navigo (annuel, mois, imagine R, Senior, Liberté +), sur présentation du passe. Touche un lieu pour lire l\'offre.'),
+      el('h3', { class: 'ring-title' }, el('span', {}, within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches'), el('span', {}, String(nvNear.length))),
+      nvNear.length ? el('ul', { class: 'items ev-list' }, nvNear.map((x) => navigoRow(x, back))) : el('p', { class: 'empty' }, 'La liste des lieux partenaires n\'a pas pu être lue.'),
+    ];
+    notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
+  } else if (mode === 'art') {
     const expos = all.filter((e) => isExpo(e) && !lastIds.has(e)).slice(0, 15);
     const galBox = el('div', { class: 'stack' });
     const drawGal = () => {
@@ -2692,7 +2704,7 @@ async function openEvents(start = null) {
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
   if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
-  for (const e of mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  for (const e of mode === 'navigo' ? nvNear : mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
@@ -3031,7 +3043,7 @@ function openStreetEvent(e) {
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Événement', () => openStreetEvent(e))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Enregistrer')),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Ajouter')),
     e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('calendar-days'), 'Voir dans « Que faire à Paris »') : null,
     el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. « Dans la rue » est deviné d\'après le titre et le lieu : vérifie sur la page de l\'événement.'),
   ), { name: 'street' });
@@ -3047,10 +3059,46 @@ function openMarket(m, back = null) {
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Enregistrer')),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Ajouter')),
     back ? backBtn(back) : null,
     el('p', { class: 'help' }, m.covered ? `Horaires relevés sur paris.fr le ${COVERED_CHECKED} ; ils peuvent changer les jours fériés.` : 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
   ), { name: 'market' });
+}
+
+/* ---------- Avantages culture Navigo : lieux partenaires (fichier fixe, trié sur le téléphone) ---------- */
+
+let navigoItems = null;
+let navigoUpdated = '';
+const loadNavigo = async () => (navigoItems ??= await fetch('data/navigo.json').then((r) => (r.ok ? r.json() : null))
+  .then((j) => { navigoUpdated = typeof j?.updated === 'string' ? j.updated : ''; return parseNavigo(j); }).catch(() => []));
+/** Le lieu partenaire qui correspond à un de mes lieux (si la liste est déjà chargée). */
+const navigoOf = (p) => (navigoItems ? navigoFor(p, navigoItems) : null);
+/** L'offre en une ligne courte : la première phrase, coupée proprement. */
+function shortOffer(t, n = 90) {
+  const first = String(t ?? '').split(/(?<=[.!])\s/)[0];
+  return first.length <= n ? first : `${first.slice(0, n).replace(/\s+\S*$/, '')}…`;
+}
+const navigoRow = (x, back) => sortieCard({ genre: navigoGenre(x.kind), name: x.name, onclick: () => openNavigo(x, back), sub: [x.kind, shortOffer(x.offer)], d: x.d,
+  buttons: [compassBtn(x), metroBtn(x, back)] });
+
+function openNavigo(x, back = null) {
+  const d = freshHere() ? distanceM(freshHere(), x) : null;
+  const again = () => openNavigo(x, back);
+  openSheet([ico('badge-percent'), ` ${x.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, [x.kind, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    x.address ? el('p', { class: 'where' }, x.address) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Avantage Navigo'), el('span', {}, '')),
+    el('p', {}, x.offer),
+    el('p', { class: 'help' }, 'Sur présentation d\'un passe Navigo valide (annuel, mois, imagine R, Senior, Liberté +). L\'offre peut changer : vérifie sur le site du lieu avant d\'y aller.'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `nv:${x.lat},${x.lng}` }, named('Avantage Navigo', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `Avantage Navigo : ${x.offer}` }) }, ico('plus'), 'Ajouter')),
+    x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico('info'), 'Site du lieu') : null,
+    back ? backBtn(back) : null,
+    el('p', { class: 'help' }, `Liste « Avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}.`),
+  ), { name: `navigo:${x.lat},${x.lng}`, again });
 }
 
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
@@ -3662,6 +3710,10 @@ function openSettings(section = null) {
       ratpDate,
       el('div', { class: 'menu' }, link(RATP_TOILETS_FILE)),
       el('p', { class: 'help' }, 'Envoie ce fichier à Claude avec la phrase : « Mets à jour les toilettes RATP ». Claude lance tools/maj-sanitaires.py.'),
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Avantages culture Navigo'), el('span', {}, '')),
+      el('p', { class: 'help' }, `${navigoUpdated ? `Version du ${frenchDate(navigoUpdated)}. ` : ''}Une fois par an : les lieux et les offres changent.`),
+      el('div', { class: 'menu' }, link({ name: 'Lieux bénéficiant des avantages culture Navigo', file: 'lieux-avantages-cultures-navigo.geojson', url: NAVIGO_SOURCE })),
+      el('p', { class: 'help' }, 'Envoie ce fichier à Claude avec la phrase : « Mets à jour les avantages Navigo ». Claude lance tools/maj-navigo.py.'),
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application')),
     ), { tall: true, name: 'settings:transports', again: () => openSettings('transports') });
     return;
@@ -4185,6 +4237,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
     '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
     '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
     '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
@@ -4194,7 +4247,6 @@ const HELP = [
     '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
     '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
-    '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4244,7 +4296,7 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : trois onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte.',
+    '{calendar-days} Sorties : quatre onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte. Navigo : les lieux culturels partenaires des avantages Navigo (cinémas, salles, théâtres, musées), du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
     '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
     'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
@@ -4376,6 +4428,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
+loadNavigo(); // fichier de l'appli (rien n'est envoyé) : pour la ligne « Avantage Navigo » des fiches
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
     if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => remember({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() }), () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });
