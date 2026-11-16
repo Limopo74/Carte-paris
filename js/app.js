@@ -13,6 +13,7 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
+import { holidayOn } from './holidays.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -27,7 +28,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (60)';
+const VERSION = '16 novembre 2026 (61)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -496,6 +497,8 @@ document.getElementById('sheetClose').addEventListener('click', () => closeSheet
 /* ---------- Localisation ---------- */
 
 let here = null; // dernière position GPS : { lat, lng, acc, time }
+let markets = null; // marchés de la Ville (liste gardée sur le téléphone)
+let marketsTime = 0; // date de cette liste
 let nowHidden = false; // carte « Maintenant » cachée par la croix
 let nowLast = 0;
 const LAST_KEY = 'carte-paris.derniere-position'; // reste sur le téléphone, jamais envoyée
@@ -515,6 +518,29 @@ function remember(fix) {
   updateNow();
 }
 
+/** Moment de la journée pour « Maintenant » (types de lieux mis en avant), ou null. */
+function timeSlot(now = new Date()) {
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (h >= 7 && h < 11) return { label: 'Ce matin', re: /caf[ée]|boulang|p[âa]tiss|brunch|petit[- ]d[ée]j|march[ée]/i, markets: true };
+  if (h >= 11.5 && h < 14.5) return { label: 'Ce midi', re: /resto|restaurant|bistro|brasserie|cantine|d[ée]jeuner|street ?food/i, markets: true };
+  if (h >= 18 && h < 23.5) return { label: 'Ce soir', re: /resto|restaurant|bistro|brasserie|bar\b|bars\b|cave|vin|cocktail|ap[ée]ro|concert|cin[ée]/i, markets: false };
+  return null;
+}
+/** Le marché se tient-il en ce moment ? (horaires du jour « 7h–14h30 » ; inconnus : non) */
+function marketOpenNow(m, now = new Date()) {
+  const t = hoursToday(m, now).match(/^(\d{1,2})h(\d{2})?–(\d{1,2})h(\d{2})?$/);
+  if (!t) return false;
+  const min = now.getHours() * 60 + now.getMinutes();
+  return min >= Number(t[1]) * 60 + Number(t[2] ?? 0) && min < Number(t[3]) * 60 + Number(t[4] ?? 0);
+}
+/** Rappel du jour : férié ou dimanche (calculé sur le téléphone), sinon null. */
+function dayNote(now = new Date()) {
+  const h = holidayOn(now);
+  if (h) return { short: 'Férié', long: `Jour férié (${h}) : beaucoup de commerces et certains marchés sont fermés. Vérifie avant d'y aller, surtout pour les lieux sans horaires.` };
+  if (now.getDay() === 0) return { short: 'Dim.', long: 'Dimanche : beaucoup de commerces sont fermés ; les marchés se tiennent surtout le matin.' };
+  return null;
+}
+
 /* « Maintenant » : sur la carte, le lieu à faire le plus proche et ouvert (15 min à pied au plus).
    Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
 function updateNow(force = false) {
@@ -523,16 +549,32 @@ function updateNow(force = false) {
   if (!force && Date.now() - nowLast < 20000) return;
   nowLast = Date.now();
   const pos = freshHere();
+  // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
+  // le matin cafés et boulangeries, à midi et le soir restos (et bars le soir).
+  const slot = timeSlot();
+  const fits = (p) => slot && slot.re.test(`${catOf(p.cat).name} ${p.name}`);
+  const score = (x) => x.d - (fits(x.p) ? 400 : 0);
   const best = !pos || nowHidden ? null : visible().filter((p) => !p.done && openState(p.hours)?.open !== false)
-    .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => a.d - b.d)[0];
-  card.hidden = !best;
-  if (!best) return;
+    .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => score(a) - score(b))[0];
+  // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
+  const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
+  const useMarket = mk && (!best || !fits(best.p) || mk.d < best.d);
+  card.hidden = !best && !useMarket;
+  if (card.hidden) return;
+  if (useMarket) {
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `${slot.label} · marché`),
+      el('span', { class: 'now-name' }, mk.name),
+      el('span', { class: 'now-sub' }, [`${walkMinutes(mk.d)} min à pied`, hoursToday(mk)].filter(Boolean).join(' · ')));
+    card.querySelector('.now-open').onclick = () => openMarket(mk);
+    return;
+  }
   const { p, d } = best;
   const st = openState(p.hours);
   fill(card.querySelector('.now-text'),
-    el('span', { class: 'now-kicker' }, 'Maintenant'),
+    el('span', { class: 'now-kicker' }, fits(p) ? slot.label : 'Maintenant'),
     el('span', { class: 'now-name' }, p.name),
-    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'ouvert') : null].filter(Boolean).join(' · ')));
+    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
   card.querySelector('.now-open').onclick = () => openDetail(p.id);
 }
 
@@ -2082,14 +2124,16 @@ function openMyStations() {
 let air = null;
 const wxBadge = document.getElementById('wxBadge');
 function drawWx() {
-  if (!meteo && !air) { wxBadge.hidden = true; return; }
+  const day = dayNote();
+  if (!meteo && !air && !day) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
   fill(wxBadge,
+    day ? el('span', { class: 'day-tag' }, day.short) : null,
     meteo?.temp != null ? el('b', {}, `${meteo.temp}°`) : null,
     meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
     air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
     air ? `Air ${air.label.toLowerCase()}` : null);
-  wxBadge.setAttribute('aria-label', [meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', [day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Parfait pour marcher.', correct: 'Rien à signaler.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -2097,7 +2141,9 @@ const AIR_ADVICE = {
   extreme: 'Évite les efforts dehors aujourd\'hui.',
 };
 function openWeather() {
-  openSheet([ico('thermometer-sun'), ' Météo et air'], el('div', { class: 'stack' },
+  const day = dayNote();
+  openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
+    day ? el('p', { class: 'warn day-note' }, day.long) : null,
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
     air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
     air ? el('p', {}, AIR_ADVICE[air.level]) : null,
@@ -2110,9 +2156,7 @@ wxBadge.addEventListener('click', openWeather);
 
 /* ---------- Marchés découverts : sur la carte le jour où ils se tiennent, et dans Sorties ---------- */
 
-let markets = null;
 const marketsLayer = L.layerGroup().addTo(map);
-let marketsTime = 0; // date de la liste des marchés gardée sur le téléphone
 async function loadMarkets(force = false) {
   if (markets && !force) return markets;
   let cached = null;
@@ -3234,6 +3278,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '« Maintenant » s\'adapte à l\'heure : le matin un café, une boulangerie ou un marché ; à midi et le soir un resto (ou un bar le soir). Le dimanche et les jours fériés, « Dim. » ou « Férié » apparaît à côté de la température ; « Ouvert maintenant » tient compte des jours fériés quand les horaires le précisent.',
     '{calendar-days} Sorties : bouton « Mettre à jour » en bas, pour redemander tout de suite les marchés et l\'agenda de la Ville.',
     'Avec les lignes affichées, chaque station montre le numéro de ses lignes quand tu zoomes sur un quartier, puis son nom en zoomant encore.',
     'Lignes de métro et RER sur la carte, dans leurs couleurs : appui long sur M, ou {list-filter} Filtres → Lignes de métro et RER.',
@@ -3406,7 +3451,10 @@ if ('serviceWorker' in navigator) {
 // « Maintenant » : la croix cache la suggestion ; si la position est déjà autorisée, on la lit
 // discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
 document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
-setInterval(() => updateNow(true), 5 * 60000);
+setInterval(() => { updateNow(true); drawWx(); }, 5 * 60000);
+drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
+// Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
+loadMarkets().then(() => updateNow(true)).catch(() => {});
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
     if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => remember({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() }), () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });

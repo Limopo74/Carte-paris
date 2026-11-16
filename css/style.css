@@ -694,6 +694,9 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .wx-badge { position: fixed; top: 66px; left: 10px; z-index: 499; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px;
   border-radius: 999px; border: 1px solid var(--btn-bd); background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; box-shadow: 0 1px 4px rgba(20, 30, 60, .2); }
 .wx-badge b { font-size: 15px; }
+/* Rappel dimanche / jour férié dans le badge : un tampon terre cuite */
+.day-tag { font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--disc);
+  border: 1.5px solid currentColor; border-radius: 3px; padding: 0 4px; transform: rotate(-2deg); }
 .wx-badge::after { content: ''; position: absolute; inset: -4px 0; }
 .air-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .air-bon { --air: #2b8a3e; } .air-correct { --air: #5c940d; } .air-moyen { --air: #e67700; } .air-mediocre { --air: #d9480f; } .air-tres-mediocre { --air: #c92a2a; } .air-extreme { --air: #862e9c; }
