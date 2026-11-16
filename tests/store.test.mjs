@@ -477,3 +477,15 @@ test('setListMembers : ajoute et retire d\'un coup', async () => {
   assert.equal(r.points[3], st.points[3], 'lieu inchangé : même objet');
   assert.deepEqual(st.points[0].lists, ['L'], 'état d\'origine intact');
 });
+
+test('import du fichier d\'un proche : ses lieux arrivent, ses billets non (ma sauvegarde garde les miens)', () => {
+  const at = Date.now() + 2 * 864e5;
+  const p = { ...sample(), ticket: { at } };
+  const text = JSON.stringify({ app: 'carte-paris', version: 2, owner: 'Léa', points: [p] });
+  const r = mergeImport(base(), text, 'Léa');
+  assert.equal(r.added, 1);
+  assert.equal(r.state.points[0].owner, 'Léa');
+  assert.equal(r.state.points[0].ticket, undefined);
+  const mine = mergeImport(base(), text, '');
+  assert.equal(mine.state.points[0].ticket.at, at);
+});

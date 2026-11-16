@@ -148,3 +148,12 @@ test('monuments historiques : regroupe, garde le site https, ignore les sans-nom
   assert.equal(merimeeUrl('PA00088801'), 'https://www.pop.culture.gouv.fr/notice/merimee/PA00088801');
   assert.deepEqual(parseHist(null), []);
 });
+
+test('invitation à une sortie : le jour et l\'heure passent par le lien, seulement si on invite', () => {
+  const at = new Date(Date.now() + 3 * 864e5).setSeconds(0, 0);
+  const p = { name: 'Le Grand Rex', lat: 48.8707, lng: 2.3477, ticket: { at } };
+  assert.equal(readPlaceLink(new URL(placeLink('https://x/', p)).hash).ticketAt, null, 'un simple partage ne dit pas quand j\'y vais');
+  assert.equal(readPlaceLink(new URL(placeLink('https://x/', p, '', '', { invite: true })).hash).ticketAt, at);
+  const old = { ...p, ticket: { at: Date.now() - 3 * 864e5 } };
+  assert.equal(readPlaceLink(new URL(placeLink('https://x/', old, '', '', { invite: true })).hash).ticketAt, null, 'une sortie passée n\'est pas reprise');
+});

@@ -269,7 +269,7 @@ export function mergeImport(state, text, owner = '') {
     known.add(p.id);
     const c = clean(p);
     c.lists = c.lists.filter((x) => listIds.has(x));
-    if (owner) c.owner = c.owner || owner;
+    if (owner) { c.owner = c.owner || owner; delete c.ticket; } // ses billets restent à lui : on ne voit que ses lieux (une sortie à deux passe par une invitation)
     if (state.me && c.owner === state.me) c.owner = '';
     points.push(c);
     added++;

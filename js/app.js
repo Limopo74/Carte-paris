@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (108)';
+const VERSION = '16 novembre 2026 (109)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1060,7 +1060,9 @@ function openForm(draft, existing = null) {
         fill(err,
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
           el('div', { class: 'row', style: 'margin-top:8px' },
-            el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
+            Number.isFinite(draft.ticketAt)
+              ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = { at: draft.ticketAt }; persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${ticketText(draft.ticketAt)}`); } }, 'Noter sur ce lieu')
+              : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
             el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
         err.scrollIntoView({ block: 'nearest' });
         return;
@@ -1100,6 +1102,7 @@ function openForm(draft, existing = null) {
       el('p', { class: 'where' }, ico('map-pin'), whereText),
       existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
     accWarn,
+    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('calendar-clock'), ` Sortie ${ticketText(draft.ticketAt)} : elle ira dans Mon planning.`) : null,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
@@ -1421,8 +1424,9 @@ function openTicket(p, back = null) {
     el('label', { class: 'field' }, 'Heure du créneau', time),
     err,
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('ticket'), 'Enregistrer le billet'),
+    p.ticket ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p) }, ico('send'), 'Inviter un proche') : null,
     p.ticket ? el('button', { type: 'button', class: 'btn danger', onclick: () => { delete p.ticket; persist(); updateNow(true); toast('Billet retiré'); done(); } }, 'Retirer le billet') : null,
-    el('p', { class: 'help' }, 'Le jour même, « Maintenant » sur la carte te dit à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Pour garder le billet lui-même, prends-le en photo avec le bouton Photo de la fiche. Rien ne part du téléphone.'),
+    el('p', { class: 'help' }, 'Le jour même, « Maintenant » sur la carte te dit à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Pour garder le billet lui-même, prends-le en photo avec le bouton Photo de la fiche. Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et l\'heure.'),
     el('button', { type: 'button', class: 'btn', onclick: done }, '← Fiche'),
   ), { name: `ticket:${p.id}` });
 }
@@ -2018,11 +2022,23 @@ async function sharePlace(p) {
   try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message.'); } catch { prompt('Copie ce lien :', url); }
 }
 
+/** Inviter un proche à une sortie : le lieu avec le jour et l'heure du billet, par le partage du téléphone. */
+async function invitePlace(p) {
+  if (!Number.isFinite(p.ticket?.at)) return;
+  const c = catOf(p.cat);
+  const url = placeLink(location.href, p, c.name, c.icon, { invite: true });
+  const text = `On y va ${ticketText(p.ticket.at)} ? ${p.name}${p.address ? ` — ${p.address}` : ''}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: p.name, text, url }); return; }
+  } catch (e) { if (e?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Invitation copiée : colle-la dans un message.'); } catch { prompt('Copie cette invitation :', url); }
+}
+
 /** Un lien reçu : on montre le lieu et on propose de l'ajouter (catégorie du même nom si elle existe). */
 function receivePlace(r) {
   const cat = state.categories.find((c) => fold(c.name) === fold(r.catName))?.id;
-  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null });
-  toast('Lieu reçu par un lien : vérifie et enregistre.');
+  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null, ticketAt: r.ticketAt ?? undefined });
+  toast(r.ticketAt ? `Invitation : ${ticketText(r.ticketAt)}. Enregistre pour l'avoir dans Mon planning.` : 'Lieu reçu par un lien : vérifie et enregistre.');
 }
 
 /* ---------- Import des lieux Google Maps (Google Takeout) ---------- */
@@ -2254,7 +2270,8 @@ function openPlanning(from = null) {
     groups.at(-1).items.push(p);
   }
   openSheet([ico('calendar-clock'), ' Mon planning'], el('div', { class: 'stack' },
-    groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue pour l\'instant.'),
+    groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue.'),
+    groups.length ? null : el('p', { class: 'help' }, 'Pour prévoir une sortie : fiche d\'un lieu → Mon billet.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.map((p) => el('li', { class: 'item' },
@@ -2263,9 +2280,9 @@ function openPlanning(from = null) {
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
             el('span', { class: 'item-sub' }, [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')))),
+        el('button', { type: 'button', class: 'go-compass', onclick: () => invitePlace(p), 'aria-label': `Inviter un proche : ${p.name}` }, ico('send')),
         el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
     ]),
-    el('p', { class: 'help' }, 'Pour prévoir une sortie : fiche d\'un lieu → Pratique → Mon billet. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » la note ici avec son heure. Le jour J, le bandeau « Maintenant » te dit quand partir. Tout reste sur ce téléphone.'),
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
 }
@@ -4317,6 +4334,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{send} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {send} envoie le lieu avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
     '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
     '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
     '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
@@ -4326,7 +4344,6 @@ const HELP = [
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
     '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
     '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
-    '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4342,7 +4359,7 @@ const HELP = [
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
-    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues.',
+    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. {send} invite un proche : il reçoit le lieu, le jour et l\'heure.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -4377,7 +4394,7 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : quatre onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte. Navigo : les lieux culturels partenaires des avantages Navigo (cinémas, salles, théâtres, musées), du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
+    '{calendar-days} Sorties : quatre onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte (une sortie de « Plus tard aujourd\'hui » va aussi dans Mon planning, avec son heure). Navigo : les lieux culturels partenaires des avantages Navigo (cinémas, salles, théâtres, musées), du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
     '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
     'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
@@ -4424,6 +4441,7 @@ const HELP = [
   ['users', 'Partager avec un ami', [
     'L\'appli elle-même : {settings} → Application → « Envoyer le lien » ou « QR code ». Ton proche l\'installe depuis Chrome (menu ⋮ → Ajouter à l\'écran d\'accueil) ; elle arrive vide chez lui.',
     'Un lieu : dans sa fiche, rubrique Sur ce lieu → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
+    'Une sortie à deux : {calendar-clock} Mon planning → {send} à côté de la sortie. Ton ami reçoit le lieu avec le jour et l\'heure ; en l\'enregistrant, la sortie arrive dans son planning.',
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',

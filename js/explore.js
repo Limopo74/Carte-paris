@@ -10,8 +10,9 @@ const unb64url = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(
 const r5 = (x) => Math.round(x * 1e5) / 1e5;
 
 /** Lien vers l'appli qui contient le lieu (nom, adresse, position, note, catégorie, mot). */
-export function placeLink(base, p, catName = '', catIcon = '') {
+export function placeLink(base, p, catName = '', catIcon = '', { invite = false } = {}) {
   const o = { v: 1, n: p.name, y: r5(p.lat), x: r5(p.lng) };
+  if (invite && Number.isFinite(p.ticket?.at)) o.t = Math.round(p.ticket.at / 60000); // invitation : jour et heure, à la minute
   if (p.address) o.a = p.address;
   if (catName) o.c = catName;
   if (catIcon) o.i = catIcon;
@@ -32,8 +33,10 @@ export function readPlaceLink(hash) {
     const name = String(o.n ?? '').trim().slice(0, 80);
     if (!name || !(lat > 48 && lat < 49.5) || !(lng > 1.4 && lng < 3.6)) return null;
     const stars = Number.isInteger(o.s) && o.s >= 1 && o.s <= 5 ? o.s : 0;
+    const at = Number.isInteger(o.t) ? o.t * 60000 : NaN; // invitation : gardée seulement si elle n'est pas déjà passée (ni absurde)
+    const ticketAt = at > Date.now() - 864e5 && at < Date.now() + 400 * 864e5 ? at : null;
     return {
-      name, lat, lng, stars,
+      name, lat, lng, stars, ticketAt,
       address: String(o.a ?? '').slice(0, 200), catName: String(o.c ?? '').slice(0, 30), catIcon: String(o.i ?? ''),
       note: String(o.o ?? '').slice(0, 300), hours: String(o.h ?? '').slice(0, 300),
     };
