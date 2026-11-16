@@ -119,7 +119,7 @@ button { cursor: pointer; }
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 15px; }
 .field input, .field textarea {
   width: 100%; min-height: 48px; padding: 10px 12px; font-weight: 400; font-size: 16px;
-  border: 1px solid #c9ced8; border-radius: 10px; background: #fff;
+  border: 1px solid #7d8592; border-radius: 10px; background: #fff;
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .field input:focus, .field textarea:focus, .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .item-main:focus-visible {
@@ -136,7 +136,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
 .seg button {
   flex: 1 1 30%; min-height: 48px; border-radius: 10px; padding: 6px 10px;
-  border: 1px solid #c9ced8; background: #fff; font-size: 15px;
+  border: 1px solid #7d8592; background: #fff; font-size: 15px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 .seg button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
@@ -427,7 +427,7 @@ ol.items { padding: 0; }
 .menu-sub { font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .warn-row .menu-sub { color: #8a4b00; }
 .menu-chev { flex: none; font-size: 26px; color: var(--muted); line-height: 1; }
-.switch { flex: none; width: 46px; height: 28px; border-radius: 14px; background: #c9ced8; position: relative; transition: background .15s; }
+.switch { flex: none; width: 46px; height: 28px; border-radius: 14px; background: #868e96; position: relative; transition: background .15s; }
 .switch .knob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .15s; }
 .switch.on { background: var(--ink); }
 .switch.on .knob { left: 21px; }
@@ -577,3 +577,23 @@ a.item-main { color: inherit; text-decoration: none; }
 a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9ced8; text-underline-offset: 3px; }
 .help-item li .ico { vertical-align: -3px; margin: 0 2px; color: var(--guide); }
 .help-item li .ico svg { width: 17px; height: 17px; }
+#sheetTitle:focus { outline: none; }
+#sheetTitle:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 3px; border-radius: 6px; }
+.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1px solid #7d8592; border-radius: 10px; background: #fff; }
+.m-badge::before { content: 'M'; }
+
+/* Styles de carte : filtres faits par le téléphone */
+#map[data-style="pastel"] .leaflet-tile-pane { filter: saturate(1.35) brightness(1.06) hue-rotate(-12deg) contrast(.92); }
+#map[data-style="night"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
+#map[data-style="night"] { background: #1d2230; }
+.style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: #fff; text-align: left; font: inherit; color: var(--ink); min-height: 44px; }
+.style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: 0 0 0 3px var(--guide-bg); }
+.style-card b { font-size: 15px; }
+.style-card .menu-sub { white-space: normal; font-size: 12.5px; }
+.style-prev { width: 100%; height: 64px; border-radius: 10px; display: block; border: 1px solid var(--line); }
+.s-classic { background: linear-gradient(135deg, #f2efe9 0 40%, #aad3df 40% 55%, #f2efe9 55% 70%, #cdebb0 70%); }
+.s-fr { background: linear-gradient(135deg, #f8f4ea 0 35%, #9fc8f0 35% 52%, #fbe3a2 52% 66%, #b9e3a0 66%); }
+.s-hot { background: linear-gradient(135deg, #f6f1f0 0 40%, #c3dbe8 40% 55%, #f3e3e0 55% 70%, #d7ecc6 70%); }
+.s-pastel { background: linear-gradient(135deg, #fbf3ff 0 40%, #b9e6f5 40% 55%, #fff3e3 55% 70%, #d6f5c5 70%); }
+.s-night { background: linear-gradient(135deg, #1f2433 0 40%, #2d4a5e 40% 55%, #262b3a 55% 70%, #2b3a2b 70%); }

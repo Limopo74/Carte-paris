@@ -23,7 +23,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (40)';
+const VERSION = '16 novembre 2026 (42)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -169,10 +169,24 @@ const hideToast = () => { document.getElementById('toast').hidden = true; };
 /* ---------- Carte ---------- */
 
 const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(PARIS, 13);
-const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);
+const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+// Fonds de carte sans clé : OpenStreetMap, et les rendus d'OpenStreetMap France (« FR » et humanitaire).
+// Pastel et Nuit sont des filtres de couleur appliqués sur le téléphone : aucun service de plus.
+const STYLE_INFO = {
+  classic: { name: 'Classique', sub: 'La carte OpenStreetMap habituelle', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+  fr: { name: 'Française', sub: 'Noms en français, couleurs plus vives (OSM France)', url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — rendu <a href="https://www.openstreetmap.fr/">OSM France</a>`, maxZoom: 19 },
+  hot: { name: 'Douce', sub: 'Couleurs pastel du rendu humanitaire (OSM France)', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — tuiles <a href="https://www.hotosm.org/">HOT</a>, OSM France`, maxZoom: 19 },
+  pastel: { name: 'Pastel', sub: 'La carte classique en tons doux et lumineux', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+  night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+};
+let tiles = null;
+function applyMapStyle() {
+  const st = STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic;
+  if (tiles) map.removeLayer(tiles);
+  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr }).addTo(map);
+  document.getElementById('map').dataset.style = state.mapStyle ?? 'classic';
+}
+applyMapStyle();
 
 // Pastilles plus petites quand on voit une grande partie de Paris, pour éviter qu'elles se chevauchent.
 const mapEl = document.getElementById('map');
@@ -217,7 +231,9 @@ function renderMarkers() {
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 16] }),
       zIndexOffset: p.fav ? 500 : 0,
+      alt: p.name,
     })
+      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(p.name, { direction: 'top', offset: [0, -16] })
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -344,8 +360,11 @@ let view = null; // nom de l'écran affiché ('near' pour « Autour de moi »…
 // Chaque écran a un nom et, s'il peut être rouvert, une fonction « again ».
 let navStack = [];
 
+let sheetOpener = null; // bouton qui a ouvert la feuille : il retrouve le focus à la fermeture
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
   if (moving && name !== 'move') stopMove();
+  const focusOutside = !sheet.contains(document.activeElement);
+  if (sheet.hidden && focusOutside && document.activeElement !== document.body) sheetOpener = document.activeElement;
   const prevClose = onSheetClose;
   if (prevClose && name !== view) { onSheetClose = null; prevClose(); }
   const key = name ?? `anon-${navStack.length}`;
@@ -363,6 +382,8 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
     history.pushState({ sheet: true }, '');
     historyPushed = true;
   }
+  // Clavier et lecteur d'écran : le focus entre dans la feuille (sans le voler à un champ déjà dedans)
+  if (focusOutside || !sheet.contains(document.activeElement)) sheetTitle.focus({ preventScroll: true });
 }
 
 function closeSheet(fromHistory = false) {
@@ -378,6 +399,8 @@ function closeSheet(fromHistory = false) {
   const cb = onSheetClose;
   onSheetClose = null;
   if (cb) cb();
+  if (sheetOpener && document.contains(sheetOpener) && (sheet.contains(document.activeElement) || document.activeElement === document.body)) sheetOpener.focus({ preventScroll: true });
+  sheetOpener = null;
   if (historyPushed && !fromHistory) {
     historyPushed = false;
     history.back();
@@ -756,7 +779,7 @@ function openDetail(id, back = null) {
         el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller'),
       el('div', { class: 'row3' },
         el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
-        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back), 'aria-label': 'Quel métro prendre' }, el('b', { 'aria-hidden': 'true' }, 'M'), ' Métro'),
+        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
         el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: `btn ${p.done ? '' : 'c-add'}`, onclick: () => update(() => { setDone(p, !p.done); }) }, p.done ? 'Remettre à faire' : '✓ Déjà visité'),
@@ -1216,7 +1239,7 @@ function renderNear(fit = false) {
   }
   if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
   body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, ico('refresh-cw'), 'Actualiser ma position'));
-  body.push(el('button', { type: 'button', class: 'btn c-guide', style: 'margin-top:8px;width:100%', onclick: openMyParis }, ico('map'), 'Mon Paris : arrondissements explorés'));
+  body.push(el('button', { type: 'button', class: 'btn c-guide', style: 'margin-top:8px;width:100%', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
   openSheet(nearTitle(), body, { name: 'near', again: () => renderNear() });
   if (fit) {
@@ -1609,7 +1632,9 @@ async function findArrondissements() {
   if (changed) { persist(); if (view === 'myparis') openMyParis(); }
 }
 
-function openMyParis() {
+let myParisBack = 'settings';
+function openMyParis(from = null) {
+  if (from) myParisBack = from;
   const by = new Map();
   for (const p of state.points) {
     if (!p.arr) continue;
@@ -1632,6 +1657,9 @@ function openMyParis() {
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
     el('p', { class: 'help' }, `Chaque case : lieux visités / lieux enregistrés. Plan schématique, à peu près à la place de chaque arrondissement.${unknown ? ` ${plural(unknown, 'lieu', 'lieux')} sans arrondissement connu (hors Paris ou en cours de recherche).` : ''}`),
     el('p', { class: 'help' }, `Marche aujourd'hui : ${walkText(todayWalk())}.`),
+    myParisBack === 'near' && origin
+      ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
+      : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages'),
   ), { tall: true, name: 'myparis', again: openMyParis });
   findArrondissements();
 }
@@ -2004,6 +2032,17 @@ function openSettings(section = null) {
     return;
   }
 
+  if (section === 'style') {
+    openSheet([ico('palette'), ' Style de la carte'], el('div', { class: 'stack' },
+      el('div', { class: 'style-grid' }, Object.entries(STYLE_INFO).map(([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id), onclick: () => {
+        state.mapStyle = id; persist(); applyMapStyle(); openSettings('style'); toast(`Carte : ${st.name}`);
+      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name), el('span', { class: 'menu-sub' }, st.sub)))),
+      el('p', { class: 'help' }, 'Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel et Nuit sont des filtres faits par ton téléphone.'),
+      backBtn,
+    ), { tall: true, name: 'settings:style', again: () => openSettings('style') });
+    return;
+  }
+
   if (section === 'outils') {
     const list = normalizeTools(state.mapTools);
     openSheet([ico('arrow-up-down'), ' Boutons de la carte'], el('div', { class: 'stack' },
@@ -2094,11 +2133,12 @@ function openSettings(section = null) {
 
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
-    row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', openMyParis, false, 'c-guide'),
+    row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-guide'),
     row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     voiceSwitch,
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
@@ -2533,6 +2573,7 @@ const HELP = [
     '{list-filter} Filtres en haut : ouvert maintenant, mieux notés, abrités, listes, personne.',
     '{hourglass} Temps libre, {shuffle} Surprise et {book-open-text} Curiosités dans Autour de moi.',
     '{bike} Vélib\' en temps réel, {map} Mon Paris, {share-2} partage d\'un lieu par lien, import Google Maps.',
+    '{palette} 5 styles de carte, dont Pastel et Nuit : {settings} → Style de la carte.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
@@ -2546,6 +2587,7 @@ const HELP = [
     '{zoom-in} zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
+    'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
   ]],
   ['list-filter', 'Filtres', [
     'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
@@ -2639,6 +2681,13 @@ document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 document.getElementById('btnHelp').addEventListener('click', openHelp);
+// Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  if (!document.getElementById('viewer')?.hidden) { history.back(); return; }
+  if (!document.getElementById('compass')?.hidden) { history.back(); return; }
+  if (!sheet.hidden) { e.preventDefault(); closeSheet(); }
+});
 
 renderChips();
 renderMarkers();
