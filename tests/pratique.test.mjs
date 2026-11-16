@@ -28,7 +28,7 @@ test('toilettes : adresse, horaires, accès fauteuil, état', () => {
     { type: 'SANISETTE', adresse: '6 RUE Y', statut: 'Hors service', geo_point_2d: { lon: 2.31, lat: 48.81 } },
   ];
   const r = parseRecords(json, 'toilettes');
-  assert.deepEqual(r[0], { lat: 48.8, lng: 2.3, label: 'Sanisette', detail: '5 RUE X · Horaires : 24 h / 24 · Accès fauteuil', ok: true });
+  assert.deepEqual(r[0], { lat: 48.8, lng: 2.3, label: 'Sanisette', detail: '5 RUE X · Horaires : 24 h / 24 · Accès fauteuil', ok: true, hours: '24/7' });
   assert.equal(r[1].ok, false);
 });
 
@@ -78,4 +78,23 @@ test('parcs : horaires de la saison (îlots de fraîcheur) au format OpenStreetM
   assert.ok(looksLikePark('Jardin du Luxembourg'));
   assert.ok(looksLikePark('Square du Temple Parcs'));
   assert.ok(!looksLikePark('Parcours galerie'));
+});
+
+test('toilettes, fontaines, lieux frais : horaires lisibles, horaires du parc, eau pétillante', async () => {
+  const { toiletHours, parkHours, followsPark, parseRecords } = await import('../js/pratique.js');
+  const { openState } = await import('../js/hours.js');
+  assert.equal(toiletHours('24/24h'), '24/7');
+  assert.equal(toiletHours('06h00 - 22h00'), 'Mo-Su 06:00-22:00');
+  assert.equal(openState(toiletHours('06h00 - 22h00'), new Date(2026, 10, 16, 23, 0)).open, false, 'fermée à 23 h');
+  assert.equal(toiletHours('06h00 - 01h00'), 'Mo-Su 06:00-01:00');
+  assert.equal(toiletHours('06h00 - 06h02'), '', 'plage de 2 min : erreur de saisie');
+  assert.equal(toiletHours('10h00 - 18h0030'), '');
+  assert.ok(followsPark('Horaires du parc'));
+  assert.ok(followsPark('Horaires d\'ouverture de l\'espace vert'));
+  const t = parseRecords([{ type: 'WC', horaire: 'Horaires du parc', geo_point_2d: { lon: 2.31, lat: 48.88 } }, { type: 'WC', horaire: 'Fermé', geo_point_2d: { lon: 2.31, lat: 48.88 } }], 'toilettes');
+  assert.equal(t[0].inPark, true); assert.equal(t[1].ok, false);
+  const f = parseRecords([{ type_objet: 'FTNE_PETILLANTE', modele: 'Fontaine pétillante', dispo: 'OUI', geo_point_2d: { lon: 2.3, lat: 48.8 } }, { modele: 'Brumisante', dispo: 'OUI', geo_point_2d: { lon: 2.3, lat: 48.8 } }], 'fontaines');
+  assert.deepEqual(f.map((x) => x.extra), ['Eau pétillante', 'Brumisateur']);
+  const louvre = { horaires_lundi: '09:00 - 18:00', horaires_mardi: 'Fermé', horaires_mercredi: '09:00 - 18:00', horaires_jeudi: '09:00 - 18:00', horaires_vendredi: '10h – 21h', horaires_samedi: '09:00 - 18:00', horaires_dimanche: '09:00 - 18:00', horaires_periode: null };
+  assert.equal(parkHours(louvre), 'Mo 09:00-18:00; Tu off; We 09:00-18:00; Th 09:00-18:00; Fr 10:00-21:00; Sa 09:00-18:00; Su 09:00-18:00');
 });

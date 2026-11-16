@@ -12,7 +12,7 @@ export const DATASETS = {
 const PARK_DAYS = [['lundi', 'Mo'], ['mardi', 'Tu'], ['mercredi', 'We'], ['jeudi', 'Th'], ['vendredi', 'Fr'], ['samedi', 'Sa'], ['dimanche', 'Su']];
 /** « 08h00 - 17h00 », « 10h-19h », « 15H - 18H », « 08h30 - 12h30 / 14h00 - 17h00 » → « 08:00-17:00 » (ou « 08:30-12:30,14:00-17:00 »). */
 function parkTimes(v) {
-  const parts = String(v).split('/').map((x) => x.trim().toLowerCase().match(/^(\d{1,2})[h:](\d{2})?\s*-\s*(\d{1,2})[h:](\d{2})?$/));
+  const parts = String(v).split('/').map((x) => x.trim().toLowerCase().replace(/[–—]/g, '-').match(/^(\d{1,2})[h:](\d{2})?\s*-\s*(\d{1,2})[h:](\d{2})?$/));
   if (!parts.length || parts.some((m) => !m)) return null;
   const hm = (h, m) => `${String(Number(h)).padStart(2, '0')}:${m ?? '00'}`;
   return parts.map((m) => { const end = hm(m[3], m[4]); return `${hm(m[1], m[2])}-${end === '23:59' ? '24:00' : end}`; }).join(',');
@@ -21,12 +21,32 @@ function parkTimes(v) {
 function inParkPeriod(text, now) {
   const t = String(text ?? '');
   const dates = [...t.matchAll(/(\d{2})\/(\d{2})\/(\d{2}(?:\d{2})?)/g)].map((m) => new Date(Number(m[3].length === 2 ? `20${m[3]}` : m[3]), Number(m[2]) - 1, Number(m[1])));
-  if (!dates.length) return !/\S/.test(t) || t === 'None' || /accès libre/i.test(t);
+  if (!dates.length) return true; // pas de période (ou un simple avis) : les horaires valent toute l'année
   const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (dates[0] > day) return false;
   return dates.length < 2 || day <= dates[1];
 }
 /** Horaires d'un espace vert (îlots de fraîcheur) au format OpenStreetMap, ou '' s'ils sont inconnus ou d'une autre saison. */
+/** Le lieu suit-il les horaires du parc où il se trouve (« Horaires du parc », « Horaires d'ouverture de l'espace vert ») ? */
+export const followsPark = (text) => /horaires? (du parc|d'ouverture de l'espace vert)/i.test(String(text ?? ''));
+/**
+ * Horaires d'une sanisette (« 06h00 - 22h00 », « 24/24h ») au format OpenStreetMap, ou '' si inconnus.
+ * Les plages de moins de 4 h (« 06h00 - 06h02 ») sont des erreurs de saisie : on ne s'y fie pas.
+ */
+export function toiletHours(h) {
+  const t = String(h ?? '').trim().toLowerCase().replace(/[–—]/g, '-');
+  if (/^24\s*h?\s*\/\s*24/.test(t)) return '24/7';
+  const m = t.match(/^(\d{1,2})[h:](\d{2})\s*-\s*(\d{1,2})[h:](\d{2})$/);
+  if (!m) return '';
+  const from = Number(m[1]) * 60 + Number(m[2]);
+  let to = Number(m[3]) * 60 + Number(m[4]);
+  if (to <= from) to += 1440;
+  if (to - from < 240 || to - from > 1440) return '';
+  const hm = (h2, m2) => `${String(Number(h2)).padStart(2, '0')}:${m2}`;
+  const end = hm(m[3], m[4]) === '23:59' ? '24:00' : hm(m[3], m[4]);
+  return `Mo-Su ${hm(m[1], m[2])}-${end}`;
+}
+
 export function parkHours(r, now = new Date()) {
   const known = (v) => v != null && v !== 'None' && String(v).trim() !== '';
   const days = PARK_DAYS.map(([d, osm]) => [osm, r?.[`horaires_${d}`]]);
@@ -35,7 +55,7 @@ export function parkHours(r, now = new Date()) {
   const rules = [];
   for (const [osm, v] of days) {
     if (!known(v)) return ''; // un jour inconnu : on ne devine pas
-    if (String(v).trim() === '-') { rules.push(`${osm} off`); continue; }
+    if (/^(-|fermé|ferme)$/i.test(String(v).trim())) { rules.push(`${osm} off`); continue; }
     const t = parkTimes(v);
     if (!t) return '';
     rules.push(`${osm} ${t}`);
@@ -76,6 +96,9 @@ export function parseRecords(json, kind) {
         label: cap(str(r.modele)) || cap(str(r.type_objet)) || 'Fontaine',
         detail: [street, str(r.commune)].filter(Boolean).join(', '),
         ok: str(r.dispo).toUpperCase() !== 'NON',
+        // Eau pétillante (fontaines « Pétillante ») ou brumisateur : utile quand il fait chaud
+        ...(/p[ée]tillante/i.test(`${str(r.type_objet)} ${str(r.modele)}`) || /PETILLANTE/.test(str(r.type_objet)) ? { extra: 'Eau pétillante' }
+          : /brumis/i.test(str(r.modele)) ? { extra: 'Brumisateur' } : {}),
       });
     } else if (kind === 'fraisLieux' || kind === 'fraisParcs') {
       const name = str(r.nom);
@@ -85,7 +108,8 @@ export function parseRecords(json, kind) {
         label: name || cap(str(r.type)) || 'Lieu frais',
         detail: [cap(str(r.type)), str(r.adresse), pay === 'oui' ? 'payant' : pay === 'non' ? 'gratuit' : ''].filter(Boolean).join(' · '),
         ok: true,
-        ...(kind === 'fraisParcs' ? { hours: parkHours(r) } : {}),
+        hours: parkHours(r),
+        ...(kind === 'fraisLieux' && followsPark(r.horaires_periode) ? { inPark: true } : {}),
       });
     } else {
       out.push({
@@ -93,7 +117,9 @@ export function parseRecords(json, kind) {
         label: cap(str(r.type)) || 'Toilettes',
         detail: [str(r.adresse), str(r.horaire) ? `Horaires : ${str(r.horaire)}` : '', str(r.acces_pmr).toLowerCase() === 'oui' ? 'Accès fauteuil' : '']
           .filter(Boolean).join(' · '),
-        ok: !/hors service|fermé/i.test(str(r.statut)),
+        ok: !/hors service|fermé/i.test(str(r.statut)) && !/^fermé$/i.test(str(r.horaire)),
+        ...(toiletHours(r.horaire) ? { hours: toiletHours(r.horaire) } : {}),
+        ...(followsPark(r.horaire) ? { inPark: true } : {}),
       });
     }
   }
