@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (57)';
+const VERSION = '16 novembre 2026 (58)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -348,6 +348,7 @@ function openFilters() {
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
     sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
     sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
+    sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     sw(Boolean(state.showMarkets), 'store', 'Marchés du jour sur la carte', 'Les marchés découverts qui se tiennent aujourd\'hui', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
     el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
@@ -2119,6 +2120,38 @@ async function loadMarkets() {
   markets = cached?.items ?? [];
   return markets;
 }
+/* ---------- Lignes de métro et RER sur la carte (à la demande) ----------
+   Tracés Île-de-France Mobilités (ODbL) simplifiés, gardés dans l'appli : rien n'est demandé à un serveur. */
+const linesLayer = L.layerGroup();
+const LINES_ATTR = 'Lignes : <a href="https://data.iledefrance-mobilites.fr/">Île-de-France Mobilités</a> (ODbL)';
+let linesData = null;
+async function drawLines() {
+  linesLayer.clearLayers();
+  if (!state.showLines) { map.removeLayer(linesLayer); map.attributionControl.removeAttribution(LINES_ATTR); return; }
+  try { linesData ??= (await (await fetch('data/lignes.json')).json()).lines ?? []; } catch { toast('Les tracés des lignes n\'ont pas pu être chargés.', true); return; }
+  if (!state.showLines) return;
+  // texte foncé sur les couleurs claires (ligne 1 jaune, RER C…), blanc sur les foncées
+  const textOn = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 0.3 ? '#1C2533' : '#ffffff'; };
+  for (const ln of [...linesData].reverse()) { // métro dessiné par-dessus le RER
+    const rer = ln.mode === 'R';
+    for (const path of ln.paths) {
+      L.polyline(path, { className: 'line-casing', weight: rer ? 8 : 6.5, opacity: 0.9, interactive: false }).addTo(linesLayer);
+      L.polyline(path, { color: ln.color, weight: rer ? 5 : 3.5, opacity: 1, interactive: false, dashArray: rer ? '10 4' : null }).addTo(linesLayer);
+    }
+    // une pastille par ligne, au milieu de son plus long morceau
+    const longest = ln.paths.reduce((a, b) => (b.length > a.length ? b : a), []);
+    const mid = longest[Math.floor(longest.length / 2)];
+    if (mid) L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: -200,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag${rer ? ' rer' : ''}" style="--c:${ln.color};--t:${textOn(ln.color)}">${rer ? `RER ${ln.ref}` : ln.ref}</span>`, iconSize: [30, 20], iconAnchor: [15, 10] }) }).addTo(linesLayer);
+  }
+  linesLayer.addTo(map);
+  map.attributionControl.addAttribution(LINES_ATTR);
+}
+function toggleLines() {
+  state.showLines = !state.showLines; persist(); drawLines();
+  toast(state.showLines ? 'Lignes de métro et RER affichées (appui long sur M pour les cacher)' : 'Lignes cachées');
+}
+
 async function drawMarkets() {
   marketsLayer.clearLayers();
   if (!state.showMarkets) return;
@@ -3107,6 +3140,9 @@ function showPratique(from, fs, ts, cs = []) {
 
 document.getElementById('btnPratique').addEventListener('click', nearestPratique);
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
+// Appui long sur M : afficher ou cacher les lignes
+document.getElementById('btnMetro').addEventListener('contextmenu', (e) => { e.preventDefault(); toggleLines(); });
+drawLines();
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
@@ -3163,6 +3199,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Lignes de métro et RER sur la carte, dans leurs couleurs : appui long sur M, ou {list-filter} Filtres → Lignes de métro et RER.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches de toi, avec le temps jusqu\'à chez toi depuis chacune ; la plus rapide est marquée.',
     'Boutons plus colorés : chaque bouton prend la teinte de sa famille. Le bouton « zoom sur ma position » disparaît : Ma position et direction fait déjà ce zoom.',
     'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
@@ -3186,7 +3223,7 @@ const HELP = [
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
-    'M la station de métro la plus proche.',
+    'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un lieu à faire.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
