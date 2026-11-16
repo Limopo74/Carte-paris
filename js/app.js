@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (110)';
+const VERSION = '16 novembre 2026 (111)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -44,6 +44,8 @@ const failingStorage = { getItem() { throw new Error(); }, setItem() { throw new
 let storage;
 try { storage = window.localStorage; storage.getItem('test'); } catch { storage = failingStorage; }
 
+// Mémoire vide au démarrage (aucun lieu jamais enregistré ici) : sert à repérer un lien ouvert hors de mon appli.
+const FRESH_STORAGE = (() => { try { return storage.getItem(KEY) == null; } catch { return true; } })();
 let state = loadState(storage);
 if (!state.ok) {
   // Données illisibles : on en garde une copie avant de réécrire par-dessus.
@@ -944,14 +946,37 @@ function addAtShared(s) {
   if (!s.address) reverseAddress(s.lat, s.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
 }
 
+/** Le lien s'est-il ouvert ailleurs que dans mon appli ? Navigateur intégré d'une appli (Messages, WhatsApp…),
+    ou navigateur dont la mémoire est vide : mes lieux n'y sont pas. */
+function outsideMyApp() {
+  return /; wv\)/.test(navigator.userAgent) || FRESH_STORAGE;
+}
+/** Avant d'enregistrer un lieu reçu dans un navigateur « jetable » : proposer de l'ouvrir dans Chrome, où est l'appli. */
+function linkGuard(link, hash, go) {
+  const target = `${location.host}${location.pathname}?ouvrir=${encodeURIComponent(hash.replace(/^#/, ''))}`;
+  const chrome = `intent://${target}#Intent;scheme=https;package=com.android.chrome;end`;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(link); toast('Lien copié : colle-le dans Chrome.'); } catch { prompt('Copie ce lien et colle-le dans Chrome :', link); }
+  };
+  openSheet([ico('triangle-alert'), ' Tu n\'es pas dans ton appli'], el('div', { class: 'stack' },
+    el('p', {}, 'Ce lien s\'est ouvert dans un navigateur qui ne connaît pas tes lieux (souvent celui de Messages ou de WhatsApp). Ce que tu enregistres ici risque d\'être perdu.'),
+    el('a', { class: 'btn primary', href: chrome }, 'Ouvrir dans Chrome'),
+    el('button', { type: 'button', class: 'btn c-info', onclick: copy }, ico('copy'), 'Copier le lien'),
+    el('button', { type: 'button', class: 'btn', onclick: go }, 'Continuer ici (je n\'ai pas l\'appli)'),
+    el('p', { class: 'help' }, 'Pour que les liens s\'ouvrent toujours dans ton appli : Aide → Ça ne marche pas ? → « Un lien reçu ouvre une carte vide ».'),
+  ), { name: 'linkguard' });
+}
+
 /** Lancé depuis un raccourci de l'icône ou un partage : l'adresse de la page dit quoi faire. */
 function runLaunchAction() {
-  const h = location.hash;
+  // « Ouvrir dans Chrome » (voir linkGuard) renvoie le lien dans ?ouvrir=… : on le remet à sa place
+  const reopened = new URLSearchParams(location.search).get('ouvrir');
+  const h = reopened ? `#${reopened}` : location.hash;
   const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h);
-  if (/(lieu|balade|rdv)=/.test(h)) history.replaceState(null, '', location.pathname + location.search);
-  if (shared) { receivePlace(shared); return; }
-  if (walk) { stationsReady.then(() => receiveRoute(walk)); return; }
-  if (meet) { receiveMeet(meet); return; }
+  const link = location.href;
+  if (/(lieu|balade|rdv)=/.test(h)) history.replaceState(null, '', location.pathname + (reopened ? '' : location.search));
+  const go = shared ? () => receivePlace(shared) : walk ? () => stationsReady.then(() => receiveRoute(walk)) : meet ? () => receiveMeet(meet) : null;
+  if (go) { if (!reopened && outsideMyApp()) linkGuard(link, h, go); else go(); return; }
   const q = new URLSearchParams(location.search);
   if (![...q.keys()].length) return;
   history.replaceState(null, '', location.pathname); // pour ne pas relancer l'action en rechargeant
@@ -4365,6 +4390,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
     '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
     '{send} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {send} envoie le lieu avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
     '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
@@ -4374,7 +4400,6 @@ const HELP = [
     '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
-    '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4495,6 +4520,7 @@ const HELP = [
   ['wrench', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io, et allume la Position du téléphone.',
     'Carte grise : vérifie internet, puis {settings} → Application → Recharger la carte.',
+    'Un lien reçu ouvre une carte vide : il s\'est ouvert dans le navigateur de Messages (ou de WhatsApp), qui ne connaît pas tes lieux. Appuie sur « Ouvrir dans Chrome ». Pour que ça n\'arrive plus : 1) Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome ; 2) Paramètres → Applis → Ma carte de Paris → Ouvrir par défaut : active « Ouvrir les liens compatibles » ; 3) dans Messages ou WhatsApp, si un réglage « Ouvrir les liens dans l\'appli » existe, désactive-le. Les noms exacts varient selon les téléphones.',
     'Perdu sur la carte : {locate-fixed} pour revenir sur toi, ou le bouton Paris (à réafficher dans {settings} → Boutons de la carte).',
     'Carte Épuré avec un filigrane ou vide : la clé CARTO manque ou est fausse. {settings} → La carte → Style → Clé CARTO.',
     'Une nouveauté n\'apparaît pas : {settings} → Application → Mettre à jour l\'appli.',
@@ -4535,12 +4561,12 @@ renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
-} else {
+} else if (!/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search)) { // pas par-dessus un lien reçu
   toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu. L\'aide est en tête des Réglages, en bas à gauche.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
 
-const launched = location.search.length > 1;
+const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
 runLaunchAction();
 if (!launched && state.ok && backupDue(state)) remindBackup();
 
