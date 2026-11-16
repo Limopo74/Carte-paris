@@ -406,3 +406,40 @@ function readExifGps(v, tiff) {
   if (!lat && !lng) return null;
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
 }
+
+/* ---------- Monuments historiques (Wikidata : protégés MH dans Paris, avec site officiel) ----------
+   Une seule requête pour tout Paris (aucune position envoyée), gardée sur le téléphone. */
+const HIST_SPARQL = `SELECT ?item ?itemLabel ?coord ?site ?merimee ?article WHERE {
+?item wdt:P380 ?merimee . FILTER(STRSTARTS(?merimee, "PA"))
+SERVICE wikibase:box { ?item wdt:P625 ?coord .
+bd:serviceParam wikibase:cornerSouthWest "Point(2.224 48.815)"^^geo:wktLiteral .
+bd:serviceParam wikibase:cornerNorthEast "Point(2.470 48.903)"^^geo:wktLiteral . }
+OPTIONAL { ?item wdt:P856 ?site }
+OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://fr.wikipedia.org/> }
+SERVICE wikibase:label { bd:serviceParam wikibase:language "fr,en". } }`;
+export const HIST_URL = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(HIST_SPARQL)}`;
+
+const safeUrl = (u) => (typeof u === 'string' && /^https?:\/\//i.test(u) ? u : '');
+
+/** Réponse Wikidata -> [{ id, name, lat, lng, site, merimee, wiki }], un seul par monument. */
+export function parseHist(json) {
+  const out = new Map();
+  for (const b of json?.results?.bindings ?? []) {
+    const id = String(b?.item?.value ?? '').split('/').pop();
+    const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b?.coord?.value ?? '');
+    const name = String(b?.itemLabel?.value ?? '');
+    if (!id || !m || !name || /^Q\d+$/.test(name)) continue; // sans nom français ni anglais : on saute
+    const prev = out.get(id);
+    const site = safeUrl(b?.site?.value);
+    if (prev) { if (!prev.site || (site.startsWith('https') && !prev.site.startsWith('https'))) prev.site = site || prev.site; continue; }
+    out.set(id, {
+      id, name, lat: Number(m[2]), lng: Number(m[1]), site,
+      merimee: /^PA\w+$/.test(b?.merimee?.value ?? '') ? b.merimee.value : '',
+      wiki: safeUrl(b?.article?.value),
+    });
+  }
+  return [...out.values()].filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+/** Fiche officielle du ministère de la Culture (base Mérimée, plateforme POP). */
+export const merimeeUrl = (ref) => `https://www.pop.culture.gouv.fr/notice/merimee/${ref}`;

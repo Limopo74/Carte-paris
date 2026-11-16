@@ -148,7 +148,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true,
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true,
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -190,7 +190,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), layoutV: 2, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), layoutV: 3, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true }));
     return true;
   } catch {
     return false;
@@ -314,7 +314,8 @@ export function deleteCategory(state, id, moveTo) {
 export const MAP_STYLES = ['classic', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
-export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom', 'velib', 'home'];
+// « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
+export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'paris', 'zoom', 'locate'];
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {

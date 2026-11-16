@@ -883,3 +883,17 @@ a.go, .item .go { background: var(--btn); color: var(--ink); border: 2px solid v
 :root[data-theme="dark"] a.go { color: var(--ink); background: var(--btn); }
 .menu-group { margin: 14px 2px 4px; } .menu-group:first-of-type { margin-top: 2px; }
 .badge .ico svg, .where .ico svg { width: 15px; height: 15px; } .badge .ico, .where .ico { flex: none; margin-right: 4px; vertical-align: -2px; }
+/* Monuments : une ligne de liens sous chaque monument */
+.item.item-col { flex-direction: column; align-items: stretch; gap: 6px; }
+.item-row { display: flex; gap: 8px; align-items: center; }
+.item-row .item-main { flex: 1; min-width: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
+.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: 6px; border: 1.5px solid var(--disc); color: var(--disc); background: var(--btn); font-family: var(--display); font-weight: 700; font-size: 13.5px; text-decoration: none; }
+.mini-link .ico svg { width: 16px; height: 16px; }
+
+/* Bouton « Ma position et direction » : plus grand, mis en valeur ; plaque pleine quand il est actif */
+#btnLocate { width: 58px; height: 58px; border-width: 3px; --fam: var(--ink); }
+#btnLocate .ico svg, #btnLocate svg { width: 26px; height: 26px; }
+#btnLocate[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); box-shadow: inset 0 0 0 2px var(--strong), inset 0 0 0 3.5px var(--plaque-line), 0 3px 0 var(--hard); }
+#btnLocate.paused { background: var(--btn); color: var(--ink); border-style: dashed; }
+:root[data-theme="dark"] #btnLocate[aria-pressed="true"] { color: #10131C; }

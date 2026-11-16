@@ -131,3 +131,20 @@ test('Vélib via Paris Data : OUI/NON, coordonnées, champs manquants', async ()
   assert.deepEqual(nearestVelib(list, { lat: 48.866, lng: 2.276 }).map((s) => s.id), ['16107']);
   assert.deepEqual(parseVelibParis(null), []);
 });
+
+test('monuments historiques : regroupe, garde le site https, ignore les sans-nom', async () => {
+  const { parseHist, HIST_URL, merimeeUrl } = await import('../js/explore.js');
+  assert.ok(HIST_URL.startsWith('https://query.wikidata.org/sparql?format=json&query='));
+  const b = (id, label, site, extra = {}) => ({ item: { value: `http://www.wikidata.org/entity/${id}` }, itemLabel: { value: label }, coord: { value: 'Point(2.3376 48.8606)' }, merimee: { value: 'PA00088801' }, ...(site ? { site: { value: site } } : {}), ...extra });
+  const list = parseHist({ results: { bindings: [
+    b('Q19675', 'Musée du Louvre', 'http://www.louvre.fr', { article: { value: 'https://fr.wikipedia.org/wiki/Mus%C3%A9e_du_Louvre' } }),
+    b('Q19675', 'Musée du Louvre', 'https://www.louvre.fr'),
+    b('Q999', 'Q999', null),
+    b('Q5', 'Piège', 'javascript:alert(1)'),
+  ] } });
+  assert.equal(list.length, 2);
+  assert.deepEqual(list[0], { id: 'Q19675', name: 'Musée du Louvre', lat: 48.8606, lng: 2.3376, site: 'https://www.louvre.fr', merimee: 'PA00088801', wiki: 'https://fr.wikipedia.org/wiki/Mus%C3%A9e_du_Louvre' });
+  assert.equal(list[1].site, ''); // lien non web refusé
+  assert.equal(merimeeUrl('PA00088801'), 'https://www.pop.culture.gouv.fr/notice/merimee/PA00088801');
+  assert.deepEqual(parseHist(null), []);
+});

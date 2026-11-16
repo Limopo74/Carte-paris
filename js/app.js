@@ -20,14 +20,14 @@ import { eventsUrl, parseEvents, nearbyEvents, whenText } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (52)';
+const VERSION = '16 novembre 2026 (53)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -447,7 +447,6 @@ function closeSheet(fromHistory = false) {
   draftLayer.clearLayers();
   nearLayer.clearLayers();
   if (moving) stopMove();
-  stopFollow();
   const cb = onSheetClose;
   onSheetClose = null;
   if (cb) cb();
@@ -1130,7 +1129,6 @@ function openSearch(initial = '') {
 let origin = null; // { lat, lng, acc, time, kind: 'gps' | 'last' | 'station', label }
 
 async function openNear() {
-  stopFollow();
   toast('Recherche de ta position… (quelques secondes pour plus de précision)');
   try {
     const fix = await locate();
@@ -1164,7 +1162,7 @@ function timeAgoShort(t) {
 }
 
 /** Choisir une station pour voir ce qu'il y a autour en sortant (sans GPS). */
-function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.lat, lng: st.lng, acc: 0, time: Date.now(), kind: 'station', label: st.n }; renderNear(true); }) {
+function openStationPicker(onPick = (st) => { origin = { lat: st.lat, lng: st.lng, acc: 0, time: Date.now(), kind: 'station', label: st.n }; renderNear(true); }) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : Opéra, Bastille…', 'aria-label': 'Nom de la station' });
   const list = el('ul', { class: 'results' });
   const run = () => {
@@ -1209,8 +1207,8 @@ function drawNear() {
   drawRings(nearLayer, lat, lng, nearRings(), ringText);
   if (kind === 'station') {
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
-  } else {
-    meMarker(lat, lng, kind === 'last').addTo(nearLayer);
+  } else if (!following) {
+    if (!following) meMarker(lat, lng, kind === 'last').addTo(nearLayer);
   }
 }
 
@@ -1233,19 +1231,19 @@ function renderNear(fit = false) {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
   body.push(el('div', { class: 'tools' },
-    origin.kind === 'gps'
-      ? tool('radio', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
-      : tool('refresh-cw', 'Ma position', openNear),
     tool('hourglass', 'Temps libre', () => openFreeTime()),
     tool('footprints', 'Chemin', () => openWayPicker()),
     tool('route', 'Parcours', () => openRoutePicker()),
     tool('calendar-days', 'Sorties', () => openEvents(), null, 'c-disc'),
     tool('shuffle', 'Surprise', () => surprise(), null, 'c-disc'),
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-disc'),
+    tool('landmark', 'Monuments', () => openMonuments(), null, 'c-disc'),
     tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
   ));
   body.push(el('div', { class: 'near-bar' },
-    origin.kind !== 'station' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?') : el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station')));
+    origin.kind === 'station' ? el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station')
+      : origin.kind === 'last' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openNear }, ico('refresh-cw'), 'Réessayer ma position')
+        : el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?')));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -1382,21 +1380,44 @@ function stopQuietNear() {
   quietId = null;
 }
 
+/* Mode « Ma position et direction » (bouton cible de la carte) : point bleu + cône tant qu'on ne rappuie pas,
+   la carte suit ; si on la déplace au doigt, elle arrête de suivre jusqu'au prochain appui. Écran allumé,
+   vibration à 100 m d'un lieu à faire. Tout reste sur le téléphone. */
+let trackFollow = true;
+function setLocateBtn() {
+  const b = document.getElementById('btnLocate');
+  b.setAttribute('aria-pressed', String(following));
+  b.classList.toggle('paused', following && !trackFollow);
+  b.setAttribute('aria-label', !following ? 'Afficher ma position et ma direction' : trackFollow ? 'Arrêter ma position et ma direction' : 'Recentrer sur ma position');
+}
 function startFollow() {
-  if (!('geolocation' in navigator)) return;
+  if (!('geolocation' in navigator)) { toast('Ce téléphone ne donne pas sa position.', true); return; }
   stopQuietNear();
   following = true;
+  trackFollow = true;
+  setLocateBtn();
   walkPrev = null;
   walkSession = 0;
   signaled.clear();
-  for (const p of newlyNear(visible(), origin, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
+  let first = true;
   keepScreenOn(true);
+  toast('Recherche de ta position…');
   followId = navigator.geolocation.watchPosition((pos) => {
     const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
-    if (fix.acc > 150) return; // trop imprécis pour suivre
+    if (fix.acc > 150 && !first) return; // trop imprécis pour suivre
+    if (first) {
+      first = false;
+      for (const p of newlyNear(visible(), fix, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
+      map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), ZOOM_RUE), { animate: false });
+      toast(`Position et direction activées${fix.acc > 100 ? ` (à ${Math.round(fix.acc)} m près)` : ''}. Rappuie sur le bouton pour arrêter.`);
+    } else if (trackFollow) {
+      map.panTo([fix.lat, fix.lng], { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
+    }
+    meShown = fix;
+    drawMe();
     countWalk(fix);
     remember(fix);
-    origin = { ...fix, kind: 'gps' };
+    if (view === 'near' && origin?.kind === 'gps') origin = { ...fix, kind: 'gps' };
     const alerts = newlyNear(visible(), fix, signaled, 100);
     for (const p of alerts) signaled.add(p.id);
     if (alerts.length) {
@@ -1405,29 +1426,32 @@ function startFollow() {
       speak(alerts.map((p) => `${p.name}, à ${spokenDistance(distanceM(fix, p))}`).join('. '));
     }
     const moved = distanceM(fix, lastRender);
-    if (view === 'near' && (moved > 15 || Date.now() - lastRender.t > 15000)) {
+    if (view === 'near' && origin?.kind === 'gps' && (moved > 15 || Date.now() - lastRender.t > 15000)) {
       lastRender = { t: Date.now(), lat: fix.lat, lng: fix.lng };
       const keep = sheetBody.scrollTop;
       renderNear();
       sheetBody.scrollTop = keep;
-      map.panTo([fix.lat, fix.lng], { animate: true });
     }
-  }, () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
-  renderNear();
-  toast('Suivi activé : écran allumé, vibration à 100 m d\'un lieu à faire.');
-  speak('Suivi activé. Je te préviens à 100 mètres d\'un lieu à faire.');
+  }, (e) => {
+    if (first) { stopFollow(); toast(e.code === 1 ? 'Position refusée : autorise-la dans les réglages du navigateur.' : 'Position introuvable pour l\'instant. Réessaie dehors.', true); }
+  }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 30000 });
 }
 
-function stopFollow(rerender = false) {
+function stopFollow() {
   if (followId != null) navigator.geolocation.clearWatch(followId);
   followId = null;
   if (!following) return;
   following = false;
+  meShown = null;
+  drawMe();
+  setLocateBtn();
   persist(); // garde le compteur de marche
   keepScreenOn(false);
   silence();
-  if (rerender && view === 'near') renderNear();
+  if (view === 'near') renderNear();
 }
+// Déplacer la carte au doigt met le suivi en pause (le point et le cône restent)
+map.on('dragstart', () => { if (following && trackFollow) { trackFollow = false; setLocateBtn(); } });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && (following || compassOpen)) keepScreenOn(true);
@@ -1698,7 +1722,7 @@ async function showVelib(at = null) {
     el('p', { class: 'help' }, 'Données Vélib\' Métropole en temps réel, à quelques minutes près.'),
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
-  meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#0b6f80', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
@@ -1887,7 +1911,7 @@ async function openEvents() {
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
-  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
   for (const e of list) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
@@ -2093,7 +2117,7 @@ function openFreeTime() {
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'freetime', again: openFreeTime });
   nearLayer.clearLayers();
-  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
   if (plan.route.length) {
     const line = [origin, ...plan.route, origin].map((p) => [p.lat, p.lng]);
     L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
@@ -2149,8 +2173,59 @@ async function openCuriosities() {
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
-  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
   for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+}
+
+/* ---------- Monuments historiques (Wikidata, protégés MH) ---------- */
+
+const HIST_KEY = 'carte-paris.monuments';
+let histList = null;
+async function monuments() {
+  if (histList) return histList;
+  try { const c = JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null'); if (c && Date.now() - c.t < 30 * 864e5 && c.list?.length) histList = c.list; } catch { /* rien */ }
+  if (histList) return histList;
+  const r = await fetch(HIST_URL, { headers: { Accept: 'application/sparql-results+json' } });
+  if (!r.ok) throw new Error('wikidata');
+  histList = parseHist(await r.json());
+  try { localStorage.setItem(HIST_KEY, JSON.stringify({ t: Date.now(), list: histList })); } catch { /* stockage plein : on garde en mémoire */ }
+  return histList;
+}
+
+async function openMonuments() {
+  if (!origin) { openNear(); return; }
+  const title = [ico('landmark'), ' Monuments historiques'];
+  let all;
+  if (!histList) openSheet(title, el('p', { class: 'help' }, 'Chargement des monuments de Paris (la première fois seulement)…'), { name: 'hist' });
+  try { all = await monuments(); } catch {
+    openSheet(title, el('div', { class: 'stack' },
+      el('p', { class: 'warn' }, 'La base des monuments ne répond pas. Réessaie dans un moment.'),
+      el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')), { name: 'hist' });
+    return;
+  }
+  const items = all.map((m) => ({ ...m, d: distanceM(origin, m) })).filter((m) => m.d <= 1000).sort((a, b) => a.d - b.d).slice(0, 25);
+  const have = (m) => findDuplicate(state.points, { name: m.name, lat: m.lat, lng: m.lng });
+  const link = (href, icon, label, aria) => el('a', { class: 'mini-link', href, target: '_blank', rel: 'noopener', 'aria-label': aria }, ico(icon), label);
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, items.length ? `${plural(items.length, 'monument protégé', 'monuments protégés')} à moins de 1 km, du plus proche au plus loin.` : 'Aucun monument historique à moins de 1 km.'),
+    el('ul', { class: 'items' }, items.map((m) => el('li', { class: 'item item-col' },
+      el('div', { class: 'item-row' },
+        el('div', { class: 'item-main' },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`))),
+        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
+        have(m) ? null : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${m.name} à ma carte`, onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, acc: null }) }, ico('plus'))),
+      el('div', { class: 'links' },
+        m.site ? link(m.site, 'send', 'Site officiel', `Site officiel de ${m.name} (visites, billets)`) : null,
+        m.merimee ? link(merimeeUrl(m.merimee), 'landmark', 'Fiche Culture', `Fiche du ministère de la Culture : ${m.name}`) : null,
+        m.wiki ? link(m.wiki, 'book-open-text', 'Wikipédia', `Article Wikipédia : ${m.name}`) : null)))),
+    el('p', { class: 'help' }, 'Billets et horaires : sur le site officiel quand il existe. Sources : Wikidata (CC0) et base Mérimée du ministère de la Culture. La liste de Paris est téléchargée une fois par mois ; ta position n\'est pas envoyée.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
+  ), { tall: true, name: 'hist', again: openMonuments });
+  nearLayer.clearLayers();
+  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  for (const m of items) L.circleMarker([m.lat, m.lng], { radius: 7, color: '#A54A28', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (items.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], ...items.slice(0, 8).map((m) => [m.lat, m.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
 /* ---------- Boussole « Vers ce lieu » ---------- */
@@ -2695,7 +2770,7 @@ function remindBackup() {
 
 /* ---------- Actualiser : ma position, la carte, l'appli ---------- */
 
-// Bouton ◎ : ma position avec les cercles de temps à pied (5, 10, 15, 20 min…). Un second appui les retire.
+// Bouton ◎ : ma position et ma direction, qui restent jusqu'au prochain appui (voir startFollow).
 let meShown = null; // { lat, lng } quand les cercles sont affichés
 
 function drawMe() {
@@ -2703,33 +2778,20 @@ function drawMe() {
   if (!meShown) return;
   const { lat, lng, acc } = meShown;
   if (acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
-  const radii = state.minuteRings.map(minutesToMeters);
-  drawRings(meLayer, lat, lng, radii, (r) => `${state.minuteRings[radii.indexOf(r)]} min`);
-  meMarker(lat, lng).addTo(meLayer);
+  meMarker(lat, lng).addTo(meLayer); // point + cône seulement : les cercles de temps sont dans Autour de moi
 }
 
-async function locateOnMap() {
-  const btn = document.getElementById('btnLocate');
-  if (meShown) {
-    meShown = null;
-    drawMe();
-    btn.setAttribute('aria-pressed', 'false');
-    toast('Cercles retirés');
+function locateOnMap() {
+  if (!following) { startFollow(); return; }
+  if (!trackFollow) {
+    trackFollow = true;
+    setLocateBtn();
+    if (meShown) map.setView([meShown.lat, meShown.lng], Math.max(map.getZoom(), 16), { animate: false });
+    toast('La carte te suit à nouveau. Rappuie pour arrêter.');
     return;
   }
-  toast('Recherche de ta position…');
-  try {
-    const fix = await locate();
-    hideToast();
-    meShown = fix;
-    const maxR = minutesToMeters(state.minuteRings.at(-1));
-    map.fitBounds(L.latLng(fix.lat, fix.lng).toBounds(maxR * 2), { paddingTopLeft: [10, 60], paddingBottomRight: [70, 90], animate: false });
-    drawMe();
-    btn.setAttribute('aria-pressed', 'true');
-    toast(`Cercles à pied : ${state.minuteRings.map((m) => `${m} min`).join(' · ')} (à ${Math.round(fix.acc)} m près)`);
-  } catch (e) {
-    toast(e.message, true);
-  }
+  stopFollow();
+  toast('Position et direction arrêtées');
 }
 
 /** Zoom automatique sur ma position, au niveau de la rue (17 : environ 280 m de large sur un téléphone). */
@@ -2815,7 +2877,7 @@ function renderMetroPlan(p, from, back) {
     back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
   ), { name: `plan:${p.id}`, again: () => renderMetroPlan(p, from, back) });
   nearLayer.clearLayers();
-  meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng], [p.lat, p.lng]];
   if (plan.type !== 'walk') {
     const chain = [from, plan.start, ...(plan.type === 'transfer' ? [plan.via] : []), plan.end, p];
@@ -2876,7 +2938,7 @@ function showNearestMetro(from, note = null) {
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [st.lat, st.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
-  meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   for (const { station: o } of others) {
     L.marker([o.lat, o.lng], { interactive: false, keyboard: false, zIndexOffset: 1500, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin small">M</span>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(nearLayer);
   }
@@ -2949,7 +3011,7 @@ function showPratique(from, fs, ts, cs = []) {
     el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées.'),
   ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
   nearLayer.clearLayers();
-  meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng]];
   for (const [list, icon] of [[fs, '🚰'], [ts, '🚻'], [cs, '🌳']]) {
     list.forEach(({ item }, i) => {
@@ -2972,7 +3034,7 @@ document.getElementById('btnHome').addEventListener('click', goHome);
 const TOOL_INFO = {
   pratique: { el: 'btnPratique', icon: 'droplets', name: 'Fontaine et toilettes' },
   metro: { el: 'btnMetro', icon: 'Ⓜ', name: 'Métro le plus proche' },
-  locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et cercles de temps' },
+  locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et direction' },
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   zoom: { el: 'btnZoomMe', icon: 'zoom-in', name: 'Zoom sur ma position' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
@@ -3021,6 +3083,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
     'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu émail = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
     'Fiche d\'un lieu plus courte : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus sur une seule rangée. Réglages rangés en 3 groupes. Épingles en goutte qui pointent le lieu exact.',
     '{thermometer-sun} Température et qualité de l\'air en haut à gauche de la carte. {store} Marchés du jour : dans {list-filter} Filtres et dans Sorties.',
@@ -3040,10 +3103,9 @@ const HELP = [
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche.',
-    '{locate-fixed} ta position avec les cercles de temps à pied. Encore un appui pour les retirer.',
-    'Le faisceau bleu autour de ton point montre la direction où tu regardes (si ton téléphone a une boussole).',
-    'Paris : revenir au centre de Paris.',
-    '{zoom-in} zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
+    '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un lieu à faire.',
+    'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
+    'Cachés au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre) et {zoom-in} zoom sur ta position.',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{house} Rentrer : quel métro prendre vers ta station Maison (ou Travail…). Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
@@ -3068,7 +3130,7 @@ const HELP = [
   ]],
   ['map-pinned', 'Autour de moi', [
     'Tes lieux rangés par cercles, du plus proche au plus loin.',
-    '{radio} Suivre : les cercles te suivent ; le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
+    '{landmark} Monuments : les monuments historiques protégés à moins de 1 km, avec leur site officiel (visites, billets), la fiche du ministère de la Culture et Wikipédia.',
     '{hourglass} Temps libre : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
     '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. Tes lieux atteints sont notés « déjà visité ».',
     '{footprints} Chemin : tes lieux à faire sur ton trajet. {route} Parcours : 2 à 4 lieux dans le meilleur ordre.',
