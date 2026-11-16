@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (89)';
+const VERSION = '16 novembre 2026 (90)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -935,7 +935,7 @@ function starPicker(value, onPick) {
 
 function openForm(draft, existing = null) {
   const firstCat = filterCats.size === 1 ? [...filterCats][0] : state.categories[0].id;
-  const v = existing ?? { name: draft.name ?? '', cat: draft.cat ?? firstCat, note: draft.note ?? '', done: false, fav: favOnly, address: draft.address, stars: draft.stars ?? 0 };
+  const v = existing ?? { name: draft.name ?? '', cat: draft.cat ?? firstCat, note: draft.note ?? '', done: draft.done ?? false, fav: draft.fav ?? favOnly, address: draft.address, stars: draft.stars ?? 0, covered: draft.covered, lists: draft.lists };
   let cat = v.cat;
   let done = v.done;
   let fav = v.fav;
@@ -966,7 +966,8 @@ function openForm(draft, existing = null) {
   const err = el('div', { class: 'error', role: 'alert' });
 
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
-  const catSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Catégorie' });
+  // Nouveau lieu : les catégories sur une seule ligne qui défile, pour laisser de la place à la carte.
+  const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
     segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); })));
   drawCats();
@@ -982,11 +983,16 @@ function openForm(draft, existing = null) {
     draft.address = label;
     if (!v.address && whereText.isConnected) whereText.textContent = label;
   };
-  const accWarn = draft.acc > 100
-    ? el('p', { class: 'warn' }, `Position peu précise (à ${Math.round(draft.acc)} m près). Le point peut être mal placé : tu pourras le déplacer depuis sa fiche.`)
+  const accWarn = existing ? null : draft.acc > 100
+    ? el('p', { class: 'warn' }, `Position peu précise (à ${Math.round(draft.acc)} m près). Vérifie le point sur la carte, et touche « Ajuster » s'il est mal placé.`)
     : draft.rough
-      ? el('p', { class: 'warn' }, `${draft.rough}. Vérifie sur la carte ; tu pourras le déplacer depuis sa fiche (⋯ Plus → Déplacer).`)
+      ? el('p', { class: 'warn' }, `${draft.rough}. Vérifie le point sur la carte, et touche « Ajuster » s'il est mal placé.`)
       : null;
+  /** Ajuster la position d'un nouveau lieu sur toute la carte, sans perdre ce qui est déjà rempli. */
+  const adjust = () => {
+    Object.assign(draft, { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists] });
+    startDraftMove(draft);
+  };
 
   const save = () => {
     const n = name.value.trim();
@@ -1019,11 +1025,8 @@ function openForm(draft, existing = null) {
     if (ok && !existing && unsavedCount(state) > 0 && unsavedCount(state) % 10 === 0) setTimeout(remindBackup, 1500);
   };
 
-  openSheet(existing ? 'Modifier le lieu' : 'Nouveau lieu', el('div', { class: 'stack' },
-    el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), whereText),
-    accWarn,
-    el('label', { class: 'field' }, 'Nom', name),
-    el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
+  // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
+  const details = [
     el('label', { class: 'field' }, 'Note (facultatif)', note),
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
     el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
@@ -1031,13 +1034,27 @@ function openForm(draft, existing = null) {
       el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
     el('label', { class: 'item-main check-row' }, coveredBox,
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
+  ];
+  const filled = Boolean(v.note || v.done || (v.fav && !favOnly) || stars || covered || lists.size);
+  openSheet(existing ? 'Modifier le lieu' : 'Nouveau lieu', el('div', { class: 'stack' },
+    el('div', { class: 'where-row' },
+      el('p', { class: 'where' }, el('span', { 'aria-hidden': 'true' }, '📍'), whereText),
+      existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
+    accWarn,
+    el('label', { class: 'field' }, 'Nom', name),
+    el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
+    existing ? el('div', { class: 'stack' }, ...details)
+      : el('details', { class: 'help-item form-more', open: filled },
+        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, état, listes…')),
+        el('div', { class: 'stack' }, ...details)),
     err,
-    el('div', { class: 'row' },
+    foot(el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer')),
-  ), { tall: true, name: 'form' });
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
+  ), { tall: Boolean(existing), name: 'form', ...(existing ? {} : { again: () => openForm(draft) }) }); // retour Android depuis « Ajuster » : la fiche revient remplie
 
   showDraft(existing ? existing.lat : draft.lat, existing ? existing.lng : draft.lng);
+  if (!existing) catSeg.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   if (!existing && !v.name) name.focus({ preventScroll: true });
 }
 
@@ -1362,6 +1379,27 @@ function startMove(p, back) {
   ), { name: 'move' });
   renderMarkers();
   centerOn(p.lat, p.lng, Math.max(map.getZoom(), 17));
+  crosshair.style.top = `${crosshairY()}px`;
+  crosshair.hidden = false;
+}
+
+/** Nouveau lieu : placer le point avec le viseur sur toute la carte, puis revenir à la fiche, déjà remplie. */
+function startDraftMove(draft) {
+  moving = { draft: true };
+  draftLayer.clearLayers();
+  openSheet('Ajuster la position', el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Fais glisser la carte pour mettre le viseur à la bonne place.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => { stopMove(); openForm(draft); } }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn primary', onclick: () => {
+        const ll = map.containerPointToLatLng([map.getSize().x / 2, crosshairY()]);
+        stopMove();
+        Object.assign(draft, { lat: Math.round(ll.lat * 1e6) / 1e6, lng: Math.round(ll.lng * 1e6) / 1e6, address: '', acc: null, rough: null });
+        openForm(draft);
+        reverseAddress(draft.lat, draft.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
+      } }, 'Valider ici')),
+  ), { name: 'move' });
+  centerOn(draft.lat, draft.lng, Math.max(map.getZoom(), 17));
   crosshair.style.top = `${crosshairY()}px`;
   crosshair.hidden = false;
 }
@@ -4022,6 +4060,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{plus} Nouveau lieu : fiche plus courte (nom, catégorie, Enregistrer), le reste dans « Plus de détails ». La carte garde beaucoup plus de place. « Ajuster » place le point avec le viseur sur toute la carte, puis revient à la fiche sans rien perdre.',
     '{search} Chercher un nom ou une adresse dans l\'annuaire : seulement dans Paris et les départements voisins (Hauts-de-Seine, Seine-Saint-Denis, Val-de-Marne). Plus de résultats à Lyon ou à Orléans. L\'import de listes et le partage depuis une autre appli cherchent toujours partout.',
     '{calendar-days} Sorties du jour, nouvelle allure : la sortie en cours la plus proche en grande plaque, puis « En ce moment » et « Plus tard aujourd\'hui ». Chaque carte a une icône de genre (musique, spectacle, cinéma, balade, en famille…), le temps à pied, et ses boutons dedans. Un marché déjà fini n\'apparaît plus.',
     '{users} Lieux de tes proches : leur épingle porte l\'initiale de la personne (« M » pour Marie). Tu vois à qui est un lieu sans ouvrir sa fiche ni filtrer.',

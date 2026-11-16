@@ -1193,3 +1193,15 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev.feat .ev-main:focus-visible { outline-color: currentColor; }
 
 .week-items.ev-list { padding: 0 0 10px; }
+
+/* ---- Nouveau lieu : fiche courte (v90) — la carte garde environ la moitié de l'écran ---- */
+.where-row { display: flex; align-items: center; gap: 10px; }
+.where-row .where { flex: 1; min-width: 0; }
+.where-adjust { flex: none; width: auto; min-height: 44px; padding: 0 12px; }
+.seg.seg-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 2px 18px 4px; scroll-padding: 0 18px; }
+.seg.seg-scroll::-webkit-scrollbar { display: none; }
+.seg.seg-scroll button { flex: none; padding: 6px 14px; }
+.form-more summary { min-height: 48px; }
+.form-more summary .help-title { flex: none; }
+.form-more-sub { flex: 1; min-width: 0; color: var(--muted); font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.form-more > .stack { padding: 4px 14px 14px; }
