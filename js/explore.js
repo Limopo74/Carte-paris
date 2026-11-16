@@ -13,6 +13,7 @@ const r5 = (x) => Math.round(x * 1e5) / 1e5;
 export function placeLink(base, p, catName = '', catIcon = '', { invite = false } = {}) {
   const o = { v: 1, n: p.name, y: r5(p.lat), x: r5(p.lng) };
   if (invite && Number.isFinite(p.ticket?.at)) o.t = Math.round(p.ticket.at / 60000); // invitation : jour et heure, à la minute
+  if (invite && typeof invite === 'string') o.w = invite.slice(0, 30); // invitation : le prénom de qui invite
   if (p.address) o.a = p.address;
   if (catName) o.c = catName;
   if (catIcon) o.i = catIcon;
@@ -35,8 +36,9 @@ export function readPlaceLink(hash) {
     const stars = Number.isInteger(o.s) && o.s >= 1 && o.s <= 5 ? o.s : 0;
     const at = Number.isInteger(o.t) ? o.t * 60000 : NaN; // invitation : gardée seulement si elle n'est pas déjà passée (ni absurde)
     const ticketAt = at > Date.now() - 864e5 && at < Date.now() + 400 * 864e5 ? at : null;
+    const withName = ticketAt && typeof o.w === 'string' ? o.w.trim().slice(0, 30) : '';
     return {
-      name, lat, lng, stars, ticketAt,
+      name, lat, lng, stars, ticketAt, withName,
       address: String(o.a ?? '').slice(0, 200), catName: String(o.c ?? '').slice(0, 30), catIcon: String(o.i ?? ''),
       note: String(o.o ?? '').slice(0, 300), hours: String(o.h ?? '').slice(0, 300),
     };
@@ -271,6 +273,33 @@ export function meteoUrl(lat = 48.857, lng = 2.352) {
   const u = new URL('https://api.open-meteo.com/v1/forecast');
   u.search = new URLSearchParams({ latitude: lat.toFixed(2), longitude: lng.toFixed(2), current: 'precipitation,weather_code,temperature_2m', timezone: 'Europe/Paris' });
   return u.toString();
+}
+
+/** Prévisions jour par jour pour Paris (centre de Paris : aucune position n'est envoyée), 8 jours. */
+export function forecastUrl() {
+  const u = new URL('https://api.open-meteo.com/v1/forecast');
+  u.search = new URLSearchParams({ latitude: '48.86', longitude: '2.35', daily: 'weather_code,temperature_2m_max,precipitation_probability_max', forecast_days: '8', timezone: 'Europe/Paris' });
+  return u.toString();
+}
+/** { 'AAAA-MM-JJ': { rain, prob, tmax } } d'après la réponse (objet vide si illisible). */
+export function readForecast(json) {
+  const d = json?.daily;
+  const out = {};
+  if (!d || !Array.isArray(d.time)) return out;
+  d.time.forEach((day, i) => {
+    if (typeof day !== 'string') return;
+    const prob = Number(d.precipitation_probability_max?.[i]);
+    const tmax = Number(d.temperature_2m_max?.[i]);
+    out[day] = { prob: Number.isFinite(prob) ? prob : null, tmax: Number.isFinite(tmax) ? Math.round(tmax) : null, rain: RAIN.has(Number(d.weather_code?.[i])) };
+  });
+  return out;
+}
+/** Ce qui compte pour une sortie ce jour-là : pluie (sauf lieu abrité) ou chaleur. '' si rien à signaler. */
+export function planWeather(f, covered = false) {
+  if (!f) return '';
+  const wet = !covered && ((f.prob ?? 0) >= 50 || (f.rain && (f.prob ?? 50) >= 40));
+  const hot = (f.tmax ?? 0) >= 28;
+  return [wet ? `Pluie probable${f.prob != null ? ` (${f.prob} %)` : ''}` : '', hot ? `Chaud : ${f.tmax}°` : ''].filter(Boolean).join(' · ');
 }
 
 const RAIN = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]);

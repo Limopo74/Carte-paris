@@ -489,3 +489,14 @@ test('import du fichier d\'un proche : ses lieux arrivent, ses billets non (ma s
   const mine = mergeImport(base(), text, '');
   assert.equal(mine.state.points[0].ticket.at, at);
 });
+
+test('Mon billet : « avec qui » est gardé, coupé à 40 signes, vide = absent', () => {
+  const s0 = base();
+  const at = Date.now() + 864e5;
+  const a = { ...sample(), id: 'a1', ticket: { at, with: '  Léa  ' } };
+  const b = { ...sample(), id: 'b1', name: 'Autre', lat: 48.87, ticket: { at, with: '   ' } };
+  const text = JSON.stringify({ app: 'carte-paris', version: 2, points: [a, b] });
+  const r = mergeImport(s0, text, '');
+  assert.equal(r.state.points.find((p) => p.id === 'a1').ticket.with, 'Léa');
+  assert.equal(r.state.points.find((p) => p.id === 'b1').ticket.with, undefined);
+});

@@ -157,3 +157,21 @@ test('invitation à une sortie : le jour et l\'heure passent par le lien, seulem
   const old = { ...p, ticket: { at: Date.now() - 3 * 864e5 } };
   assert.equal(readPlaceLink(new URL(placeLink('https://x/', old, '', '', { invite: true })).hash).ticketAt, null, 'une sortie passée n\'est pas reprise');
 });
+
+test('météo du planning : Paris entier (aucune position), pluie sauf lieu abrité, chaleur', async () => {
+  const { forecastUrl, readForecast, planWeather } = await import('../js/explore.js');
+  assert.match(forecastUrl(), /latitude=48\.86&longitude=2\.35/);
+  const f = readForecast({ daily: { time: ['2026-11-20', '2026-11-21'], weather_code: [61, 0], temperature_2m_max: [9.4, 30.2], precipitation_probability_max: [80, 5] } });
+  assert.equal(planWeather(f['2026-11-20']), 'Pluie probable (80 %)');
+  assert.equal(planWeather(f['2026-11-20'], true), '', 'lieu abrité : la pluie ne compte pas');
+  assert.equal(planWeather(f['2026-11-21']), 'Chaud : 30°');
+  assert.equal(planWeather(undefined), '');
+  assert.deepEqual(readForecast(null), {});
+});
+
+test('invitation : le prénom de qui invite passe avec la date', () => {
+  const at = new Date(Date.now() + 864e5).setSeconds(0, 0);
+  const r = readPlaceLink(new URL(placeLink('https://x/', { name: 'Rex', lat: 48.87, lng: 2.35, ticket: { at } }, '', '', { invite: 'Camille' })).hash);
+  assert.equal(r.withName, 'Camille');
+  assert.equal(r.ticketAt, at);
+});

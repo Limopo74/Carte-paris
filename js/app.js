@@ -25,14 +25,14 @@ import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKi
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (109)';
+const VERSION = '16 novembre 2026 (110)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -703,6 +703,14 @@ function dayNote(now = new Date()) {
   return null;
 }
 
+/** À quelle heure partir pour un billet : à pied, ou en métro si c'est à plus de 25 min (calcul sur le téléphone). */
+function departureFor(p, pos) {
+  if (!pos) return { leave: null, travel: null, how: '' };
+  let travel = walkMinutes(distanceM(pos, p)); let how = 'à pied';
+  if (travel > 25 && stations.length) { const plan = metroPlan(stations, pos, p, 3); if (plan.type !== 'walk') { travel = plan.minutes; how = 'en métro'; } }
+  return { leave: leaveAt(p.ticket.at, travel), travel, how };
+}
+
 /* « Maintenant » : sur la carte, le lieu le plus proche et ouvert (15 min à pied au plus).
    Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
 function updateNow(force = false) {
@@ -714,14 +722,8 @@ function updateNow(force = false) {
   // Mon billet du jour passe avant tout : à quelle heure partir (à pied, ou en métro si c'est loin)
   const tk = nowHidden ? null : ticketToday(state.points);
   if (tk) {
-    let travel = null; let how = '';
-    if (pos) {
-      const d = distanceM(pos, tk);
-      travel = walkMinutes(d); how = 'à pied';
-      if (travel > 25 && stations.length) { const plan = metroPlan(stations, pos, tk, 3); if (plan.type !== 'walk') { travel = plan.minutes; how = 'en métro'; } }
-    }
     const at = tk.ticket.at;
-    const leave = travel != null ? leaveAt(at, travel) : null;
+    const { leave, travel, how } = departureFor(tk, pos);
     card.hidden = false;
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `Ton billet · ${hmText(new Date(at))}`),
@@ -1061,7 +1063,7 @@ function openForm(draft, existing = null) {
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
           el('div', { class: 'row', style: 'margin-top:8px' },
             Number.isFinite(draft.ticketAt)
-              ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = { at: draft.ticketAt }; persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${ticketText(draft.ticketAt)}`); } }, 'Noter sur ce lieu')
+              ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = { at: draft.ticketAt, ...(draft.ticketWith ? { with: draft.ticketWith } : {}) }; persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${ticketText(draft.ticketAt)}`); } }, 'Noter sur ce lieu')
               : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
             el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
         err.scrollIntoView({ block: 'nearest' });
@@ -1074,7 +1076,7 @@ function openForm(draft, existing = null) {
       setDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
-      if (Number.isFinite(draft.ticketAt)) np.ticket = { at: draft.ticketAt }; // sortie datée ajoutée depuis Sorties : son heure va dans Mon planning
+      if (Number.isFinite(draft.ticketAt)) np.ticket = { at: draft.ticketAt, ...(draft.ticketWith ? { with: draft.ticketWith } : {}) }; // sortie datée (Sorties, invitation) : elle va dans Mon planning
       state.points.push(np);
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
@@ -1102,7 +1104,7 @@ function openForm(draft, existing = null) {
       el('p', { class: 'where' }, ico('map-pin'), whereText),
       existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
     accWarn,
-    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('calendar-clock'), ` Sortie ${ticketText(draft.ticketAt)} : elle ira dans Mon planning.`) : null,
+    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('calendar-clock'), ` Sortie ${ticketText(draft.ticketAt)}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
@@ -1408,13 +1410,14 @@ function openTicket(p, back = null) {
   const today = new Date();
   const date = el('input', { type: 'date', value: d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` : `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}` });
   const time = el('input', { type: 'time', value: d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : '' });
+  const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: p.ticket?.with ?? '' });
   const err = el('div', { class: 'error', role: 'alert' });
   const done = () => (back ? openDetail(p.id, back) : openDetail(p.id));
   const save = () => {
     const [y, mo, da] = date.value.split('-').map(Number);
     const [h, mi] = time.value.split(':').map(Number);
     if (!y || !Number.isFinite(h)) { err.textContent = 'Choisis le jour et l\'heure du billet.'; return; }
-    p.ticket = { at: new Date(y, mo - 1, da, h, mi || 0).getTime() };
+    p.ticket = { at: new Date(y, mo - 1, da, h, mi || 0).getTime(), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}) };
     persist(); updateNow(true);
     toast(`Billet noté : ${ticketText(p.ticket.at)}`);
     done();
@@ -1422,6 +1425,7 @@ function openTicket(p, back = null) {
   openSheet([ico('ticket'), ` Mon billet · ${p.name}`], el('div', { class: 'stack' },
     el('label', { class: 'field' }, 'Jour', date),
     el('label', { class: 'field' }, 'Heure du créneau', time),
+    el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
     err,
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('ticket'), 'Enregistrer le billet'),
     p.ticket ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p) }, ico('send'), 'Inviter un proche') : null,
@@ -2026,8 +2030,8 @@ async function sharePlace(p) {
 async function invitePlace(p) {
   if (!Number.isFinite(p.ticket?.at)) return;
   const c = catOf(p.cat);
-  const url = placeLink(location.href, p, c.name, c.icon, { invite: true });
-  const text = `On y va ${ticketText(p.ticket.at)} ? ${p.name}${p.address ? ` — ${p.address}` : ''}`;
+  const url = placeLink(location.href, p, c.name, c.icon, { invite: (state.me ?? '').trim() || true });
+  const text = `On y va ${ticketText(p.ticket.at)} ?${p.ticket.with ? ` (avec ${p.ticket.with})` : ''} ${p.name}${p.address ? ` — ${p.address}` : ''}`;
   try {
     if (navigator.share) { await navigator.share({ title: p.name, text, url }); return; }
   } catch (e) { if (e?.name === 'AbortError') return; }
@@ -2037,7 +2041,7 @@ async function invitePlace(p) {
 /** Un lien reçu : on montre le lieu et on propose de l'ajouter (catégorie du même nom si elle existe). */
 function receivePlace(r) {
   const cat = state.categories.find((c) => fold(c.name) === fold(r.catName))?.id;
-  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null, ticketAt: r.ticketAt ?? undefined });
+  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null, ticketAt: r.ticketAt ?? undefined, ticketWith: r.withName || undefined });
   toast(r.ticketAt ? `Invitation : ${ticketText(r.ticketAt)}. Enregistre pour l'avoir dans Mon planning.` : 'Lieu reçu par un lien : vérifie et enregistre.');
 }
 
@@ -2251,10 +2255,36 @@ function updatePlanningCount() {
   c.hidden = !n;
   b.setAttribute('aria-label', n ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Mon planning : aucune sortie prévue');
 }
+/** Ce que la ligne d'une sortie doit dire en plus : départ (aujourd'hui), lieu fermé à cette heure-là, météo du jour. */
+function planInfo(p) {
+  const at = new Date(p.ticket.at);
+  const out = [];
+  const st = p.hours ? openState(p.hours, at) : null;
+  if (st && !st.open) out.push(el('span', { class: 'plan-note bad' }, ico('clock'), ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
+  if (daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
+    const { leave, travel, how } = departureFor(p, freshHere());
+    if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`));
+  }
+  const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+  const w = planWeather(forecast?.days?.[key], p.covered);
+  if (w) out.push(el('span', { class: 'plan-note' }, ico(w.startsWith('Pluie') ? 'cloud-rain' : 'thermometer-sun'), ` ${w}`));
+  return out;
+}
+/* Prévisions de Paris pour le planning : centre de Paris (aucune position envoyée), gardées 3 heures. */
+let forecast = null;
+function loadForecast() {
+  if (!navigator.onLine || (forecast && Date.now() - forecast.time < 3 * 3600e3)) return;
+  forecast = { time: Date.now(), days: forecast?.days ?? {} };
+  fetch(forecastUrl()).then((r) => (r.ok ? r.json() : null)).then((j) => {
+    forecast = { time: Date.now(), days: readForecast(j) };
+    if (view === 'planning') openPlanning();
+  }).catch(() => {});
+}
 let planningBack = 'myparis'; // d'où l'on vient : la carte (bouton de la colonne) ou Mon Paris
 function openPlanning(from = null) {
   if (typeof from === 'string') planningBack = from;
   track('Mon planning');
+  loadForecast();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const items = state.points.filter((p) => Number.isFinite(p.ticket?.at) && p.ticket.at >= today.getTime()).sort((a, b) => a.ticket.at - b.ticket.at);
   const back = named('Mon planning', () => openPlanning());
@@ -2279,7 +2309,8 @@ function openPlanning(from = null) {
           el('span', { class: 'plan-time' }, hmText(new Date(p.ticket.at))),
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
-            el('span', { class: 'item-sub' }, [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')))),
+            el('span', { class: 'item-sub' }, [p.ticket.with ? `avec ${p.ticket.with}` : '', catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
+            ...planInfo(p))),
         el('button', { type: 'button', class: 'go-compass', onclick: () => invitePlace(p), 'aria-label': `Inviter un proche : ${p.name}` }, ico('send')),
         el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
     ]),
@@ -3836,7 +3867,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: `btn c-metro`, onclick: () => openSettings('transports') }, ico('lines'),
         transportsDue(transportsUpdated) ? 'Données des transports : à mettre à jour' : `Données des transports (${frenchDate(transportsUpdated)})`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -4334,6 +4365,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
     '{send} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {send} envoie le lieu avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
     '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
     '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
@@ -4343,7 +4375,6 @@ const HELP = [
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
     '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
-    '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4359,7 +4390,7 @@ const HELP = [
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
-    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. {send} invite un proche : il reçoit le lieu, le jour et l\'heure.',
+    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {send} invite un proche : il reçoit le lieu, le jour et l\'heure.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
