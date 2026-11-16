@@ -23,7 +23,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (42)';
+const VERSION = '16 novembre 2026 (43)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -179,6 +179,18 @@ const STYLE_INFO = {
   pastel: { name: 'Pastel', sub: 'La carte classique en tons doux et lumineux', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
 };
+/* ---------- Mode sombre : suit le téléphone tant qu'on n'a pas choisi ---------- */
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && darkQuery.matches));
+/** Couleur des traits dessinés sur la carte (cercles, chemins), lisible sur le fond clair comme sombre. */
+const ink = () => (isDark() ? '#e9edf5' : '#1f2a44');
+function applyTheme() {
+  document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark() ? '#151922' : '#1f2a44');
+}
+applyTheme();
+darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !state.theme) { applyTheme(); refresh?.(); } });
+
 let tiles = null;
 function applyMapStyle() {
   const st = STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic;
@@ -249,7 +261,7 @@ function centerOn(lat, lng, zoom = map.getZoom()) {
 
 function showDraft(lat, lng) {
   draftLayer.clearLayers();
-  L.circleMarker([lat, lng], { radius: 11, color: '#1f2a44', weight: 3, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(draftLayer);
+  L.circleMarker([lat, lng], { radius: 11, color: ink(), weight: 3, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(draftLayer);
   centerOn(lat, lng, Math.max(map.getZoom(), 17));
 }
 
@@ -1124,7 +1136,7 @@ function openStationPicker(onPick = (st) => { stopFollow(); origin = { lat: st.l
 function drawRings(layer, lat, lng, radii, label) {
   const c0 = map.latLngToContainerPoint([lat, lng]);
   for (const r of radii) {
-    L.circle([lat, lng], { radius: r, color: '#1f2a44', weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(layer);
+    L.circle([lat, lng], { radius: r, color: ink(), weight: 1.5, dashArray: '6 6', fill: false, interactive: false }).addTo(layer);
   }
   // Étiquettes en commençant par le plus grand cercle, une sur deux à gauche (ouest),
   // seulement celles qui ont la place, pour qu'elles ne se chevauchent pas.
@@ -1401,9 +1413,9 @@ function renderWay(from, dest) {
   ];
   openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true, name: 'way', again: () => renderWay(from, dest) });
   nearLayer.clearLayers();
-  L.polyline([[from.lat, from.lng], [dest.lat, dest.lng]], { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+  L.polyline([[from.lat, from.lng], [dest.lat, dest.lng]], { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
   L.circleMarker([from.lat, from.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  L.circleMarker([dest.lat, dest.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1f2a44', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  L.circleMarker([dest.lat, dest.lng], { radius: 8, color: '#fff', weight: 3, fillColor: ink(), fillOpacity: 1, interactive: false }).addTo(nearLayer);
   const b = L.latLngBounds([[from.lat, from.lng], [dest.lat, dest.lng]]).pad(0.25);
   map.fitBounds(b, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
 }
@@ -1458,7 +1470,7 @@ function renderRoute(start, chosen) {
   ), { tall: true, name: 'route', again: () => renderRoute(start, chosen) });
   nearLayer.clearLayers();
   const line = [...(start ? [start] : []), ...route].map((p) => [p.lat, p.lng]);
-  L.polyline(line, { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+  L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
   route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
     icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
   map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
@@ -1710,7 +1722,7 @@ function openFreeTime() {
   meMarker(origin.lat, origin.lng).addTo(nearLayer);
   if (plan.route.length) {
     const line = [origin, ...plan.route, origin].map((p) => [p.lat, p.lng]);
-    L.polyline(line, { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+    L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
     plan.route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
     map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
@@ -2046,7 +2058,11 @@ function openSettings(section = null) {
   if (section === 'outils') {
     const list = normalizeTools(state.mapTools);
     openSheet([ico('arrow-up-down'), ' Boutons de la carte'], el('div', { class: 'stack' },
-      el('p', { class: 'help' }, 'De haut en bas, comme à droite de la carte. Le dernier est le plus près de ton pouce. Décoche un bouton pour le cacher.'),
+      el('div', {}, el('div', { class: 'legend' }, 'Côté de l\'écran'), el('div', { class: 'seg', role: 'group', 'aria-label': 'Côté des boutons' },
+        ['right', 'left'].map((side) => el('button', { type: 'button', 'aria-pressed': String((state.toolsSide ?? 'right') === side), onclick: () => {
+          state.toolsSide = side; persist(); applyToolOrder(); openSettings('outils'); toast(side === 'left' ? 'Boutons à gauche' : 'Boutons à droite');
+        } }, side === 'left' ? '← À gauche' : 'À droite →')))),
+      el('p', { class: 'help' }, 'De haut en bas, comme sur la carte. Le dernier est le plus près de ton pouce. Décoche un bouton pour le cacher.'),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
         const move = (delta) => { state.mapTools = moveTool(list, t, delta); persist(); applyToolOrder(); openSettings('outils');
@@ -2139,8 +2155,15 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
-    row('arrow-up-down', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     voiceSwitch,
+    el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
+      state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
+      toast(isDark() ? 'Mode sombre activé' : 'Mode clair activé');
+    } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(isDark() ? 'moon' : 'sun')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
+    el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
     row('info', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
   ), { name: 'settings', again: () => openSettings(), tall: true });
@@ -2553,6 +2576,7 @@ const TOOL_INFO = {
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
+  box.classList.toggle('left', state.toolsSide === 'left');
   const hidden = cleanHidden(state.hiddenTools);
   for (const t of normalizeTools(state.mapTools)) {
     const b = document.getElementById(TOOL_INFO[t].el);
@@ -2573,7 +2597,7 @@ const HELP = [
     '{list-filter} Filtres en haut : ouvert maintenant, mieux notés, abrités, listes, personne.',
     '{hourglass} Temps libre, {shuffle} Surprise et {book-open-text} Curiosités dans Autour de moi.',
     '{bike} Vélib\' en temps réel, {map} Mon Paris, {share-2} partage d\'un lieu par lien, import Google Maps.',
-    '{palette} 5 styles de carte, dont Pastel et Nuit : {settings} → Style de la carte.',
+    '{palette} 5 styles de carte, {moon} mode sombre, boutons de la carte à gauche ou à droite : dans {settings}.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
@@ -2588,6 +2612,7 @@ const HELP = [
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
+    'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
   ]],
   ['list-filter', 'Filtres', [
     'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
