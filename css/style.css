@@ -1,22 +1,22 @@
-/*  Jetons de la charte « Plaques & pavés » (voir CHARTE.md) : toutes les couleurs et mesures sont ici, et nulle part ailleurs.  */
+/*  Jetons de la charte « Papier » (voir CHARTE.md ; couleurs « Papier » depuis v94) : toutes les couleurs et mesures sont ici, et nulle part ailleurs.  */
 
 :root {
   font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
-  --ink: #1C2533;
-  --muted: #5E6875;
-  --line: #D9D1C3;
-  --bg: #FBF8F3;
+  --ink: #15181D;
+  --muted: #5C6370;
+  --line: #D6D0C4;
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
-  --soft: #EFE8DC;
-  --strong: #1C2533;
-  --on-strong: #FBF8F3;
+  --soft: #F3F0EA;
+  --strong: #15181D;
+  --on-strong: #FFFFFF;
   --field: #7A7366;
-  --btn: #FBF8F3;
-  --btn-bd: rgba(28, 37, 51, .28);
-  --guide: #1C2533;
+  --btn: #FFFFFF;
+  --btn-bd: rgba(21, 24, 29, .28);
+  --guide: #15181D;
   --guide-bg: #E6E8EC;
-  --guide-bd: #1C2533;
+  --guide-bd: #15181D;
   --disc: #A54A28;
   --disc-bg: #F6E6DE;
   --add: #2C5B4E;
@@ -25,13 +25,13 @@
   --fav: #8A6514;
   --fav-bg: #F5ECD6;
   --fav-bd: #8A6514;
-  --info: #4F5966;
+  --info: #5C6370;
   --info-bg: #ECEDEF;
-  --info-bd: #4F5966;
+  --info-bd: #5C6370;
   --danger: #9A2620;
   --plaque-line: rgba(255, 255, 255, .5);
-  --hard: rgba(28, 37, 51, .16);
-  --neutral-bg: #E9E1D2;
+  --hard: rgba(21, 24, 29, .16);
+  --neutral-bg: #F3F0EA;
   --neutral-bd: #8C8273;
   --metro: #1B56E8;
   --metro-bg: #E7EEFF;
@@ -52,12 +52,12 @@
   --g-famille: #FCEBD7;
   --g-autre: #ECEDEF;
   --focus: #1B56E8;
-  --fav-icon: #E09B00;
+  --fav-icon: #B07B00;
   --danger-bg: #F6E1DF;
   --warn-bg: #FFF4E6; --warn-bd: #FFD8A8; --warn-ink: #8A4B00;
   --rain-bg: #E7F1FB; --rain-bd: #B7D3EE; --rain-ink: #0B4A80;
   --heat-bg: #FFF1E6; --heat-bd: #FFC9A3; --heat-ink: #8A3B00;
-  --compass-bg: #1C2533; --compass-ink: #FBF8F3; --r: 8px; --r-s: 4px; --pave: 0 2px 0 var(--hard); --h: 48px; --h-s: 44px; --h-l: 56px;
+  --compass-bg: #15181D; --compass-ink: #FFFFFF; --r: 8px; --r-s: 4px; --pave: 0 2px 0 var(--hard); --h: 48px; --h-s: 44px; --h-l: 56px;
 }
 
 :root[data-theme="dark"] {
@@ -66,31 +66,31 @@
   --aq-moyen: #E28136;
   --aq-mauvais: #F4AFD1;
   --aq-inconnu: #5A6272;
-  --strong: #EEF1F7;
-  --guide: #EEF1F7;
-  --guide-bd: #EEF1F7;
+  --strong: #EEF0F3;
+  --guide: #EEF0F3;
+  --guide-bd: #EEF0F3;
   --metro: #8CB1FF;
   --metro-bg: #172A5E;
   --metro-bd: #8CB1FF;
   --aller-bg: #272C38;
   --neutral-bg: #2A3040;
   --neutral-bd: #8F98AB;
-  --ink: #EEF1F7;
-  --muted: #B3BBC9;
-  --line: #3A4255;
-  --bg: #1A1F2A;
-  --surface: #222836;
-  --soft: #12161E;
-  --on-strong: #10131C;
+  --ink: #EEF0F3;
+  --muted: #A9B0BC;
+  --line: #343A46;
+  --bg: #14171D;
+  --surface: #1C2028;
+  --soft: #0E1014;
+  --on-strong: #14171D;
   --field: #8F98AB;
-  --btn: #232A39;
+  --btn: #1C2028;
   --btn-bd: rgba(238, 241, 247, .32);
   --guide-bg: #262D3F;
   --disc: #FFB08A;
   --disc-bg: #4A2618;
-  --add: #9BE6AC;
+  --add: #8FD6A5;
   --add-bg: #1C4626;
-  --add-bd: #9BE6AC;
+  --add-bd: #8FD6A5;
   --fav: #FFDC85;
   --fav-bg: #4A3A0E;
   --fav-bd: #FFDC85;
@@ -114,7 +114,7 @@
   --warn-bg: #3A2A0C; --warn-bd: #6B4C12; --warn-ink: #FFD8A0;
   --rain-bg: #10283D; --rain-bd: #2A5577; --rain-ink: #A9D4FF;
   --heat-bg: #3A1F0C; --heat-bd: #7A4113; --heat-ink: #FFCFA8;
-  --compass-bg: #151922; --compass-ink: #EEF1F7;
+  --compass-bg: #14171D; --compass-ink: #EEF0F3;
 }
 
 
