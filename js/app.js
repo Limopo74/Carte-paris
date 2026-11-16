@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (81)';
+const VERSION = '16 novembre 2026 (82)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2473,6 +2473,16 @@ async function openWeekExpos() {
   ), { tall: true, name: 'week', again: openWeekExpos });
 }
 
+/** Sites utiles pour aller plus loin (ouverts dans le navigateur ; rien de l'appli n'est envoyé). Vérifiés le 16 novembre 2026. */
+const SORTIES_LINKS = [
+  ['Que faire à Paris : à ne pas rater', 'La sélection de la rédaction de la Ville (paris.fr)', 'https://www.paris.fr/quefaire'],
+  ['Que faire à Paris : aujourd\'hui', 'La sélection du jour, tout Paris (paris.fr)', 'https://www.paris.fr/quefaire/aujourdhui'],
+  ['Paris Musées', 'Expos des 14 musées de la Ville (parismusees.paris.fr)', 'https://www.parismusees.paris.fr/fr'],
+  ['Expos des galeries', 'L\'Officiel des spectacles : galeries d\'art, vernissages (offi.fr)', 'https://www.offi.fr/expositions-musees/galeries.html'],
+  ['Paris je t\'aime', 'Office du tourisme : calendrier des grandes expos (parisjetaime.com)', 'https://parisjetaime.com/article/calendrier-expositions-paris-a1055'],
+  ['Sortir à Paris', 'Le plus complet, avec beaucoup de publicité (sortiraparis.com)', 'https://www.sortiraparis.com/'],
+];
+
 let evFrom = null; // point de départ des Sorties : ma position (Autour de moi) ou le centre de la carte (bouton de la colonne)
 async function openEvents(start = null) {
   track('Sorties');
@@ -2571,12 +2581,18 @@ async function openEvents(start = null) {
     el('p', { class: 'from-line' }, ico(fromMap ? 'map' : 'locate-fixed'), fromMap ? ' Autour du centre de la carte. Pour un autre quartier : déplace la carte et rouvre Sorties.' : ' Autour de toi.'),
     ...top,
     ...body,
-    el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Sources et mise à jour'),
+    el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Aide, sources et mise à jour'),
       el('div', { class: 'stack sources-body' },
-        el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'),
-      marketsTime ? `Mettre à jour (liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : 'Mettre à jour'),
+        el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de 2 km ${fromMap ? 'du centre de la carte' : 'de toi'}.`),
+        el('p', { class: 'help' }, 'Mise à jour automatique : l\'agenda se recharge chaque jour à la première ouverture, les marchés tous les 7 jours, les galeries tous les 30 jours. Le bouton recharge tout de suite (utile si une sortie vient d\'être annoncée ou si le réseau a manqué).'),
+        el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'), 'Mettre à jour maintenant'),
+        el('p', { class: 'help' }, [`Agenda : aujourd'hui`, marketsTime ? `marchés : liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : '', mode === 'art' && galleriesTime ? `galeries : liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''].filter(Boolean).join(' · ') + '.'),
+        el('h3', { class: 'ring-title menu-group' }, 'Pour aller plus loin'),
+        el('div', { class: 'menu' }, SORTIES_LINKS.map(([title, sub, href]) => el('a', { class: 'menu-row c-disc', href, target: '_blank', rel: 'noopener noreferrer' },
+          el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+          el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '↗')))),
         el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
-        mode === 'art' ? el('p', { class: 'help' }, `Galeries : OpenStreetMap${galleriesTime ? ` (liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : ''}. La plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d'y aller.`) : null,
+        mode === 'art' ? el('p', { class: 'help' }, 'Galeries : la plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d\'y aller.') : null,
         ...notes.map((t) => el('p', { class: 'help' }, t)))),
     backNear(),
   ), { tall: true, name: 'events', again: openEvents });
@@ -3982,6 +3998,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Sorties : en bas, « Aide, sources et mise à jour » explique ce qui est affiché et quand tout se met à jour seul, avec « Mettre à jour maintenant » et 6 liens pour aller plus loin (Que faire à Paris, Paris Musées, galeries, Paris je t\'aime, Sortir à Paris).',
     '{calendar-days} Sorties sans ta position : nouveau bouton calendrier dans la colonne de la carte. Il montre les sorties autour du centre de la carte, sans GPS et sans bouger la carte : déplace la carte sur le quartier voulu, puis touche-le. Autour de moi → Sorties reste « autour de toi ». Dans l\'onglet Expos, « Expos de la semaine, tout Paris » : 7 jours, rangées par arrondissement.',
     '{lines} Lignes de métro et RER : nouveau bouton en haut, juste après « Dans la rue ». Un appui les montre ou les cache (l\'appui long sur M marche toujours). Pour le masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Rangement : {circle-help} l\'Aide passe en tête des {settings} Réglages (une catégorie de plus visible en haut). Nouvelle rubrique « Ce qui s\'affiche » : Barre du haut, Boutons de la carte et Filtres affichés au même endroit. Filtres en deux blocs : « Filtrer mes lieux » et « Ajouter sur la carte ». Chaque retour dit où il mène (← Autour de moi, ← Fiche…). Le bouton Favori de la fiche garde son nom, allumé = étoile pleine et contour épais. Sorties : sources et mise à jour repliées tout en bas. Les sous-titres ne sont plus coupés.',
@@ -4109,6 +4126,7 @@ const HELP = [
     '{calendar-days} Sorties → « Expos » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
     '{calendar-days} « Expos de la semaine, tout Paris » (en bas de l\'onglet Expos) : toutes les expos de l\'agenda sur 7 jours, rangées par arrondissement, celles qui ferment le plus tôt d\'abord. Rien ne bouge sur la carte.',
     '{calendar-days} Pour regarder un autre quartier sans ta position : déplace la carte, puis le bouton calendrier de la colonne.',
+    '{info} En bas de Sorties, « Aide, sources et mise à jour » : l\'agenda se recharge seul chaque jour, les marchés tous les 7 jours, les galeries tous les 30 jours. Liens utiles : Que faire à Paris, Paris Musées, galeries (L\'Officiel des spectacles), Paris je t\'aime, Sortir à Paris.',
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
     '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',

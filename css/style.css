@@ -1112,3 +1112,6 @@ a.go, .item .go { background: var(--aller-bg); }
 .week-arr-name { font-family: var(--display); font-weight: 800; min-width: 3.2em; }
 .week-arr-sub { color: var(--muted); font-weight: 500; font-size: 14px; }
 .week-items { padding: 0 8px 10px; }
+/* Liens « Pour aller plus loin » de Sorties : rangées comme les réglages, sans soulignement */
+a.menu-row { text-decoration: none; }
+a.menu-row .menu-chev { font-size: 20px; }
