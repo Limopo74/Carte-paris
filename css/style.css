@@ -524,7 +524,9 @@ ol.items { padding: 0; }
 .tool-prev.txt { font-size: 10.5px; font-weight: 700; }
 
 .tool-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.cat-row.off .tool-prev, .cat-row.off .cat-name { opacity: .45; }
+/* Bouton masqué : icône pâlie, texte en gris lisible (contraste 4,5:1 gardé) */
+.cat-row.off .tool-prev, .cat-row.off .cat-ico { opacity: .45; }
+.cat-row.off .cat-name { color: var(--muted); }
 .map-btn[hidden] { display: none; }
 
 /* Icônes dessinées (Lucide) */

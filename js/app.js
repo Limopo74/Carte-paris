@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (82)';
+const VERSION = '16 novembre 2026 (83)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -390,32 +390,8 @@ function renderChips() {
   lastToggled = null;
 }
 
-/** Réglages → Catégories → Boutons de la barre du haut : afficher ou masquer chaque bouton (les lieux restent sur la carte). */
-function openChipsSettings(back = named('Catégories', () => openSettings('categories'))) {
-  const hidden = new Set(state.hiddenChips ?? []);
-  const sw = (key, iconEl, title, sub) => {
-    const on = !hidden.has(key);
-    return el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => {
-      if (on) hidden.add(key); else hidden.delete(key);
-      state.hiddenChips = [...hidden]; persist(); refresh(); openChipsSettings(back);
-    } },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, iconEl),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
-    el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
-  };
-  openSheet([ico('list-filter'), ' Barre du haut'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Allumé : le bouton est dans la barre du haut. Masquer un bouton ne supprime rien : les lieux restent sur la carte, et un bouton dont le filtre est actif reste visible pour pouvoir l\'enlever.'),
-    el('div', { class: 'menu' },
-      sw('all', ico('list'), 'Tout', 'Enlever d\'un appui les catégories choisies'),
-      sw('filters', ico('list-filter'), 'Filtres', 'Ouvert maintenant, listes, personnes, note…'),
-      sw('fav', glyph(state.fav.icon, { filled: true }), 'Favoris', 'Seulement les favoris'),
-      sw('street', ico('tent'), 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air'),
-      sw('lines', ico('lines'), 'Lignes de métro et RER', 'Les tracés dans leurs couleurs'),
-      ...state.categories.map((c) => sw(`cat:${c.id}`, catDot(c.id), c.name, `Catégorie · ${plural(state.points.filter((p) => p.cat === c.id).length, 'lieu', 'lieux')}`))),
-    hidden.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openChipsSettings(back); } }, 'Tout réafficher') : null,
-    backBtn(back),
-  ), { name: 'chips', again: () => openChipsSettings(back) });
-}
+/** Barre du haut : afficher, masquer et ranger se font sur une seule page, Réglages → Catégories et listes. */
+function openChipsSettings() { openSettings('categories'); }
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
 /** Les filtres en une feuille : chaque ligne s'allume ou s'éteint d'un appui, le nombre de lieux suit. */
@@ -3380,21 +3356,41 @@ function openSettings(section = null) {
   }
 
   if (section === 'categories') {
+    const hiddenTop = new Set(state.hiddenChips ?? []);
+    const topBox = (key, name) => {
+      const box = el('input', { type: 'checkbox', class: 'check', checked: !hiddenTop.has(key), 'aria-label': `Afficher ${name} dans la barre du haut` });
+      box.addEventListener('change', () => {
+        if (box.checked) hiddenTop.delete(key); else hiddenTop.add(key);
+        state.hiddenChips = [...hiddenTop]; persist(); refresh(); openSettings('categories');
+        requestAnimationFrame(() => document.querySelector(`[data-top="${key}"]`)?.focus());
+        toast(box.checked ? `${name} : affiché en haut` : `${name} : masqué en haut (rien n'est supprimé)`);
+      });
+      box.dataset.top = key;
+      return box;
+    };
+    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['lines', ico('lines'), 'Lignes de métro et RER']];
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
-      el('p', { class: 'help' }, 'L\'ordre ici est celui de la barre du haut. Flèches pour déplacer, Modifier pour le nom, l\'icône et la couleur.'),
+      el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Coche pour afficher, décoche pour masquer : les lieux restent sur la carte. Flèches pour ranger tes catégories, crayon pour le nom, l\'icône et la couleur.'),
+      el('div', { class: 'legend' }, 'Toujours en tête'),
+      el('div', {}, fixed.map(([key, icon, name]) => el('div', { class: `cat-row${hiddenTop.has(key) ? ' off' : ''}` },
+        el('label', { class: 'tool-check' }, topBox(key, name), el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, icon), el('span', { class: 'cat-name' }, name))))),
+      el('div', { class: 'legend' }, 'Mes catégories, dans cet ordre'),
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
         const move = (delta) => { state = moveCategory(state, c.id, delta); persist(); refresh(); openSettings('categories');
           requestAnimationFrame(() => document.querySelector(`[data-move="${c.id}:${delta}"]`)?.focus()); };
         const last = state.categories.length - 1;
-        return el('div', { class: 'cat-row' }, catDot(c.id),
-          el('span', { class: 'cat-name' }, c.name, el('br'),
-            el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
+        const key = `cat:${c.id}`;
+        return el('div', { class: `cat-row${hiddenTop.has(key) ? ' off' : ''}` },
+          el('label', { class: 'tool-check' }, topBox(key, c.name), catDot(c.id),
+            el('span', { class: 'cat-name' }, c.name, el('br'),
+              el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu'))),
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${c.id}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${c.name}` }, '↑'),
           el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'),
-          el('button', { type: 'button', class: 'btn', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, 'Modifier'));
+          el('button', { type: 'button', class: 'btn move', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, ico('pencil')));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, '+ Nouvelle catégorie'),
+      hiddenTop.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openSettings('categories'); toast('Tous les boutons sont de nouveau en haut'); } }, `Tout réafficher en haut (${hiddenTop.size} masqué${hiddenTop.size > 1 ? 's' : ''})`) : null,
       el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
         state.chipIcons = !state.chipIcons; persist(); refresh(); openSettings('categories');
         toast(state.chipIcons ? 'Barre du haut : icônes seules' : 'Barre du haut : icône et nom');
@@ -3402,11 +3398,6 @@ function openSettings(section = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, state.categories[0] ? catDot(state.categories[0].id) : '🏷️'),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
       el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-      el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openChipsSettings() },
-        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('list-filter')),
-        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Boutons de la barre du haut'),
-          el('span', { class: 'menu-sub' }, (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous affichés : choisis ceux à masquer')),
-        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
       el('p', { class: 'help' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => el('div', { class: 'cat-row' },
@@ -3998,6 +3989,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{tags} Catégories et listes : afficher, masquer et ranger la barre du haut se fait sur une seule page, comme pour les boutons de la carte. Une case pour afficher, des flèches pour l\'ordre, un crayon pour modifier. Réglages → Ce qui s\'affiche → Barre du haut ouvre la même page.',
     '{calendar-days} Sorties : en bas, « Aide, sources et mise à jour » explique ce qui est affiché et quand tout se met à jour seul, avec « Mettre à jour maintenant » et 6 liens pour aller plus loin (Que faire à Paris, Paris Musées, galeries, Paris je t\'aime, Sortir à Paris).',
     '{calendar-days} Sorties sans ta position : nouveau bouton calendrier dans la colonne de la carte. Il montre les sorties autour du centre de la carte, sans GPS et sans bouger la carte : déplace la carte sur le quartier voulu, puis touche-le. Autour de moi → Sorties reste « autour de toi ». Dans l\'onglet Expos, « Expos de la semaine, tout Paris » : 7 jours, rangées par arrondissement.',
     '{lines} Lignes de métro et RER : nouveau bouton en haut, juste après « Dans la rue ». Un appui les montre ou les cache (l\'appui long sur M marche toujours). Pour le masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
@@ -4117,7 +4109,7 @@ const HELP = [
     'Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['tags', 'Catégories, listes et favoris', [
-    '{settings} → Catégories et listes : ajoute tes catégories (14 toutes prêtes), icône, couleur et ordre avec ↑ ↓ (l\'ordre de la barre du haut).',
+    '{settings} → Catégories et listes : toute la barre du haut sur une page. Case cochée = bouton affiché en haut (décoché : masqué, les lieux restent sur la carte). ↑ ↓ pour l\'ordre de tes catégories, {pencil} pour le nom, l\'icône et la couleur. Tout, Filtres, Favoris, Dans la rue et Lignes restent toujours en tête.',
     '« Icônes seules en haut » : la barre n\'affiche que les logos.',
     'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). {settings} → Catégories et listes → « Nouvelle liste », puis coche ses lieux d\'un coup ; un appui sur une liste existante pour en ajouter ou en retirer. On peut aussi la choisir depuis Modifier, lieu par lieu.',
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
