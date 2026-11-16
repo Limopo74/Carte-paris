@@ -5,7 +5,7 @@ Règles d'apparence de toute l'appli, en place depuis la v103 (16 novembre 2026)
 ## 1. Principe
 - **Encre sur papier** : texte presque noir sur fond blanc ; en sombre, « papier de nuit ». Lisible dehors, au soleil.
 - **La couleur signale, elle ne décore pas** : elle dit la famille d'une action (texte, icône et contour d'un bouton) ou un état (ouvert, fermé). Jamais de fond teinté sur un bouton au repos.
-- **Forme = importance** : une seule plaque pleine par écran (l'action principale), des contours pour le reste, des tampons pour les états.
+- **Forme = importance** : une seule plaque pleine par écran (l'action principale), des contours pour le reste, des tampons pour les états. Exception : la carte « En ce moment, au plus près » de Sorties, pleine en terre cuite, est une information et non un bouton (décision du 16 novembre 2026).
 - **Filets plutôt que cadres** : les listes et les informations sont séparées par des filets fins, sans boîte ni ombre.
 - **Une seule source** : toutes les couleurs et mesures sont des jetons, définis une fois en tête de `css/style.css` (`:root`, puis `:root[data-theme="dark"]`). On ne réécrit jamais une couleur en dur dans une règle d'interface, et on n'ajoute jamais une « couche » qui redéfinit une règle existante : on modifie la règle elle-même.
 
@@ -46,7 +46,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 6. Listes et informations
 - Une liste = des lignes séparées par un filet fin `--line`, sans cadre ni ombre, sous un intertitre souligné d'un filet encre (`.ring-title`, `.fiche-sec`). Pas de filet fin juste avant un intertitre.
-- Les boutons d'une ligne (boussole, M, Y aller, +) restent dans la ligne, toujours au même endroit, en simple contour.
+- Les boutons d'une ligne (boussole, M, Y aller, +) restent dans la ligne, toujours au même endroit, en simple contour. Quand une ligne n'a pas de +, sa place reste réservée (vide) pour que la boussole et le M ne bougent pas (Sorties, v118).
 
 ## 7. Icônes
 - **Dessins Lucide uniquement** dans l'interface (`ico('nom')`, fichier `js/icons.js` ; pour en ajouter : copier depuis lucide-static).

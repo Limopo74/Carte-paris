@@ -1,7 +1,7 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v117';
+const CACHE = 'carte-paris-v118';
 const TILES = 'carte-paris-tuiles';
 const MAX_TILES = 3000; // environ 50 Mo
 const FRESH = 7 * 864e5; // une tuile de moins de 7 jours n'est pas redemandée
@@ -22,6 +22,7 @@ self.addEventListener('activate', (e) => {
 });
 
 let puts = 0;
+let slowUntil = 0; // réseau trop lent constaté : jusqu'à cette heure, la copie gardée passe d'abord
 async function trimTiles(c) {
   const keys = await c.keys();
   for (const k of keys.slice(0, Math.max(0, keys.length - MAX_TILES))) await c.delete(k); // les plus anciennes d'abord
@@ -49,13 +50,20 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   if (url.hostname === 'tile.openstreetmap.org' || url.hostname === 'basemaps.cartocdn.com') { e.respondWith(tile(e.request)); return; }
   if (url.origin !== self.location.origin) return;
-  // Réseau d'abord (pour avoir la dernière version), cache si pas de réseau.
-  e.respondWith(
-    fetch(e.request, { cache: 'no-cache' })
-      .then((res) => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-        return res;
-      })
-      .catch(() => caches.match(e.request).then((r) => r || caches.match('index.html'))),
-  );
+  // Réseau d'abord (pour avoir la dernière version). Si le réseau ne répond pas en 3 s (métro, quai), la copie gardée ;
+  // la réponse du réseau, si elle finit par arriver, met la copie à jour pour la prochaine ouverture.
+  const net = fetch(e.request, { cache: 'no-cache' }).then((res) => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+    return res;
+  });
+  e.waitUntil(net.catch(() => {}));
+  e.respondWith(new Promise((resolve) => {
+    let done = false;
+    const give = (r) => { if (r && !done) { done = true; resolve(r); } };
+    // Réseau déjà jugé trop lent il y a moins de 30 s : copie gardée tout de suite (sinon 3 s par niveau de modules).
+    if (Date.now() < slowUntil) caches.match(e.request).then(give);
+    const timer = setTimeout(() => { slowUntil = Date.now() + 30000; caches.match(e.request).then(give); }, 3000);
+    net.then((res) => { clearTimeout(timer); give(res); })
+      .catch(() => { clearTimeout(timer); caches.match(e.request).then((r) => r || caches.match('index.html')).then((r) => give(r || Response.error())); });
+  }));
 });

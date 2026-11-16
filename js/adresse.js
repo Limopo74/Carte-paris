@@ -35,7 +35,7 @@ export function parseFeatures(json) {
 }
 
 async function getJSON(url, signal) {
-  const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { signal: withLimit(signal), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -63,4 +63,10 @@ export async function reverseAddress(lat, lng) {
   } catch {
     return null;
   }
+}
+
+/** Le signal d'annulation de la recherche, plus une limite de 10 s (réseau faible). */
+function withLimit(signal) {
+  const limit = AbortSignal.timeout(10000);
+  return signal && AbortSignal.any ? AbortSignal.any([signal, limit]) : signal ?? limit;
 }

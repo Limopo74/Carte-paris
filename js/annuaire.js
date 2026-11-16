@@ -90,7 +90,13 @@ export async function searchPlaces(q, signal, { zone = false } = {}) {
   const wait = nextDelay(lastAt, Date.now());
   if (wait) await new Promise((r) => setTimeout(r, wait));
   lastAt = Date.now();
-  const res = await fetch(placesUrl(q.trim(), { zone }), { signal, headers: { Accept: 'application/json' } });
+  const res = await fetch(placesUrl(q.trim(), { zone }), { signal: withLimit(signal), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parsePlaces(await res.json(), { zone });
+}
+
+/** Le signal d'annulation de la recherche, plus une limite de 10 s (réseau faible). */
+function withLimit(signal) {
+  const limit = AbortSignal.timeout(10000);
+  return signal && AbortSignal.any ? AbortSignal.any([signal, limit]) : signal ?? limit;
 }

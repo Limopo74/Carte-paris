@@ -32,7 +32,8 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (117)';
+const VERSION = '16 novembre 2026 (118)';
+const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -101,6 +102,12 @@ const stationsReady = fetch('data/stations.json')
   })
   .catch(() => { /* pas encore de données : la fonction reste discrète */ });
 
+/** Appel à un service en ligne, abandonné au bout de 10 s : avec un réseau faible (métro, quai), l'écran affiche
+ * son message d'erreur au lieu de rester sur « Chargement… ». Les fichiers de l'appli passent par fetch() directement. */
+function net(url, opts = {}) {
+  return fetch(url, { ...opts, signal: opts.signal ?? AbortSignal.timeout(NET_TIMEOUT_MS) });
+}
+
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
@@ -117,15 +124,6 @@ function remindData() {
   setTimeout(() => toast(`${due.length > 1 ? `${due.length} données de l'appli à mettre à jour` : `${FIXED_DATA.find((d) => d.id === due[0]).name} : à mettre à jour`}. Réglages → Application → Données de l'appli.`), 2500);
 }
 
-/** « Ⓜ Opéra (3, 7, 8) · ≈ 4 min » pour la station la plus proche, ou null. */
-function stationLine(p) {
-  const r = nearestStation(stations, p);
-  if (!r || r.d > 2000) return null;
-  const { station: st, d } = r;
-  const parts = [Array.isArray(st.l) ? st.l.join(', ') : '', Array.isArray(st.rer) && st.rer.length ? `RER ${st.rer.join(', ')}` : '']
-    .filter(Boolean).join(' · ');
-  return `Ⓜ ${st.n}${parts ? ` (${parts})` : ''} · ≈ ${walkMinutes(d)} min`;
-}
 
 /* ---------- Petits outils ---------- */
 
@@ -1206,7 +1204,7 @@ function openDetail(id, back = null) {
   const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
   const facts = el('div', { class: 'fiche-lines' },
     p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
-    p.ticket ? el('p', {}, ico('ticket'), ` Billet : ${ticketText(p.ticket.at)}`) : null,
+    // Le billet n'est écrit qu'une fois : dans Pratique → Mon billet.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     el('p', { class: 'muted' }, ageLine(p)));
@@ -2174,14 +2172,14 @@ let velibNeed = 'bike';
 async function velibStations() {
   // 1. Paris Data (marche depuis le navigateur) ; 2. sinon le flux Smovengo
   try {
-    const r = await fetch(VELIB_PARIS);
+    const r = await net(VELIB_PARIS);
     if (r.ok) { const list = parseVelibParis(await r.json()); if (list.length > 100) return list; }
   } catch { /* on essaie l'autre source */ }
   let info = null;
   try { const c = JSON.parse(localStorage.getItem(VELIB_KEY) ?? 'null'); if (c && Date.now() - c.t < 7 * 864e5) info = c.info; } catch { /* rien */ }
-  const statusP = fetch(VELIB_STATUS).then((r) => r.json());
+  const statusP = net(VELIB_STATUS).then((r) => r.json());
   if (!info) {
-    const full = await (await fetch(VELIB_INFO)).json();
+    const full = await (await net(VELIB_INFO)).json();
     info = { data: { stations: (full?.data?.stations ?? []).map((s) => ({ station_id: s.station_id, name: s.name, lat: s.lat, lon: s.lon })) } };
     try { localStorage.setItem(VELIB_KEY, JSON.stringify({ t: Date.now(), info })); } catch { /* stockage plein : tant pis */ }
   }
@@ -2315,7 +2313,7 @@ let forecast = null;
 function loadForecast() {
   if (!navigator.onLine || (forecast && Date.now() - forecast.time < 3 * 3600e3)) return;
   forecast = { time: Date.now(), days: forecast?.days ?? {} };
-  fetch(forecastUrl()).then((r) => (r.ok ? r.json() : null)).then((j) => {
+  net(forecastUrl()).then((r) => (r.ok ? r.json() : null)).then((j) => {
     forecast = { time: Date.now(), days: readForecast(j) };
     if (view === 'planning') openPlanning();
   }).catch(() => {});
@@ -2565,10 +2563,10 @@ async function openWhereAmI() {
   // Le quartier en 3 lignes : l'article Wikipédia le plus proche décrit comme un quartier (position arrondie à 100 m)
   (async () => {
     try {
-      const r = await fetch(quarterSearchUrl(at.lat, at.lng));
+      const r = await net(quarterSearchUrl(at.lat, at.lng));
       const q = r.ok ? pickQuarter(await r.json(), at) : null;
       if (!q) { fill(quarter); return; }
-      const r2 = await fetch(extractUrl(q.title));
+      const r2 = await net(extractUrl(q.title));
       const text = r2.ok ? readExtract(await r2.json()) : '';
       fill(quarter,
         el('h3', { class: 'ring-title' }, el('span', {}, q.title), el('span', {}, '')),
@@ -2610,7 +2608,7 @@ function loadGalleries(force = false) {
     try { const c = JSON.parse(storage.getItem(GAL_KEY) ?? 'null'); if (c?.items?.length && Date.now() - c.time < 30 * 864e5) { galleries = c.items; galleriesTime = c.time; return Promise.resolve(galleries); } } catch { /* rien */ }
   }
   if (galleriesLoading) return galleriesLoading;
-  galleriesLoading = fetch(galleriesUrl()).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+  galleriesLoading = net(galleriesUrl()).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
     .then((json) => {
       const items = parseGalleries(json);
       if (!items.length) throw new Error('vide');
@@ -2641,8 +2639,10 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
     main,
     el('div', { class: 'ev-foot' },
       el('span', { class: 'walk' }, d != null ? walkTxt(d) : ''),
-      ...buttons.filter(Boolean)));
+      ...slots(buttons.filter(Boolean), feat ? 0 : 3)));
 }
+/** Boussole et M toujours au même endroit : la place du + reste réservée quand une ligne n'en a pas. */
+const slots = (btns, n) => [...btns, ...Array.from({ length: Math.max(0, n - btns.length) }, () => el('span', { class: 'go-compass slot', 'aria-hidden': 'true' }))];
 const freeTag = () => el('span', { class: 'tag open' }, 'Gratuit');
 const addBtn = (name, label, onclick) => el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${label} ${name} à ma carte`, onclick }, ico('plus'));
 
@@ -2682,7 +2682,7 @@ let eventsLoading = null;
 async function todayEvents() {
   const day = new Date().toDateString();
   if (eventsCache?.day === day) return eventsCache.items;
-  eventsLoading ??= fetch(eventsUrl()).then(async (r) => {
+  eventsLoading ??= net(eventsUrl()).then(async (r) => {
     if (!r.ok) throw new Error(String(r.status));
     eventsCache = { day, items: parseEvents(await r.json()) };
     return eventsCache.items;
@@ -2695,8 +2695,8 @@ async function weekEvents() {
   const day = new Date().toDateString();
   if (weekCache?.day === day) return weekCache.items;
   // Version légère (champs utiles seulement) ; si le serveur la refuse, la version complète, plus courte
-  let r = await fetch(weekEventsUrl());
-  if (!r.ok) r = await fetch(weekEventsUrl(new Date(), 7, false));
+  let r = await net(weekEventsUrl());
+  if (!r.ok) r = await net(weekEventsUrl(new Date(), 7, false));
   if (!r.ok) throw new Error(String(r.status));
   weekCache = { day, items: parseEvents(await r.json()) };
   return weekCache.items;
@@ -3097,7 +3097,7 @@ async function loadMarkets(force = false) {
   try { cached = JSON.parse(storage.getItem('carte-paris.marches') ?? 'null'); } catch { /* rien */ }
   if (force || !cached || Date.now() - cached.time > 7 * 864e5) {
     try {
-      const r = await fetch(MARKETS_URL);
+      const r = await net(MARKETS_URL);
       if (!r.ok) throw new Error(String(r.status));
       const items = parseMarkets(await r.json());
       if (items.length) { cached = { time: Date.now(), items }; try { storage.setItem('carte-paris.marches', JSON.stringify(cached)); } catch { /* trop gros */ } }
@@ -3276,8 +3276,8 @@ async function checkMeteo(at) {
   if (Date.now() - meteoAt < 30 * 60 * 1000 || !navigator.onLine) return;
   meteoAt = Date.now();
   const [m, a] = await Promise.all([
-    fetch(meteoUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readMeteo).catch(() => null),
-    fetch(airUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readAir).catch(() => null),
+    net(meteoUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readMeteo).catch(() => null),
+    net(airUrl(at?.lat, at?.lng)).then((r) => r.json()).then(readAir).catch(() => null),
   ]);
   if (a) air = a;
   if (m) { const changed = m.rain !== meteo?.rain || (m.temp >= 28) !== (meteo?.temp >= 28); meteo = m; if (changed && view === 'near') renderNear(); }
@@ -3357,7 +3357,7 @@ async function openCuriosities() {
   if (!list) {
     openSheet([ico('book-open-text'), ' Curiosités'], el('p', { class: 'help' }, 'Recherche dans Wikipédia…'), { name: 'wiki' });
     try {
-      const r = await fetch(wikiUrl(origin.lat, origin.lng, 1000));
+      const r = await net(wikiUrl(origin.lat, origin.lng, 1000));
       list = parseWiki(await r.json());
       wikiCache.set(key, list);
     } catch {
@@ -3413,7 +3413,7 @@ async function monuments() {
   if (histList) return histList;
   try { const c = JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null'); if (c && Date.now() - c.t < 30 * 864e5 && c.list?.length) histList = c.list; } catch { /* rien */ }
   if (histList) return histList;
-  const r = await fetch(HIST_URL, { headers: { Accept: 'application/sparql-results+json' } });
+  const r = await net(HIST_URL, { headers: { Accept: 'application/sparql-results+json' } });
   if (!r.ok) throw new Error('wikidata');
   histList = parseHist(await r.json());
   try { localStorage.setItem(HIST_KEY, JSON.stringify({ t: Date.now(), list: histList })); } catch { /* stockage plein : on garde en mémoire */ }
@@ -3962,7 +3962,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
         dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes et horaires des parcs (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -4327,7 +4327,7 @@ async function loadPratique(kind) {
   const fresh = cached && Date.now() - cached.time < 24 * 3600 * 1000;
   if (!fresh && navigator.onLine !== false) {
     try {
-      const res = await fetch(exportUrl(kind), { headers: { Accept: 'application/json' } });
+      const res = await net(exportUrl(kind), { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const items = parseRecords(await res.json(), kind);
       if (items.length) {
@@ -4478,6 +4478,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
@@ -4487,7 +4488,6 @@ const HELP = [
     '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
     '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
     '{copy} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {copy} copie le lien de la sortie, avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
-    '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
