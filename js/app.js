@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (59)';
+const VERSION = '16 novembre 2026 (60)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1960,7 +1960,9 @@ async function openEvents() {
     head('Fêtes et festivals', fetes.length), fetes.length ? el('ul', { class: 'items' }, fetes.map(eventRow)) : null,
     head('Autres sorties', other.length), other.length ? el('ul', { class: 'items' }, other.map(eventRow)) : null,
     !food.length && !flea.length && !list.length ? el('p', { class: 'empty' }, `Aucune sortie${eventsFree ? ' gratuite' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
-    el('p', { class: 'help' }, 'Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris. Les vide-greniers ne sont listés que s\'ils sont dans cet agenda. Ta position n\'est pas envoyée : l\'appli trie sur le téléphone.'),
+    el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'),
+      marketsTime ? `Mettre à jour (liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : 'Mettre à jour'),
+    el('p', { class: 'help' }, 'Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris. Les marchés se mettent aussi à jour seuls chaque semaine, l\'agenda chaque jour. Les fermetures exceptionnelles (jours fériés) ne sont pas dans ces données. Les vide-greniers ne sont listés que s\'ils sont dans cet agenda. Ta position n\'est pas envoyée : l\'appli trie sur le téléphone.'),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
@@ -2110,20 +2112,35 @@ wxBadge.addEventListener('click', openWeather);
 
 let markets = null;
 const marketsLayer = L.layerGroup().addTo(map);
-async function loadMarkets() {
-  if (markets) return markets;
+let marketsTime = 0; // date de la liste des marchés gardée sur le téléphone
+async function loadMarkets(force = false) {
+  if (markets && !force) return markets;
   let cached = null;
   try { cached = JSON.parse(storage.getItem('carte-paris.marches') ?? 'null'); } catch { /* rien */ }
-  if (!cached || Date.now() - cached.time > 7 * 864e5) {
+  if (force || !cached || Date.now() - cached.time > 7 * 864e5) {
     try {
       const r = await fetch(MARKETS_URL);
       if (!r.ok) throw new Error(String(r.status));
       const items = parseMarkets(await r.json());
       if (items.length) { cached = { time: Date.now(), items }; try { storage.setItem('carte-paris.marches', JSON.stringify(cached)); } catch { /* trop gros */ } }
-    } catch { /* on garde l'ancienne copie */ }
+    } catch { if (force) throw new Error('marchés'); /* sinon on garde l'ancienne copie */ }
   }
   markets = cached?.items ?? [];
+  marketsTime = cached?.time ?? 0;
   return markets;
+}
+/** Bouton « Mettre à jour » de Sorties : marchés et agenda redemandés tout de suite. */
+async function refreshSorties() {
+  toast('Mise à jour des marchés et de l\'agenda…');
+  try {
+    await loadMarkets(true);
+    eventsCache = null;
+    drawMarkets();
+    await openEvents();
+    toast(`Marchés et sorties à jour (${plural(markets.length, 'marché', 'marchés')} à Paris).`);
+  } catch {
+    toast('La Ville de Paris ne répond pas : la liste gardée reste affichée. Réessaie plus tard.', true);
+  }
 }
 /* ---------- Lignes de métro et RER sur la carte (à la demande) ----------
    Tracés Île-de-France Mobilités (ODbL) simplifiés, gardés dans l'appli : rien n'est demandé à un serveur. */
@@ -3217,6 +3234,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Sorties : bouton « Mettre à jour » en bas, pour redemander tout de suite les marchés et l\'agenda de la Ville.',
     'Avec les lignes affichées, chaque station montre le numéro de ses lignes quand tu zoomes sur un quartier, puis son nom en zoomant encore.',
     'Lignes de métro et RER sur la carte, dans leurs couleurs : appui long sur M, ou {list-filter} Filtres → Lignes de métro et RER.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches de toi, avec le temps jusqu\'à chez toi depuis chacune ; la plus rapide est marquée.',
