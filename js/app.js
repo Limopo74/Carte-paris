@@ -28,7 +28,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (61)';
+const VERSION = '16 novembre 2026 (62)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1803,7 +1803,7 @@ async function showVelib(at = null) {
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
-  for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#0b6f80', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
@@ -2092,7 +2092,7 @@ async function openHomePlan(home) {
   ), { name: `home:${home.id ?? home.label}`, again: back });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
-  for (const o of opts) L.circleMarker([o.st.lat, o.st.lng], { radius: 9, color: '#1F4180', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  for (const o of opts) L.circleMarker([o.st.lat, o.st.lng], { radius: 9, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (opts.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...opts.map((o) => [o.st.lat, o.st.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
@@ -3278,6 +3278,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Bleu modernisé : le bleu des transports est plus vif ; en mode sombre, les boutons principaux sont blanc cassé.',
     '« Maintenant » s\'adapte à l\'heure : le matin un café, une boulangerie ou un marché ; à midi et le soir un resto (ou un bar le soir). Le dimanche et les jours fériés, « Dim. » ou « Férié » apparaît à côté de la température ; « Ouvert maintenant » tient compte des jours fériés quand les horaires le précisent.',
     '{calendar-days} Sorties : bouton « Mettre à jour » en bas, pour redemander tout de suite les marchés et l\'agenda de la Ville.',
     'Avec les lignes affichées, chaque station montre le numéro de ses lignes quand tu zoomes sur un quartier, puis son nom en zoomant encore.',
@@ -3287,7 +3288,7 @@ const HELP = [
     'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
     'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
     '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
-    'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu émail = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
+    'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu vif = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
     'Fiche d\'un lieu plus courte : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus sur une seule rangée. Réglages rangés en 3 groupes. Épingles en goutte qui pointent le lieu exact.',
     '{thermometer-sun} Température et qualité de l\'air en haut à gauche de la carte. {store} Marchés du jour : dans {list-filter} Filtres et dans Sorties.',
     '{navigation} Balade guidée : la boussole t\'emmène d\'étape en étape (Temps libre, Parcours, balade reçue).',
@@ -3389,7 +3390,7 @@ const HELP = [
     'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
   ]],
   ['palette', 'Le code couleur', [
-    'Ardoise : y aller et se guider · Bleu émail : métro, Vélib\', rentrer · Terre cuite : découvrir (sorties, curiosités, surprise, Mon Paris) · Vert Wallace : ajouter, garder · Or : favori, notes · Zinc : réglages, aide · Brique : supprimer.',
+    'Ardoise : y aller et se guider · Bleu vif : métro, Vélib\', rentrer · Terre cuite : découvrir (sorties, curiosités, surprise, Mon Paris) · Vert Wallace : ajouter, garder · Or : favori, notes · Zinc : réglages, aide · Brique : supprimer.',
     'La forme dit l\'importance : plaque pleine = l\'action principale de l\'écran ; contour = action secondaire ; tuile ronde = outil ; tampon = état (ouvert, à faire).',
   ]],
   ['wrench', 'Ça ne marche pas ?', [

@@ -993,3 +993,11 @@ a.go, .item .go { background: var(--aller-bg); }
 .st-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--bg) 88%, transparent);
   font-family: var(--display); font-weight: 700; font-size: 11.5px; color: var(--ink); }
 #map.z-name .st-name { display: inline; }
+
+/* Bleu modernisé : plus vif et plus franc que l'ancien bleu émail (contrastes ≥ 4,5:1 vérifiés) */
+:root { --metro: #1B56E8; --metro-bg: #E7EEFF; --metro-bd: #1B56E8; --aller-bg: #E8E9EC; }
+:root[data-theme="dark"] { --metro: #8CB1FF; --metro-bg: #172A5E; --metro-bd: #8CB1FF; --aller-bg: #272C38; }
+.me-dot { background: #1B56E8; }
+.btn:focus-visible, .map-btn:focus-visible, .tool:focus-visible, .go-compass:focus-visible, .menu-row:focus-visible, .cat-choice:focus-visible { outline-color: #1B56E8; }
+/* Mode sombre : plaques principales blanc cassé au lieu du bleu lavande */
+:root[data-theme="dark"] { --strong: #EEF1F7; --guide: #EEF1F7; --guide-bd: #EEF1F7; }
