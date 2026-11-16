@@ -466,7 +466,7 @@ ol.items { padding: 0; }
 .fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 1.5px solid var(--ink); font: 800 11.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--ink); }
 .fiche-toc { display: flex; flex-direction: column; }
 .fiche-row { display: grid; grid-template-columns: 24px 1fr 20px; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0;
-  border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; color: var(--ink); font: 700 16px var(--display); }
+  border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; color: var(--ink); font: 700 16px var(--display); text-decoration: none; }
 .fiche-row small { display: block; font: 400 13px/1.35 'Inter', system-ui, sans-serif; color: var(--muted); }
 .fiche-row > .ico, .fiche-chev { color: var(--muted); }
 .fiche-row.danger, .fiche-row.danger > .ico, .fiche-row.danger .fiche-chev { color: var(--danger); }
@@ -823,6 +823,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 }
 .tag.open { color: var(--add); }
 .tag.closed { color: var(--info); }
+.tag.due { color: var(--danger); }
 
 /* ---- Listes et cartes de rubrique ---- */
 .item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }

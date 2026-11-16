@@ -18,6 +18,21 @@ export const RATP_TOILETS_FILE = { name: 'Toilettes publiques dans le réseau RA
 /** Page « Infos trafic » d'Île-de-France Mobilités (simple lien : rien n'est envoyé avant l'appui). */
 export const TRAFFIC_URL = 'https://www.iledefrance-mobilites.fr/info-trafic';
 
+/** Données figées dans l'appli : seules elles demandent un rappel (les données en direct se rechargent seules). */
+export const FIXED_DATA = [
+  { id: 'lignes', name: 'Lignes et gares', every: 183 }, // ou dès qu'une ligne ouvre ou se prolonge
+  { id: 'navigo', name: 'Avantages culture Navigo', every: 183 }, // offres de saison, festivals
+  { id: 'ratp', name: 'Toilettes des gares RATP', every: 365 },
+  { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
+  { id: 'listes', name: 'Expos, gratuités, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre
+];
+/** « tous les 6 mois », « tous les ans »… */
+export const everyText = (days) => (days >= 360 ? 'tous les ans' : `tous les ${Math.round(days / 30.5)} mois`);
+/** Les données figées à refaire, d'après leurs dates ({ lignes: 'AAAA-MM-JJ', … }). Une date manquante compte comme à refaire. */
+export function dataDue(dates, now = Date.now()) {
+  return FIXED_DATA.filter((d) => transportsDue(dates?.[d.id], now, d.every)).map((d) => d.id);
+}
+
 /** Vrai si la date (AAAA-MM-JJ) manque ou date de plus de `days` jours. */
 export function transportsDue(updated, now = Date.now(), days = TRANSPORT_EVERY_DAYS) {
   const t = Date.parse(updated ?? '');

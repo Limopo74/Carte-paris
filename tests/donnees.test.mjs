@@ -29,3 +29,15 @@ test('données des transports : lien des toilettes RATP et page info trafic IDFM
   const j = JSON.parse(readFileSync(new URL('../data/sanitaires-ratp.json', import.meta.url), 'utf8'));
   assert.match(j.updated ?? '', /^\d{4}-\d{2}-\d{2}$/, 'sanitaires-ratp.json : champ « updated »');
 });
+
+test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel ne compte que celles en retard', async () => {
+  const { FIXED_DATA, dataDue, everyText } = await import('../js/donnees.js');
+  assert.deepEqual(FIXED_DATA.map((d) => d.id), ['lignes', 'navigo', 'ratp', 'marches', 'listes']);
+  assert.equal(everyText(183), 'tous les 6 mois');
+  assert.equal(everyText(365), 'tous les ans');
+  const now = Date.parse('2027-06-01');
+  const dates = { lignes: '2026-11-16', navigo: '2026-11-16', ratp: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16' };
+  assert.deepEqual(dataDue(dates, now), ['lignes', 'navigo'], 'au bout de 6 mois et demi : lignes et Navigo seulement');
+  assert.deepEqual(dataDue(dates, Date.parse('2026-12-01')), []);
+  assert.deepEqual(dataDue({ ...dates, ratp: '' }, Date.parse('2026-12-01')), ['ratp'], 'date inconnue : à refaire');
+});

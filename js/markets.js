@@ -81,6 +81,7 @@ export function whenToday(m, now = new Date()) {
    le 16 novembre 2026. Positions : IGN. À revoir chaque année avec les autres listes fixes (js/art.js).
    Saint-Didier (16e) est absent : la Ville n'en donne pas les horaires. Tous sont fermés le lundi. */
 export const COVERED_CHECKED = '16 novembre 2026';
+export const COVERED_CHECKED_ON = '2026-11-16'; // même date, lisible par l'appli (rappel au bout d'un an)
 const week = (sun, tueFri, sat = tueFri) => [sun, null, tueFri, tueFri, tueFri, tueFri, sat];
 export const COVERED_MARKETS = [
   ['Marché couvert des Enfants-Rouges', '39 rue de Bretagne, Paris 3e', 48.862954, 2.362155, week('08:30-17:00', '08:30-20:30')],
