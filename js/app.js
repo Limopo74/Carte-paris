@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (68)';
+const VERSION = '16 novembre 2026 (69)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -181,6 +181,7 @@ const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStree
 // Pastel et Nuit sont des filtres de couleur appliqués sur le téléphone : aucun service de plus.
 const STYLE_INFO = {
   classic: { name: 'Classique', sub: 'La carte OpenStreetMap habituelle', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+  clean: { name: 'Épuré', sub: 'Sans icônes de commerces (CARTO, clé gratuite)', url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
   fr: { name: 'Française', sub: 'Noms en français, couleurs plus vives (OSM France)', url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — rendu <a href="https://www.openstreetmap.fr/">OSM France</a>`, maxZoom: 19 },
   hot: { name: 'Douce', sub: 'Couleurs pastel du rendu humanitaire (OSM France)', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — tuiles <a href="https://www.hotosm.org/">HOT</a>, OSM France`, maxZoom: 19 },
   pastel: { name: 'Pastel', sub: 'La carte classique en tons doux et lumineux', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
@@ -200,19 +201,52 @@ darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !st
 
 let tiles = null;
 let noCorsTiles = false;
+/* Clé CARTO du style Épuré : saisie par toi, gardée sur ce téléphone seulement (ni sauvegarde, ni partage, ni GitHub). */
+const CARTO_KEY = 'carte-paris.carto';
+const cartoKey = () => { try { return localStorage.getItem(CARTO_KEY) ?? ''; } catch { return ''; } };
+const validCartoKey = (k) => /^[A-Za-z0-9_.-]{8,200}$/.test(k);
 function applyMapStyle() {
-  const st = STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic;
+  // Épuré sans clé : on garde le style Classique (le choix reste enregistré pour quand la clé sera là)
+  const id = state.mapStyle === 'clean' && !cartoKey() ? 'classic' : state.mapStyle;
+  const st = STYLE_INFO[id] ?? STYLE_INFO.classic;
   if (tiles) map.removeLayer(tiles);
-  // Tuiles OpenStreetMap demandées en CORS : le service worker peut les garder pour le métro sans réseau.
+  // Tuiles demandées en CORS : le service worker peut les garder pour le métro sans réseau.
   // Filet de sécurité : si elles échouent toutes alors qu'on est en ligne, on revient au mode normal.
-  const cors = !noCorsTiles && st.url.includes('tile.openstreetmap.org');
-  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined }).addTo(map);
+  const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com/.test(st.url);
+  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
   if (cors) {
     let ok = 0; let bad = 0;
     tiles.on('tileload', () => { ok++; });
     tiles.on('tileerror', () => { if (++bad >= 6 && !ok && navigator.onLine) { noCorsTiles = true; applyMapStyle(); } });
   }
-  document.getElementById('map').dataset.style = state.mapStyle ?? 'classic';
+  document.getElementById('map').dataset.style = id ?? 'classic';
+}
+
+/** Saisir, changer ou retirer la clé CARTO (style Épuré). */
+function openCartoKey(back = () => openSettings('style')) {
+  const has = cartoKey();
+  const input = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Colle ta clé ici', 'aria-label': 'Clé CARTO' });
+  const err = el('div', { class: 'error', role: 'alert' });
+  const save = () => {
+    const k = input.value.trim();
+    if (!validCartoKey(k)) { err.textContent = 'Cette clé ne ressemble pas à une clé CARTO : vérifie le copier-coller.'; return; }
+    try { localStorage.setItem(CARTO_KEY, k); } catch { err.textContent = 'Le téléphone refuse de garder la clé.'; return; }
+    state.mapStyle = 'clean'; persist(); applyMapStyle(); toast('Carte : Épuré'); back();
+  };
+  openSheet([ico('palette'), ' Style Épuré : clé CARTO'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Le style Épuré vient de CARTO, qui demande une clé gratuite pour un usage personnel (5 millions de tuiles par mois : ton usage en fait quelques milliers). Comme OpenStreetMap, CARTO voit les quartiers affichés à l\'écran, jamais tes lieux.'),
+    el('ol', { class: 'steps' },
+      el('li', {}, 'Ouvre la page CARTO ci-dessous et demande une clé (usage non commercial).'),
+      el('li', {}, 'Copie la clé reçue.'),
+      el('li', {}, 'Colle-la ici et touche Enregistrer.')),
+    el('a', { class: 'btn c-disc', href: 'https://carto.com/basemaps/apikey/', target: '_blank', rel: 'noopener' }, ico('send'), 'Demander une clé sur carto.com'),
+    el('label', { class: 'field' }, has ? 'Nouvelle clé' : 'Ta clé', input),
+    err,
+    el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
+    has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (state.mapStyle === 'clean') state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
+    el('p', { class: 'help' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
+    el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte'),
+  ), { name: 'carto-key' });
 }
 applyMapStyle();
 
@@ -3196,10 +3230,12 @@ function openSettings(section = null) {
 
   if (section === 'style') {
     openSheet([ico('palette'), ' Style de la carte'], el('div', { class: 'stack' },
-      el('div', { class: 'style-grid' }, Object.entries(STYLE_INFO).map(([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id), onclick: () => {
+      el('div', { class: 'style-grid' }, Object.entries(STYLE_INFO).map(([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id && (id !== 'clean' || !!cartoKey())), onclick: () => {
+        if (id === 'clean' && !cartoKey()) { openCartoKey(); return; }
         state.mapStyle = id; persist(); applyMapStyle(); openSettings('style'); toast(`Carte : ${st.name}`);
-      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name), el('span', { class: 'menu-sub' }, st.sub)))),
-      el('p', { class: 'help' }, 'Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel et Nuit sont des filtres faits par ton téléphone.'),
+      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name), el('span', { class: 'menu-sub' }, id === 'clean' && !cartoKey() ? 'Sans icônes de commerces : touche pour saisir ta clé CARTO gratuite' : st.sub)))),
+      cartoKey() ? el('button', { type: 'button', class: 'btn c-info', onclick: () => openCartoKey() }, ico('settings'), 'Clé CARTO (changer ou retirer)') : null,
+      el('p', { class: 'help' }, 'Épuré vient de CARTO (clé gratuite, gardée sur ton téléphone). Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel et Nuit sont des filtres faits par ton téléphone.'),
       backBtn,
     ), { tall: true, name: 'settings:style', again: () => openSettings('style') });
     return;
@@ -3753,6 +3789,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{palette} Nouveau style de carte « Épuré », sans icônes de commerces (CARTO) : {settings} → La carte → Style. Il demande une clé gratuite à créer sur carto.com, que tu colles une fois ; elle reste sur ton téléphone.',
     '{list-filter} Filtres : en bas, « Choisir les filtres affichés » pour masquer les lignes dont tu ne te sers pas (Ouvert maintenant, Mieux notés, Lignes de métro, Marchés, Abrités, Listes, Personnes).',
     '{refresh-cw} Rappel : quand la liste des temps forts n\'a plus rien à venir, ou que celle des musées gratuits a plus d\'un an, Sorties l\'indique en haut. Une mise à jour est aussi préparée par Claude chaque début septembre.',
     '{list-filter} Barre du haut : {settings} → Catégories et listes → « Boutons de la barre du haut » pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',

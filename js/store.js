@@ -319,7 +319,7 @@ export function deleteCategory(state, id, moveTo) {
 }
 
 /** Styles de carte proposés dans les Réglages. */
-export const MAP_STYLES = ['classic', 'fr', 'hot', 'pastel', 'night'];
+export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.

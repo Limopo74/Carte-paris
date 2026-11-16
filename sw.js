@@ -1,7 +1,7 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v68';
+const CACHE = 'carte-paris-v69';
 const TILES = 'carte-paris-tuiles';
 const MAX_TILES = 3000; // environ 50 Mo
 const FRESH = 7 * 864e5; // une tuile de moins de 7 jours n'est pas redemandée
@@ -47,7 +47,7 @@ async function tile(req) {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  if (url.hostname === 'tile.openstreetmap.org') { e.respondWith(tile(e.request)); return; }
+  if (url.hostname === 'tile.openstreetmap.org' || url.hostname === 'basemaps.cartocdn.com') { e.respondWith(tile(e.request)); return; }
   if (url.origin !== self.location.origin) return;
   // Réseau d'abord (pour avoir la dernière version), cache si pas de réseau.
   e.respondWith(
