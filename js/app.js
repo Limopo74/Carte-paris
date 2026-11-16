@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (53)';
+const VERSION = '16 novembre 2026 (54)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -196,10 +196,19 @@ applyTheme();
 darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !state.theme) { applyTheme(); refresh?.(); } });
 
 let tiles = null;
+let noCorsTiles = false;
 function applyMapStyle() {
   const st = STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic;
   if (tiles) map.removeLayer(tiles);
-  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr }).addTo(map);
+  // Tuiles OpenStreetMap demandées en CORS : le service worker peut les garder pour le métro sans réseau.
+  // Filet de sécurité : si elles échouent toutes alors qu'on est en ligne, on revient au mode normal.
+  const cors = !noCorsTiles && st.url.includes('tile.openstreetmap.org');
+  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined }).addTo(map);
+  if (cors) {
+    let ok = 0; let bad = 0;
+    tiles.on('tileload', () => { ok++; });
+    tiles.on('tileerror', () => { if (++bad >= 6 && !ok && navigator.onLine) { noCorsTiles = true; applyMapStyle(); } });
+  }
   document.getElementById('map').dataset.style = state.mapStyle ?? 'classic';
 }
 applyMapStyle();
@@ -3083,6 +3092,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
     '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
     'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu émail = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
     'Fiche d\'un lieu plus courte : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus sur une seule rangée. Réglages rangés en 3 groupes. Épingles en goutte qui pointent le lieu exact.',
@@ -3110,6 +3120,7 @@ const HELP = [
     '{house} Rentrer : quel métro prendre vers ta station Maison (ou Travail…). Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
+    'Sans réseau (métro) : les quartiers que tu as déjà regardés restent affichés, en style Classique, Pastel ou Nuit (environ 3 000 morceaux de carte gardés, les plus anciens s\'effacent).',
     'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
@@ -3239,4 +3250,6 @@ if (!launched && state.ok && backupDue(state)) remindBackup();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // Demande au navigateur de ne pas effacer tes lieux et la carte gardée quand le téléphone manque de place
+  navigator.storage?.persist?.().catch(() => {});
 }
