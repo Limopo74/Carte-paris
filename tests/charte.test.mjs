@@ -64,3 +64,8 @@ test('aide : 10 nouveautés au plus (les plus anciennes restent dans l\'historiq
   const n = block.split('\n').filter((l) => l.startsWith("    '")).length;
   assert.ok(n > 0 && n <= 10, `${n} nouveautés : garde les 10 dernières`);
 });
+
+test('charte : aucun emoji écrit dans un bouton ou un lien (Ⓜ seul permis, pour nommer une station)', () => {
+  const bad = app.split('\n').filter((l) => /el\('(?:button|a)'/.test(l) && /\p{Extended_Pictographic}/u.test(l.replace(/Ⓜ/g, '')));
+  assert.deepEqual(bad.map((l) => l.trim().slice(0, 90)), [], 'Remplace l\'emoji par ico(\'…\') (CHARTE.md §7)');
+});

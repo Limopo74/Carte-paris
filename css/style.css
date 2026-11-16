@@ -187,7 +187,7 @@ button { cursor: pointer; }
 .sheet-foot {
   position: sticky; bottom: -18px; z-index: 2;
   margin: 4px -18px -18px; padding: 10px 18px calc(12px + 6px);
-  background: var(--bg); border-top: 1.5px dashed var(--line);
+  background: var(--bg); border-top: 1.5px solid var(--ink);
   display: flex; flex-direction: column; gap: 8px;
 }
 .sheet-foot > .btn { width: 100%; }
@@ -210,7 +210,7 @@ button { cursor: pointer; }
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 16px; }
 .field input, .field textarea {
   width: 100%; min-height: 48px; padding: 10px 12px; font-weight: 400; font-size: 16px;
-  border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface);
+  border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface);
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .field input:focus, .field textarea:focus, .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .item-main:focus-visible {
@@ -221,7 +221,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .error { color: var(--danger); font-size: 14px; margin: 0; }
 .warn {
   background: var(--warn-bg); border: 1px solid var(--warn-bd); color: var(--warn-ink);
-  border-radius: var(--r); padding: 10px 12px; font-size: 14px; margin: 0;
+  border-radius: var(--r-s); padding: 10px 12px; font-size: 14px; margin: 0;
 }
 
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -462,10 +462,6 @@ ol.items { padding: 0; }
    boutons à contour de leur famille, angles 4 px, sans ombre. Une seule plaque pleine : Y aller. */
 #sheetTitle .fiche-kick { display: block; margin-bottom: 2px; font: 700 13px var(--display); letter-spacing: .02em; color: var(--disc); }
 #sheetTitle .fiche-name { font-size: 26px; line-height: 1.1; font-stretch: 80%; }
-.detail .btn:not(.primary) { border-width: 1.5px; border-radius: var(--r-s); background: transparent; box-shadow: none; }
-.detail .btn.primary { border-radius: var(--r-s); box-shadow: none; }
-.detail .btn.c-fav[aria-pressed="true"] { background: var(--fav-bg); font-weight: 800; }
-.detail .btn.c-add[aria-pressed="true"] { background: var(--add-bg); font-weight: 800; }
 .fiche-lede { margin: 0; font-size: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .fiche-cols { display: grid; grid-template-columns: 1fr 1fr; border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--line); }
 .fiche-cols > div { min-width: 0; padding: 10px 0; }
@@ -526,9 +522,9 @@ ol.items { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .switch, .switch .knob { transition: none; } }
 
 /* Code couleur : teinte claire + texte foncé de la même couleur (lisible), ou plein pour l'action principale */
-.btn.c-metro, .tool.c-metro, .map-btn.c-metro { border-color: var(--metro-bd); }
-.btn.c-guide, .tool.c-guide, .map-btn.c-guide, .go-compass { border-color: var(--guide-bd); }
-.btn.c-add, .tool.c-add, .map-btn.c-add { border-color: var(--add-bd); }
+.btn.c-metro, .map-btn.c-metro { border-color: var(--metro-bd); }
+.btn.c-guide, .map-btn.c-guide, .go-compass { border-color: var(--guide-bd); }
+.btn.c-add, .map-btn.c-add { border-color: var(--add-bd); }
 .btn.c-metro.solid, .tool.c-metro.on { background: var(--metro); color: var(--on-strong); border-color: var(--metro); }
 .btn.c-guide.solid, .tool.c-guide.on, .map-btn.c-guide[aria-pressed="true"] { background: var(--guide); color: var(--on-strong); border-color: var(--guide); }
 .btn.c-add.solid, .big-btn.c-add.solid { background: var(--add); color: var(--on-strong); border-color: var(--add); }
@@ -637,8 +633,6 @@ ol.items { padding: 0; }
 .list-chips .chip .ico svg { width: 16px; height: 16px; }
 .list-chips .chip[aria-pressed="true"] .cat-count { color: var(--on-strong); }
 
-.tool.c-fav { border-color: var(--fav-bd); }
-.tool.c-info { border-color: var(--info-bd); }
 .rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; }
 .rain .ico svg { width: 22px; height: 22px; }
 .rain span:nth-child(2) { flex: 1; }
@@ -665,7 +659,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .help-item li .ico svg { width: 17px; height: 17px; }
 #sheetTitle:focus { outline: none; }
 #sheetTitle:focus-visible { outline: none; }
-.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); }
+.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface); }
 .m-badge::before { content: 'M'; }
 
 /* Styles de carte : filtres faits par le téléphone */
@@ -674,7 +668,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #map[data-style="night"] { background: #1d2230; }
 .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; text-align: left; font: inherit; color: var(--ink); min-height: 44px; }
-.style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: 0 0 0 3px var(--guide-bg); }
+.style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: none; }
 .style-card b { font-size: 16px; }
 .style-card .menu-sub { white-space: normal; font-size: 13px; }
 .style-prev { width: 100%; height: 64px; border-radius: var(--r); display: block; border: 1px solid var(--line); }
@@ -728,10 +722,9 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Boussole en sombre : fond sombre (pas de plein écran clair la nuit), flèche et textes clairs, une seule plaque claire. */
 :root[data-theme="dark"] .compass .compass-go { background: var(--compass-ink); color: var(--compass-bg); border-color: var(--compass-ink); }
 
-/* Mode sombre : les boutons ressortent du fond (relief léger + contour clair) */
-:root[data-theme="dark"] .btn, :root[data-theme="dark"] .tool, :root[data-theme="dark"] .seg button { box-shadow: var(--pave); }
+/* Mode sombre : mêmes contours qu'en clair, sans relief (charte « Papier ») */
 :root[data-theme="dark"] .seg button:not([aria-pressed="true"]) { background: var(--btn); border-color: var(--btn-bd); }
-:root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn { background: var(--btn); border-color: var(--btn-bd); box-shadow: var(--pave); }
+:root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn:not(#sheetClose) { background: var(--btn); border-color: var(--btn-bd); box-shadow: var(--pave); }
 .menu-row.c-metro .menu-ico { color: var(--metro); }
 .menu-row.c-metro .menu-chev { color: var(--metro); }
 
@@ -789,21 +782,22 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 
 /* Feuille : papier, coin franc */
 .sheet { background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
-.sheet-head { border-bottom: 1.5px dashed var(--line); }
-.sheet-head .icon-btn { border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); }
+.sheet-head { border-bottom: 1px solid var(--line); }
+.sheet-head .icon-btn { border-radius: var(--r-s); border: 1.5px solid var(--ink); background: transparent; }
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
-.btn { border-radius: var(--r); border: 2px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; }
+.btn { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; }
 .btn.c-metro { color: var(--metro); border-color: var(--metro); }
 .btn.c-guide { color: var(--guide); border-color: var(--guide); }
 .btn.c-add { color: var(--add); border-color: var(--add); }
 .btn.c-fav { color: var(--fav); border-color: var(--fav); }
 .btn.c-info { color: var(--info); border-color: var(--info); }
 .btn.c-disc { color: var(--disc); border-color: var(--disc); }
-.btn.danger { color: var(--danger); border: 2px solid var(--danger); }
+.btn.danger { color: var(--danger); border: 1.5px solid var(--danger); }
 
-/* ---- Action principale = plaque émaillée à double filet ---- */
-.btn.primary, .big-btn.primary, .btn.solid, .big-btn.solid, a.go, .item .go {
+/* ---- Action principale = plaque pleine, à plat (charte « Papier », v99) ; la barre de la carte garde son double filet jusqu'à l'étape 5 ---- */
+.btn.primary, .btn.solid, a.go, .item .go { --pl: var(--strong); border-color: var(--pl); color: var(--on-strong); box-shadow: none; }
+.big-btn.primary, .big-btn.solid {
   --pl: var(--strong); border-color: var(--pl); color: var(--on-strong);
   box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 3.5px var(--plaque-line), 0 2px 0 var(--hard);
 }
@@ -812,25 +806,25 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .btn.c-guide.solid { --pl: var(--guide); }
 .btn.c-info.solid { --pl: var(--info); }
 .btn.c-disc.solid { --pl: var(--disc); }
-.btn.primary:active, .btn.solid:active, .big-btn:active, a.go:active { transform: translateY(1px); box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 3.5px var(--plaque-line); }
+.btn.primary:active, .btn.solid:active, a.go:active { transform: translateY(1px); }
+.big-btn:active { transform: translateY(1px); box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 3.5px var(--plaque-line); }
 
 /* Barre du bas */
 .big-btn { border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); box-shadow: 0 3px 0 var(--hard); font-weight: 800; font-stretch: 92%; font-size: 18px; }
 
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
 .tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
-  --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--btn-bd); border-radius: var(--r);
-  min-height: 82px; gap: 6px; font-size: 13px; font-weight: 700; box-shadow: var(--pave);
+  --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--fam); border-radius: var(--r-s);
+  min-height: 82px; gap: 6px; font-size: 13px; font-weight: 700; box-shadow: none; background: transparent;
 }
 .tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
 .tool.c-info { --fam: var(--info); } .tool.c-disc { --fam: var(--disc); }
 .tool .tool-ico {
-  width: 38px; height: 38px; border-radius: 50%; background: var(--fam); color: var(--on-strong);
+  width: 38px; height: 38px; color: var(--fam);
   display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800;
-  box-shadow: inset 0 0 0 2px var(--fam), inset 0 0 0 3.5px var(--plaque-line);
 }
-.tool .tool-ico .ico svg { width: 19px; height: 19px; }
-.tool.on { border: 2px solid var(--fam); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fam) 25%, transparent), 0 2px 0 var(--hard); }
+.tool .tool-ico .ico svg { width: 26px; height: 26px; }
+.tool.on { border: 2px solid var(--fam); box-shadow: none; }
 .tool.on .tool-ico { animation: none; }
 
 /* ---- Jetons (catégories, filtres) ---- */
@@ -850,7 +844,6 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tag.closed { color: var(--info); }
 
 /* ---- Listes et cartes de rubrique ---- */
-.cat-row { border-radius: var(--r); }
 .item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .style-card { border: 1.5px solid var(--btn-bd); border-radius: var(--r-s); background: transparent; }
 .menu-row.c-disc .menu-ico { color: var(--disc); }
@@ -858,7 +851,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .menu-row.c-guide .menu-ico { color: var(--guide); }
 .go-compass { border-radius: var(--r-s); border: 1.5px solid var(--ink); color: var(--ink); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
-.seg button { border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); font-family: var(--display); font-weight: 700; }
+.seg button { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); }
 .switch.on { background: var(--add); }
 
@@ -944,25 +937,14 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
    Plaque pleine = action principale · teinte + contour = action secondaire · pierre = neutre
    ===================================================================== */
 
-/* Boutons secondaires : fond teinté de la famille */
-.btn { background: var(--neutral-bg); border-color: var(--neutral-bd); }
-.btn.c-metro { background: var(--metro-bg); }
-.btn.c-guide { background: var(--aller-bg); }
-.btn.c-add { background: var(--add-bg); }
-.btn.c-fav { background: var(--fav-bg); }
-.btn.c-info { background: var(--info-bg); }
-.btn.c-disc { background: var(--disc-bg); }
-.btn.danger { background: var(--danger-bg); }
+/* Boutons secondaires : contour de la couleur de la famille, sans fond (charte « Papier », v99).
+   Un interrupteur allumé (Favori, Déjà visité…) prend un fond léger de sa famille. */
+.btn { background: transparent; border-color: var(--neutral-bd); }
 .btn.primary, .btn.solid, .big-btn.solid, .big-btn.primary { background: var(--pl); }
-.btn.mini[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--strong); }
-.btn.mini.c-add[aria-pressed="true"] { background: var(--add-bg); }
-.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav-bg); }
+.seg button[aria-pressed="true"] { background: var(--strong); }
+.btn.c-fav[aria-pressed="true"] { background: var(--fav-bg); font-weight: 800; }
+.btn.c-add[aria-pressed="true"] { background: var(--add-bg); font-weight: 800; }
 
-/* Outils d'Autour de moi : tuile teintée, médaillon plein */
-.tool, .tool.c-guide { background: var(--aller-bg); border-color: color-mix(in srgb, var(--fam) 35%, transparent); }
-.tool.c-metro { background: var(--metro-bg); } .tool.c-add { background: var(--add-bg); } .tool.c-fav { background: var(--fav-bg); }
-.tool.c-info { background: var(--info-bg); } .tool.c-disc { background: var(--disc-bg); }
-.tool { box-shadow: 0 2px 0 color-mix(in srgb, var(--fam) 45%, transparent); }
 
 
 /* Boutons de la carte : teintés de leur famille */
@@ -1068,7 +1050,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 
 /* Liste : le nom ouvre le choix des lieux */
 .cat-row .cat-open { background: none; border: 0; padding: 4px 0; min-height: 44px; text-align: left; font: inherit; font-size: 16px; color: var(--ink); cursor: pointer; }
-#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); color: var(--ink); }
+#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface); color: var(--ink); }
 
 /* Dans la rue aujourd'hui : bouton de la barre du haut (terre cuite, plein quand allumé) */
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }

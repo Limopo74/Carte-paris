@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (98)';
+const VERSION = '16 novembre 2026 (99)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -3620,7 +3620,7 @@ function openSettings(section = null) {
   if (section === 'appli') {
     openSheet([ico('info'), ' Application'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'),
-      el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, '🗺️ Recharger la carte (si elle reste grise)'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte (si elle reste grise)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager l\'appli'), el('span', {}, '')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer le lien'),
@@ -4122,6 +4122,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
     '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
     '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
@@ -4131,7 +4132,6 @@ const HELP = [
     '{plus} Nouveau lieu et Modifier : « + Nouvelle » au bout des catégories crée une catégorie sans quitter la fiche ; tu reviens avec elle déjà choisie, rien de ce que tu as tapé n\'est perdu.',
     '{palette} Interface harmonisée (charte « Plaques & pavés ») : un seul arrondi, les mêmes tailles de texte et de boutons partout, des icônes dessinées au lieu des emoji dans les boutons, les mêmes couleurs de qualité de l\'air qu\'à Mon Paris, et un mode sombre sans lueurs. Boussole et Métro des sorties affichent enfin leur nom (et plus « undefined »).',
     '{save} Sauvegarde : ton prénom (ou pseudo) passe au-dessus d\'« Exporter » : tu vois sous quel nom tes lieux partiront. L\'appli demande aussi au téléphone de ne jamais effacer tes lieux s\'il manque de place. « Icônes seules en haut » remonte en tête de Catégories et listes. Retours nommés sur Où suis-je, Choisir une station et Nom ou adresse.',
-    '{umbrella} Météo : sous la pluie, plus de « Parfait pour marcher » (ce conseil ne parlait que de l\'air) ; à la place, un bouton « Voir mes lieux abrités ». Filtres : le titre « Filtrer mes lieux » disparaît quand tous ses filtres sont masqués.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
