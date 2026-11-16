@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (77)';
+const VERSION = '16 novembre 2026 (78)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -142,7 +142,7 @@ function catDot(catId) {
 }
 const favMark = (p) => {
   if (!p.fav) return null;
-  const m = el('span', { class: 'fav-mark', 'aria-label': 'Favori' }, glyph(state.fav.icon, { filled: true }));
+  const m = el('span', { class: 'fav-mark', role: 'img', 'aria-label': 'Favori' }, glyph(state.fav.icon, { filled: true }));
   m.style.color = state.fav.color;
   return m;
 };
@@ -3908,6 +3908,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Nouvelle police pour le texte : Inter, plus moderne et très lisible (titres et boutons gardent Archivo). Elle est dans l\'appli : rien n\'est demandé à un service.',
     '{star} Favoris et catégories : « Tout » enlève aussi le filtre des favoris, et n\'est plus allumé quand seuls les favoris sont affichés. Si une combinaison ne montre plus aucun lieu (ex. favoris + Boutiques), l\'appli le dit.',
     '{tent} « Dans la rue aujourd\'hui » passe en haut de l\'écran, juste après l\'étoile des favoris : c\'est un choix de ce que la carte montre. Un appui l\'allume ou l\'éteint ; pour le masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
     '{list} Listes : {settings} → Catégories et listes. « Nouvelle liste », et un appui sur une liste pour cocher d\'un coup tous ses lieux (avec recherche par nom).',

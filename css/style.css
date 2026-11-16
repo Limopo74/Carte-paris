@@ -24,7 +24,7 @@
   --danger: #c92a2a;
   --radius: 14px;
   --safe-b: env(safe-area-inset-bottom, 0px);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
 }
 
@@ -727,6 +727,12 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
    Plaque pleine à double filet = action principale · contour 2 px = action secondaire
    Tuile papier + médaillon = outil · jeton = catégorie · tampon = état
    ===================================================================== */
+/* Texte : Inter (licence OFL, dans vendor/fonts), lisible et moderne ; titres et boutons : Archivo */
+@font-face {
+  font-family: 'Inter'; font-style: normal; font-display: swap; font-weight: 100 900;
+  src: url(../vendor/fonts/inter-latin-wght.woff2) format('woff2-variations'), url(../vendor/fonts/inter-latin-wght.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 @font-face {
   font-family: 'Archivo'; font-style: normal; font-display: swap; font-weight: 100 900; font-stretch: 62% 125%;
   src: url(../vendor/fonts/archivo-wdth.woff2) format('woff2-variations'), url(../vendor/fonts/archivo-wdth.woff2) format('woff2');
