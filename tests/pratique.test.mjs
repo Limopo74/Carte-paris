@@ -55,3 +55,27 @@ test('toilettes RATP : zone payante dite clairement, lignes illisibles écartée
   assert.match(t[1].detail, /Sans passer les tourniquets/); assert.match(t[1].detail, /passe Navigo/);
   assert.deepEqual(parseRatpToilets(null), []);
 });
+
+test('parcs : horaires de la saison (îlots de fraîcheur) au format OpenStreetMap', async () => {
+  const { parkHours, parkFor, looksLikePark } = await import('../js/pratique.js');
+  const { openState } = await import('../js/hours.js');
+  const nov = new Date(2026, 10, 16, 16, 0);
+  const days = (wk, we) => ({ horaires_lundi: wk, horaires_mardi: wk, horaires_mercredi: wk, horaires_jeudi: wk, horaires_vendredi: wk, horaires_samedi: we, horaires_dimanche: we });
+  const sq = { ...days('08h00 - 17h00', '09h00 - 17h00'), horaires_periode: 'du 25/10/26 au 28/02/27', ouvert_24h: 'Non' };
+  const h = parkHours(sq, nov);
+  assert.equal(h, 'Mo 08:00-17:00; Tu 08:00-17:00; We 08:00-17:00; Th 08:00-17:00; Fr 08:00-17:00; Sa 09:00-17:00; Su 09:00-17:00');
+  assert.equal(openState(h, new Date(2026, 10, 16, 17, 30)).open, false, 'un square ferme à 17 h en hiver');
+  assert.equal(parkHours(sq, new Date(2027, 4, 1)), '', 'saison passée : horaires inconnus plutôt que faux');
+  assert.equal(parkHours({ ...days('00h00 - 23h59', '00:00 - 23:59'), horaires_periode: 'None' }, nov), '24/7');
+  assert.equal(parkHours({ ...days('None', 'None'), ouvert_24h: 'Oui' }, nov), '24/7');
+  assert.equal(parkHours({ ...days('08h30 - 12h30 / 14h00 - 17h00', '-'), horaires_periode: 'à partir du 07/06/22' }, nov), 'Mo 08:30-12:30,14:00-17:00; Tu 08:30-12:30,14:00-17:00; We 08:30-12:30,14:00-17:00; Th 08:30-12:30,14:00-17:00; Fr 08:30-12:30,14:00-17:00; Sa off; Su off');
+  assert.equal(parkHours({ ...days('15H - 18H', '10h-19h'), horaires_periode: null }, nov), 'Mo 15:00-18:00; Tu 15:00-18:00; We 15:00-18:00; Th 15:00-18:00; Fr 15:00-18:00; Sa 10:00-19:00; Su 10:00-19:00');
+  assert.equal(parkHours({ ...days('08h00 - 17h00', 'None') }, nov), '', 'un jour inconnu : on ne devine pas');
+  const parks = [{ label: 'PARC MONCEAU', lat: 48.8797, lng: 2.3088, hours: '24/7' }, { label: 'SQUARE DES BATIGNOLLES', lat: 48.8867, lng: 2.3170, hours: h }];
+  assert.equal(parkFor({ name: 'Parc Monceau', lat: 48.8812, lng: 2.3110 }, parks)?.label, 'PARC MONCEAU', 'entrée du parc, à 230 m du centre');
+  assert.equal(parkFor({ name: 'Café Monceau', lat: 48.8850, lng: 2.3170 }, parks)?.label, undefined, '« Monceau » mais à plus de 500 m');
+  assert.equal(parkFor({ name: 'Mon banc', lat: 48.88672, lng: 2.31702 }, parks)?.label, 'SQUARE DES BATIGNOLLES');
+  assert.ok(looksLikePark('Jardin du Luxembourg'));
+  assert.ok(looksLikePark('Square du Temple Parcs'));
+  assert.ok(!looksLikePark('Parcours galerie'));
+});

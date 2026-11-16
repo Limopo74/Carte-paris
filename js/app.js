@@ -11,7 +11,7 @@ import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, neare
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
-import { exportUrl, parseRecords, nearestOf, parseRatpToilets } from './pratique.js';
+import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
 import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (111)';
+const VERSION = '16 novembre 2026 (112)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -47,6 +47,10 @@ try { storage = window.localStorage; storage.getItem('test'); } catch { storage 
 // Mémoire vide au démarrage (aucun lieu jamais enregistré ici) : sert à repérer un lien ouvert hors de mon appli.
 const FRESH_STORAGE = (() => { try { return storage.getItem(KEY) == null; } catch { return true; } })();
 let state = loadState(storage);
+/** Horaires de la Ville pour mes lieux qui sont des parcs sans horaires (id → horaires), recalculés quand la liste des parcs arrive. */
+const parkHoursById = new Map();
+/** Les horaires d'un lieu : les miens (ou ceux d'OpenStreetMap), sinon ceux de la Ville pour un parc. */
+function hoursOf(p) { return p?.hours || parkHoursById.get(p?.id) || ''; }
 if (!state.ok) {
   // Données illisibles : on en garde une copie avant de réécrire par-dessus.
   try {
@@ -343,7 +347,7 @@ let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 // Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
 const filt = { open: false, top: false, covered: false, lists: new Set() };
 const activeFilters = () => [filt.open, filt.top, filt.covered, filt.lists.size > 0, personFilter !== 'all'].filter(Boolean).length;
-const passFilters = (p) => (!filt.open || openState(p.hours)?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
+const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
   && (!filt.covered || p.covered) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
   && (personFilter === 'all' || p.owner === personFilter);
 const visible = () => state.points.filter((p) =>
@@ -435,7 +439,7 @@ function openFilters() {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
-  const withHours = count((p) => openState(p.hours) != null);
+  const withHours = count((p) => openState(hoursOf(p)) != null);
   const people = owners(state.points);
   const shown = visible().length;
   // Lignes masquées dans « Choisir les filtres affichés » ; une ligne active reste visible pour pouvoir l'éteindre
@@ -446,7 +450,7 @@ function openFilters() {
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
     // Le titre n'apparaît que s'il reste au moins un filtre dessous (tout peut être masqué dans « Choisir les filtres affichés »)
     ...withTitle('Filtrer mes lieux', [
-      !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
+      !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(hoursOf(p))?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
       !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
       !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
       !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
@@ -755,7 +759,7 @@ function updateNow(force = false) {
   const fits = (p) => slot && slot.re.test(`${catOf(p.cat).name} ${p.name}`);
   // Un favori (même déjà visité) passe devant un lieu jusqu'à 5 min de marche plus proche
   const score = (x) => x.d - (fits(x.p) ? 400 : 0) - (x.p.fav ? minutesToMeters(5) : 0);
-  const best = !pos || nowHidden ? null : visible().filter((p) => openState(p.hours)?.open !== false)
+  const best = !pos || nowHidden ? null : visible().filter((p) => openState(hoursOf(p))?.open !== false)
     .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => score(a) - score(b))[0];
   // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
   const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
@@ -774,7 +778,7 @@ function updateNow(force = false) {
     return;
   }
   const { p, d } = best;
-  const st = openState(p.hours);
+  const st = openState(hoursOf(p));
   fill(card.querySelector('.now-text'),
     el('span', { class: 'now-kicker' }, [fits(p) ? slot.label : 'Maintenant', p.fav ? 'ton favori' : null].filter(Boolean).join(' · ')),
     el('span', { class: 'now-name' }, p.name),
@@ -1110,6 +1114,7 @@ function openForm(draft, existing = null) {
     if (existing) openDetail(existing.id); else closeSheet();
     if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${ticketText(draft.ticketAt)}` : ''}`);
     if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
+    if (ok && !existing) refreshParkHours().catch(() => {});
     if (ok && !existing && unsavedCount(state) > 0 && unsavedCount(state) % 10 === 0) setTimeout(remindBackup, 1500);
   };
 
@@ -1173,13 +1178,14 @@ function openDetail(id, back = null) {
     el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { setDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
 
   // Deux colonnes de faits : aujourd'hui (horaires) et métro le plus proche.
-  const st = openState(p.hours);
+  const st = openState(hoursOf(p));
   const metro = stationFacts(p);
   const facts2 = st || metro ? el('div', { class: 'fiche-cols' },
     el('div', {},
       el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
       st ? el('div', { class: `fiche-v ${st.open ? 'ok' : 'ko'}` }, hoursLine(p)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
-      closedDaysText(p.hours) ? el('div', { class: 'fiche-s' }, closedDaysText(p.hours)) : null),
+      closedDaysText(hoursOf(p)) ? el('div', { class: 'fiche-s' }, closedDaysText(hoursOf(p))) : null,
+      !p.hours && parkHoursById.has(p.id) ? el('div', { class: 'fiche-s' }, 'Horaires de la Ville, saison en cours') : null),
     el('div', {},
       el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
       metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
@@ -1389,9 +1395,9 @@ window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); }
 
 /** « Ouvert · ferme à 22:30 », « Fermé · ouvre à 19:00 », ou null si horaires inconnus. */
 function hoursLine(p) {
-  const st = openState(p.hours);
+  const st = openState(hoursOf(p));
   if (!st) return null;
-  const left = minutesLeft(p.hours);
+  const left = minutesLeft(hoursOf(p));
   if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${left} min (${st.until.replace(':', 'h')})`;
   if (st.open) return st.until ? `Ouvert · ferme à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'Ouvert toute la journée';
   return st.opensAt ? `Fermé · ouvre à ${st.opensAt.replace(':', 'h')}` : 'Fermé pour aujourd\'hui';
@@ -1406,7 +1412,7 @@ function stateTag(hours) {
   if (st.opensAt) return el('span', { class: 'tag soon' }, `Ouvre à ${hhText(st.opensAt)}`);
   return el('span', { class: 'tag closed' }, 'Fermé aujourd\'hui');
 }
-function hoursTag(p) { return stateTag(p.hours); }
+function hoursTag(p) { return stateTag(hoursOf(p)); }
 
 /* ---------- Copier d'un appui (adresse, coordonnées) pour coller dans une autre appli ---------- */
 
@@ -2284,7 +2290,7 @@ function updatePlanningCount() {
 function planInfo(p) {
   const at = new Date(p.ticket.at);
   const out = [];
-  const st = p.hours ? openState(p.hours, at) : null;
+  const st = hoursOf(p) ? openState(hoursOf(p), at) : null;
   if (st && !st.open) out.push(el('span', { class: 'plan-note bad' }, ico('clock'), ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
   if (daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
     const { leave, travel, how } = departureFor(p, freshHere());
@@ -3280,7 +3286,7 @@ function openFreeTime() {
   if (!origin) { openNear(); return; }
   const todo = visible(); // « déjà visité » n'est qu'une information : tous les lieux comptent
   // Ouvert à l'heure d'arrivée ? (horaires inconnus : on garde)
-  const isOpen = (p, t) => { const st = openState(p.hours, new Date(Date.now() + t * 60000)); return st ? st.open : null; };
+  const isOpen = (p, t) => { const st = openState(hoursOf(p), new Date(Date.now() + t * 60000)); return st ? st.open : null; };
   const plan = planLoopOpen(origin, todo, freeMin, isOpen, { dwell: freeDwell });
   const choice = (vals, cur, fmt, set) => el('div', { class: 'seg', role: 'group' }, vals.map((v) => el('button', { type: 'button', 'aria-pressed': String(v === cur), onclick: () => { set(v); openFreeTime(); } }, fmt(v))));
   let prev = origin;
@@ -3892,7 +3898,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: `btn c-metro`, onclick: () => openSettings('transports') }, ico('lines'),
         transportsDue(transportsUpdated) ? 'Données des transports : à mettre à jour' : `Données des transports (${frenchDate(transportsUpdated)})`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes et horaires des parcs (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -4269,6 +4275,17 @@ async function loadPratique(kind) {
   return pratique[kind];
 }
 
+/** Mes lieux qui sont des parcs sans horaires : on charge la liste des espaces verts de la Ville (sans position, une fois par jour)
+    pour leur donner les horaires de la saison. Rien n'est écrit dans le lieu lui-même. */
+async function refreshParkHours() {
+  const cands = state.points.filter((p) => !p.hours && looksLikePark(`${p.name} ${catOf(p.cat).name}`));
+  if (!cands.length) return;
+  const parks = await loadPratique('fraisParcs');
+  parkHoursById.clear();
+  for (const p of cands) { const m = parkFor(p, parks); if (m) parkHoursById.set(p.id, m.hours); }
+  if (parkHoursById.size) { updateNow(true); updatePlanningCount(); if (view === 'planning') openPlanning(); }
+}
+
 async function nearestPratique() {
   track('Fontaine et toilettes');
   toast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
@@ -4287,7 +4304,7 @@ async function nearestPratique() {
     toast('Les données de la Ville de Paris ne répondent pas. Vérifie ta connexion et réessaie.', true);
     return;
   }
-  showPratique(from, nearestOf(fontaines, from, 2), nearestOf(toilettes, from, 2), nearestOf([...fraisLieux, ...fraisParcs], from, 2));
+  showPratique(from, nearestOf(fontaines, from, 2), nearestOf(toilettes, from, 2), nearestOf([...fraisLieux, ...fraisParcs], from, 6).sort((a, b) => (openState(a.item.hours)?.open === false) - (openState(b.item.hours)?.open === false) || a.d - b.d).slice(0, 2)); // un parc fermé passe après un lieu ouvert
 }
 
 function showPratique(from, fs, ts, cs = []) {
@@ -4298,7 +4315,7 @@ function showPratique(from, fs, ts, cs = []) {
         const target = { name: item.label, lat: item.lat, lng: item.lng };
         return el('li', { class: 'item' },
           el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
-            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`),
+            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours) : null),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
           el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
@@ -4390,6 +4407,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
     '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
     '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
     '{send} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {send} envoie le lieu avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
@@ -4399,7 +4417,6 @@ const HELP = [
     '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
     '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
-    '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4408,7 +4425,7 @@ const HELP = [
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
-    '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
+    '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque ; un parc dit s\'il est ouvert) les plus proches.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
@@ -4585,6 +4602,7 @@ drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé 
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
 updatePlanningCount();
+refreshParkHours().catch(() => {}); // horaires de la Ville pour mes parcs (liste sans position, gardée un jour)
 loadNavigo(); // fichier de l'appli (rien n'est envoyé) : pour la ligne « Avantage Navigo » des fiches
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
