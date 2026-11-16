@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (94)';
+const VERSION = '16 novembre 2026 (95)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1090,27 +1090,9 @@ function openDetail(id, back = null) {
   if (!p) { closeSheet(); return; }
   const pos = freshHere();
   const d = pos ? distanceM(pos, p) : null;
-  const actions = el('div', { class: 'stack' });
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
+  const here = named('Fiche', () => openDetail(p.id, back));
 
-  const more = el('div', { class: 'stack' });
-  const toggleMore = (btn) => {
-    const open = more.hasChildNodes();
-    btn.setAttribute('aria-expanded', String(!open));
-    fill(btn, ico('ellipsis'), open ? 'Plus' : 'Moins');
-    if (open) { fill(more, ); return; }
-    fill(more, 
-      el('p', { class: 'help' }, ageLine(p)),
-      el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => sharePlace(p) }, ico('share-2'), 'Partager'),
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => showQr(p, back) }, ico('qr-code'), 'QR code')),
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openTicket(p, back) }, ico('ticket'), p.ticket ? 'Mon billet (modifier)' : 'Mon billet (créneau réservé)'),
-      el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, ico('clock'), p.hours ? 'Mettre à jour les horaires' : 'Chercher les horaires'),
-      p.hours ? el('p', { class: 'help' }, `Horaires OpenStreetMap : ${p.hours}`) : null,
-      el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer'),
-        el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer')));
-  };
   // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goBox = el('div', { class: 'stack' },
@@ -1118,55 +1100,96 @@ function openDetail(id, back = null) {
       ico('arrow-right'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, named('Fiche', () => openDetail(p.id, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')));
-  const showActions = () => {
-    fill(more, );
-    const moreBtn = el('button', { type: 'button', class: 'btn mini c-info', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, ico('ellipsis'), 'Plus');
-    fill(actions, 
-      el('div', { class: 'row4' },
-        el('button', { type: 'button', class: 'btn mini c-add', 'aria-pressed': String(!!p.done), 'aria-label': p.done ? 'Déjà visité : remettre à faire' : 'Marquer comme déjà visité', onclick: () => update(() => { setDone(p, !p.done); }) }, ico(p.done ? 'rotate-ccw' : 'check'), p.done ? 'À refaire' : 'Visité'),
-        el('button', { type: 'button', class: 'btn mini c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
-        el('button', { type: 'button', class: 'btn mini c-info', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, ico('pencil'), 'Modifier'),
-        moreBtn),
-      more,
-      back ? backBtn(back) : null,
-    );
-  };
-  const askDelete = () => fill(actions, 
+
+  // Favori et Déjà visité : deux interrupteurs à libellé fixe, l'état est dit par aria-pressed (v95).
+  const toggles = el('div', { class: 'row' },
+    el('button', { type: 'button', class: 'btn c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
+    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { setDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
+
+  // Deux colonnes de faits : aujourd'hui (horaires) et métro le plus proche.
+  const st = openState(p.hours);
+  const metro = stationFacts(p);
+  const facts2 = st || metro ? el('div', { class: 'fiche-cols' },
+    el('div', {},
+      el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
+      st ? el('div', { class: `fiche-v ${st.open ? 'ok' : 'ko'}` }, hoursLine(p)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
+      closedDaysText(p.hours) ? el('div', { class: 'fiche-s' }, closedDaysText(p.hours)) : null),
+    el('div', {},
+      el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
+      metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
+      metro ? el('div', { class: 'fiche-s' }, `≈ ${metro.min} min à pied`) : null)) : null;
+
+  // Lignes d'information, séparées par des filets.
+  const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
+  const facts = el('div', { class: 'fiche-lines' },
+    p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
+    p.ticket ? el('p', {}, ico('ticket'), ` Billet : ${ticketText(p.ticket.at)}`) : null,
+    listNames.length ? el('p', {}, listNames.join(' · ')) : null,
+    p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
+    el('p', { class: 'muted' }, ageLine(p)));
+
+  // Actions, version A « Sommaire » : trois rubriques nommées, tout à un appui (plus de « Plus »).
+  const row = (icon, label, sub, onclick, cls = '') => el('button', { type: 'button', class: `fiche-row ${cls}`.trim(), onclick },
+    ico(icon), el('span', {}, label, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+  const tidy = el('div', { class: 'fiche-toc' });
+  const showTidy = () => fill(tidy,
+    row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
+    row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
+  const askDelete = () => fill(tidy,
     el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: showActions }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn', onclick: showTidy }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
         for (const ph of p.photos ?? []) deletePhoto(ph).catch(() => {});
         state.points = state.points.filter((x) => x.id !== id);
         persist(); renderMarkers();
         if (back) back(); else closeSheet();
         toast('Lieu supprimé');
-      } }, 'Oui, supprimer')),
-  );
-  showActions();
+      } }, 'Oui, supprimer')));
+  showTidy();
 
-  openSheet([favMark(p), p.name], el('div', { class: 'stack detail' },
+  const kick = [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ');
+  openSheet([el('span', { class: 'fiche-kick' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name)], el('div', { class: 'stack detail' },
     goBox,
-    el('div', { class: 'detail-top' },
-      photoThumb(p, back),
-      el('div', { class: 'detail-info' },
-        el('div', { class: 'badge' }, catDot(p.cat), catOf(p.cat).name, ' · ', p.done ? 'Déjà visité' : 'À faire'),
-        p.owner || owners(state.points).length ? el('div', { class: 'badge' }, ico('user', { size: 15 }), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
-        hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, ico('clock'), hoursLine(p)) : null,
-        closedDaysText(p.hours) ? el('div', { class: 'badge' }, closedDaysText(p.hours)) : null,
-        p.ticket ? el('div', { class: 'badge' }, ico('ticket'), ` Billet : ${ticketText(p.ticket.at)}`) : null,
-        stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
-        (p.lists ?? []).length || p.covered ? el('div', { class: 'badge' }, [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((id) => state.lists?.find((l) => l.id === id)?.name)].filter(Boolean).join(' · ')) : null,
-        ageLine(p).includes('jamais visité') ? el('div', { class: 'badge' }, ageLine(p)) : null, // rappel utile seulement s'il est ancien
-      )),
+    p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
+    toggles,
+    facts2,
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
-    p.note ? el('p', { class: 'note' }, p.note) : null,
-    p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
-    actions,
+    photoWide(p, back),
+    facts,
+    el('h3', { class: 'fiche-sec' }, 'Sur ce lieu'),
+    el('div', { class: 'fiche-toc' },
+      row('pencil', 'Modifier', 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
+      row('share-2', 'Partager', 'Envoyer à un proche', () => sharePlace(p)),
+      row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back))),
+    el('h3', { class: 'fiche-sec' }, 'Pratique'),
+    el('div', { class: 'fiche-toc' },
+      row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
+      row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back))),
+    el('h3', { class: 'fiche-sec' }, 'Rangement'),
+    tidy,
+    back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+}
+
+/** Arrondissement lu dans le code postal de l'adresse (« 75003 » → « 3e », « 75116 » → « 16e »), sinon null. Rien n'est envoyé. */
+function arrondissement(address) {
+  const m = /\b75(0\d\d|116)\b/.exec(address ?? '');
+  if (!m) return null;
+  const n = m[1] === '116' ? 16 : Number(m[1]);
+  return n >= 1 && n <= 20 ? (n === 1 ? '1er' : `${n}e`) : null;
+}
+
+/** Station la plus proche, en morceaux pour la fiche : nom, lignes, minutes à pied (ou null au-delà de 2 km). */
+function stationFacts(p) {
+  const r = nearestStation(stations, p);
+  if (!r || r.d > 2000) return null;
+  const { station: st, d } = r;
+  const lines = [Array.isArray(st.l) ? st.l.join(', ') : '', Array.isArray(st.rer) && st.rer.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
+  return { name: st.n, lines, min: walkMinutes(d) };
 }
 
 /* ---------- Photos d'un lieu (gardées sur le téléphone) ---------- */
@@ -1182,14 +1205,15 @@ async function photoUrl(id) {
 }
 const newPhotoId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
-/** Vignette de la fiche : la première photo (avec le nombre), ou une case « Ajouter une photo ». */
-function photoThumb(p, back) {
+/** Photo de la fiche, en large sous les informations (v95) ; un appui ouvre toutes les photos. */
+function photoWide(p, back) {
   const photos = p.photos ?? [];
-  if (!photos.length) return null; // le bouton « 📷 Photo » de la fiche suffit
-  const img = el('img', { alt: `Photo de ${p.name}`, class: 'thumb-img' });
+  if (!photos.length) return null; // le bouton « Photo » de la fiche suffit
+  const img = el('img', { alt: '', class: 'fiche-photo-img' });
   photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
-  return el('button', { type: 'button', class: 'thumb', onclick: () => openPhotos(p, back), 'aria-label': `Voir les ${photos.length} photo${photos.length > 1 ? 's' : ''}` },
-    img, photos.length > 1 ? el('span', { class: 'thumb-count' }, String(photos.length)) : null);
+  return el('figure', { class: 'fiche-photo' },
+    el('button', { type: 'button', onclick: () => openPhotos(p, back), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos` : 'Voir la photo' }, img),
+    el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
 }
 
 /** Écran des photos d'un lieu : prendre, choisir, voir en grand, supprimer. */
@@ -4106,6 +4130,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map-pin} Nouvelle fiche d\'un lieu, façon page de journal : la catégorie et l\'arrondissement au-dessus du nom ; ton commentaire en grand ; Favori et Déjà visité juste en dessous ; « Aujourd\'hui » et le métro côte à côte ; la photo en large. Plus de bouton « Plus » : Modifier, Partager, QR code, Mon billet, Horaires, Déplacer et Supprimer sont rangés en trois rubriques, chacun à un appui.',
     '{palette} Nouvelles couleurs « Papier » : texte encre presque noire sur fond blanc, plus contrasté et plus lisible dehors au soleil ; mode sombre « papier de nuit » plus profond. Les étoiles des notes sont d\'un or plus foncé, enfin assez visible sur le blanc. Première étape de la nouvelle charte : les formes changeront ensuite, écran par écran, en commençant par la fiche.',
     '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
     '{plus} Nouveau lieu et Modifier : « + Nouvelle » au bout des catégories crée une catégorie sans quitter la fiche ; tu reviens avec elle déjà choisie, rien de ce que tu as tapé n\'est perdu.',
@@ -4139,7 +4164,7 @@ const HELP = [
     '{list-filter} Barre du haut : {settings} → Ce qui s\'affiche → Barre du haut pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
     '{calendar-days} Sorties : nouvel onglet « Expos » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',
     '{landmark} Musées gratuits aujourd\'hui (Ville de Paris, 1er dimanche, Louvre le 1er vendredi soir) dans « Gratuit » et « Expos » ; les temps forts de la semaine (Nuit Blanche, Art Basel Paris…) en tête de Sorties.',
-    '{ticket} Mon billet : dans la fiche d\'un lieu, ⋯ Plus → « Mon billet ». Le jour J, « Maintenant » te dit à quelle heure partir.',
+    '{ticket} Mon billet : dans la fiche d\'un lieu, rubrique Pratique → « Mon billet ». Le jour J, « Maintenant » te dit à quelle heure partir.',
     '{plus} Ajouter une expo à ta carte : le + à côté d\'une expo ou d\'une galerie en fait un de tes lieux, avec la date de fin dans la note.',
     '{clock} Horaires : « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi ») dans la fiche.',
     'Ⓜ Métro calculé dans l\'appli aussi pour les expos, galeries, sorties, marchés et monuments. {locate} Où suis-je : le quartier en 3 lignes (Wikipédia).',
@@ -4231,11 +4256,12 @@ const HELP = [
     'Horaires : « Ouvert · ferme à… », « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi »). Dans les listes, un tampon dit l\'état du jour : Ouvert, Ferme dans 20 min, Ouvre à 14h ou Fermé aujourd\'hui.',
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
-    'En dessous, quatre cases : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus (partager, QR code, {ticket} Mon billet, horaires, déplacer, supprimer, date d\'ajout).',
+    'Sous ton commentaire : Favori et {check} Déjà visité (touche à nouveau pour éteindre). Puis « Aujourd\'hui » (horaires) et le métro le plus proche, côte à côte.',
+    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
-    'Touche la vignette à gauche de la fiche : voir les photos, en ajouter depuis la {image-plus} Galerie, ou {x} supprimer.',
+    'Touche la photo dans la fiche : voir les photos, en ajouter depuis la {image-plus} Galerie, ou {x} supprimer.',
     'Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['tags', 'Catégories, listes et favoris', [
@@ -4252,7 +4278,7 @@ const HELP = [
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
     '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
-    '{ticket} Mon billet : fiche → ⋯ Plus → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge).',
+    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['map', 'Mon Paris', [
@@ -4263,7 +4289,7 @@ const HELP = [
   ]],
   ['users', 'Partager avec un ami', [
     'L\'appli elle-même : {settings} → Application → « Envoyer le lien » ou « QR code ». Ton proche l\'installe depuis Chrome (menu ⋮ → Ajouter à l\'écran d\'accueil) ; elle arrive vide chez lui.',
-    'Un lieu : ⋯ Plus → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
+    'Un lieu : dans sa fiche, rubrique Sur ce lieu → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',

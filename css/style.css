@@ -453,29 +453,40 @@ ol.items { padding: 0; }
 .plan-step { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 1.35; }
 .plan-ico { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
 
-/* Photos : vignette dans la fiche (proposition B) */
-.detail-top { display: flex; gap: 12px; align-items: flex-start; }
-.detail-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-/* Fiche : filets fins entre les informations et entre les blocs (esprit éditorial, pas de cadre) */
-.detail-info > * { padding: 7px 0; }
-.detail-info > :first-child { padding-top: 0; }
-.detail-info > * + * { border-top: 1px solid var(--line); }
-.detail > .star-pick, .detail > .note, .detail > .copy-row { border-top: 1px solid var(--line); padding-top: 10px; }
-.thumb {
-  position: relative; flex: none; width: 96px; height: 96px; border-radius: var(--r); overflow: hidden; padding: 0;
-  border: none; background: var(--soft); box-shadow: 0 1px 4px rgba(0,0,0,.2);
-}
-.thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb.empty {
-  border: 2px dashed var(--line); box-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; font-size: 13px; font-weight: 600;
-}
-.thumb-ico { font-size: 24px; }
-.thumb-count {
-  position: absolute; right: 6px; bottom: 6px; min-width: 22px; height: 22px; border-radius: var(--r); padding: 0 6px; box-sizing: border-box;
-  background: rgba(31, 42, 68, .85); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
-}
-.thumb:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* Fiche d'un lieu, charte « Papier » (v95, version A « Sommaire ») : surtitre, filets, intertitres,
+   boutons à contour de leur famille, angles 4 px, sans ombre. Une seule plaque pleine : Y aller. */
+#sheetTitle .fiche-kick { display: block; margin-bottom: 2px; font: 700 13px var(--display); letter-spacing: .02em; color: var(--disc); }
+#sheetTitle .fiche-name { font-size: 26px; line-height: 1.1; font-stretch: 80%; }
+.detail .btn:not(.primary) { border-width: 1.5px; border-radius: var(--r-s); background: transparent; box-shadow: none; }
+.detail .btn.primary { border-radius: var(--r-s); box-shadow: none; }
+.detail .btn.c-fav[aria-pressed="true"] { background: var(--fav-bg); font-weight: 800; }
+.detail .btn.c-add[aria-pressed="true"] { background: var(--add-bg); font-weight: 800; }
+.fiche-lede { margin: 0; font-size: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fiche-cols { display: grid; grid-template-columns: 1fr 1fr; border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--line); }
+.fiche-cols > div { min-width: 0; padding: 10px 0; }
+.fiche-cols > div + div { padding-left: 12px; border-left: 1px solid var(--line); }
+.fiche-k { font: 700 11.5px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.fiche-v { margin-top: 2px; font: 700 16px/1.3 var(--display); overflow-wrap: anywhere; }
+.fiche-v.ok { color: var(--add); } .fiche-v.ko { color: var(--danger); } .fiche-v.m { color: var(--metro); } .fiche-v.muted { color: var(--muted); }
+.fiche-s { font-size: 14px; color: var(--muted); }
+.fiche-photo { margin: 0; }
+.fiche-photo button { display: block; width: 100%; height: 150px; padding: 0; border: 0; border-radius: var(--r-s); overflow: hidden; background: var(--soft); }
+.fiche-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fiche-photo figcaption { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.fiche-photo button:focus-visible, .fiche-row:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.fiche-lines > * { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
+.fiche-lines > .copy-row { padding: 2px 0; }
+.fiche-lines > .muted { font-size: 14px; color: var(--muted); }
+.fiche-lines p > .ico { display: inline-flex; vertical-align: -2px; }
+.fiche-lines p > .ico svg { width: 16px; height: 16px; }
+.fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 1.5px solid var(--ink); font: 800 11.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--ink); }
+.fiche-toc { display: flex; flex-direction: column; }
+.fiche-row { display: grid; grid-template-columns: 24px 1fr 20px; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0;
+  border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; color: var(--ink); font: 700 16px var(--display); }
+.fiche-row small { display: block; font: 400 13px/1.35 'Inter', system-ui, sans-serif; color: var(--muted); }
+.fiche-row > .ico, .fiche-chev { color: var(--muted); }
+.fiche-row.danger, .fiche-row.danger > .ico, .fiche-row.danger .fiche-chev { color: var(--danger); }
+.fiche-toc > .warn { margin: 10px 0; }
 .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .photo-cell { position: relative; aspect-ratio: 1; }
 .photo-open { width: 100%; height: 100%; padding: 0; border: none; border-radius: var(--r); overflow: hidden; background: var(--soft); }
@@ -517,7 +528,6 @@ ol.items { padding: 0; }
 .btn.c-guide.solid, .tool.c-guide.on, .map-btn.c-guide[aria-pressed="true"] { background: var(--guide); color: var(--on-strong); border-color: var(--guide); }
 .btn.c-add.solid, .big-btn.c-add.solid { background: var(--add); color: var(--on-strong); border-color: var(--add); }
 .tool.c-guide .tool-ico, .tool.c-metro .tool-ico { filter: none; }
-.thumb.empty { border-color: var(--add-bd); background: var(--add-bg); color: var(--add); }
 .legend-colors { display: flex; flex-wrap: wrap; gap: 6px; }
 .legend-colors span { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
 
@@ -897,15 +907,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .star-pick button:focus-visible { outline-color: var(--metro); }
 :root[data-theme="dark"] .map-btn, :root[data-theme="dark"] .map-btn:not(.c-guide):not(.c-metro) { border-color: var(--fam); color: var(--fam); box-shadow: 0 3px 0 var(--hard); }
 :root[data-theme="dark"] .star-pick button.on { color: var(--fav); }
-/* Fiche : une rangée de 4 cases (visité, favori, modifier, plus) au lieu de 2 rangées */
-.row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.btn.mini { flex-direction: column; gap: 3px; min-height: 58px; padding: 6px 2px; font-size: 13px; line-height: 1.1; }
-.btn.mini .ico svg, .btn.mini svg { width: 20px; height: 20px; }
-.btn.mini[aria-pressed="true"] { border-color: var(--strong); color: var(--on-strong); }
-/* Visité et Favori allumés : teinte + filet épais, pas de plaque pleine (la seule plaque de la fiche reste « Y aller ») */
-.btn.mini.c-add[aria-pressed="true"] { border-color: var(--add); color: var(--add); box-shadow: inset 0 0 0 2px var(--add); font-weight: 800; }
-.btn.mini.c-fav[aria-pressed="true"] { border-color: var(--fav); color: var(--fav); box-shadow: inset 0 0 0 2px var(--fav); font-weight: 800; }
-.go-dist { font-weight: 600; opacity: .8; margin-left: 4px; font-size: 13px; }
+.go-dist { font-weight: 600; margin-left: 4px; font-size: 13px; }
 /* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
 a.go, .item .go { color: var(--ink); border: 2px solid var(--ink); box-shadow: var(--pave); border-radius: var(--r); font-family: var(--display); font-weight: 700; }
 :root[data-theme="dark"] a.go { color: var(--ink); background: var(--btn); }

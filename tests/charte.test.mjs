@@ -37,8 +37,8 @@ test('charte : un seul rayon (8 px), 4 px pour les tampons, rond pour les pastil
   assert.deepEqual(bad, [], `Rayon hors charte (CHARTE.md §3) :\n${bad.join('\n')}`);
 });
 
-test('charte : tailles de texte dans l\'échelle 11,5 · 13 · 14 · 16 · 18 · 22', () => {
-  const SCALE = new Set(['11.5px', '13px', '14px', '16px', '18px', '22px', 'inherit', '1em']);
+test('charte : tailles de texte dans l\'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26', () => {
+  const SCALE = new Set(['11.5px', '13px', '14px', '16px', '18px', '22px', '26px', 'inherit', '1em']);
   const ICON_OR_MAP = /(pin|ico\b|-ico|chev|close|plus\b|icon|star-pick|thumb|swatch|metro-btn|go-compass|tool-ico|line-|st-|ring-label|stats-tick|attribution|compass-(name|dist|arrow)|plan-ico|::after|arr\b|step-|metro-mini|metro-pin|pr-|paris-btn|cat-ico|stars-ro|tool-prev)/;
   const bad = [];
   for (const r of rules) for (const v of decls(r, 'font-size')) if (!ICON_OR_MAP.test(r.sel) && !SCALE.has(v)) bad.push(`${r.sel} → ${v}`);
