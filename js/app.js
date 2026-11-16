@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (69)';
+const VERSION = '16 novembre 2026 (70)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1091,7 +1091,7 @@ function openDetail(id, back = null) {
       )),
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     p.note ? el('p', { class: 'note' }, p.note) : null,
-    p.address ? el('p', { class: 'where' }, ico('map-pin'), p.address) : null,
+    p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
     actions,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
@@ -1238,6 +1238,15 @@ function hoursTag(p) {
   if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${left} min`);
   return el('span', { class: `tag ${st.open ? 'open' : 'closed'}` }, st.open ? 'Ouvert' : 'Fermé');
 }
+
+/* ---------- Copier d'un appui (adresse, coordonnées) pour coller dans une autre appli ---------- */
+
+async function copyText(text, done) {
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copie ce texte :', text); }
+}
+/** Petit bouton « copier » ; getText est lu au moment de l'appui. */
+const copyBtn = (getText, what, done) => el('button', { type: 'button', class: 'go-compass copy-btn', 'aria-label': `Copier ${what}`, title: `Copier ${what}`, onclick: () => copyText(getText(), typeof done === 'function' ? done() : done) }, ico('copy'));
 
 /* ---------- Mon billet : un créneau réservé (Orsay à 15 h…), rappelé dans « Maintenant » le jour J ---------- */
 
@@ -2232,10 +2241,13 @@ async function openWhereAmI() {
   const addr = el('p', { class: 'where-big' }, 'Recherche de l\'adresse…');
   const arrLine = el('p', { class: 'help' }, '');
   const quarter = el('div', { class: 'quarter', 'aria-live': 'polite' }, el('p', { class: 'help' }, 'Le quartier : recherche dans Wikipédia…'));
+  const coords = `${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`;
+  let addrText = '';
   fill(body,
-    addr, arrLine,
+    el('div', { class: 'copy-row' }, addr, copyBtn(() => addrText || coords, 'l\'adresse', () => (addrText ? 'Adresse copiée' : 'Adresse inconnue : coordonnées copiées'))),
+    arrLine,
     near ? el('p', { class: 'badge' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
-    el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`),
+    el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${coords}`), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Enregistrer ce lieu'),
     quarter,
@@ -2261,6 +2273,7 @@ async function openWhereAmI() {
     const r = await reverseInfo(at.lat, at.lng);
     const a = arrFromCitycode(r?.citycode) ?? arrFromText(r?.label);
     addr.textContent = r?.label ?? 'Adresse introuvable';
+    addrText = r?.label ?? '';
     arrLine.textContent = a ? `${a === 1 ? '1er' : `${a}e`} arrondissement` : '';
   } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
 }
@@ -3789,12 +3802,14 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{circle-help} Aide mise à jour : chaque rubrique décrit maintenant Sorties (Tout, Gratuit, Expos), Mon billet, Copier, les filtres et boutons à masquer, le style Épuré et les couleurs de Mon Paris.',
+    '{copy} Copier d\'un appui : l\'adresse d\'un lieu (dans sa fiche), et dans « Où suis-je ? » ton adresse et tes coordonnées GPS. Colle-les ensuite dans un taxi, un message ou une autre appli.',
     '{palette} Nouveau style de carte « Épuré », sans icônes de commerces (CARTO) : {settings} → La carte → Style. Il demande une clé gratuite à créer sur carto.com, que tu colles une fois ; elle reste sur ton téléphone.',
     '{list-filter} Filtres : en bas, « Choisir les filtres affichés » pour masquer les lignes dont tu ne te sers pas (Ouvert maintenant, Mieux notés, Lignes de métro, Marchés, Abrités, Listes, Personnes).',
     '{refresh-cw} Rappel : quand la liste des temps forts n\'a plus rien à venir, ou que celle des musées gratuits a plus d\'un an, Sorties l\'indique en haut. Une mise à jour est aussi préparée par Claude chaque début septembre.',
     '{list-filter} Barre du haut : {settings} → Catégories et listes → « Boutons de la barre du haut » pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
-    '{calendar-days} Sorties : nouvel onglet « Expos et art » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',
-    '{landmark} Musées gratuits aujourd\'hui (Ville de Paris, 1er dimanche, Louvre le 1er vendredi soir) dans « Gratuit » et « Expos et art » ; les temps forts de la semaine (Nuit Blanche, Art Basel Paris…) en tête de Sorties.',
+    '{calendar-days} Sorties : nouvel onglet « Expos » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',
+    '{landmark} Musées gratuits aujourd\'hui (Ville de Paris, 1er dimanche, Louvre le 1er vendredi soir) dans « Gratuit » et « Expos » ; les temps forts de la semaine (Nuit Blanche, Art Basel Paris…) en tête de Sorties.',
     '{ticket} Mon billet : dans la fiche d\'un lieu, ⋯ Plus → « Mon billet ». Le jour J, « Maintenant » te dit à quelle heure partir.',
     '{plus} Ajouter une expo à ta carte : le + à côté d\'une expo ou d\'une galerie en fait un de tes lieux, avec la date de fin dans la note.',
     '{clock} Horaires : « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi ») dans la fiche.',
@@ -3824,12 +3839,12 @@ const HELP = [
     '{list-filter} Filtres en haut : ouvert maintenant, mieux notés, abrités, listes, personne.',
     '{hourglass} Temps libre, {shuffle} Surprise et {book-open-text} Curiosités dans Autour de moi.',
     '{bike} Vélib\' en temps réel, {map} Mon Paris, {share-2} partage d\'un lieu par lien, import Google Maps.',
-    '{palette} 5 styles de carte, {moon} mode sombre, boutons de la carte à gauche ou à droite : dans {settings}.',
+    '{palette} 6 styles de carte, {moon} mode sombre, boutons de la carte à gauche ou à droite : dans {settings}.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris et tes catégories. Fais glisser la barre pour toutes les voir.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
@@ -3840,13 +3855,14 @@ const HELP = [
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
-    'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
-    'Sans réseau (métro) : les quartiers que tu as déjà regardés restent affichés, en style Classique, Pastel ou Nuit (environ 3 000 morceaux de carte gardés, les plus anciens s\'effacent).',
+    'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
+    'Sans réseau (métro) : les quartiers que tu as déjà regardés restent affichés, en style Classique, Épuré, Pastel ou Nuit (environ 3 000 morceaux de carte gardés, les plus anciens s\'effacent).',
     'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {store} Marchés du jour, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'En bas de Filtres, « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
     'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
@@ -3863,7 +3879,7 @@ const HELP = [
   ['map-pinned', 'Autour de moi', [
     'Tes lieux rangés par cercles, du plus proche au plus loin.',
     '{landmark} Monuments : les monuments historiques protégés à moins de 1 km, avec leur site officiel (visites, billets), la fiche du ministère de la Culture et Wikipédia.',
-    '{route} Itinéraire réunit trois façons de tracer un trajet : « J\'ai du temps », « Sur mon chemin », « Relier des lieux ».',
+    '{route} Itinéraire réunit quatre façons de tracer un trajet : « J\'ai du temps », « Sur mon chemin », « Relier des lieux » et « Parcours galeries ».',
     '{hourglass} J\'ai du temps (Temps libre) : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
     '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. À l\'arrivée à un de tes lieux, le bouton « Visité » le note en un appui.',
     '{footprints} Sur mon chemin : tes lieux sur ton trajet. {route} Relier des lieux : 2 à 4 lieux dans le meilleur ordre.',
@@ -3871,8 +3887,8 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : les marchés et les événements du jour près de toi (Ville de Paris).',
-    '{locate} Où suis-je ? : ton adresse, l\'arrondissement, la station la plus proche, et « Envoyer ma position » à quelqu\'un.',
+    '{calendar-days} Sorties : trois onglets. Tout (marchés, brocantes, fêtes, sorties du jour), Gratuit, et Expos (voir la rubrique « Expos et art »). Sur chaque ligne : {compass} boussole, M métro, et + pour l\'ajouter à ta carte.',
+    '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
     'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
     'En bas : {map} Mon Paris.',
@@ -3880,9 +3896,11 @@ const HELP = [
   ['compass', 'La fiche d\'un lieu', [
     'Touche un lieu sur la carte pour ouvrir sa fiche.',
     'La grande barre « Y aller » ouvre Google Maps et indique le temps à pied.',
-    '{compass} Boussole : une flèche et une voix te guident. M Métro : la ligne et la correspondance, estimées. {camera} Photo : l\'appareil photo direct.',
+    '{compass} Boussole : une flèche et une voix te guident ; à l\'arrivée, « Visité » en un appui. M Métro : la ligne et la correspondance, calculées dans l\'appli. {camera} Photo : l\'appareil photo direct.',
+    'Horaires : « Ouvert · ferme à… », « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi »).',
+    '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
-    'En dessous, quatre cases : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus (partager, QR code, horaires, déplacer, supprimer, date d\'ajout).',
+    'En dessous, quatre cases : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus (partager, QR code, {ticket} Mon billet, horaires, déplacer, supprimer, date d\'ajout).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
@@ -3896,13 +3914,16 @@ const HELP = [
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
   ]],
   ['palette', 'Expos et art', [
-    '{calendar-days} Sorties → « Expos et art » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
+    '{calendar-days} Sorties → « Expos » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
+    '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
+    '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
     '{ticket} Mon billet : fiche → ⋯ Plus → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['map', 'Mon Paris', [
-    'Les 20 arrondissements se colorent selon les lieux « Déjà visité ». Chaque case : visités / enregistrés.',
+    'Les 20 arrondissements se colorent selon les lieux « Déjà visité » : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
+    'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
     'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi.',
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
@@ -3930,10 +3951,12 @@ const HELP = [
   ['wrench', 'Ça ne marche pas ?', [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io, et allume la Position du téléphone.',
     'Carte grise : vérifie internet, puis {settings} → Application → Recharger la carte.',
-    'Perdu sur la carte : Paris, ou {zoom-in} pour revenir sur toi.',
+    'Perdu sur la carte : {locate-fixed} pour revenir sur toi, ou le bouton Paris (à réafficher dans {settings} → Boutons de la carte).',
+    'Carte Épuré avec un filigrane ou vide : la clé CARTO manque ou est fausse. {settings} → La carte → Style → Clé CARTO.',
     'Une nouveauté n\'apparaît pas : {settings} → Application → Mettre à jour l\'appli.',
     'La voix ne parle pas : monte le volume, et vérifie {settings} → Voix.',
-    'Vélib\', Curiosités ou météo muets : ces services en ligne ne répondent peut-être pas ; réessaie plus tard.',
+    'Vélib\', Curiosités, galeries ou météo muets : ces services en ligne ne répondent peut-être pas ; réessaie plus tard.',
+    'Copier ne marche pas : le téléphone affiche alors le texte dans une fenêtre, à sélectionner et copier à la main.',
     'Boussole « indisponible » : le téléphone ne donne pas son orientation ; la flèche montre la direction, nord en haut.',
   ]],
 ];

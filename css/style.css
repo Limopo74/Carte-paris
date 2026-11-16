@@ -1069,3 +1069,7 @@ a.go, .item .go { background: var(--aller-bg); }
 .item-row.wrap { flex-wrap: wrap; }
 .item-row.wrap > .item-main { flex: 1 1 100%; }
 .item-row.wrap > .item-main + .go-compass { margin-left: auto; }
+/* Copier d'un appui : le texte à gauche, le bouton toujours à droite */
+.copy-row { display: flex; align-items: center; gap: 8px; }
+.copy-row > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.go-compass.copy-btn { flex: none; background: var(--info-bg); color: var(--info); border-color: var(--info); }
