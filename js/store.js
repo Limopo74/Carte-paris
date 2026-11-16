@@ -130,7 +130,7 @@ const clean = (p) => ({
 });
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
-export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
+export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|lines|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
 
 /** Lignes masquées de la feuille Filtres. */
 export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'covered', 'lists', 'people'];

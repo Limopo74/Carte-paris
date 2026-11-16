@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (79)';
+const VERSION = '16 novembre 2026 (80)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -379,6 +379,7 @@ function renderChips() {
       state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
       toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
     }, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) : null,
+    show('lines', Boolean(state.showLines)) ? chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) : null,
     ...state.categories.filter((c) => show(`cat:${c.id}`, filterCats.has(c.id))).map(catChip),
   ].filter(Boolean));
   const star = box.querySelector('.star');
@@ -409,6 +410,7 @@ function openChipsSettings(back = named('Catégories', () => openSettings('categ
       sw('filters', ico('list-filter'), 'Filtres', 'Ouvert maintenant, listes, personnes, note…'),
       sw('fav', glyph(state.fav.icon, { filled: true }), 'Favoris', 'Seulement les favoris'),
       sw('street', ico('tent'), 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air'),
+      sw('lines', ico('lines'), 'Lignes de métro et RER', 'Les tracés dans leurs couleurs'),
       ...state.categories.map((c) => sw(`cat:${c.id}`, catDot(c.id), c.name, `Catégorie · ${plural(state.points.filter((p) => p.cat === c.id).length, 'lieu', 'lieux')}`))),
     hidden.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openChipsSettings(back); } }, 'Tout réafficher') : null,
     backBtn(back),
@@ -450,7 +452,7 @@ function openFilters() {
       filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
     } }, ico('x'), 'Effacer les filtres') : null,
     keep('lines', state.showLines) || keep('markets', state.showMarkets) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
-    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
@@ -497,7 +499,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -2799,8 +2801,8 @@ async function drawLines() {
   map.attributionControl.addAttribution(LINES_ATTR);
 }
 function toggleLines() {
-  state.showLines = !state.showLines; persist(); drawLines();
-  toast(state.showLines ? 'Lignes de métro et RER affichées (appui long sur M pour les cacher)' : 'Lignes cachées');
+  state.showLines = !state.showLines; persist(); drawLines(); refresh();
+  toast(state.showLines ? 'Lignes de métro et RER affichées' : 'Lignes de métro et RER cachées');
 }
 
 const STREET_ICON = { marche: 'gift', brocante: 'tags', fete: 'sparkles', expo: 'palette' };
@@ -3923,6 +3925,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{lines} Lignes de métro et RER : nouveau bouton en haut, juste après « Dans la rue ». Un appui les montre ou les cache (l\'appui long sur M marche toujours). Pour le masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Rangement : {circle-help} l\'Aide passe en tête des {settings} Réglages (une catégorie de plus visible en haut). Nouvelle rubrique « Ce qui s\'affiche » : Barre du haut, Boutons de la carte et Filtres affichés au même endroit. Filtres en deux blocs : « Filtrer mes lieux » et « Ajouter sur la carte ». Chaque retour dit où il mène (← Autour de moi, ← Fiche…). Le bouton Favori de la fiche garde son nom, allumé = étoile pleine et contour épais. Sorties : sources et mise à jour repliées tout en bas. Les sous-titres ne sont plus coupés.',
     'Nouvelle police pour le texte : Inter, plus moderne et très lisible (titres et boutons gardent Archivo). Elle est dans l\'appli : rien n\'est demandé à un service.',
     '{star} Favoris et catégories : « Tout » enlève aussi le filtre des favoris, et n\'est plus allumé quand seuls les favoris sont affichés. Si une combinaison ne montre plus aucun lieu (ex. favoris + Boutiques), l\'appli le dit.',
@@ -3973,7 +3976,7 @@ const HELP = [
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache) et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
@@ -3991,7 +3994,7 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux. « Ajouter sur la carte » : {route} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
     'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',

@@ -1099,3 +1099,6 @@ a.go, .item .go { background: var(--aller-bg); }
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }
 .chip.street .ico svg { width: 20px; height: 20px; }
 .chip.street[aria-pressed="true"] { background: var(--disc); border-color: var(--disc); color: var(--bg); }
+.chip.lines { color: var(--metro); min-width: 44px; justify-content: center; padding: 0 12px; }
+.chip.lines .ico svg { width: 20px; height: 20px; }
+.chip.lines[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
