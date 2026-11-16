@@ -75,7 +75,7 @@ for mode, refs in (('M', METRO), ('R', RER)):
         if not paths: sys.exit(f'Ligne {mode} {ref} absente du fichier des tracés : rien n\'est écrit.')
         lines.append({'mode': mode, 'ref': ref, 'color': colors[(mode, ref)], 'paths': paths})
 src = f"Île-de-France Mobilités, « Tracés du réseau ferré IDF » (ODbL), simplifié à {TOL_M} m, mis à jour le {TODAY} ; couleurs du métro : référentiel des lignes IDFM"
-json.dump({'source': src, 'lines': lines}, open('data/lignes.json', 'w', encoding='utf8'), ensure_ascii=False, separators=(',', ':'))
+json.dump({'source': src, 'updated': TODAY, 'lines': lines}, open('data/lignes.json', 'w', encoding='utf8'), ensure_ascii=False, separators=(',', ':'))
 print('tracés :', ', '.join(f"{l['mode']}{l['ref']}={sum(len(p) for p in l['paths'])} pts" for l in lines))
 
 # ---------- stations de métro ----------
@@ -111,7 +111,8 @@ for k, g in gares.items():
     new = sorted(set(s['l']) | g['l'], key=order.get)
     if new != s['l']: relined.append(f"{s['n']} : {', '.join(s['l'])} → {', '.join(new)}"); s['l'] = new
 st['stations'].sort(key=lambda s: (order.get(s['l'][0], 99), s['n']))
-st['source'] = st['source'] + f" ; positions vérifiées et ligne 14 prolongée d'après « Emplacement des gares IDF » (IDFM, ODbL), le {TODAY}"
+st['source'] = st['source'].split(' ; positions vérifiées')[0] + f" ; positions vérifiées d'après « Emplacement des gares IDF » (IDFM, ODbL), le {TODAY}"
+st['updated'] = TODAY
 json.dump(st, open('data/stations.json', 'w', encoding='utf8'), ensure_ascii=False, separators=(',', ':'))
 print('stations ajoutées :', added or 'aucune')
 print('stations déplacées (plus de 150 m) :', moved or 'aucune')

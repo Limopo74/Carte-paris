@@ -12,6 +12,7 @@ import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
+import { TRANSPORT_FILES, COLORS_FILE, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -30,7 +31,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (103)';
+const VERSION = '16 novembre 2026 (104)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -77,15 +78,28 @@ const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '
 
 let stations = [];
 let stationsSource = '';
+let transportsUpdated = ''; // date des tracés et des stations gardés dans l'appli (AAAA-MM-JJ)
 const stationsReady = fetch('data/stations.json')
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => {
     if (!Array.isArray(j?.stations)) return;
     stations = j.stations.filter((x) => typeof x.n === 'string' && Number.isFinite(x.lat) && Number.isFinite(x.lng));
     stationsSource = typeof j.source === 'string' ? j.source : '';
+    transportsUpdated = typeof j.updated === 'string' ? j.updated : '';
+    remindTransports();
     if (view === 'near' && origin) renderNear();
   })
   .catch(() => { /* pas encore de données : la fonction reste discrète */ });
+
+/** Données des transports de plus de 6 mois : un message à l'ouverture, au plus une fois par semaine (jamais de notification). */
+function remindTransports() {
+  if (!transportsDue(transportsUpdated)) return;
+  let last = 0;
+  try { last = Number(storage.getItem('carte-paris.rappel-transports')) || 0; } catch { /* rien */ }
+  if (Date.now() - last < 7 * 864e5) return;
+  try { storage.setItem('carte-paris.rappel-transports', String(Date.now())); } catch { /* rien */ }
+  setTimeout(() => toast('Lignes et stations de métro à mettre à jour : Réglages → Données des transports.'), 2500);
+}
 
 /** « Ⓜ Opéra (3, 7, 8) · ≈ 4 min » pour la station la plus proche, ou null. */
 function stationLine(p) {
@@ -3619,6 +3633,28 @@ function openSettings(section = null) {
     return;
   }
 
+  if (section === 'transports') {
+    const due = transportsDue(transportsUpdated);
+    const link = (f) => el('a', { class: 'menu-row c-metro', href: f.url, target: '_blank', rel: 'noopener' },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → GeoJSON · fichier « ${f.file} »`)),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+    openSheet([ico('lines'), ' Données des transports'], el('div', { class: 'stack' },
+      el('p', { class: due ? 'warn' : 'help' }, transportsUpdated
+        ? `Tracés des lignes et stations de métro : version du ${frenchDate(transportsUpdated)}.${due ? ' Plus de 6 mois : à mettre à jour.' : ''}`
+        : 'Date des tracés et des stations inconnue : à mettre à jour.'),
+      el('p', { class: 'help' }, `À refaire tous les 6 mois, ou dès qu'une ligne ouvre ou se prolonge. Les données viennent d'Île-de-France Mobilités (${IDFM_SITE.replace('https://', '')}), licence ODbL. Rien n'est téléchargé tout seul : c'est toi qui choisis quand.`),
+      el('h3', { class: 'ring-title' }, el('span', {}, '1. Télécharge ces deux fichiers'), el('span', {}, '')),
+      el('div', { class: 'menu' }, ...TRANSPORT_FILES.map(link)),
+      el('p', { class: 'help' }, `Seulement si une ligne change de couleur ou si une nouvelle ligne ouvre : « ${COLORS_FILE.name} » (fichier « ${COLORS_FILE.file} »).`),
+      el('div', { class: 'menu' }, link({ ...COLORS_FILE, url: COLORS_FILE.url })),
+      el('h3', { class: 'ring-title' }, el('span', {}, '2. Envoie-les à Claude'), el('span', {}, '')),
+      el('p', { class: 'help' }, 'Dans le projet « Geoloc », joins les fichiers avec la phrase : « Mets à jour les tracés et les gares ». Claude lance tools/maj-lignes.py, vérifie, puis publie une nouvelle version.'),
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application')),
+    ), { tall: true, name: 'settings:transports', again: () => openSettings('transports') });
+    return;
+  }
+
   if (section === 'appli') {
     openSheet([ico('info'), ' Application'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'),
@@ -3638,6 +3674,8 @@ function openSettings(section = null) {
         el('span', { class: 'btn c-info', style: 'min-height:0' }, 'Aide, réglages'),
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
+      el('button', { type: 'button', class: `btn c-metro`, onclick: () => openSettings('transports') }, ico('lines'),
+        transportsDue(transportsUpdated) ? 'Données des transports : à mettre à jour' : `Données des transports (${frenchDate(transportsUpdated)})`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km) et Vélib\' (aucune position envoyée). Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
@@ -3687,6 +3725,7 @@ function openSettings(section = null) {
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Application'),
+    transportsDue(transportsUpdated) ? row('lines', 'Données des transports', 'Plus de 6 mois : lignes et stations à mettre à jour', () => openSettings('transports'), true, 'c-metro') : null,
     row('info', 'Application', 'Mettre à jour · partager l\'appli · confidentialité', () => openSettings('appli')),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
@@ -4124,6 +4163,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
     '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
@@ -4133,7 +4173,6 @@ const HELP = [
     '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
     '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
     '{map-pin} Nouvelle fiche d\'un lieu, façon page de journal : la catégorie et l\'arrondissement au-dessus du nom ; ton commentaire en grand ; Favori et Déjà visité juste en dessous ; « Aujourd\'hui » et le métro côte à côte ; la photo en large. Plus de bouton « Plus » : Modifier, Partager, QR code, Mon billet, Horaires, Déplacer et Supprimer sont rangés en trois rubriques, chacun à un appui.',
-    '{palette} Nouvelles couleurs « Papier » : texte encre presque noire sur fond blanc, plus contrasté et plus lisible dehors au soleil ; mode sombre « papier de nuit » plus profond. Les étoiles des notes sont d\'un or plus foncé, enfin assez visible sur le blanc. Première étape de la nouvelle charte : les formes changeront ensuite, écran par écran, en commençant par la fiche.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
