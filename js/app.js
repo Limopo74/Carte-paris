@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (71)';
+const VERSION = '16 novembre 2026 (72)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -3849,6 +3849,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{copy} Icône « copier » plus discrète : plus petite et sans cadre (toujours facile à toucher).',
     '{store} « Dans la rue aujourd\'hui » remplace « Marchés du jour » dans {list-filter} Filtres : en plus des marchés, la carte montre les brocantes, fêtes, expos en plein air et marchés éphémères du jour. Un appui ouvre leur fiche (boussole, métro, enregistrer).',
     '{circle-help} Aide mise à jour : chaque rubrique décrit maintenant Sorties (Tout, Gratuit, Expos), Mon billet, Copier, les filtres et boutons à masquer, le style Épuré et les couleurs de Mon Paris.',
     '{copy} Copier d\'un appui : l\'adresse d\'un lieu (dans sa fiche), et dans « Où suis-je ? » ton adresse et tes coordonnées GPS. Colle-les ensuite dans un taxi, un message ou une autre appli.',

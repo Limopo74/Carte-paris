@@ -1072,4 +1072,6 @@ a.go, .item .go { background: var(--aller-bg); }
 /* Copier d'un appui : le texte à gauche, le bouton toujours à droite */
 .copy-row { display: flex; align-items: center; gap: 8px; }
 .copy-row > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.go-compass.copy-btn { flex: none; background: var(--info-bg); color: var(--info); border-color: var(--info); }
+/* Petite icône sans cadre ; la zone à toucher reste de 44 px */
+.go-compass.copy-btn { flex: none; width: 44px; min-height: 44px; background: transparent; border: 0; box-shadow: none; color: var(--info); }
+.go-compass.copy-btn .ico svg { width: 18px; height: 18px; }
