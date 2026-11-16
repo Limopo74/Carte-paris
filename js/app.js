@@ -4,7 +4,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (74)';
+const VERSION = '16 novembre 2026 (75)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -422,7 +422,7 @@ function openFilters() {
     !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
     !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'store', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
     !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
     !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
@@ -442,10 +442,48 @@ function openFilters() {
   ), { name: 'filters', again: openFilters, tall: true });
 }
 
+/** Choisir d'un coup les lieux d'une liste : cases à cocher, recherche par nom, enregistrement en un appui. */
+function openListPlaces(listId, query = '', picked = null) {
+  const list = (state.lists ?? []).find((l) => l.id === listId);
+  if (!list) { openSettings('categories'); return; }
+  const sel = picked ?? new Set(state.points.filter((p) => p.lists?.includes(listId)).map((p) => p.id));
+  const from = freshHere() ?? origin;
+  const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = norm(query.trim());
+  // Ceux de la liste d'abord, puis les plus proches (ou par nom sans position)
+  const pts = state.points.filter((p) => !q || norm(`${p.name} ${p.address ?? ''} ${catOf(p.cat).name}`).includes(q))
+    .map((p) => ({ p, d: from ? distanceM(from, p) : null }))
+    .sort((a, b) => (sel.has(b.p.id) - sel.has(a.p.id)) || (a.d != null && b.d != null ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
+  const save = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
+    state = setListMembers(state, listId, [...sel]); persist(); refresh(); openSettings('categories');
+    toast(`« ${list.name} » : ${plural(sel.size, 'lieu', 'lieux')}`);
+  } });
+  const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux')})`; };
+  count();
+  const search = el('input', { type: 'search', value: query, placeholder: 'Chercher un lieu', 'aria-label': 'Chercher un lieu', enterkeyhint: 'search' });
+  let t = null;
+  search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { openListPlaces(listId, search.value, sel); const s2 = document.querySelector('#sheet input[type=search]'); s2?.focus(); s2?.setSelectionRange(s2.value.length, s2.value.length); }, 250); });
+  const rows = pts.slice(0, 200).map(({ p, d }) => {
+    const box = el('input', { type: 'checkbox', class: 'check', checked: sel.has(p.id), 'aria-label': p.name });
+    box.addEventListener('change', () => { if (box.checked) sel.add(p.id); else sel.delete(p.id); count(); });
+    return el('li', { class: 'item' }, el('label', { class: 'item-main check-row' }, box,
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
+        el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : ''].filter(Boolean).join(' · ')))));
+  });
+  openSheet([ico('list'), ` ${list.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Coche les lieux de cette liste, décoche ceux à retirer, puis Enregistrer. Les lieux restent sur ta carte.'),
+    search,
+    rows.length ? el('ul', { class: 'items' }, rows) : el('p', { class: 'empty' }, query ? 'Aucun lieu ne correspond.' : 'Aucun lieu sur ta carte.'),
+    pts.length > 200 ? el('p', { class: 'help' }, `${pts.length - 200} lieux de plus : cherche par nom pour les trouver.`) : null,
+    save,
+    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories et listes'),
+  ), { tall: true, name: `list:${listId}`, again: () => openListPlaces(listId, '', sel) });
+}
+
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice() {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'store', 'Dans la rue aujourd\'hui'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -3277,7 +3315,7 @@ function openSettings(section = null) {
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => el('div', { class: 'cat-row' },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('list', { size: 18 })),
-        el('span', { class: 'cat-name' }, l.name, el('br'), el('span', { class: 'cat-count' }, plural(state.points.filter((p) => p.lists?.includes(l.id)).length, 'lieu', 'lieux'))),
+        el('button', { type: 'button', class: 'cat-name cat-open', onclick: () => openListPlaces(l.id), 'aria-label': `Choisir les lieux de la liste ${l.name}` }, l.name, el('br'), el('span', { class: 'cat-count' }, `${plural(state.points.filter((p) => p.lists?.includes(l.id)).length, 'lieu', 'lieux')} · choisir les lieux ›`)),
         el('button', { type: 'button', class: 'btn', 'aria-label': `Renommer ${l.name}`, onclick: () => {
           const n = prompt('Nouveau nom de la liste', l.name);
           if (n == null) return;
@@ -3286,7 +3324,12 @@ function openSettings(section = null) {
         el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Supprimer la liste ${l.name}`, onclick: () => {
           if (!confirm(`Supprimer la liste « ${l.name} » ? Les lieux restent sur ta carte.`)) return;
           state = deleteList(state, l.id); filt.lists.delete(l.id); persist(); refresh(); openSettings('categories'); toast('Liste supprimée');
-        } }, ico('x'))))) : el('p', { class: 'help' }, 'Une liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). Crée-la en modifiant un lieu.'),
+        } }, ico('x'))))) : el('p', { class: 'help' }, 'Une liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »).'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => {
+        const n = prompt('Nom de la nouvelle liste (ex. « Sous la pluie »)', '');
+        if (n == null) return;
+        try { const r = addList(state, n); state = r.state; persist(); refresh(); openListPlaces(r.id); } catch (e) { toast(e.message, true); }
+      } }, ico('plus'), 'Nouvelle liste'),
       backBtn,
     ), { tall: true, name: 'settings:categories', again: () => openSettings('categories') });
     return;
@@ -3813,7 +3856,7 @@ const TOOL_INFO = {
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
-  street: { el: 'btnStreet', icon: 'store', name: 'Dans la rue aujourd\'hui' },
+  street: { el: 'btnStreet', icon: 'tent', name: 'Dans la rue aujourd\'hui' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -3858,6 +3901,8 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{tent} Le bouton « Dans la rue aujourd\'hui » a une nouvelle icône (un stand), pour ne plus le confondre avec Rentrer.',
+    '{list} Listes : {settings} → Catégories et listes. « Nouvelle liste », et un appui sur une liste pour cocher d\'un coup tous ses lieux (avec recherche par nom).',
     '{store} Nouveau bouton sur la carte : « Dans la rue aujourd\'hui » s\'allume et s\'éteint d\'un appui. Pour le cacher : {settings} → Boutons de la carte.',
     'Tampon d\'état du jour, le même partout (tes listes, galeries) : OUVERT, FERME DANS 20 MIN, OUVRE À 14H ou FERMÉ AUJOURD\'HUI. Les jours de fermeture restent écrits à côté.',
     '{copy} Icône « copier » plus discrète : plus petite et sans cadre (toujours facile à toucher).',
@@ -3913,7 +3958,7 @@ const HELP = [
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
-    '{store} Dans la rue aujourd\'hui : un appui affiche (bouton allumé) ou cache sur la carte les marchés, brocantes, fêtes, expos en plein air et marchés éphémères du jour.',
+    '{tent} Dans la rue aujourd\'hui : un appui affiche (bouton allumé) ou cache sur la carte les marchés, brocantes, fêtes, expos en plein air et marchés éphémères du jour.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -3922,12 +3967,12 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {store} Dans la rue aujourd\'hui, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
     'En bas de Filtres, « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
     'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
-    '{store} Dans la rue aujourd\'hui : sur la carte, les marchés du jour et ce que l\'agenda de la Ville annonce sur la voie publique (brocantes, fêtes, expos en plein air, marchés éphémères). « Dans la rue » est deviné d\'après le titre et le lieu : il peut y avoir des oublis.',
+    '{tent} Dans la rue aujourd\'hui : sur la carte, les marchés du jour et ce que l\'agenda de la Ville annonce sur la voie publique (brocantes, fêtes, expos en plein air, marchés éphémères). « Dans la rue » est deviné d\'après le titre et le lieu : il peut y avoir des oublis.',
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
@@ -3971,7 +4016,7 @@ const HELP = [
   ['tags', 'Catégories, listes et favoris', [
     '{settings} → Catégories et listes : ajoute tes catégories (14 toutes prêtes), icône, couleur et ordre avec ↑ ↓ (l\'ordre de la barre du haut).',
     '« Icônes seules en haut » : la barre n\'affiche que les logos.',
-    'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul ») ; crée-la depuis Modifier.',
+    'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). {settings} → Catégories et listes → « Nouvelle liste », puis coche ses lieux d\'un coup ; un appui sur une liste existante pour en ajouter ou en retirer. On peut aussi la choisir depuis Modifier, lieu par lieu.',
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
   ]],
   ['palette', 'Expos et art', [

@@ -374,6 +374,16 @@ export function addList(state, name) {
   return { state: { ...state, lists: [...(state.lists ?? []), { id, name: n }] }, id };
 }
 
+/** Met exactement les lieux `ids` dans la liste (ajoute ceux qui manquent, retire les autres). Renvoie un nouvel état. */
+export function setListMembers(state, listId, ids) {
+  const keep = new Set(ids);
+  return { ...state, points: state.points.map((p) => {
+    const has = (p.lists ?? []).includes(listId);
+    if (keep.has(p.id) === has) return p;
+    return { ...p, lists: keep.has(p.id) ? [...(p.lists ?? []), listId] : (p.lists ?? []).filter((x) => x !== listId) };
+  }) };
+}
+
 export function renameList(state, id, name) {
   const n = String(name ?? '').trim().slice(0, 30);
   if (!n) throw new Error('Donne un nom à la liste.');

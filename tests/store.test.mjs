@@ -465,3 +465,14 @@ test('feuille Filtres : lignes masquées gardées, inconnues écartées', () => 
   assert.deepEqual(loadState(st).hiddenFilters, ['top', 'people']);
   assert.deepEqual(loadState(memStorage()).hiddenFilters, []);
 });
+
+test('setListMembers : ajoute et retire d\'un coup', async () => {
+  const { setListMembers } = await import('../js/store.js');
+  const st = { lists: [{ id: 'L', name: 'Pluie' }], points: [
+    { id: 'a', lists: ['L'] }, { id: 'b', lists: [] }, { id: 'c' }, { id: 'd', lists: ['M', 'L'] },
+  ] };
+  const r = setListMembers(st, 'L', ['b', 'c', 'd']);
+  assert.deepEqual(r.points.map((p) => p.lists ?? []), [[], ['L'], ['L'], ['M', 'L']]);
+  assert.equal(r.points[3], st.points[3], 'lieu inchangé : même objet');
+  assert.deepEqual(st.points[0].lists, ['L'], 'état d\'origine intact');
+});
