@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (90)';
+const VERSION = '16 novembre 2026 (91)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -412,26 +412,29 @@ function openFilters() {
   // Lignes masquées dans « Choisir les filtres affichés » ; une ligne active reste visible pour pouvoir l'éteindre
   const hid = new Set(state.hiddenFilters ?? []);
   const keep = (key, active) => !hid.has(key) || active;
+  const withTitle = (title, rows) => (rows.some(Boolean) ? [el('h3', { class: 'ring-title menu-group' }, title), ...rows] : []);
   openSheet([ico('list-filter'), ' Filtres'], el('div', { class: 'menu' },
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
-    el('h3', { class: 'ring-title menu-group' }, 'Filtrer mes lieux'),
-    !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
-    !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
-    !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
-    !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
-    !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
-      ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
-        if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
-      } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
-      : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
-    people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de mes proches'), el('span', {}, '')) : null,
-    people.length && keep('people', personFilter !== 'all') ? el('div', { class: 'list-chips' },
-      [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
-        .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
-          ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
-    activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
-      filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
-    } }, ico('x'), 'Effacer les filtres') : null,
+    // Le titre n'apparaît que s'il reste au moins un filtre dessous (tout peut être masqué dans « Choisir les filtres affichés »)
+    ...withTitle('Filtrer mes lieux', [
+      !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
+      !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
+      !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
+      !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
+      !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
+        ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
+          if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
+        } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
+        : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
+      people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de mes proches'), el('span', {}, '')) : null,
+      people.length && keep('people', personFilter !== 'all') ? el('div', { class: 'list-chips' },
+        [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
+          .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
+            ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
+      activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
+        filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
+      } }, ico('x'), 'Effacer les filtres') : null,
+    ]),
     keep('lines', state.showLines) || keep('markets', state.showMarkets) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
@@ -2820,7 +2823,7 @@ function drawWx() {
   wxBadge.setAttribute('aria-label', [day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
-  bon: 'Parfait pour marcher.', correct: 'Rien à signaler.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
+  bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
   mediocre: 'Évite les efforts intenses dehors, surtout près des grands axes.', 'tres-mediocre': 'Limite les efforts dehors ; privilégie les parcs et les rues calmes.',
   extreme: 'Évite les efforts dehors aujourd\'hui.',
 };
@@ -2832,6 +2835,9 @@ function openWeather() {
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
     air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
     air ? el('p', {}, AIR_ADVICE[air.level]) : null,
+    meteo?.rain && state.points.some((p) => p.covered) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+      filt.covered = true; refresh(); closeSheet(); toast(`Il pleut : ${plural(visible().length, 'lieu abrité', 'lieux abrités')} sur la carte`);
+    } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
     air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
     meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
     el('p', { class: 'help' }, 'Source : Open-Meteo (prévisions européennes CAMS pour l\'air). Valeurs pour le quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
@@ -4060,6 +4066,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{umbrella} Météo : sous la pluie, plus de « Parfait pour marcher » (ce conseil ne parlait que de l\'air) ; à la place, un bouton « Voir mes lieux abrités ». Filtres : le titre « Filtrer mes lieux » disparaît quand tous ses filtres sont masqués.',
     '{plus} Nouveau lieu : fiche plus courte (nom, catégorie, Enregistrer), le reste dans « Plus de détails ». La carte garde beaucoup plus de place. « Ajuster » place le point avec le viseur sur toute la carte, puis revient à la fiche sans rien perdre.',
     '{search} Chercher un nom ou une adresse dans l\'annuaire : seulement dans Paris et les départements voisins (Hauts-de-Seine, Seine-Saint-Denis, Val-de-Marne). Plus de résultats à Lyon ou à Orléans. L\'import de listes et le partage depuis une autre appli cherchent toujours partout.',
     '{calendar-days} Sorties du jour, nouvelle allure : la sortie en cours la plus proche en grande plaque, puis « En ce moment » et « Plus tard aujourd\'hui ». Chaque carte a une icône de genre (musique, spectacle, cinéma, balade, en famille…), le temps à pied, et ses boutons dedans. Un marché déjà fini n\'apparaît plus.',
