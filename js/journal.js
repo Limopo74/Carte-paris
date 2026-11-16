@@ -46,6 +46,16 @@ export function addUse(j, name, date = new Date()) {
   return j;
 }
 
+/** Remet à zéro une partie du journal : la marche (avec l'air) et/ou les fonctions utilisées. Les jours vidés disparaissent. */
+export function resetJournal(j, { walk = false, use = false } = {}) {
+  for (const [k, d] of Object.entries(j.days)) {
+    if (walk) { d.m = 0; d.air = {}; }
+    if (use) d.use = {};
+    if (!d.m && !Object.keys(d.use).length) delete j.days[k];
+  }
+  return j;
+}
+
 /** Supprime les jours de plus de KEEP_DAYS jours. */
 export function prune(j, now = new Date()) {
   const limit = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - KEEP_DAYS + 1));

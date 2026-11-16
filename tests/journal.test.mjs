@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airBucket, cleanJournal, addWalk, addUse, prune, lastDays, totals, placesStats, arrProgress } from '../js/journal.js';
+import { airBucket, cleanJournal, addWalk, addUse, prune, lastDays, totals, placesStats, arrProgress, resetJournal } from '../js/journal.js';
 
 test('journal : marche par air, utilisations, 90 jours au plus', () => {
   const j = cleanJournal(null);
@@ -44,4 +44,22 @@ test('mes lieux et arrondissements sur la période', () => {
   assert.deepEqual({ ...s, byCat: undefined }, { total: 4, added: 2, visited: 1, fav: 1, stars: 4, byCat: undefined });
   assert.deepEqual(s.byCat, [['a', 2], ['b', 2]]);
   assert.deepEqual(arrProgress(pts, from), { now: 3, gained: 1 });
+});
+
+test('resetJournal : marche seule, fonctions seules, tout', () => {
+  const mk = () => cleanJournal({ days: {
+    '2026-11-15': { m: 1200, air: { bon: 1200 }, use: { Boussole: 2 } },
+    '2026-11-16': { m: 800, air: { moyen: 800 }, use: {} },
+  } });
+  const a = resetJournal(mk(), { walk: true });
+  assert.deepEqual(Object.keys(a.days), ['2026-11-15']);
+  assert.equal(a.days['2026-11-15'].m, 0);
+  assert.deepEqual(a.days['2026-11-15'].air, {});
+  assert.deepEqual(a.days['2026-11-15'].use, { Boussole: 2 });
+  const b = resetJournal(mk(), { use: true });
+  assert.equal(b.days['2026-11-15'].m, 1200);
+  assert.deepEqual(b.days['2026-11-15'].use, {});
+  assert.equal(b.days['2026-11-16'].m, 800);
+  assert.deepEqual(resetJournal(mk(), { walk: true, use: true }).days, {});
+  assert.equal(Object.keys(resetJournal(mk()).days).length, 2); // rien coché : rien ne change
 });

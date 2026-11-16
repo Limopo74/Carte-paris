@@ -280,6 +280,10 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .compass-arrow { transition: transform .25s ease-out; margin: 18px 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
 @media (prefers-reduced-motion: reduce) { .compass-arrow { transition: none; } }
 .compass-dist { margin: 0; font-size: 26px; font-weight: 700; }
+.compass-slot { min-height: 48px; display: flex; align-items: center; justify-content: center; }
+.compass-done { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 2px solid currentColor; background: transparent; color: inherit; font: inherit; font-weight: 700; font-size: 16px; }
+.compass-done[hidden] { display: none; }
+.compass-done:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
 .compass-hint { margin: 0; min-height: 40px; opacity: .8; font-size: 15px; max-width: 320px; }
 .compass-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin-top: 12px; }
 .compass .btn { background: var(--surface); color: var(--ink); border-color: #fff; }
@@ -569,10 +573,11 @@ ol.items { padding: 0; }
 .arr-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(5, 54px); gap: 5px; }
 .arr { border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line); }
 .arr b { font-size: 14px; }
-.arr.l0 { background: var(--soft); color: var(--muted); }
-.arr.l1 { background: #d3f0da; color: #1d5a29; border-color: #a9d8b4; }
-.arr.l2 { background: #7fcf91; color: #0f3d18; border-color: #5fb873; }
-.arr.l3 { background: #237032; color: #fff; border-color: #237032; }
+/* Aucun lieu visité : case vide en pointillés ; dès 1 : vert plein avec un bord franc. */
+.arr.l0 { background: transparent; color: var(--muted); border: 1.5px dashed var(--line); }
+.arr.l1 { background: #A9DDB6; color: #123d1b; border: 2px solid #3f9553; }
+.arr.l2 { background: #4FAE66; color: #06200c; border: 2px solid #2f7f43; }
+.arr.l3 { background: #1B6129; color: #fff; border: 2px solid #1B6129; }
 .arr-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .arr-legend .arr { width: 18px; height: 18px; border-radius: 5px; display: inline-block; }
 ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.4; }
@@ -636,9 +641,9 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 :root[data-theme="dark"] .stars-ro { color: #ffb066; }
 :root[data-theme="dark"] .star-pick button.on { color: #ffa040; }
 :root[data-theme="dark"] .star-pick button { color: #8a93a5; }
-:root[data-theme="dark"] .arr.l1 { background: #1d4426; color: #c9f0d1; border-color: #2d6b3a; }
-:root[data-theme="dark"] .arr.l2 { background: #2f7a40; color: #fff; border-color: #3f9553; }
-:root[data-theme="dark"] .arr.l3 { background: #6fd585; color: #0b2412; border-color: #6fd585; }
+:root[data-theme="dark"] .arr.l1 { background: #24502F; color: #D6F5DC; border-color: #4FAE66; }
+:root[data-theme="dark"] .arr.l2 { background: #3F9E56; color: #06180B; border-color: #6fd585; }
+:root[data-theme="dark"] .arr.l3 { background: #93E3A4; color: #06180B; border-color: #93E3A4; }
 :root[data-theme="dark"] .toast { background: #e8ebf2; color: #10131c; }
 :root[data-theme="dark"] .leaflet-control-attribution { background: rgba(21, 25, 34, .85) !important; color: var(--muted); }
 :root[data-theme="dark"] .leaflet-control-attribution a { color: var(--metro); }
@@ -671,6 +676,10 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .rain.heat { background: #fff1e6; border-color: #ffc9a3; color: #8a3b00; }
 :root[data-theme="dark"] .rain.heat { background: #3a1f0c; border-color: #7a4113; color: #ffcfa8; }
 :root[data-theme="dark"] .compass-next { background: #e8ebf2; color: #10131c; }
+/* Boussole en sombre : fond sombre (pas de plein écran clair la nuit), flèche et textes clairs, une seule plaque claire. */
+:root[data-theme="dark"] .compass { background: #151922; color: #EEF1F7; }
+:root[data-theme="dark"] .compass .compass-go { background: #EEF1F7; color: #10131c; border-color: #EEF1F7; }
+:root[data-theme="dark"] .compass .compass-close, :root[data-theme="dark"] .compass .compass-mute { background: transparent; color: #EEF1F7; border-color: rgba(238,241,247,.5); }
 
 /* Mode sombre : les boutons ressortent du fond (relief léger + contour clair) */
 :root[data-theme="dark"] .btn, :root[data-theme="dark"] .tool, :root[data-theme="dark"] .go-compass, :root[data-theme="dark"] .seg button { box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 2px 6px rgba(0, 0, 0, .45); }
@@ -686,7 +695,14 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 /* Cône de direction autour du point bleu */
 .me-wrap { position: relative; overflow: visible; }
 .me-cone { position: absolute; left: -30px; top: -30px; width: 80px; height: 80px; pointer-events: none; transform-origin: 40px 40px; transition: transform .12s linear; }
-.me-cone svg { display: block; }
+.me-cone svg { display: block; overflow: visible; }
+/* Contour plein (≥ 3,7:1 sur toutes les couleurs de la carte) + liseré qui le détache du fond ; remplissage dégradé sans aller à zéro. */
+.me-cone { --cone: #1B56E8; --cone-halo: #ffffff; }
+#map[data-style="night"] .me-cone { --cone: #8CB1FF; --cone-halo: #10131c; }
+.me-cone .cone-a { stop-color: var(--cone); stop-opacity: .7; }
+.me-cone .cone-b { stop-color: var(--cone); stop-opacity: .3; }
+.me-cone .cone-halo { fill: none; stroke: var(--cone-halo); stroke-width: 5; stroke-linejoin: round; stroke-opacity: .95; }
+.me-cone .cone-fill { stroke: var(--cone); stroke-width: 2.2; stroke-linejoin: round; }
 .me-dot { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .me-cone { transition: none; } }
 
@@ -1003,10 +1019,10 @@ a.go, .item .go { background: var(--aller-bg); }
 :root[data-theme="dark"] { --strong: #EEF1F7; --guide: #EEF1F7; --guide-bd: #EEF1F7; }
 
 /* ---------- Mes chiffres ----------
-   Air : une seule teinte (terre cuite), du clair (bon) au foncé (médiocre) ; inconnu en gris.
-   Contrastes vérifiés : plus clair ≥ 2:1 sur le fond, lumière décroissante ; inversé en sombre. */
-:root { --aq-bon: #D98B63; --aq-moyen: #B0532C; --aq-mauvais: #6E2810; --aq-inconnu: #BDB7AB; }
-:root[data-theme="dark"] { --aq-bon: #8F4A2B; --aq-moyen: #CC7A52; --aq-mauvais: #F5B896; --aq-inconnu: #5A6272; }
+   Air : trois teintes franches (bleu-vert, orange, prune) ET de plus en plus foncées vers « médiocre »
+   (lisible sans voir les couleurs) ; inversé en sombre ; inconnu en gris. */
+:root { --aq-bon: #4AB5A7; --aq-moyen: #BB5B1B; --aq-mauvais: #571938; --aq-inconnu: #BDB7AB; }
+:root[data-theme="dark"] { --aq-bon: #267369; --aq-moyen: #E28136; --aq-mauvais: #F4AFD1; --aq-inconnu: #5A6272; }
 .air-seg.air-bon, .air-key.air-bon { fill: var(--aq-bon); background: var(--aq-bon); }
 .air-seg.air-moyen, .air-key.air-moyen { fill: var(--aq-moyen); background: var(--aq-moyen); }
 .air-seg.air-mauvais, .air-key.air-mauvais { fill: var(--aq-mauvais); background: var(--aq-mauvais); }
@@ -1035,3 +1051,5 @@ a.go, .item .go { background: var(--aller-bg); }
 .hbar-track { height: 10px; }
 .hbar { display: block; height: 10px; border-radius: 0 4px 4px 0; background: var(--metro); }
 .hbar-val { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 700; min-width: 2ch; text-align: right; }
+/* Bouton brique plein en sombre : texte foncé sur brique claire (le blanc n'atteignait pas 4,5:1). */
+:root[data-theme="dark"] .btn.danger.solid { background: var(--danger); color: #10131c; border-color: var(--danger); }

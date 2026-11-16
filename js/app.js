@@ -14,7 +14,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
 import { holidayOn } from './holidays.js';
-import { cleanJournal, addWalk, addUse, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
+import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -29,7 +29,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (64)';
+const VERSION = '16 novembre 2026 (65)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -231,7 +231,7 @@ scalePins();
 function meMarker(lat, lng, grey = false) {
   // Le cône (direction où tu regardes) apparaît dès que le téléphone donne son orientation.
   if (!grey) startHeading();
-  const cone = grey ? '' : `<span class="me-cone"${mapHeading == null ? ' hidden' : ''} style="transform:rotate(${mapHeading ?? 0}deg)"><svg viewBox="0 0 80 80" width="80" height="80" aria-hidden="true"><defs><radialGradient id="cg" cx="50%" cy="100%" r="100%"><stop offset="0" stop-color="#4c6ef5" stop-opacity=".55"/><stop offset="1" stop-color="#4c6ef5" stop-opacity="0"/></radialGradient></defs><path d="M40 40 L18 4 A44 44 0 0 1 62 4 Z" fill="url(#cg)"/></svg></span>`;
+  const cone = grey ? '' : `<span class="me-cone"${mapHeading == null ? ' hidden' : ''} style="transform:rotate(${mapHeading ?? 0}deg)"><svg viewBox="0 0 80 80" width="80" height="80" aria-hidden="true"><defs><linearGradient id="cg" gradientUnits="userSpaceOnUse" x1="40" y1="40" x2="40" y2="0"><stop offset="0" class="cone-a"/><stop offset="1" class="cone-b"/></linearGradient></defs><path class="cone-halo" d="M40 40 L18 4 A44 44 0 0 1 62 4 Z"/><path class="cone-fill" d="M40 40 L18 4 A44 44 0 0 1 62 4 Z" fill="url(#cg)"/></svg></span>`;
   return L.marker([lat, lng], {
     interactive: false, keyboard: false, zIndexOffset: 3000,
     icon: L.divIcon({ className: 'pin-wrap me-wrap', html: `${cone}<span class="me-dot${grey ? ' grey' : ''}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
@@ -1948,6 +1948,37 @@ function myStats() {
   };
   const tile = (n, label) => el('div', { class: 'stat-tile' }, el('b', {}, n), el('span', {}, label));
   const steps = stepsFor(t.m);
+
+  // Remise à zéro : au choix marche et air / fonctions utilisées ; jamais les lieux ni leurs « visité ».
+  const resetBox = el('div', { class: 'stack' });
+  const showReset = () => fill(resetBox, el('button', { type: 'button', class: 'btn danger', onclick: askReset }, ico('rotate-ccw'), 'Remettre à zéro…'));
+  const askReset = () => {
+    const walkBox = el('input', { type: 'checkbox', class: 'check' });
+    const useBox = el('input', { type: 'checkbox', class: 'check' });
+    const err = el('div', { class: 'error', role: 'alert' });
+    for (const b of [walkBox, useBox]) b.addEventListener('change', () => { err.textContent = ''; });
+    const line = (box, name, sub) => el('label', { class: 'item-main check-row' }, box,
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, name), el('span', { class: 'item-sub' }, sub)));
+    fill(resetBox,
+      el('p', { class: 'warn' }, 'Que remettre à zéro ?'),
+      line(walkBox, 'Marche et air', 'Minutes de marche par jour et qualité de l\'air, marche du jour comprise'),
+      line(useBox, 'Fonctions utilisées', 'La liste « Ce que j\'utilise le plus »'),
+      el('p', { class: 'help' }, 'Efface les 90 jours gardés. Tes lieux, leurs « visité », favoris et notes ne changent pas. Ce n\'est pas annulable.'),
+      err,
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn', onclick: showReset }, 'Annuler'),
+        el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+          const walk = walkBox.checked, use = useBox.checked;
+          if (!walk && !use) { err.textContent = 'Coche au moins une case.'; return; }
+          resetJournal(journal, { walk, use });
+          if (walk) state.walk = { day: '', m: 0 };
+          saveJournal(true); persist();
+          openMyParis();
+          toast(walk && use ? 'Marche, air et fonctions remis à zéro.' : walk ? 'Marche et air remis à zéro.' : 'Fonctions utilisées remises à zéro.');
+        } }, 'Remettre à zéro')));
+    walkBox.focus();
+  };
+  showReset();
   return [
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes chiffres'), el('span', {}, '')),
     seg,
@@ -1964,6 +1995,7 @@ function myStats() {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Ce que j\'utilise le plus'), el('span', {}, '')),
     t.use.length ? hbars(t.use.slice(0, 6), 'Fonctions les plus utilisées') : el('p', { class: 'help' }, 'Rien encore sur cette période.'),
     el('p', { class: 'help' }, 'Totaux par jour gardés 90 jours sur ce téléphone seulement : ni le tracé de tes déplacements, ni la sauvegarde, ni personne d\'autre.'),
+    resetBox,
   ];
 }
 
@@ -2580,6 +2612,19 @@ function openCompass(p, step = null) {
   walkSession = 0;
   walkEl.textContent = '';
   compassEl.querySelector('.compass-name').textContent = p.name;
+  // Arrivée à un de mes lieux : « Visité » en un appui, jamais coché tout seul (passer à côté n'est pas visiter).
+  const mine = p.id ? state.points.find((x) => x.id === p.id) : null;
+  const doneBtn = compassEl.querySelector('.compass-done');
+  let arrived = false;
+  doneBtn.hidden = true;
+  fill(doneBtn, ico('check'), 'Visité');
+  doneBtn.setAttribute('aria-label', `Marquer ${p.name} comme déjà visité`);
+  doneBtn.onclick = () => {
+    if (!mine) return;
+    setDone(mine, true); persist(); renderMarkers();
+    doneBtn.hidden = true;
+    toast(`${mine.name} : noté « déjà visité »`);
+  };
   compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
   compassEl.hidden = false;
   if (!step?.replace) history.pushState({ compass: true }, '');
@@ -2592,9 +2637,6 @@ function openCompass(p, step = null) {
       if (!said.arrived) {
         said.arrived = true;
         speak(`Tu y es. ${p.name}.${step && !step.last ? ' Touche Étape suivante quand tu veux.' : ''}`);
-        // Balade guidée : un de mes lieux atteint est noté « déjà visité »
-        const mine = step && p.id && state.points.find((x) => x.id === p.id);
-        if (mine && !mine.done) { setDone(mine, true); persist(); renderMarkers(); toast(`${mine.name} : noté « déjà visité »`); }
       }
       return;
     }
@@ -2604,8 +2646,8 @@ function openCompass(p, step = null) {
       speak(`Direction ${p.name}. ${spokenDistance(d)}${dir ? `, ${dir}` : ''}.`);
       return;
     }
-    const step = Math.floor(d / 100);
-    if (step < said.step) { said.step = step; speak(`Encore ${spokenDistance(d)}${dir ? `, ${dir}` : ''}.`); said.dir = dir; said.dirAt = Date.now(); return; }
+    const hundred = Math.floor(d / 100);
+    if (hundred < said.step) { said.step = hundred; speak(`Encore ${spokenDistance(d)}${dir ? `, ${dir}` : ''}.`); said.dir = dir; said.dirAt = Date.now(); return; }
     if (dir && dir !== said.dir && Date.now() - said.dirAt > 8000) { said.dir = dir; said.dirAt = Date.now(); speak(dir); }
   };
 
@@ -2614,7 +2656,9 @@ function openCompass(p, step = null) {
     const d = distanceM(pos, p);
     const b = bearing(pos, p);
     talk(d, heading == null ? null : relativeAngle(b, heading));
-    if (d < 20) {
+    if (d < 20) arrived = true;
+    doneBtn.hidden = !(arrived && mine && !mine.done);
+    if (d < 20 || !doneBtn.hidden) {
       dist.textContent = 'Tu y es !';
       hint.textContent = '';
       arrow.style.opacity = '0.25';
@@ -3395,6 +3439,10 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map} Mes chiffres : « Remettre à zéro… » en bas, au choix la marche et l\'air ou les fonctions utilisées. Tes lieux et leurs « visité » ne bougent pas.',
+    '{map} Mon Paris : couleurs plus franches. Air bon en bleu-vert, moyen en orange, médiocre en prune ; arrondissements sans lieu visité en pointillés.',
+    '{navigation} Cône de direction plus net sur la carte, même en plein soleil : contour bleu franc avec un liseré, plus clair sur la carte Nuit.',
+    '{compass} Arrivée à un de tes lieux (boussole ou balade guidée) : un bouton « Visité » le note en un appui. L\'appli ne coche plus rien toute seule, car passer à côté d\'un lieu ne veut pas dire l\'avoir visité.',
     '{map} Mon Paris et mes chiffres : marche par jour selon la qualité de l\'air, mes lieux, arrondissements explorés et fonctions les plus utilisées, sur 7 ou 30 jours. Tout reste sur ton téléphone.',
     '« Déjà visité » n\'est plus qu\'une information : tous tes lieux comptent dans Maintenant, Surprise, Itinéraire, les alertes à 100 m et les cercles. Tes favoris passent en premier : dans « Maintenant » et en tête de chaque cercle d\'Autour de moi, s\'ils sont à moins de 5 min de plus qu\'un autre lieu.',
     'Bleu modernisé : le bleu des transports est plus vif ; en mode sombre, les boutons principaux sont blanc cassé.',
@@ -3457,7 +3505,7 @@ const HELP = [
     '{landmark} Monuments : les monuments historiques protégés à moins de 1 km, avec leur site officiel (visites, billets), la fiche du ministère de la Culture et Wikipédia.',
     '{route} Itinéraire réunit trois façons de tracer un trajet : « J\'ai du temps », « Sur mon chemin », « Relier des lieux ».',
     '{hourglass} J\'ai du temps (Temps libre) : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
-    '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. Tes lieux atteints sont notés « déjà visité ».',
+    '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. À l\'arrivée à un de tes lieux, le bouton « Visité » le note en un appui.',
     '{footprints} Sur mon chemin : tes lieux sur ton trajet. {route} Relier des lieux : 2 à 4 lieux dans le meilleur ordre.',
     '{shuffle} Surprise : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
@@ -3490,6 +3538,7 @@ const HELP = [
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon les lieux « Déjà visité ». Chaque case : visités / enregistrés.',
     'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi.',
+    'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
   ['users', 'Partager avec un ami', [
     'Un lieu : ⋯ Plus → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
