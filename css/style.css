@@ -1075,3 +1075,4 @@ a.go, .item .go { background: var(--aller-bg); }
 /* Petite icône sans cadre ; la zone à toucher reste de 44 px */
 .go-compass.copy-btn { flex: none; width: 44px; min-height: 44px; background: transparent; border: 0; box-shadow: none; color: var(--info); }
 .go-compass.copy-btn .ico svg { width: 18px; height: 18px; }
+.item-sub > .tag:first-child { margin-left: 0; }

@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (72)';
+const VERSION = '16 novembre 2026 (73)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1231,13 +1231,17 @@ function hoursLine(p) {
   if (st.open) return st.until ? `Ouvert · ferme à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'Ouvert toute la journée';
   return st.opensAt ? `Fermé · ouvre à ${st.opensAt.replace(':', 'h')}` : 'Fermé pour aujourd\'hui';
 }
-function hoursTag(p) {
-  const st = openState(p.hours);
+/** Tampon d'état du jour, le même partout : Ouvert, Ferme dans 20 min, Ouvre à 14h, Fermé aujourd'hui (rien si horaires inconnus). */
+function stateTag(hours) {
+  const st = openState(hours);
   if (!st) return null;
-  const left = minutesLeft(p.hours);
+  const left = minutesLeft(hours);
   if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${left} min`);
-  return el('span', { class: `tag ${st.open ? 'open' : 'closed'}` }, st.open ? 'Ouvert' : 'Fermé');
+  if (st.open) return el('span', { class: 'tag open' }, 'Ouvert');
+  if (st.opensAt) return el('span', { class: 'tag soon' }, `Ouvre à ${hhText(st.opensAt)}`);
+  return el('span', { class: 'tag closed' }, 'Fermé aujourd\'hui');
 }
+function hoursTag(p) { return stateTag(p.hours); }
 
 /* ---------- Copier d'un appui (adresse, coordonnées) pour coller dans une autre appli ---------- */
 
@@ -2316,13 +2320,12 @@ function loadGalleries(force = false) {
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 const galleryRow = (g, back) => {
   const st = openState(g.hours);
-  const left = minutesLeft(g.hours);
-  const stTxt = !st ? 'horaires inconnus' : st.open ? (left != null && left <= 45 ? `ferme dans ${left} min` : st.until ? `ouverte jusqu'à ${hhText(st.until)}` : 'ouverte') : st.opensAt ? `ouvre à ${hhText(st.opensAt)}` : 'fermée aujourd\'hui';
+  const stTxt = !st ? 'horaires inconnus' : st.open && st.until ? `jusqu'à ${hhText(st.until)}` : '';
   return el('li', { class: 'item wrap' },
     el(g.site ? 'a' : 'span', { class: 'item-main', ...(g.site ? { href: g.site, target: '_blank', rel: 'noopener' } : {}) },
       el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('palette', { size: 18 })),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, g.name),
-        el('span', { class: 'item-sub' }, [g.kind, stTxt, closedDaysText(g.hours), `${fmtDist(g.d)} · ${walkMinutes(g.d)} min`].filter(Boolean).join(' · ')))),
+        el('span', { class: 'item-sub' }, stateTag(g.hours), stateTag(g.hours) ? ' ' : null, [g.kind, stTxt, closedDaysText(g.hours), `${fmtDist(g.d)} · ${walkMinutes(g.d)} min`].filter(Boolean).join(' · ')))),
     compassBtn(g), metroBtn(g, back),
     el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${g.name} à ma carte`, onclick: () => openForm({ name: g.name, lat: g.lat, lng: g.lng, address: g.address, hours: g.hours, acc: null }) }, ico('plus')));
 };
@@ -3849,6 +3852,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Tampon d\'état du jour, le même partout (tes listes, galeries) : OUVERT, FERME DANS 20 MIN, OUVRE À 14H ou FERMÉ AUJOURD\'HUI. Les jours de fermeture restent écrits à côté.',
     '{copy} Icône « copier » plus discrète : plus petite et sans cadre (toujours facile à toucher).',
     '{store} « Dans la rue aujourd\'hui » remplace « Marchés du jour » dans {list-filter} Filtres : en plus des marchés, la carte montre les brocantes, fêtes, expos en plein air et marchés éphémères du jour. Un appui ouvre leur fiche (boussole, métro, enregistrer).',
     '{circle-help} Aide mise à jour : chaque rubrique décrit maintenant Sorties (Tout, Gratuit, Expos), Mon billet, Copier, les filtres et boutons à masquer, le style Épuré et les couleurs de Mon Paris.',
@@ -3946,7 +3950,7 @@ const HELP = [
     'Touche un lieu sur la carte pour ouvrir sa fiche.',
     'La grande barre « Y aller » ouvre Google Maps et indique le temps à pied.',
     '{compass} Boussole : une flèche et une voix te guident ; à l\'arrivée, « Visité » en un appui. M Métro : la ligne et la correspondance, calculées dans l\'appli. {camera} Photo : l\'appareil photo direct.',
-    'Horaires : « Ouvert · ferme à… », « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi »).',
+    'Horaires : « Ouvert · ferme à… », « ferme dans 30 min » quand ça ferme bientôt, et les jours de fermeture (« Fermé le lundi »). Dans les listes, un tampon dit l\'état du jour : Ouvert, Ferme dans 20 min, Ouvre à 14h ou Fermé aujourd\'hui.',
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
     'En dessous, quatre cases : {check} Visité, Favori, {pencil} Modifier et {ellipsis} Plus (partager, QR code, {ticket} Mon billet, horaires, déplacer, supprimer, date d\'ajout).',
