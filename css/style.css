@@ -1132,3 +1132,64 @@ a.go, .item .go { background: var(--aller-bg); }
 /* Liens « Pour aller plus loin » de Sorties : rangées comme les réglages, sans soulignement */
 a.menu-row { text-decoration: none; }
 a.menu-row .menu-chev { font-size: 20px; }
+
+/* ---- Sorties : cartes à icône de genre (v88) ----
+   Une teinte douce par genre, seulement en fond d'icône : les couleurs des boutons gardent leur sens (bleu = transport…).
+   La sortie la plus proche en ce moment est la seule plaque pleine de l'écran (terre cuite = découvrir). */
+:root {
+  --g-musique: #E9E0F3; --g-expo: #F6E6DE; --g-chiner: #F2E8CF; --g-fete: #F9E1E6;
+  --g-scene: #E1EAF0; --g-balade: #E3EEE6; --g-famille: #FCEBD7; --g-autre: #ECEDEF;
+}
+:root[data-theme="dark"] {
+  --g-musique: #3A2F4D; --g-expo: #4A2618; --g-chiner: #43381C; --g-fete: #4C2631;
+  --g-scene: #24364A; --g-balade: #1F3A2C; --g-famille: #4A3318; --g-autre: #2C3240;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ev-list { gap: 8px; }
+.ev {
+  list-style: none; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 12px; padding: 12px;
+  background: var(--surface); border: 1.5px solid var(--btn-bd); border-radius: 8px; box-shadow: 0 2px 0 var(--hard);
+}
+.genre { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; color: var(--ink); background: var(--g-autre); }
+.genre .ico svg { width: 22px; height: 22px; display: block; }
+.g-musique { background: var(--g-musique); }
+.g-expo, .g-galerie, .g-musee { background: var(--g-expo); }
+.g-chiner, .g-marche { background: var(--g-chiner); }
+.g-fete { background: var(--g-fete); }
+.g-scene, .g-cine { background: var(--g-scene); }
+.g-balade { background: var(--g-balade); }
+.g-famille { background: var(--g-famille); }
+.ev-main {
+  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
+  padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none;
+}
+.ev-main:focus-visible { outline: 3px solid #1B56E8; outline-offset: 3px; border-radius: 4px; }
+.ev-name {
+  font-family: var(--display); font-weight: 700; font-size: 16.5px; font-stretch: 92%; line-height: 1.25; color: var(--ink);
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere;
+}
+.ev-sub { color: var(--muted); font-size: 14px; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.ev-sub b { color: var(--ink); font-weight: 700; }
+.ev-foot { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.ev-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.ev-tags .tag { margin-left: 0; white-space: nowrap; }
+.walk { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; color: var(--ink); }
+.ev-foot .go-compass { width: 48px; }
+
+.ev.feat {
+  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: 10px;
+  background: var(--pl); color: #FBF8F3;
+  box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 4px var(--plaque-line), 0 3px 0 var(--hard);
+}
+:root[data-theme="dark"] .ev.feat { color: #10131C; }
+.ev.feat .genre { width: 52px; height: 52px; border-radius: 50%; background: transparent; color: inherit; border: 1.5px solid currentColor; }
+.ev.feat .genre .ico svg { width: 26px; height: 26px; }
+.ev.feat .ev-name { color: inherit; font-weight: 800; font-size: 22px; font-stretch: 88%; line-height: 1.15; margin-top: 2px; }
+.ev.feat .ev-sub, .ev.feat .ev-sub b, .ev.feat .walk { color: inherit; }
+.ev.feat .ev-sub { font-size: 14.5px; margin-top: 4px; }
+.feat-kicker { font-size: 14px; font-weight: 600; }
+.ev.feat .tag { color: inherit; }
+.ev.feat .go-compass, .ev.feat .go-compass.go-metro { background: transparent; color: inherit; border-color: currentColor; box-shadow: none; }
+.ev.feat .ev-main:focus-visible { outline-color: currentColor; }
+
+.week-items.ev-list { padding: 0 0 10px; }

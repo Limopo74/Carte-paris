@@ -113,3 +113,33 @@ export function streetKind(e) {
   if (/\bexpo|exposition|installation|sculpture|photograph/i.test(text) && outdoor && !indoor) return 'expo';
   return null;
 }
+
+/* ---------- Genre d'une sortie, pour son icône (deviné, donc prudent) ---------- */
+
+const GENRES = [
+  ['cine', /cin[ée]ma|cin[ée][- ]club|projection|\bfilms?\b|courts?[- ]m[ée]trages?|documentaire/i],
+  ['musique', /concert|musique|musical|\bjazz|\brock\b|chorale|r[ée]cital|\bdj\b|chanson|\bop[ée]ra\b|electro|hip[- ]hop|orchestre|fanfare/i],
+  ['scene', /th[ée][âa]tre|spectacle|\bdanse|cirque|humour|one[- ](wo)?man|lecture|\bcontes?\b|marionnettes?|stand[- ]up|\bimpro/i],
+  ['balade', /balade|visite|promenade|randonn[ée]e|flânerie/i],
+  ['atelier', /atelier|conf[ée]rence|rencontre|d[ée]bat|\bcours de\b|initiation|masterclass/i],
+];
+const FAMILLE = /\benfants?\b|jeune public|en famille|\bfamilles?\b|d[èe]s \d+ ans|b[ée]b[ée]s?\b|tout[- ]petits/i;
+
+/**
+ * Genre d'un événement : 'chiner', 'fete', 'expo', 'famille', 'cine', 'musique', 'scene', 'balade', 'atelier',
+ * ou null quand ce n'est pas sûr (aucun indice, ou plusieurs genres possibles) : mieux vaut une icône neutre qu'une fausse.
+ * `expo` : résultat de isExpo(e), calculé à part.
+ */
+export function genreOf(e, { expo = false } = {}) {
+  const kind = eventKind(e);
+  if (kind === 'brocante') return 'chiner';
+  if (kind === 'fete') return 'fete';
+  if (expo) return 'expo';
+  const t = `${e.title ?? ''} ${e.tags ?? ''}`;
+  if (FAMILLE.test(t)) return 'famille';
+  const hits = GENRES.filter(([, re]) => re.test(t)).map(([g]) => g);
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/** Commence plus tard dans la journée (sinon : en ce moment). */
+export const startsLater = (e, now = new Date()) => Boolean(e.start && e.start > now);
