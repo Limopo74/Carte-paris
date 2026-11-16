@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (67)';
+const VERSION = '16 novembre 2026 (68)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -380,28 +380,53 @@ function openFilters() {
   const withHours = count((p) => openState(p.hours) != null);
   const people = owners(state.points);
   const shown = visible().length;
+  // Lignes masquées dans « Choisir les filtres affichés » ; une ligne active reste visible pour pouvoir l'éteindre
+  const hid = new Set(state.hiddenFilters ?? []);
+  const keep = (key, active) => !hid.has(key) || active;
   openSheet([ico('list-filter'), ' Filtres'], el('div', { class: 'menu' },
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
-    sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
-    sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
-    sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    sw(Boolean(state.showMarkets), 'store', 'Marchés du jour sur la carte', 'Les marchés découverts qui se tiennent aujourd\'hui', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
-    sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
-    el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
-    (state.lists ?? []).length
+    !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
+    !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
+    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'store', 'Marchés du jour sur la carte', 'Les marchés découverts qui se tiennent aujourd\'hui', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
+    !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
+    !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
       ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
         if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
       } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
       : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
-    people.length ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de'), el('span', {}, '')) : null,
-    people.length ? el('div', { class: 'list-chips' },
+    people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de'), el('span', {}, '')) : null,
+    people.length && keep('people', personFilter !== 'all') ? el('div', { class: 'list-chips' },
       [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
         .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
           ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
     activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
       filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
     } }, ico('x'), 'Effacer les filtres') : null,
+    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: openFilterChoice }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
+}
+
+/** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
+function openFilterChoice() {
+  const hid = new Set(state.hiddenFilters ?? []);
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'store', 'Marchés du jour sur la carte'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
+  openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
+    el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
+      const on = !hid.has(key);
+      return el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => {
+        if (on) hid.add(key); else hid.delete(key);
+        state.hiddenFilters = [...hid]; persist(); openFilterChoice();
+      } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
+      el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+    })),
+    hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(); } }, 'Tout réafficher') : null,
+    el('button', { type: 'button', class: 'btn', onclick: openFilters }, '← Filtres'),
+  ), { name: 'filter-choice', again: openFilterChoice });
 }
 
 function openPersonPicker() {
@@ -3728,6 +3753,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{list-filter} Filtres : en bas, « Choisir les filtres affichés » pour masquer les lignes dont tu ne te sers pas (Ouvert maintenant, Mieux notés, Lignes de métro, Marchés, Abrités, Listes, Personnes).',
     '{refresh-cw} Rappel : quand la liste des temps forts n\'a plus rien à venir, ou que celle des musées gratuits a plus d\'un an, Sorties l\'indique en haut. Une mise à jour est aussi préparée par Claude chaque début septembre.',
     '{list-filter} Barre du haut : {settings} → Catégories et listes → « Boutons de la barre du haut » pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
     '{calendar-days} Sorties : nouvel onglet « Expos et art » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',

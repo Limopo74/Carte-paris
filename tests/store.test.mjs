@@ -457,3 +457,10 @@ test('barre du haut : boutons masqués gardés, valeurs inconnues écartées', (
   assert.deepEqual(loadState(st).hiddenChips, ['filters']);
   assert.deepEqual(loadState(memStorage()).hiddenChips, []);
 });
+
+test('feuille Filtres : lignes masquées gardées, inconnues écartées', () => {
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], hiddenFilters: ['top', 'xx', 'people', 'top'] }));
+  assert.deepEqual(loadState(st).hiddenFilters, ['top', 'people']);
+  assert.deepEqual(loadState(memStorage()).hiddenFilters, []);
+});
