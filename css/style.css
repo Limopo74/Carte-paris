@@ -701,3 +701,185 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .air-card { padding: 12px 14px; border-radius: 12px; border: 2px solid var(--air); font-size: 16px; }
 .market-pin { width: 26px; height: 26px; border-radius: 8px; background: #fff; color: #a54a28; border: 2px solid #a54a28; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 :root[data-theme="dark"] .market-pin { background: #262d3d; color: #ffb08a; border-color: #ffb08a; }
+
+/* =====================================================================
+   CHARTE « Plaques & pavés » — couleur = famille d'action, forme = importance
+   Plaque pleine à double filet = action principale · contour 2 px = action secondaire
+   Tuile papier + médaillon = outil · jeton = catégorie · tampon = état
+   ===================================================================== */
+@font-face {
+  font-family: 'Archivo'; font-style: normal; font-display: swap; font-weight: 100 900; font-stretch: 62% 125%;
+  src: url(../vendor/fonts/archivo-wdth.woff2) format('woff2-variations'), url(../vendor/fonts/archivo-wdth.woff2) format('woff2');
+}
+:root {
+  --ink: #1C2533; --muted: #5E6875; --line: #D9D1C3; --bg: #FBF8F3; --surface: #FFFFFF; --soft: #EFE8DC;
+  --strong: #1C2533; --on-strong: #FBF8F3; --field: #7A7366; --btn: #FBF8F3; --btn-bd: rgba(28, 37, 51, .28);
+  --aller: #1C2533; --aller-bg: #E6E8EC;
+  --metro: #1F4180; --metro-bg: #E3E9F5; --metro-bd: #1F4180;
+  --guide: #1C2533; --guide-bg: #E6E8EC; --guide-bd: #1C2533;
+  --disc: #A54A28; --disc-bg: #F6E6DE; --disc-bd: #A54A28;
+  --add: #2C5B4E; --add-bg: #E2EEE9; --add-bd: #2C5B4E;
+  --fav: #8A6514; --fav-bg: #F5ECD6; --fav-bd: #8A6514;
+  --info: #4F5966; --info-bg: #ECEDEF; --info-bd: #4F5966;
+  --danger: #9A2620;
+  --plaque-line: rgba(255, 255, 255, .5);
+  --hard: rgba(28, 37, 51, .16);
+  --display: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #EEF1F7; --muted: #B3BBC9; --line: #3A4255; --bg: #1A1F2A; --surface: #222836; --soft: #12161E;
+  --strong: #D3DCFF; --on-strong: #10131C; --field: #8F98AB; --btn: #232A39; --btn-bd: rgba(238, 241, 247, .32);
+  --metro: #A9C2FF; --metro-bg: #1D3166; --metro-bd: #A9C2FF;
+  --guide: #D3DCFF; --guide-bg: #262D3F; --guide-bd: #D3DCFF;
+  --disc: #FFB08A; --disc-bg: #4A2618; --disc-bd: #FFB08A;
+  --add: #9BE6AC; --add-bg: #1C4626; --add-bd: #9BE6AC;
+  --fav: #FFDC85; --fav-bg: #4A3A0E; --fav-bd: #FFDC85;
+  --info: #C3CAD6; --info-bg: #2C3240; --info-bd: #C3CAD6;
+  --danger: #FF9A92;
+  --plaque-line: rgba(0, 0, 0, .35);
+  --hard: rgba(0, 0, 0, .55);
+}
+body { background: var(--soft); }
+
+/* Titres en Archivo étroit */
+.sheet-head h2, #sheetTitle, .item-name, .menu-title, .summary, .where-big, .big-btn, .btn, .tool, .chip, .map-btn, .help-title, .compass-name {
+  font-family: var(--display);
+}
+#sheetTitle { font-size: 22px; font-weight: 800; font-stretch: 85%; letter-spacing: -.005em; }
+.item-name, .menu-title { font-weight: 700; font-stretch: 92%; }
+.ring-title, .legend { font-family: var(--display); font-size: 11.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+
+/* Feuille : papier, coin franc */
+.sheet { background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
+.sheet-head { border-bottom: 1.5px dashed var(--line); }
+.sheet-head .icon-btn { border-radius: 10px; border: 2px solid var(--btn-bd); background: var(--btn); }
+
+/* ---- Boutons : secondaire = contour 2 px ---- */
+.btn { border-radius: 6px; border: 2px solid var(--btn-bd); background: var(--btn); color: var(--ink); font-weight: 700; box-shadow: none; }
+.btn.c-metro, .btn.c-guide, .btn.c-add, .btn.c-fav, .btn.c-info, .btn.c-disc { background: var(--btn); }
+.btn.c-metro { color: var(--metro); border-color: var(--metro); }
+.btn.c-guide { color: var(--guide); border-color: var(--guide); }
+.btn.c-add { color: var(--add); border-color: var(--add); }
+.btn.c-fav { color: var(--fav); border-color: var(--fav); }
+.btn.c-info { color: var(--info); border-color: var(--info); }
+.btn.c-disc { color: var(--disc); border-color: var(--disc); }
+.btn.danger { background: var(--btn); color: var(--danger); border: 2px solid var(--danger); }
+
+/* ---- Action principale = plaque émaillée à double filet ---- */
+.btn.primary, .big-btn.primary, .btn.solid, .big-btn.solid, a.go, .item .go {
+  --pl: var(--strong);
+  background: var(--pl); border-color: var(--pl); color: var(--on-strong);
+  box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 3.5px var(--plaque-line), 0 2px 0 var(--hard);
+}
+.btn.c-add.solid, .big-btn.c-add.solid { --pl: var(--add); }
+.btn.c-metro.solid { --pl: var(--metro); }
+.btn.c-guide.solid { --pl: var(--guide); }
+.btn.c-info.solid { --pl: var(--info); }
+.btn.c-disc.solid { --pl: var(--disc); }
+:root[data-theme="dark"] .btn.solid, :root[data-theme="dark"] .big-btn.solid, :root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .big-btn.primary, :root[data-theme="dark"] a.go { color: #10131C; }
+.btn.primary:active, .btn.solid:active, .big-btn:active, a.go:active { transform: translateY(1px); box-shadow: inset 0 0 0 2px var(--pl), inset 0 0 0 3.5px var(--plaque-line); }
+
+/* Barre du bas */
+.big-btn { border-radius: 8px; border: 2px solid var(--btn-bd); background: var(--btn); box-shadow: 0 3px 0 var(--hard); font-weight: 800; font-stretch: 92%; font-size: 17px; }
+.big-btn.square { border-color: var(--ink); color: var(--ink); }
+
+/* ---- Outils = tuiles papier + médaillon de famille ---- */
+.tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
+  --fam: var(--guide);
+  background: var(--btn); color: var(--ink); border: 1.5px solid var(--btn-bd); border-radius: 6px;
+  min-height: 82px; gap: 6px; font-size: 12.5px; font-weight: 700; box-shadow: 0 2px 0 var(--hard);
+}
+.tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
+.tool.c-info { --fam: var(--info); } .tool.c-disc { --fam: var(--disc); }
+.tool .tool-ico {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--fam); color: var(--bg);
+  display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800;
+  box-shadow: inset 0 0 0 2px var(--fam), inset 0 0 0 3.5px var(--plaque-line);
+}
+.tool .tool-ico .ico svg { width: 19px; height: 19px; }
+.tool.on { border: 2px solid var(--fam); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fam) 25%, transparent), 0 2px 0 var(--hard); }
+.tool.on .tool-ico { animation: none; }
+:root[data-theme="dark"] .tool .tool-ico { color: #10131C; }
+
+/* ---- Jetons (catégories, filtres) ---- */
+.chip { border-radius: 8px; border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: 0 2px 0 var(--hard); font-weight: 600; }
+.chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); box-shadow: 0 2px 0 var(--hard); }
+.chip .cat-ico { border-radius: 6px; }
+.icon-btn { border-radius: 10px; border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: 0 2px 0 var(--hard); }
+.help-btn { color: var(--info); }
+
+/* ---- Tampons (états) ---- */
+.tag, .tag.open, .tag.closed {
+  display: inline-block; background: transparent; border: 1.5px solid currentColor; border-radius: 3px;
+  padding: 1px 6px; margin-left: 4px; font-family: var(--display); font-size: 10.5px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; transform: rotate(-2deg); color: var(--disc);
+}
+.tag.open { color: var(--add); }
+.tag.closed { color: var(--info); }
+
+/* ---- Listes et cartes de rubrique ---- */
+.item-main, .menu-row, .help-item, .style-card, .cat-row { border-radius: 6px; }
+.item-main, .menu-row { border: 1.5px solid var(--btn-bd); background: var(--surface); box-shadow: 0 2px 0 var(--hard); }
+.menu-row .menu-ico { border-radius: 6px; }
+.menu-row.c-disc .menu-ico { background: var(--disc-bg); box-shadow: inset 0 0 0 1.5px var(--disc); color: var(--disc); }
+.menu-row.c-disc .menu-chev { color: var(--disc); }
+.menu-row.c-guide .menu-ico { background: var(--guide-bg); box-shadow: inset 0 0 0 1.5px var(--guide); color: var(--guide); }
+.menu-row.c-add .menu-ico { box-shadow: inset 0 0 0 1.5px var(--add); }
+.menu-row.c-fav .menu-ico { box-shadow: inset 0 0 0 1.5px var(--fav); }
+.menu-row.c-info .menu-ico { box-shadow: inset 0 0 0 1.5px var(--info); }
+.go-compass { border-radius: 6px; border: 2px solid var(--ink); background: var(--btn); color: var(--ink); }
+.go-compass.add { border-color: var(--add); color: var(--add); background: var(--btn); }
+.seg button { border-radius: 6px; border: 2px solid var(--btn-bd); background: var(--btn); font-family: var(--display); font-weight: 700; }
+.seg button[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
+.switch.on { background: var(--add); }
+
+/* ---- Boutons de la carte : carrés arrondis, ombre franche de leur couleur ---- */
+.map-btn, .map-btn.c-guide, .map-btn.c-metro, .map-btn.c-add, .metro-btn {
+  --fam: var(--ink);
+  width: 50px; height: 50px; border-radius: 12px; background: var(--bg); color: var(--fam);
+  border: 2px solid var(--fam); box-shadow: 0 3px 0 var(--fam);
+}
+.map-btn.c-metro, .metro-btn { --fam: var(--metro); }
+.map-btn.c-add { --fam: var(--add); }
+#btnPratique { --fam: var(--add); }
+#btnVelib, #btnHome { --fam: var(--metro); }
+.map-btn[aria-pressed="true"], .map-btn.c-guide[aria-pressed="true"] { background: var(--fam); color: var(--bg); border-color: var(--fam); }
+.paris-btn { font-weight: 800; font-size: 13px; }
+.wx-badge { border-radius: 8px; border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: 0 2px 0 var(--hard); font-family: var(--display); font-weight: 600; }
+
+/* ---- Épingles : goutte qui pointe le lieu exact ---- */
+.pin {
+  width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg);
+  border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25);
+}
+.pin > svg, .pin > .pin-in { transform: rotate(45deg); }
+.pin-fav { transform: rotate(45deg); top: -8px; right: -8px; }
+.z-far .pin { transform: rotate(-45deg) scale(.72); }
+.pin.done { opacity: .6; }
+.market-pin { border-radius: 6px; }
+
+/* Bandeaux */
+.rain { border-radius: 6px; border-width: 1.5px; }
+.badge { font-family: inherit; }
+.pin-in { display: flex; align-items: center; justify-content: center; line-height: 1; }
+/* Notes et favori : or Opéra */
+.star-pick button.on, .stars-ro { color: var(--fav); }
+:root[data-theme="dark"] .stars-ro { color: var(--fav); }
+.chip.star[aria-pressed="true"] { background: var(--fav); border-color: var(--fav); color: var(--bg); }
+.star-pick button:focus-visible { outline-color: var(--metro); }
+:root[data-theme="dark"] .map-btn, :root[data-theme="dark"] .map-btn:not(.c-guide):not(.c-metro) { background: var(--btn); border-color: var(--fam); color: var(--fam); box-shadow: 0 3px 0 rgba(0, 0, 0, .7); }
+:root[data-theme="dark"] .map-btn[aria-pressed="true"] { background: var(--fam); color: #10131C; }
+:root[data-theme="dark"] .star-pick button.on { color: var(--fav); }
+/* Fiche : une rangée de 4 cases (visité, favori, modifier, plus) au lieu de 2 rangées */
+.row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.btn.mini { flex-direction: column; gap: 3px; min-height: 58px; padding: 6px 2px; font-size: 13px; line-height: 1.1; }
+.btn.mini .ico svg, .btn.mini svg { width: 20px; height: 20px; }
+.btn.mini[aria-pressed="true"] { background: var(--strong); border-color: var(--strong); color: var(--on-strong); }
+.btn.mini.c-add[aria-pressed="true"] { background: var(--add); border-color: var(--add); color: var(--bg); }
+.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav); border-color: var(--fav); color: var(--bg); }
+.go-dist { font-weight: 600; opacity: .8; margin-left: 4px; font-size: 13px; }
+/* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
+a.go, .item .go { background: var(--btn); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--hard); border-radius: 6px; font-family: var(--display); font-weight: 700; }
+:root[data-theme="dark"] a.go { color: var(--ink); background: var(--btn); }
+.menu-group { margin: 14px 2px 4px; } .menu-group:first-of-type { margin-top: 2px; }
+.badge .ico svg, .where .ico svg { width: 15px; height: 15px; } .badge .ico, .where .ico { flex: none; margin-right: 4px; vertical-align: -2px; }
