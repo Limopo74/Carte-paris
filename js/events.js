@@ -77,3 +77,27 @@ export function eventKind(e) {
 
 /** Marché aux puces ou brocante dans la liste des marchés de la Ville. */
 export const isFleaMarket = (m) => /puces|brocante|antiquit|livres? anciens?|vieux papiers/i.test(`${m.name ?? ''} ${m.products ?? ''}`);
+
+/* ---------- Dans la rue : ce qui se passe sur la voie publique (deviné, donc approximatif) ---------- */
+
+const OUTDOOR = /plein air|en ext[ée]rieur|dans la rue|\b(rue|place|square|parvis|quai|quais|jardin|jardins|parc|grilles?|esplanade|boulevard|bd|avenue|av\.|all[ée]e|promenade|berges?|canal|pont|cour|march[ée] couvert)\b/i;
+const INDOOR = /\b(mus[ée]e|galerie|th[ée][âa]tre|cin[ée]ma|biblioth[èe]que|m[ée]diath[èe]que|salle|institut|fondation|conservatoire|auditorium|op[ée]ra|[ée]glise|mairie annexe|centre d'animation|centre culturel|gymnase|piscine)\b/i;
+const EPHEMERAL = /march[ée] de no[eë]l|march[ée]s? de cr[ée]ateurs|march[ée] (artisanal|gourmand|des producteurs|bio|d'art)|village de no[eë]l|salon .*plein air|march[ée] [ée]ph[ée]m[èe]re/i;
+
+/**
+ * Type d'un événement de rue : 'marche' (éphémère), 'brocante', 'fete', 'expo' ; null s'il semble en salle.
+ * Deviné d'après le titre, les mots-clés et le lieu : il y a des oublis et quelques erreurs.
+ */
+export function streetKind(e) {
+  const text = `${e.title ?? ''} ${e.tags ?? ''}`;
+  const where = `${e.place ?? ''} ${e.address ?? ''}`;
+  const all = `${text} ${where} ${e.lead ?? ''}`;
+  const indoor = INDOOR.test(e.place ?? '');
+  const outdoor = OUTDOOR.test(`${text} ${e.place ?? ''}`) || /plein air|en ext[ée]rieur/i.test(e.lead ?? '');
+  if (EPHEMERAL.test(all) && !indoor) return 'marche';
+  const k = eventKind(e);
+  if (k === 'brocante') return indoor ? null : 'brocante';
+  if (k === 'fete') return indoor && !outdoor ? null : 'fete';
+  if (/\bexpo|exposition|installation|sculpture|photograph/i.test(text) && outdoor && !indoor) return 'expo';
+  return null;
+}

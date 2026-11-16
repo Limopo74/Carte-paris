@@ -19,7 +19,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, parseEvents, nearbyEvents, whenText, eventKind, isFleaMarket } from './events.js';
+import { eventsUrl, parseEvents, nearbyEvents, whenText, eventKind, streetKind, isFleaMarket } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (70)';
+const VERSION = '16 novembre 2026 (71)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -422,7 +422,7 @@ function openFilters() {
     !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
     !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'store', 'Marchés du jour sur la carte', 'Les marchés découverts qui se tiennent aujourd\'hui', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'store', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
     !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
     !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
@@ -445,7 +445,7 @@ function openFilters() {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice() {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'store', 'Marchés du jour sur la carte'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'store', 'Dans la rue aujourd\'hui'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -2351,6 +2351,19 @@ const freeRow = (f, back) => el('li', { class: 'item wrap' },
       el('span', { class: 'item-sub' }, [f.when, `${fmtDist(f.d)} · ${walkMinutes(f.d)} min`].join(' · '), el('span', { class: 'tag open' }, 'Gratuit')))),
   compassBtn(f), metroBtn(f, back));
 
+/** L'agenda du jour (Ville de Paris), téléchargé une fois par jour, sans position. */
+let eventsLoading = null;
+async function todayEvents() {
+  const day = new Date().toDateString();
+  if (eventsCache?.day === day) return eventsCache.items;
+  eventsLoading ??= fetch(eventsUrl()).then(async (r) => {
+    if (!r.ok) throw new Error(String(r.status));
+    eventsCache = { day, items: parseEvents(await r.json()) };
+    return eventsCache.items;
+  }).finally(() => { eventsLoading = null; });
+  return eventsLoading;
+}
+
 async function openEvents() {
   track('Sorties');
   if (!origin) { openNear(); return; }
@@ -2359,9 +2372,7 @@ async function openEvents() {
   if (!eventsCache || eventsCache.day !== day) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris…'), { name: 'events' });
     try {
-      const r = await fetch(eventsUrl());
-      if (!r.ok) throw new Error(String(r.status));
-      eventsCache = { day, items: parseEvents(await r.json()) };
+      await todayEvents();
     } catch {
       openSheet(title, el('div', { class: 'stack' },
         el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'),
@@ -2726,6 +2737,8 @@ function toggleLines() {
   toast(state.showLines ? 'Lignes de métro et RER affichées (appui long sur M pour les cacher)' : 'Lignes cachées');
 }
 
+const STREET_ICON = { marche: 'gift', brocante: 'tags', fete: 'sparkles', expo: 'palette' };
+const STREET_LABEL = { marche: 'Marché éphémère', brocante: 'Brocante, puces, vide-grenier', fete: 'Fête, festival', expo: 'Expo en plein air' };
 async function drawMarkets() {
   marketsLayer.clearLayers();
   if (!state.showMarkets) return;
@@ -2737,6 +2750,40 @@ async function drawMarkets() {
       .on('click', () => openMarket(m)).addTo(marketsLayer);
   }
   if (!list.length && markets?.length === 0) toast('Les marchés de la Ville de Paris ne répondent pas pour le moment.', true);
+  // Dans la rue : brocantes, fêtes, expos en plein air, marchés éphémères de l'agenda du jour
+  let ev = [];
+  try { ev = await todayEvents(); } catch { return; }
+  if (!state.showMarkets) return;
+  const now = new Date();
+  const seen = new Set();
+  for (const e of ev) {
+    const kind = streetKind(e);
+    if (!kind || (e.end && e.end < now)) continue;
+    const key = `${e.title}|${e.lat.toFixed(4)}|${e.lng.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    L.marker([e.lat, e.lng], { keyboard: true, title: e.title, alt: e.title, zIndexOffset: -90,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="market-pin street-pin">${svgIcon(STREET_ICON[kind], { size: 15, stroke: 2.2 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+      .on('click', () => openStreetEvent(e)).addTo(marketsLayer);
+  }
+}
+/** Fiche d'un événement de rue (agenda de la Ville). */
+function openStreetEvent(e) {
+  const kind = streetKind(e) ?? 'fete';
+  const d = freshHere() ? distanceM(freshHere(), e) : null;
+  openSheet([ico(STREET_ICON[kind]), ` ${e.title}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, [STREET_LABEL[kind], whenText(e), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
+    e.lead ? el('p', { class: 'help' }, e.lead) : null,
+    e.free ? el('p', {}, el('span', { class: 'tag open' }, 'Gratuit')) : null,
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, () => openStreetEvent(e)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Enregistrer')),
+    e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('calendar-days'), 'Voir dans « Que faire à Paris »') : null,
+    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. « Dans la rue » est deviné d\'après le titre et le lieu : vérifie sur la page de l\'événement.'),
+  ), { name: 'street' });
 }
 function openMarket(m, back = null) {
   const d = freshHere() ? distanceM(freshHere(), m) : null;
@@ -3802,6 +3849,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{store} « Dans la rue aujourd\'hui » remplace « Marchés du jour » dans {list-filter} Filtres : en plus des marchés, la carte montre les brocantes, fêtes, expos en plein air et marchés éphémères du jour. Un appui ouvre leur fiche (boussole, métro, enregistrer).',
     '{circle-help} Aide mise à jour : chaque rubrique décrit maintenant Sorties (Tout, Gratuit, Expos), Mon billet, Copier, les filtres et boutons à masquer, le style Épuré et les couleurs de Mon Paris.',
     '{copy} Copier d\'un appui : l\'adresse d\'un lieu (dans sa fiche), et dans « Où suis-je ? » ton adresse et tes coordonnées GPS. Colle-les ensuite dans un taxi, un message ou une autre appli.',
     '{palette} Nouveau style de carte « Épuré », sans icônes de commerces (CARTO) : {settings} → La carte → Style. Il demande une clé gratuite à créer sur carto.com, que tu colles une fois ; elle reste sur ton téléphone.',
@@ -3861,12 +3909,12 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {store} Marchés du jour, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {store} Dans la rue aujourd\'hui, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
     'En bas de Filtres, « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
     'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
-    '{store} Marchés du jour sur la carte : les marchés découverts qui se tiennent aujourd\'hui (horaires dans leur fiche).',
+    '{store} Dans la rue aujourd\'hui : sur la carte, les marchés du jour et ce que l\'agenda de la Ville annonce sur la voie publique (brocantes, fêtes, expos en plein air, marchés éphémères). « Dans la rue » est deviné d\'après le titre et le lieu : il peut y avoir des oublis.',
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
