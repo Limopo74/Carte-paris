@@ -130,7 +130,7 @@ const clean = (p) => ({
 });
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
-export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
+export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
 
 /** Lignes masquées de la feuille Filtres. */
 export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'covered', 'lists', 'people'];
@@ -323,7 +323,7 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate'];
+export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'paris', 'locate'];
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {
