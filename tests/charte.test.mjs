@@ -58,3 +58,9 @@ test('charte : icônes Lucide seulement dans les boutons (pas d\'emoji ni de sym
 test('charte : jamais « ← Retour » sans destination', () => {
   assert.ok(!/'←\s*Retour'/.test(app), 'Écris « ← Nom de l\'écran d\'avant » (CHARTE.md §8)');
 });
+
+test('aide : 10 nouveautés au plus (les plus anciennes restent dans l\'historique du dépôt)', () => {
+  const block = app.slice(app.indexOf("['sparkles', 'Nouveautés', ["), app.indexOf(']],', app.indexOf("['sparkles', 'Nouveautés', [")));
+  const n = block.split('\n').filter((l) => l.startsWith("    '")).length;
+  assert.ok(n > 0 && n <= 10, `${n} nouveautés : garde les 10 dernières`);
+});
