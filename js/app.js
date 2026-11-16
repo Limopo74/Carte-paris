@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (92)';
+const VERSION = '16 novembre 2026 (93)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1111,16 +1111,19 @@ function openDetail(id, back = null) {
         el('button', { type: 'button', class: 'btn', onclick: () => startMove(p, back) }, 'Déplacer'),
         el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer')));
   };
+  // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
+  // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
+  const goBox = el('div', { class: 'stack' },
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
+      ico('arrow-right'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null),
+    el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, named('Fiche', () => openDetail(p.id, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')));
   const showActions = () => {
     fill(more, );
     const moreBtn = el('button', { type: 'button', class: 'btn mini c-info', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, ico('ellipsis'), 'Plus');
     fill(actions, 
-      el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
-        ico('arrow-right'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null),
-      el('div', { class: 'row3' },
-        el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
-        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, named('Fiche', () => openDetail(p.id, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')),
       el('div', { class: 'row4' },
         el('button', { type: 'button', class: 'btn mini c-add', 'aria-pressed': String(!!p.done), 'aria-label': p.done ? 'Déjà visité : remettre à faire' : 'Marquer comme déjà visité', onclick: () => update(() => { setDone(p, !p.done); }) }, ico(p.done ? 'rotate-ccw' : 'check'), p.done ? 'À refaire' : 'Visité'),
         el('button', { type: 'button', class: 'btn mini c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
@@ -1144,7 +1147,8 @@ function openDetail(id, back = null) {
   );
   showActions();
 
-  openSheet([favMark(p), p.name], el('div', { class: 'stack' },
+  openSheet([favMark(p), p.name], el('div', { class: 'stack detail' },
+    goBox,
     el('div', { class: 'detail-top' },
       photoThumb(p, back),
       el('div', { class: 'detail-info' },
@@ -4102,6 +4106,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
     '{plus} Nouveau lieu et Modifier : « + Nouvelle » au bout des catégories crée une catégorie sans quitter la fiche ; tu reviens avec elle déjà choisie, rien de ce que tu as tapé n\'est perdu.',
     '{palette} Interface harmonisée (charte « Plaques & pavés ») : un seul arrondi, les mêmes tailles de texte et de boutons partout, des icônes dessinées au lieu des emoji dans les boutons, les mêmes couleurs de qualité de l\'air qu\'à Mon Paris, et un mode sombre sans lueurs. Boussole et Métro des sorties affichent enfin leur nom (et plus « undefined »).',
     '{save} Sauvegarde : ton prénom (ou pseudo) passe au-dessus d\'« Exporter » : tu vois sous quel nom tes lieux partiront. L\'appli demande aussi au téléphone de ne jamais effacer tes lieux s\'il manque de place. « Icônes seules en haut » remonte en tête de Catégories et listes. Retours nommés sur Où suis-je, Choisir une station et Nom ou adresse.',
