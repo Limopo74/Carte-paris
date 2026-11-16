@@ -20,14 +20,14 @@ import { eventsUrl, parseEvents, nearbyEvents, whenText } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (51)';
+const VERSION = '16 novembre 2026 (52)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1657,6 +1657,11 @@ async function runGoogleImport(items, cat, listName) {
 const VELIB_KEY = 'carte-paris.velib';
 let velibNeed = 'bike';
 async function velibStations() {
+  // 1. Paris Data (marche depuis le navigateur) ; 2. sinon le flux Smovengo
+  try {
+    const r = await fetch(VELIB_PARIS);
+    if (r.ok) { const list = parseVelibParis(await r.json()); if (list.length > 100) return list; }
+  } catch { /* on essaie l'autre source */ }
   let info = null;
   try { const c = JSON.parse(localStorage.getItem(VELIB_KEY) ?? 'null'); if (c && Date.now() - c.t < 7 * 864e5) info = c.info; } catch { /* rien */ }
   const statusP = fetch(VELIB_STATUS).then((r) => r.json());

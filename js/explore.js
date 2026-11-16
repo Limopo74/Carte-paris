@@ -239,6 +239,23 @@ export function mergeVelib(info, status) {
   }).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 }
 
+/* Vélib' via Paris Data (opendata.paris.fr) : mis à jour chaque minute et lisible depuis un navigateur,
+   contrairement au flux Smovengo qui refuse les appels venant d'un site web. Aucune position n'est envoyée. */
+export const VELIB_PARIS = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/exports/json'
+  + '?select=stationcode,name,numbikesavailable,mechanical,ebike,numdocksavailable,is_renting,coordonnees_geo';
+
+const yes = (v) => v === true || v === 1 || v === '1' || String(v).toUpperCase() === 'OUI';
+
+/** Lignes Paris Data -> même forme que mergeVelib. */
+export function parseVelibParis(rows) {
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    id: String(r?.stationcode ?? ''), name: String(r?.name ?? ''),
+    lat: Number(r?.coordonnees_geo?.lat), lng: Number(r?.coordonnees_geo?.lon),
+    bikes: Number(r?.numbikesavailable) || 0, mech: Number(r?.mechanical) || 0, ebike: Number(r?.ebike) || 0,
+    docks: Number(r?.numdocksavailable) || 0, open: r?.is_renting == null ? true : yes(r.is_renting),
+  })).filter((s) => s.name && Number.isFinite(s.lat) && Number.isFinite(s.lng));
+}
+
 /** Les stations les plus proches qui ont des vélos (need='bike') ou des places (need='dock'). */
 export function nearestVelib(stations, here, need = 'bike', k = 3) {
   return stations.filter((s) => s.open && (need === 'dock' ? s.docks > 0 : s.bikes > 0))

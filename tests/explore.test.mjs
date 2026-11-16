@@ -116,3 +116,18 @@ test('météo : pluie, température, réponse illisible', () => {
   assert.deepEqual(readMeteo({ current: { precipitation: 0, weather_code: 1, temperature_2m: 20 } }), { rain: false, temp: 20 });
   assert.equal(readMeteo({}), null);
 });
+
+test('Vélib via Paris Data : OUI/NON, coordonnées, champs manquants', async () => {
+  const { parseVelibParis, VELIB_PARIS, nearestVelib } = await import('../js/explore.js');
+  assert.ok(!/lat=|lon=|geom|distance/.test(VELIB_PARIS)); // aucune position envoyée
+  const list = parseVelibParis([
+    { stationcode: '16107', name: 'Benjamin Godard', numbikesavailable: 5, mechanical: 3, ebike: 2, numdocksavailable: 29, is_renting: 'OUI', coordonnees_geo: { lon: 2.2757, lat: 48.8659 } },
+    { stationcode: '1', name: 'Fermée', numbikesavailable: 9, numdocksavailable: 1, is_renting: 'NON', coordonnees_geo: { lon: 2.28, lat: 48.866 } },
+    { stationcode: '2', name: 'Sans coordonnées', numbikesavailable: 4 },
+  ]);
+  assert.equal(list.length, 2);
+  assert.deepEqual(list[0], { id: '16107', name: 'Benjamin Godard', lat: 48.8659, lng: 2.2757, bikes: 5, mech: 3, ebike: 2, docks: 29, open: true });
+  assert.equal(list[1].open, false);
+  assert.deepEqual(nearestVelib(list, { lat: 48.866, lng: 2.276 }).map((s) => s.id), ['16107']);
+  assert.deepEqual(parseVelibParis(null), []);
+});
