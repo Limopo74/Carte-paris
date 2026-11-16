@@ -673,6 +673,15 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .air-bon, .air-correct { --air: var(--aq-bon); } .air-moyen { --air: var(--aq-moyen); } .air-mediocre, .air-tres-mediocre, .air-extreme { --air: var(--aq-mauvais); }
 .air-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--air); }
 .air-card { padding: 12px 14px; border-radius: var(--r); border: 2px solid var(--air); font-size: 16px; }
+/* Très Très Bon : la seule épingle ronde et pleine (CHARTE.md §3), terre cuite aux couverts ; même marque en haut et dans les listes */
+.ttb-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--disc); color: var(--bg); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
+.ttb-far .ttb-pin { width: 14px; height: 14px; margin: 7px; border-width: 1.5px; }
+.ttb-far .ttb-pin .lucide, .ttb-far .ttb-pin svg { display: none; }
+.ttb-dot { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--disc); color: var(--bg); }
+.ttb-dot .ico svg { width: 15px; height: 15px; display: block; }
+.chip.ttb-chip { font-weight: 700; padding-left: 8px; }
+.genre.g-ttb .ico { width: 30px; height: 30px; border-radius: 50%; background: var(--disc); color: var(--bg); display: grid; place-items: center; }
+.genre.g-ttb .ico svg { width: 17px; height: 17px; }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 
 /* =====================================================================

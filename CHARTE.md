@@ -32,6 +32,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - **Un seul rayon : `--r` = 4 px** pour tout ce qui est rectangulaire.
 - **Rond** (50 % ou pilule 999 px) pour les pastilles, médaillons, interrupteurs.
 - Exceptions : coins hauts de la feuille (18 px), goutte des épingles, pastilles de lignes métro/RER (signalétique IDFM), barres des graphiques.
+- Épingles **Très Très Bon** (v120) : la seule épingle ronde et pleine, terre cuite `--disc` aux couverts (`.ttb-pin`, 28 px, petit rond de 14 px vue de loin), pour les distinguer des gouttes de mes lieux. La même marque (`.ttb-dot`) sert au bouton du haut et aux listes.
 - **Aucune ombre** dans les écrans. Seule exception : une ombre douce `--float`, pour ce qui flotte sur la carte (boutons de la colonne, barres du haut et du bas, météo, « Maintenant ») et la feuille elle-même, sinon ils se perdent dans le fond de carte.
 
 ## 4. Mesures

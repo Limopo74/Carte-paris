@@ -17,6 +17,7 @@ import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
@@ -32,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (119)';
+const VERSION = '16 novembre 2026 (120)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -424,6 +425,12 @@ function renderChips() {
       state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
       toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
     }, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) : null,
+    show('ttb', Boolean(state.showTtb)) ? (() => {
+      const b = chip(state.chipIcons ? ttbDot() : [ttbDot(), ' Très Très Bon'], Boolean(state.showTtb), toggleTtb,
+        { class: `ttb-chip${state.chipIcons ? ' icon-only' : ''}`, aria: state.chipIcons ? 'Très Très Bon : adresses du guide (appui long : la liste)' : null });
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); openTtbList(); }); // appui long : la liste
+      return b;
+    })() : null,
     show('lines', Boolean(state.showLines)) ? chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) : null,
     ...state.categories.filter((c) => show(`cat:${c.id}`, filterCats.has(c.id))).map(catChip),
   ].filter(Boolean));
@@ -442,8 +449,8 @@ function openChipsSettings() { openSettings('categories'); }
 /** Les filtres en une feuille : chaque ligne s'allume ou s'éteint d'un appui, le nombre de lieux suit. */
 function openFilters() {
   const count = (fn) => state.points.filter(fn).length;
-  const sw = (on, icon, title, sub, toggle) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { toggle(); refresh(); openFilters(); } },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+  const sw = (on, icon, title, sub, toggle) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { if (toggle() === 'stop') return; refresh(); openFilters(); } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' ? ico(icon) : icon),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   const withHours = count((p) => openState(hoursOf(p)) != null);
@@ -475,9 +482,10 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('markets', state.showMarkets) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
+    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDot(), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
@@ -524,7 +532,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'utensils', 'Très Très Bon']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -1247,6 +1255,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
+      ttbOf(p) ? row('utensils', 'Très Très Bon', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
       el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -1775,6 +1784,18 @@ function renderNear(fit = false) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${ringText(maxRing)}.`));
   }
   if (inside) body.push(el('p', { class: 'help' }, `Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».${origin.kind === 'gps' && !following ? ' La liste se met à jour toute seule quand tu as marché 50 m.' : ''}`));
+  if (state.showTtb && ttbList().length) {
+    // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min, puis toute la liste
+    const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(15)).sort((a, b) => a.d - b.d);
+    body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'Très Très Bon à moins de 15 min'), el('span', {}, String(ttbNear.length))));
+    if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
+        ttbDot(),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
+      el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
+    body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDot(), 'Liste Très Très Bon'));
+  }
   body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'margin-top:8px;width:100%', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
   openSheet(nearTitle(), body, { name: 'near', again: () => renderNear() });
@@ -2623,8 +2644,8 @@ function loadGalleries(force = false) {
 
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
-const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette' };
-const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie' };
+const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', ttb: 'utensils' };
+const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'Très Très Bon' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /** Une carte de sortie. `feat` : la grande plaque en tête (la seule plaque pleine de l'écran). */
 function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '' }) {
@@ -3268,6 +3289,165 @@ function openNavigo(x, back = null) {
   ), { name: `navigo:${x.lat},${x.lng}`, again });
 }
 
+/* ---------- Très Très Bon : adresses du guide, importées par moi et gardées sur le téléphone ----------
+   Rien dans le dépôt, rien envoyé : le fichier est lu et trié ici. Seules les infos pratiques sont gardées. */
+
+const ttbLayer = L.layerGroup().addTo(map);
+let ttbData; // { items, date } ou null ; lu une fois
+function ttbList() {
+  if (ttbData === undefined) { try { ttbData = readTtb(JSON.parse(storage.getItem(TTB_KEY) ?? 'null')); } catch { ttbData = null; } }
+  return ttbData?.items ?? [];
+}
+const ttbRubs = new Set(); // filtres de la liste et de la carte (le temps de la session)
+const ttbBudgets = new Set();
+const ttbShown = () => ttbList().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
+/** Le rond terre cuite aux couverts : la même marque sur la carte, en haut et dans les listes. */
+const ttbDot = (size = 15) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico('utensils', { size, stroke: 2.4 }));
+const ttbOf = (p) => (ttbList().length ? navigoFor(p, ttbList()) : null); // l'adresse du guide qui correspond à un de mes lieux
+const ttbDateText = () => (ttbData?.date ? frenchDate(ttbData.date) : '');
+
+// Vue de loin (zoom 13 ou moins) : petits ronds sans icône, pour que les 200 adresses ne couvrent pas la carte.
+const ttbFar = () => document.getElementById('map').classList.toggle('ttb-far', map.getZoom() <= 13);
+map.on('zoomend', ttbFar);
+ttbFar();
+function drawTtb() {
+  ttbLayer.clearLayers();
+  if (!state.showTtb) return;
+  for (const x of ttbShown()) {
+    L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon('utensils', { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, Très Très Bon`))
+      .on('click', () => { if (!moving) openTtbPlace(x); })
+      .addTo(ttbLayer);
+  }
+}
+function toggleTtb() {
+  if (!ttbList().length) { openTtb(); return; }
+  state.showTtb = !state.showTtb; persist(); drawTtb(); refresh();
+  toast(state.showTtb ? `Très Très Bon : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte. Appui long : la liste.` : 'Très Très Bon : masqué');
+}
+
+/** Liste des adresses, de la plus proche à la plus loin (ma position récente, sinon le centre de la carte : pas de GPS demandé). */
+function openTtbList(back = null, limit = 30) {
+  const again = () => openTtbList(back, limit);
+  if (!ttbList().length) { openTtb(back); return; }
+  const here = freshHere();
+  const from = here ?? map.getCenter();
+  const all = ttbShown().map((x) => ({ ...x, d: distanceM(from, x) })).sort((a, b) => a.d - b.d);
+  const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
+  const flip = (set, v) => { if (set.has(v)) set.delete(v); else set.add(v); drawTtb(); openTtbList(back, 30); };
+  openSheet([ttbDot(18), ' Très Très Bon'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
+    el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDot()),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite aux couverts, avec ces filtres')),
+      el('span', { class: `switch${state.showTtb ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Rubriques' }, TTB_RUBS.map((r) => chip(r, ttbRubs.has(r), () => flip(ttbRubs, r)))),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Budget' }, [1, 2, 3, 4].map((b) => chip(el('span', { 'aria-label': `Budget ${b} sur 4` }, '€'.repeat(b)), ttbBudgets.has(b), () => flip(ttbBudgets, b)))),
+    all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', name: x.name, onclick: () => openTtbPlace(x, named('Très Très Bon', again)),
+      sub: [ttbKicker(x), ttbToday(x) ? `aujourd'hui ${ttbToday(x)}` : ''], d: x.d,
+      buttons: [compassBtn(x), metroBtn(x, named('Très Très Bon', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
+      : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
+    all.length > limit ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(back, limit + 30) }, ico('plus'), `Voir ${Math.min(30, all.length - limit)} de plus`) : null,
+    el('p', { class: 'help' }, `Liste du guide Très Très Bon${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone. Horaires selon le guide : vérifie avant d'y aller.`),
+    foot(back ? backBtn(back) : null, el('button', { type: 'button', class: 'btn c-info', onclick: () => openTtb(named('Très Très Bon', again)) }, ico('refresh-cw'), 'Mettre à jour')),
+  ), { name: 'ttb-list', again, tall: true });
+}
+
+/** Garder une adresse du guide dans mes lieux (formulaire prérempli). Si elle y est déjà : sa fiche. */
+function ttbAdd(x) {
+  const mine = navigoFor(x, state.points);
+  if (mine) { openDetail(mine.id); toast('Déjà dans tes lieux'); return; }
+  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `Très Très Bon : ${ttbKicker(x)}` });
+}
+
+function openTtbPlace(x, back = null) {
+  const d = freshHere() ? distanceM(freshHere(), x) : null;
+  const again = () => openTtbPlace(x, back);
+  const metro = stationFacts(x);
+  const mine = navigoFor(x, state.points);
+  const today = ttbToday(x);
+  const kick = `Très Très Bon · ${x.arr}${x.arr === 1 ? 'er' : 'e'}`;
+  const insta = /instagram\.com/i.test(x.url), fb = /facebook\.com/i.test(x.url);
+  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), el('span', { class: 'fiche-name' }, x.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
+    el('p', { class: 'summary' }, [ttbKicker(x), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), x.address), copyBtn(() => x.address, 'l\'adresse', 'Adresse copiée')),
+    el('div', { class: 'fiche-cols' },
+      el('div', {},
+        el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
+        today ? el('div', { class: 'fiche-v' }, today.charAt(0).toUpperCase() + today.slice(1)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
+        el('div', { class: 'fiche-s' }, 'selon Très Très Bon')),
+      el('div', {},
+        el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
+        metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
+        metro ? el('div', { class: 'fiche-s' }, `≈ ${metro.min} min à pied`) : null)),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      mine ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openDetail(mine.id, named(x.name, again)), 'aria-label': `Dans mes lieux : ${mine.name}` }, ico('check'), 'Mon lieu')
+        : el('button', { type: 'button', class: 'btn c-add', onclick: () => ttbAdd(x) }, ico('plus'), 'Ajouter')),
+    x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico(insta ? 'camera' : 'info'), insta ? 'Instagram du lieu' : fb ? 'Page Facebook du lieu' : 'Site du lieu') : null,
+    el('a', { class: 'btn c-guide', href: reviewsUrl(x), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
+    x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon Très Très Bon') : null,
+    x.hours.length ? el('div', { class: 'fiche-lines' }, x.hours.map((h, i) => el('p', {}, el('b', {}, `${TTB_DAYS[i]} `), h))) : null,
+    el('p', { class: 'help' }, `Adresse du guide Très Très Bon${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}. Les horaires viennent du guide et peuvent avoir changé : vérifie avant d'y aller.`),
+    el('a', { class: 'btn', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('book-open-text'), 'Lire le guide sur trestresbon.fr'),
+    back ? backBtn(back) : null,
+  ), { name: `ttb:${x.lat},${x.lng}`, again });
+  if (!back) centerOn(x.lat, x.lng, Math.max(map.getZoom(), 16));
+}
+
+/** Réglages → Très Très Bon : importer ou mettre à jour la liste, la retirer. */
+function openTtb(back = named('Réglages', () => openSettings()), confirm = false) {
+  const n = ttbList().length;
+  const again = () => openTtb(back, confirm);
+  const input = el('input', { type: 'file', hidden: true }); // pas de filtre : Android ne reconnaît pas toujours le type .mhtml
+  input.addEventListener('change', () => { const f = input.files?.[0]; input.value = ''; if (f) importTtbFile(f, back); });
+  openSheet([ttbDot(18), ' Très Très Bon'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide Très Très Bon, sur ta carte.'),
+    n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('Très Très Bon', again)) }, ico('list'), 'Voir la liste') : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
+    el('ol', { class: 'steps' },
+      el('li', {}, 'Ouvre la page Adresses du guide dans Chrome, en mode liste (bouton ci-dessous).'),
+      el('li', {}, 'Menu ⋮ en haut à droite, puis la flèche « Télécharger » : la page est enregistrée dans Téléchargements.'),
+      el('li', {}, 'Reviens ici et choisis ce fichier.')),
+    el('a', { class: 'btn c-guide', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Ouvrir la page Adresses'),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => input.click() }, ico('download'), 'Choisir le fichier'),
+    input,
+    el('p', { class: 'help' }, 'Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone : elle n\'est pas dans ta sauvegarde et rien n\'est envoyé.'),
+    n ? (confirm
+      ? el('div', { class: 'stack' }, el('p', { class: 'warn', role: 'alert' }, `Retirer les ${n} adresses Très Très Bon ? Tes lieux ne sont pas touchés.`),
+        el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openTtb(back) }, 'Annuler'),
+          el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+            try { storage.removeItem(TTB_KEY); } catch { /* rien */ }
+            ttbData = null; state.showTtb = false; persist(); drawTtb(); refresh(); openTtb(back); toast('Liste Très Très Bon retirée');
+          } }, 'Oui, retirer')))
+      : el('button', { type: 'button', class: 'btn danger', onclick: () => openTtb(back, true) }, ico('trash-2'), 'Retirer la liste')) : null,
+    foot(backBtn(back)),
+  ), { name: 'ttb', again, tall: true });
+}
+
+async function importTtbFile(file, back) {
+  toast('Lecture du fichier…');
+  let res = null;
+  try {
+    const text = await file.slice(0, 30e6).text(); // la page est au début du fichier : les images après ne servent pas
+    if (/^\s*\{/.test(text)) res = readTtb(JSON.parse(text));
+    else {
+      const html = mhtmlHtml(text);
+      if (html) res = { items: cleanAll(ttbRawFromDoc(new DOMParser().parseFromString(html, 'text/html'))), date: mhtmlDate(text) || dayKey(new Date()) };
+    }
+  } catch { res = null; }
+  if (!res?.items.length) { toast('Ce fichier ne contient pas d\'adresses Très Très Bon. Enregistre la page Adresses en mode liste, puis réessaie.', true); return; }
+  const before = ttbList().length;
+  try { storage.setItem(TTB_KEY, JSON.stringify(ttbStore(res.items, res.date))); } catch { toast('Le téléphone n\'a pas pu garder la liste (plus de place).', true); return; }
+  ttbData = { items: res.items, date: res.date };
+  state.showTtb = true; persist(); drawTtb(); refresh();
+  openTtb(back);
+  toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
+}
+
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
 
 let meteo = null;
@@ -3674,7 +3854,7 @@ function openSettings(section = null) {
       box.dataset.top = key;
       return box;
     };
-    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['lines', ico('lines'), 'Lignes de métro et RER']];
+    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['ttb', ttbDot(), 'Très Très Bon'], ['lines', ico('lines'), 'Lignes de métro et RER']];
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
       el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Coche pour afficher, décoche pour masquer : les lieux restent sur la carte. Flèches pour ranger tes catégories, crayon pour le nom, l\'icône et la couleur.'),
       // Réglage de toute la barre : en tête de page, sans faire défiler
@@ -3945,6 +4125,7 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row(ttbDot(18), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
       state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
@@ -4529,6 +4710,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{utensils} Très Très Bon : les adresses du guide sur ta carte, en ronds terre cuite aux couverts. Pour les mettre : Réglages → Très Très Bon, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton Très Très Bon en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
@@ -4538,7 +4720,6 @@ const HELP = [
     '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
     '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
     '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
-    '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4690,6 +4871,7 @@ document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 drawMarkets();
+drawTtb();
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;

@@ -1,14 +1,14 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v119';
+const CACHE = 'carte-paris-v120';
 const TILES = 'carte-paris-tuiles';
 const MAX_TILES = 3000; // environ 50 Mo
 const FRESH = 7 * 864e5; // une tuile de moins de 7 jours n'est pas redemandée
 const FILES = [
   './', 'index.html', 'css/style.css', 'js/app.js', 'js/geo.js', 'js/store.js', 'js/adresse.js', 'js/search.js', 'js/annuaire.js', 'js/stats.js', 'js/move.js', 'js/share.js', 'js/pratique.js', 'js/hours.js', 'js/holidays.js', 'js/journal.js', 'js/metroplan.js', 'js/photos.js', 'js/icons.js', 'js/explore.js', 'js/events.js', 'js/markets.js', 'js/art.js', 'vendor/qrcode.mjs', 'vendor/fonts/archivo-wdth.woff2', 'vendor/fonts/inter-latin-wght.woff2',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'data/stations.json', 'data/lignes.json', 'data/sanitaires-ratp.json', 'js/donnees.js', 'data/navigo.json', 'js/navigo.js', 'data/merimee.json',
+  'icons/icon-192.png', 'icons/icon-512.png', 'data/stations.json', 'data/lignes.json', 'data/sanitaires-ratp.json', 'js/donnees.js', 'data/navigo.json', 'js/navigo.js', 'data/merimee.json', 'js/ttb.js',
 ];
 
 self.addEventListener('install', (e) => {
