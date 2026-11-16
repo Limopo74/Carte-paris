@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (76)';
+const VERSION = '16 novembre 2026 (77)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -364,10 +364,11 @@ function renderChips() {
   const hidden = new Set(state.hiddenChips ?? []);
   const show = (key, active) => !hidden.has(key) || active;
   fill(box, ...[
-    show('all', false) ? chip('Tout', !filterCats.size, () => { filterCats.clear(); refresh(); }) : null,
+    // « Tout » = toutes les catégories et pas seulement les favoris : un appui enlève les deux
+    show('all', false) ? chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) : null,
     show('filters', activeFilters() > 0) ? chip([ico('list-filter'), activeFilters() ? ` ${activeFilters()}` : ''], activeFilters() > 0, openFilters,
       { class: 'filters', aria: activeFilters() ? `Filtres : ${activeFilters()} actifs` : 'Filtres' }) : null,
-    show('fav', favOnly) ? chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }) : null,
+    show('fav', favOnly) ? chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); emptyHint(); }, { class: 'star', aria: 'Seulement les favoris' }) : null,
     show('street', Boolean(state.showMarkets)) ? chip(ico('tent'), Boolean(state.showMarkets), () => {
       state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
       toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
@@ -529,6 +530,13 @@ function toggleCat(id) {
   if (filterCats.has(id)) filterCats.delete(id); else filterCats.add(id);
   lastToggled = id;
   refresh();
+  emptyHint();
+}
+/** Si la combinaison choisie en haut ne montre plus aucun lieu, le dire (sinon la carte vide fait croire à une panne). */
+function emptyHint() {
+  if (!state.points.length || visible().length) return;
+  const cats = [...filterCats].map((id) => catOf(id).name).join(', ');
+  toast(favOnly && cats ? `Aucun favori dans ${cats}. « Tout » remet tout.` : favOnly ? 'Aucun favori pour l\'instant : ★ dans la fiche d\'un lieu.' : 'Aucun lieu avec ces filtres. « Tout » remet tout.');
 }
 
 /** Redessine ce qui dépend des lieux et des filtres. */
@@ -3900,6 +3908,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{star} Favoris et catégories : « Tout » enlève aussi le filtre des favoris, et n\'est plus allumé quand seuls les favoris sont affichés. Si une combinaison ne montre plus aucun lieu (ex. favoris + Boutiques), l\'appli le dit.',
     '{tent} « Dans la rue aujourd\'hui » passe en haut de l\'écran, juste après l\'étoile des favoris : c\'est un choix de ce que la carte montre. Un appui l\'allume ou l\'éteint ; pour le masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
     '{list} Listes : {settings} → Catégories et listes. « Nouvelle liste », et un appui sur une liste pour cocher d\'un coup tous ses lieux (avec recherche par nom).',
     'Tampon d\'état du jour, le même partout (tes listes, galeries) : OUVERT, FERME DANS 20 MIN, OUVRE À 14H ou FERMÉ AUJOURD\'HUI. Les jours de fermeture restent écrits à côté.',
@@ -3948,7 +3957,8 @@ const HELP = [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
     'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache) et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
-    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
+    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
+    '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
