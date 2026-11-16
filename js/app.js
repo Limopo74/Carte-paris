@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (84)';
+const VERSION = '16 novembre 2026 (85)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2648,6 +2648,21 @@ function addFromPhoto() {
   input.click();
 }
 
+/* ---------- Partager l'appli elle-même (lien ou QR code), sans aucune donnée ---------- */
+
+/** Adresse publique de l'appli, sans page, paramètre ni ancre (rien de personnel dedans). */
+const APP_URL = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+function showAppQr() {
+  const q = qrcode(0, 'M'); q.addData(APP_URL()); q.make();
+  const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': 'QR code de l\'adresse de l\'appli' });
+  box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  openSheet([ico('qr-code'), ' Partager l\'appli'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, 'Ma carte de Paris'), box,
+    el('p', { class: 'help' }, `Ton proche le scanne avec l'appareil photo, ouvre le lien dans Chrome, puis menu ⋮ → « Ajouter à l'écran d'accueil ». Sur iPhone : Safari, Partager → « Sur l'écran d'accueil ». Adresse : ${APP_URL()}`),
+    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application'),
+  ), { name: 'appqr' });
+}
+
 /* ---------- QR code d'un lieu, à montrer à quelqu'un à côté de toi ---------- */
 
 function showQr(p, back) {
@@ -3496,6 +3511,11 @@ function openSettings(section = null) {
     openSheet([ico('info'), ' Application'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, '↻ Mettre à jour l\'appli'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, '🗺️ Recharger la carte (si elle reste grise)'),
+      el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager l\'appli'), el('span', {}, '')),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer le lien'),
+        el('button', { type: 'button', class: 'btn c-add', onclick: showAppQr }, ico('qr-code'), 'QR code')),
+      el('p', { class: 'help' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux : Sauvegarde et partage → Exporter.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -3555,7 +3575,7 @@ function openSettings(section = null) {
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Application'),
-    row('info', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
+    row('info', 'Application', 'Mettre à jour · partager l\'appli · confidentialité', () => openSettings('appli')),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -3989,6 +4009,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{share-2} Partager l\'appli : {settings} Réglages → Application → « Envoyer le lien » (SMS, WhatsApp, mail…) ou « QR code » à faire scanner. Ton proche reçoit une appli vide : rien de tes lieux ne part.',
     '{users} « Lieux de (personnes) » devient « Lieux de mes proches » : dans Filtres, choisir d\'afficher tes lieux, ceux d\'un proche dont tu as importé l\'export, ou tous.',
     '{tags} Catégories et listes : afficher, masquer et ranger la barre du haut se fait sur une seule page, comme pour les boutons de la carte. Une case pour afficher, des flèches pour l\'ordre, un crayon pour modifier. Réglages → Ce qui s\'affiche → Barre du haut ouvre la même page.',
     '{calendar-days} Sorties : en bas, « Aide, sources et mise à jour » explique ce qui est affiché et quand tout se met à jour seul, avec « Mettre à jour maintenant » et 6 liens pour aller plus loin (Que faire à Paris, Paris Musées, galeries, Paris je t\'aime, Sortir à Paris).',
@@ -4133,6 +4154,7 @@ const HELP = [
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
   ['users', 'Partager avec un ami', [
+    'L\'appli elle-même : {settings} → Application → « Envoyer le lien » ou « QR code ». Ton proche l\'installe depuis Chrome (menu ⋮ → Ajouter à l\'écran d\'accueil) ; elle arrive vide chez lui.',
     'Un lieu : ⋯ Plus → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
