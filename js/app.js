@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (58)';
+const VERSION = '16 novembre 2026 (59)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -215,7 +215,12 @@ applyMapStyle();
 
 // Pastilles plus petites quand on voit une grande partie de Paris, pour éviter qu'elles se chevauchent.
 const mapEl = document.getElementById('map');
-const scalePins = () => mapEl.classList.toggle('z-far', map.getZoom() < 15);
+const scalePins = () => {
+  const z = map.getZoom();
+  mapEl.classList.toggle('z-far', z < 15);
+  mapEl.classList.toggle('z-st', z >= 15); // stations des lignes
+  mapEl.classList.toggle('z-name', z >= 16); // et leurs noms
+};
 map.on('zoomend', scalePins);
 map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); if (meShown) drawMe(); });
 scalePins();
@@ -2125,13 +2130,14 @@ async function loadMarkets() {
 const linesLayer = L.layerGroup();
 const LINES_ATTR = 'Lignes : <a href="https://data.iledefrance-mobilites.fr/">Île-de-France Mobilités</a> (ODbL)';
 let linesData = null;
+// texte foncé sur les couleurs claires (ligne 1 jaune, RER C…), blanc sur les foncées
+const textOn = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 0.3 ? '#1C2533' : '#ffffff'; };
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 async function drawLines() {
   linesLayer.clearLayers();
   if (!state.showLines) { map.removeLayer(linesLayer); map.attributionControl.removeAttribution(LINES_ATTR); return; }
   try { linesData ??= (await (await fetch('data/lignes.json')).json()).lines ?? []; } catch { toast('Les tracés des lignes n\'ont pas pu être chargés.', true); return; }
   if (!state.showLines) return;
-  // texte foncé sur les couleurs claires (ligne 1 jaune, RER C…), blanc sur les foncées
-  const textOn = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 0.3 ? '#1C2533' : '#ffffff'; };
   for (const ln of [...linesData].reverse()) { // métro dessiné par-dessus le RER
     const rer = ln.mode === 'R';
     for (const path of ln.paths) {
@@ -2143,6 +2149,18 @@ async function drawLines() {
     const mid = longest[Math.floor(longest.length / 2)];
     if (mid) L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: -200,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag${rer ? ' rer' : ''}" style="--c:${ln.color};--t:${textOn(ln.color)}">${rer ? `RER ${ln.ref}` : ln.ref}</span>`, iconSize: [30, 20], iconAnchor: [15, 10] }) }).addTo(linesLayer);
+  }
+  // Stations : un rond et les numéros de leurs lignes (visibles à partir du niveau quartier, noms en zoomant encore)
+  await stationsReady;
+  if (!state.showLines) return;
+  const color = new Map(linesData.map((l) => [l.mode === 'R' ? `RER ${l.ref}` : l.ref, l.color]));
+  for (const st of stations) {
+    const badges = linesOf(st).map((l) => {
+      const c = color.get(l) ?? '#1F4180';
+      return `<span class="st-line${l.startsWith('RER') ? ' rer' : ''}" style="--c:${c};--t:${textOn(c)}">${esc(l.replace('RER ', ''))}</span>`;
+    }).join('');
+    L.marker([st.lat, st.lng], { interactive: false, keyboard: false, zIndexOffset: -150,
+      icon: L.divIcon({ className: 'pin-wrap st-wrap', html: `<span class="st-mark"><span class="st-dot"></span>${badges}<span class="st-name">${esc(st.n)}</span></span>`, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(linesLayer);
   }
   linesLayer.addTo(map);
   map.attributionControl.addAttribution(LINES_ATTR);
@@ -3199,6 +3217,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Avec les lignes affichées, chaque station montre le numéro de ses lignes quand tu zoomes sur un quartier, puis son nom en zoomant encore.',
     'Lignes de métro et RER sur la carte, dans leurs couleurs : appui long sur M, ou {list-filter} Filtres → Lignes de métro et RER.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches de toi, avec le temps jusqu\'à chez toi depuis chacune ; la plus rapide est marquée.',
     'Boutons plus colorés : chaque bouton prend la teinte de sa famille. Le bouton « zoom sur ma position » disparaît : Ma position et direction fait déjà ce zoom.',
@@ -3223,7 +3242,7 @@ const HELP = [
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
-    'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
+    'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un lieu à faire.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
