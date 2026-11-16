@@ -1001,3 +1001,37 @@ a.go, .item .go { background: var(--aller-bg); }
 .btn:focus-visible, .map-btn:focus-visible, .tool:focus-visible, .go-compass:focus-visible, .menu-row:focus-visible, .cat-choice:focus-visible { outline-color: #1B56E8; }
 /* Mode sombre : plaques principales blanc cassé au lieu du bleu lavande */
 :root[data-theme="dark"] { --strong: #EEF1F7; --guide: #EEF1F7; --guide-bd: #EEF1F7; }
+
+/* ---------- Mes chiffres ----------
+   Air : une seule teinte (terre cuite), du clair (bon) au foncé (médiocre) ; inconnu en gris.
+   Contrastes vérifiés : plus clair ≥ 2:1 sur le fond, lumière décroissante ; inversé en sombre. */
+:root { --aq-bon: #D98B63; --aq-moyen: #B0532C; --aq-mauvais: #6E2810; --aq-inconnu: #BDB7AB; }
+:root[data-theme="dark"] { --aq-bon: #8F4A2B; --aq-moyen: #CC7A52; --aq-mauvais: #F5B896; --aq-inconnu: #5A6272; }
+.air-seg.air-bon, .air-key.air-bon { fill: var(--aq-bon); background: var(--aq-bon); }
+.air-seg.air-moyen, .air-key.air-moyen { fill: var(--aq-moyen); background: var(--aq-moyen); }
+.air-seg.air-mauvais, .air-key.air-mauvais { fill: var(--aq-mauvais); background: var(--aq-mauvais); }
+.air-seg.air-inconnu, .air-key.air-inconnu { fill: var(--aq-inconnu); background: var(--aq-inconnu); }
+.stats-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.stats-axis { stroke: var(--muted); stroke-width: 1; }
+.stats-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.stats-tick { fill: var(--muted); font-size: 10px; font-family: inherit; }
+.stats-bar { cursor: pointer; outline: none; }
+.stats-bar.on rect.air-seg, .stats-bar:focus-visible rect.air-seg { stroke: var(--ink); stroke-width: 1.5; }
+.stats-readout { min-height: 2.6em; margin: 4px 0 0; }
+.stats-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.stats-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.air-key { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.stats-table summary { min-height: 44px; display: flex; align-items: center; color: var(--metro); font-weight: 700; cursor: pointer; }
+.stats-table table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stats-table th, .stats-table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.stats-table th:first-child, .stats-table td:first-child { text-align: left; }
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
+.stat-tile { background: var(--surface); border: 1.5px solid var(--btn-bd); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; }
+.stat-tile b { font-family: var(--display); font-weight: 800; font-size: 20px; font-stretch: 90%; font-variant-numeric: tabular-nums; color: var(--ink); }
+.stat-tile span { font-size: 12.5px; color: var(--muted); }
+.hbars { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hbars li { display: grid; grid-template-columns: minmax(0, 9.5em) 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
+.hbar-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { height: 10px; }
+.hbar { display: block; height: 10px; border-radius: 0 4px 4px 0; background: var(--metro); }
+.hbar-val { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 700; min-width: 2ch; text-align: right; }

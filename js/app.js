@@ -14,6 +14,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState } from './hours.js';
 import { holidayOn } from './holidays.js';
+import { cleanJournal, addWalk, addUse, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -28,7 +29,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (63)';
+const VERSION = '16 novembre 2026 (64)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -498,6 +499,23 @@ document.getElementById('sheetClose').addEventListener('click', () => closeSheet
 
 let here = null; // dernière position GPS : { lat, lng, acc, time }
 let markets = null; // marchés de la Ville (liste gardée sur le téléphone)
+// Mes chiffres : totaux par jour, sur le téléphone seulement (pas dans la sauvegarde, jamais le tracé)
+const JOURNAL_KEY = 'carte-paris.journal';
+let journal = (() => { try { return pruneJournal(cleanJournal(JSON.parse(localStorage.getItem(JOURNAL_KEY) ?? 'null'))); } catch { return cleanJournal(null); } })();
+let journalSavedAt = 0;
+function saveJournal(force = false) {
+  if (!force && Date.now() - journalSavedAt < 30000) return;
+  journalSavedAt = Date.now();
+  try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(pruneJournal(journal))); } catch { /* stockage plein : tant pis */ }
+}
+const lastUse = new Map();
+/** Compte une utilisation (une fois par minute au plus pour une même fonction). */
+function track(name) {
+  if (Date.now() - (lastUse.get(name) ?? 0) < 60000) return;
+  lastUse.set(name, Date.now());
+  addUse(journal, name);
+  saveJournal(true);
+}
 let marketsTime = 0; // date de cette liste
 let nowHidden = false; // carte « Maintenant » cachée par la croix
 let nowLast = 0;
@@ -634,6 +652,7 @@ function addAt(lat, lng, acc = null) {
 }
 
 async function addAtPosition() {
+  track('Ajouter un lieu');
   toast('Recherche de ta position…');
   try {
     const pos = await locate();
@@ -1212,6 +1231,7 @@ function openSearch(initial = '') {
 let origin = null; // { lat, lng, acc, time, kind: 'gps' | 'last' | 'station', label }
 
 async function openNear() {
+  track('Autour de moi');
   toast('Recherche de ta position… (quelques secondes pour plus de précision)');
   try {
     const fix = await locate();
@@ -1419,6 +1439,7 @@ function countWalk(fix) {
   if (!seg) return;
   state.walk.m += seg;
   walkSession += seg;
+  addWalk(journal, seg, air?.level); saveJournal();
   if (Date.now() - walkSavedAt > 30000) { walkSavedAt = Date.now(); persist(); }
 }
 function walkText(m) {
@@ -1472,6 +1493,7 @@ function setLocateBtn() {
   b.setAttribute('aria-label', !following ? 'Afficher ma position et ma direction' : trackFollow ? 'Arrêter ma position et ma direction' : 'Recentrer sur ma position');
 }
 function startFollow() {
+  track('Ma position et direction');
   if (!('geolocation' in navigator)) { toast('Ce téléphone ne donne pas sa position.', true); return; }
   stopQuietNear();
   following = true;
@@ -1563,6 +1585,7 @@ function openDestinationPicker(title, onPick) {
 /* ---------- Sur mon chemin ---------- */
 
 function openWayPicker() {
+  track('Sur mon chemin');
   const from = origin;
   openDestinationPicker('Où vas-tu ?', (dest) => renderWay(from, dest));
 }
@@ -1600,6 +1623,7 @@ function renderWay(from, dest) {
 /* ---------- Parcours du jour ---------- */
 
 function openRoutePicker(selected = new Set()) {
+  track('Relier des lieux');
   const start = origin ?? freshHere();
   const pts = visible()
     .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
@@ -1779,6 +1803,7 @@ async function velibStations() {
 }
 
 async function showVelib(at = null) {
+  track('Vélib\'');
   toast('Recherche des Vélib\'…');
   let from = at;
   try {
@@ -1848,17 +1873,98 @@ function openMyParis(from = null) {
     return el('div', { class: `arr l${level}`, style: `grid-column:${c + 1};grid-row:${r + 1}`, role: 'img', 'aria-label': `${ord(Number(n))} : ${e.done} visité${e.done > 1 ? 's' : ''} sur ${e.all}` },
       el('b', {}, ord(Number(n))), el('span', {}, e.all ? `${e.done}/${e.all}` : '–'));
   });
-  openSheet([ico('map'), ' Mon Paris'], el('div', { class: 'stack' },
+  openSheet([ico('map'), ' Mon Paris et mes chiffres'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
     el('p', { class: 'help' }, `Chaque case : lieux visités / lieux enregistrés. Plan schématique, à peu près à la place de chaque arrondissement.${unknown ? ` ${plural(unknown, 'lieu', 'lieux')} sans arrondissement connu (hors Paris ou en cours de recherche).` : ''}`),
-    el('p', { class: 'help' }, `Marche aujourd'hui : ${walkText(todayWalk())}.`),
+    ...myStats(),
     myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages'),
   ), { tall: true, name: 'myparis', again: openMyParis });
   findArrondissements();
+}
+
+/* ---------- Mes chiffres (tableau de bord sous Mon Paris) ----------
+   Graphiques faits main, lisibles sans la couleur : légende, valeurs au toucher, tableau. */
+let statsDays = 7;
+const AIR_LABEL = { bon: 'Air bon', moyen: 'Air moyen', mauvais: 'Air médiocre ou pire', inconnu: 'Air inconnu' };
+const minOf = (m) => Math.round(m / WALK_M_PER_MIN);
+function myStats() {
+  const days = lastDays(journal, statsDays);
+  const t = totals(days);
+  const from = days[0].date.getTime();
+  const ps = placesStats(state.points, from);
+  const ap = arrProgress(state.points, from);
+  const dayName = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Période' },
+    [7, 30].map((n) => el('button', { type: 'button', 'aria-pressed': String(statsDays === n), onclick: () => { statsDays = n; openMyParis(); } }, `${n} jours`)));
+
+  // Marche par jour, empilée par qualité de l'air (du meilleur en bas au pire en haut)
+  const order = ['bon', 'moyen', 'mauvais', 'inconnu'];
+  const W = 320, H = 120, top = 14, base = H - 18;
+  const maxMin = Math.max(10, ...days.map((d) => minOf(d.m)));
+  const slot = W / days.length, bw = Math.max(3, Math.min(26, slot - (days.length > 10 ? 2 : 6)));
+  const readout = el('p', { class: 'help stats-readout', 'aria-live': 'polite' }, 'Touche une barre pour le détail du jour.');
+  const NS = 'http://www.w3.org/2000/svg';
+  const svgEl = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'stats-svg', role: 'group', 'aria-label': `Minutes de marche par jour sur ${statsDays} jours : ${minOf(t.m)} minutes au total.` });
+  svg.append(svgEl('line', { x1: 0, x2: W, y1: base + 0.5, y2: base + 0.5, class: 'stats-axis' }));
+  const cap = svgEl('text', { x: 0, y: 10, class: 'stats-tick' }); cap.textContent = `${maxMin} min`; svg.append(cap);
+  svg.append(svgEl('line', { x1: 0, x2: W, y1: top + 0.5, y2: top + 0.5, class: 'stats-grid' }));
+  days.forEach((d, i) => {
+    const x = i * slot + (slot - bw) / 2;
+    let y = base;
+    const parts = order.map((b) => [b, minOf(d.air[b] ?? 0)]).filter(([, v]) => v > 0);
+    const detail = `${dayName(d.date)} : ${minOf(d.m)} min de marche${parts.length ? ` (${parts.map(([b, v]) => `${AIR_LABEL[b].toLowerCase()} ${v} min`).join(', ')})` : ''}.`;
+    const g = svgEl('g', { class: 'stats-bar', tabindex: '0', role: 'button', 'aria-label': detail });
+    g.append(svgEl('rect', { x: i * slot, y: 0, width: slot, height: H, fill: 'transparent' })); // zone de toucher plus grande que la barre
+    parts.forEach(([b, v], k) => {
+      const h = Math.max(1.5, (v / maxMin) * (base - top));
+      const gap = k ? 2 : 0; // 2 px de fond entre les morceaux
+      y -= h;
+      g.append(svgEl('rect', { x, y: y, width: bw, height: Math.max(1, h - gap), rx: k === parts.length - 1 ? 3 : 0, class: `air-seg air-${b}` }));
+    });
+    const show = () => { readout.textContent = detail; for (const n of svg.querySelectorAll('.stats-bar')) n.classList.toggle('on', n === g); };
+    g.addEventListener('click', show); g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } });
+    svg.append(g);
+  });
+  for (const [i, txt] of [[0, dayName(days[0].date)], [days.length - 1, 'aujourd\'hui']]) {
+    const tx = svgEl('text', { x: i ? W : 0, y: H - 4, class: 'stats-tick', 'text-anchor': i ? 'end' : 'start' }); tx.textContent = txt; svg.append(tx);
+  }
+  const legend = el('div', { class: 'stats-legend' }, order.filter((b) => t.air[b] > 0 || b !== 'inconnu').map((b) => el('span', {}, el('i', { class: `air-key air-${b}`, 'aria-hidden': 'true' }), `${AIR_LABEL[b]} · ${minOf(t.air[b])} min`)));
+  const table = el('details', { class: 'stats-table' }, el('summary', {}, 'Voir en tableau'),
+    el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Jour'), el('th', {}, 'Marche'), ...order.map((b) => el('th', {}, AIR_LABEL[b].replace('Air ', ''))))),
+      el('tbody', {}, days.filter((d) => d.m > 0).reverse().map((d) => el('tr', {}, el('td', {}, dayName(d.date)), el('td', {}, `${minOf(d.m)} min`), ...order.map((b) => el('td', {}, d.air[b] ? `${minOf(d.air[b])}` : '–')))))));
+
+  // Barres horizontales (une seule série : pas de légende, la valeur est écrite)
+  const hbars = (rows, label) => {
+    const max = Math.max(1, ...rows.map((r) => r[1]));
+    return el('ul', { class: 'hbars', 'aria-label': label }, rows.map(([name, v, lead]) => el('li', {},
+      el('span', { class: 'hbar-label' }, lead ?? null, name),
+      el('span', { class: 'hbar-track', 'aria-hidden': 'true' }, el('span', { class: 'hbar', style: `width:${Math.max(3, (v / max) * 100)}%` })),
+      el('span', { class: 'hbar-val' }, String(v)))));
+  };
+  const tile = (n, label) => el('div', { class: 'stat-tile' }, el('b', {}, n), el('span', {}, label));
+  const steps = stepsFor(t.m);
+  return [
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Mes chiffres'), el('span', {}, '')),
+    seg,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Marche et air'), el('span', {}, '')),
+    el('div', { class: 'stat-tiles' }, tile(`${minOf(t.m)} min`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
+    svg, readout, legend, table,
+    el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position (Ma position et direction, balade guidée). L\'air est une estimation du quartier, heure par heure, pas une mesure sur toi.'),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
+    el('div', { class: 'stat-tiles' }, tile(String(ps.added), 'ajoutés'), tile(String(ps.visited), 'visités'), tile(String(ps.fav), 'favoris'), tile(ps.stars != null ? `${String(ps.stars).replace('.', ',')} ★` : '–', 'note moyenne')),
+    ps.byCat.length ? hbars(ps.byCat.slice(0, 6).map(([id, n]) => [catOf(id).name, n, catDot(id)]), 'Lieux par catégorie') : null,
+    el('p', { class: 'help' }, `Ajoutés et visités : sur les ${statsDays} derniers jours. Catégories et favoris : tous tes lieux (${ps.total}).`),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Mon Paris'), el('span', {}, '')),
+    el('p', {}, `${ap.now} arrondissement${ap.now > 1 ? 's' : ''} sur 20 explorés${ap.gained ? `, dont ${ap.gained} de plus sur les ${statsDays} derniers jours` : ''}.`),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Ce que j\'utilise le plus'), el('span', {}, '')),
+    t.use.length ? hbars(t.use.slice(0, 6), 'Fonctions les plus utilisées') : el('p', { class: 'help' }, 'Rien encore sur cette période.'),
+    el('p', { class: 'help' }, 'Totaux par jour gardés 90 jours sur ce téléphone seulement : ni le tracé de tes déplacements, ni la sauvegarde, ni personne d\'autre.'),
+  ];
 }
 
 /* ---------- Balade guidée : la boussole t'emmène d'étape en étape ---------- */
@@ -1959,6 +2065,7 @@ async function openWhereAmI() {
 let eventsCache = null; // { day, items }
 let eventsFree = false;
 async function openEvents() {
+  track('Sorties');
   if (!origin) { openNear(); return; }
   const day = new Date().toDateString();
   if (!eventsCache || eventsCache.day !== day) {
@@ -2051,6 +2158,7 @@ function showQr(p, back) {
 
 const stationByName = (n) => stations.find((s) => s.n === n);
 async function goHome() {
+  track('Rentrer');
   await stationsReady;
   const mine = (state.myStations ?? []).map((s) => ({ ...s, st: stationByName(s.station) })).filter((s) => s.st);
   if (!mine.length) { pickMyStation(true); return; }
@@ -2142,6 +2250,7 @@ const AIR_ADVICE = {
   extreme: 'Évite les efforts dehors aujourd\'hui.',
 };
 function openWeather() {
+  track('Météo et air');
   const day = dayNote();
   openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
     day ? el('p', { class: 'warn day-note' }, day.long) : null,
@@ -2284,6 +2393,7 @@ setInterval(() => { if (document.visibilityState === 'visible') checkMeteo(here 
 let freeMin = 60;
 let freeDwell = 15;
 function openFreeTime() {
+  track('J\'ai du temps');
   if (!origin) { openNear(); return; }
   const todo = visible(); // « déjà visité » n'est qu'une information : tous les lieux comptent
   // Ouvert à l'heure d'arrivée ? (horaires inconnus : on garde)
@@ -2327,6 +2437,7 @@ function openFreeTime() {
 /* ---------- Surprends-moi : un de tes lieux au hasard, à moins de 15 min ---------- */
 
 function surprise() {
+  track('Surprise');
   if (!origin) { openNear(); return; }
   const max = minutesToMeters(15);
   const pool = visible().filter((p) => distanceM(origin, p) <= max);
@@ -2340,6 +2451,7 @@ function surprise() {
 
 const wikiCache = new Map();
 async function openCuriosities() {
+  track('Curiosités');
   if (!origin) { openNear(); return; }
   const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}`;
   let list = wikiCache.get(key);
@@ -2405,6 +2517,7 @@ async function monuments() {
 }
 
 async function openMonuments() {
+  track('Monuments');
   if (!origin) { openNear(); return; }
   const title = [ico('landmark'), ' Monuments historiques'];
   let all;
@@ -2447,6 +2560,7 @@ let compassStop = null;
 const compassEl = document.getElementById('compass');
 
 function openCompass(p, step = null) {
+  track('Boussole');
   if (compassOpen) return;
   compassOpen = true;
   if (!step) guide = null;
@@ -3093,6 +3207,7 @@ const IDFM_APP = 'intent://#Intent;package=com.applidium.vianavigo;S.browser_fal
 const stationLabel = (st) => [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
 
 async function nearestMetro() {
+  track('Métro le plus proche');
   await stationsReady;
   if (!stations.length) { toast('La liste des stations n\'est pas encore chargée : réessaie dans un instant.', true); return; }
   toast('Recherche du métro le plus proche…');
@@ -3167,6 +3282,7 @@ async function loadPratique(kind) {
 }
 
 async function nearestPratique() {
+  track('Fontaine et toilettes');
   toast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
   const [from, fontaines, toilettes, fraisLieux, fraisParcs] = await Promise.all([
     locate().catch(() => (here && Date.now() - here.time < 2 * 3600 * 1000 ? here : null)),
@@ -3279,6 +3395,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map} Mon Paris et mes chiffres : marche par jour selon la qualité de l\'air, mes lieux, arrondissements explorés et fonctions les plus utilisées, sur 7 ou 30 jours. Tout reste sur ton téléphone.',
     '« Déjà visité » n\'est plus qu\'une information : tous tes lieux comptent dans Maintenant, Surprise, Itinéraire, les alertes à 100 m et les cercles. Tes favoris passent en premier : dans « Maintenant » et en tête de chaque cercle d\'Autour de moi, s\'ils sont à moins de 5 min de plus qu\'un autre lieu.',
     'Bleu modernisé : le bleu des transports est plus vif ; en mode sombre, les boutons principaux sont blanc cassé.',
     '« Maintenant » s\'adapte à l\'heure : le matin un café, une boulangerie ou un marché ; à midi et le soir un resto (ou un bar le soir). Le dimanche et les jours fériés, « Dim. » ou « Férié » apparaît à côté de la température ; « Ouvert maintenant » tient compte des jours fériés quand les horaires le précisent.',
@@ -3455,6 +3572,7 @@ if ('serviceWorker' in navigator) {
 // discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
 document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
 setInterval(() => { updateNow(true); drawWx(); }, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
