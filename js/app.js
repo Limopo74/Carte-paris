@@ -4,7 +4,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (50)';
+const VERSION = '16 novembre 2026 (51)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -398,6 +398,7 @@ const sheetBody = document.getElementById('sheetBody');
 let onSheetClose = null;
 let historyPushed = false;
 let view = null; // nom de l'écran affiché ('near' pour « Autour de moi »…)
+let quietId = null; // suivi discret de la position, seulement sur Autour de moi
 // Pile des écrans ouverts, pour que le retour d'Android revienne à l'écran précédent.
 // Chaque écran a un nom et, s'il peut être rouvert, une fonction « again ».
 let navStack = [];
@@ -413,6 +414,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   const at = navStack.findIndex((e) => e.name === key);
   if (at >= 0) navStack = navStack.slice(0, at); // on revient à un écran déjà ouvert : on oublie ceux d'après
   navStack.push({ name: key, again });
+  if (name !== 'near') stopQuietNear(); // la position n'est suivie que sur l'écran Autour de moi
   view = name;
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
@@ -438,6 +440,7 @@ function closeSheetThen(fn) {
 function closeSheet(fromHistory = false) {
   if (sheet.hidden) return;
   sheet.hidden = true;
+  stopQuietNear();
   view = null;
   navStack = [];
   fill(sheetBody, );
@@ -1242,9 +1245,7 @@ function renderNear(fit = false) {
     tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
   ));
   body.push(el('div', { class: 'near-bar' },
-    origin.kind !== 'station' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?') : el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station'),
-    el('div', { class: 'seg unit', role: 'group', 'aria-label': 'Cercles en' },
-      ['m', 'min'].map((u) => el('button', { type: 'button', 'aria-pressed': String((inMinutes() ? 'min' : 'm') === u), onclick: () => { state.ringUnit = u; persist(); renderNear(true); } }, u === 'm' ? 'Mètres' : 'Minutes')))));
+    origin.kind !== 'station' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?') : el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station')));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -1299,11 +1300,11 @@ function renderNear(fit = false) {
   if (farther > 0 && inside) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${ringText(maxRing)}.`));
   }
-  if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
-  body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, ico('refresh-cw'), 'Actualiser ma position'));
+  if (inside) body.push(el('p', { class: 'help' }, `Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».${origin.kind === 'gps' && !following ? ' La liste se met à jour toute seule quand tu as marché 50 m.' : ''}`));
   body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'margin-top:8px;width:100%', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
   openSheet(nearTitle(), body, { name: 'near', again: () => renderNear() });
+  if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
   if (fit) {
     const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
     map.fitBounds(bounds, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
@@ -1361,8 +1362,29 @@ async function keepScreenOn(on) {
   } catch { /* refusé : pas grave */ }
 }
 
+/* Mise à jour discrète d'Autour de moi : seulement tant que l'écran est ouvert, précision moyenne
+   (économise la batterie), nouvelle liste après 50 m de marche. Rien n'est envoyé : la position reste sur le téléphone. */
+function startQuietNear() {
+  if (quietId != null || following || !('geolocation' in navigator)) return;
+  quietId = navigator.geolocation.watchPosition((pos) => {
+    if (view !== 'near' || following || origin?.kind !== 'gps') { stopQuietNear(); return; }
+    const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
+    if (fix.acc > 150 || distanceM(fix, origin) < 50) return;
+    remember(fix);
+    origin = { ...fix, kind: 'gps' };
+    const keep = sheetBody.scrollTop;
+    renderNear();
+    sheetBody.scrollTop = keep;
+  }, () => {}, { enableHighAccuracy: false, maximumAge: 20000 });
+}
+function stopQuietNear() {
+  if (quietId != null) navigator.geolocation.clearWatch(quietId);
+  quietId = null;
+}
+
 function startFollow() {
   if (!('geolocation' in navigator)) return;
+  stopQuietNear();
   following = true;
   walkPrev = null;
   walkSession = 0;
@@ -2446,14 +2468,17 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
           el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
       })),
-      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = [...DEFAULT_HIDDEN]; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
   }
 
   if (section === 'cercles') {
+    const unitSeg = el('div', { class: 'seg unit', role: 'group', 'aria-label': 'Autour de moi affiche les cercles en' },
+      ['m', 'min'].map((u) => el('button', { type: 'button', 'aria-pressed': String((inMinutes() ? 'min' : 'm') === u), onclick: () => { state.ringUnit = u; persist(); openSettings('cercles'); toast(u === 'm' ? 'Cercles en mètres' : 'Cercles en minutes à pied'); } }, u === 'm' ? 'Mètres' : 'Minutes')));
     openSheet([ico('target'), ' Cercles'], el('div', { class: 'stack' },
+      el('p', { class: 'ring-title' }, 'Autour de moi affiche les cercles en'), unitSeg,
       el('label', { class: 'field' }, 'En mètres', rings),
       el('p', { class: 'help', id: 'ringsHelp' }, '100 m au minimum, séparés par des virgules. Exemple : 100, 300, 500, 1000'),
       el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
@@ -3048,7 +3073,7 @@ const HELP = [
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
     '{calendar-days} Sorties : les marchés et les événements du jour près de toi (Ville de Paris).',
     '{locate} Où suis-je ? : ton adresse, l\'arrondissement, la station la plus proche, et « Envoyer ma position » à quelqu\'un.',
-    'Mètres / Minutes, à côté : la taille des cercles.',
+    'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
     'En bas : {map} Mon Paris.',
   ]],

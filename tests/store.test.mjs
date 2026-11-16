@@ -423,3 +423,14 @@ test('mes stations : personnelles, sans doublon, dans ma sauvegarde mais pas rep
   st = removeMyStation(st, st.myStations[0].id);
   assert.deepEqual(st.myStations.map((s) => s.station), ['Opéra']);
 });
+
+test('boutons Paris et Zoom cachés au départ, une seule fois pour les anciens réglages', async () => {
+  const { loadState, saveState, DEFAULT_HIDDEN } = await import('../js/store.js');
+  const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
+  assert.deepEqual(loadState(mem(null)).hiddenTools, DEFAULT_HIDDEN);
+  const old = mem(JSON.stringify({ points: [], hiddenTools: ['velib'] }));
+  const st = loadState(old);
+  assert.deepEqual(st.hiddenTools, ['paris', 'zoom', 'velib']);
+  st.hiddenTools = []; saveState(old, st); // l'utilisatrice les réaffiche : ça doit tenir
+  assert.deepEqual(loadState(old).hiddenTools, []);
+});
