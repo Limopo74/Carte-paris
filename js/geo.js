@@ -61,6 +61,12 @@ export function mapsUrl(point, d) {
   return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&travelmode=${mode}`;
 }
 
+/** Page du lieu dans Google Maps (note et avis), cherchée par son nom et son adresse. Rien n'est envoyé tant qu'on n'appuie pas. */
+export function reviewsUrl(p) {
+  const q = [p.name, p.address || 'Paris'].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
 // Cercles en minutes à pied : même règle que walkMinutes (12 min/km, trajet 1,3 fois la ligne droite).
 export const DEFAULT_MINUTE_RINGS = [5, 10, 15, 20];
 const M_PER_MIN = 1000 / (MIN_PER_KM * DETOUR); // ≈ 64 m à vol d'oiseau par minute de marche

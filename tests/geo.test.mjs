@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
 
 const notreDame = { lat: 48.852968, lng: 2.349902 };
 const eiffel = { lat: 48.858370, lng: 2.294481 };
@@ -81,4 +81,11 @@ test('cercles : un favori passe devant, dans la limite du bonus', async () => {
   assert.deepEqual(ring.items.map((x) => x.point.id), ['f', 'a', 'g']); // f gagne (200 m d'écart), g non (700 m)
   const [plain] = groupByRings([a, f], here, [1000]);
   assert.deepEqual(plain.items.map((x) => x.point.id), ['a', 'f']); // sans bonus : distance seule
+});
+
+test('avis Google : recherche par nom et adresse, sans position', () => {
+  const u = reviewsUrl({ name: 'Café des Pavés', address: '12 rue de Bretagne, 75003 Paris', lat: 48.86, lng: 2.36 });
+  assert.equal(u, 'https://www.google.com/maps/search/?api=1&query=Caf%C3%A9%20des%20Pav%C3%A9s%2C%2012%20rue%20de%20Bretagne%2C%2075003%20Paris');
+  assert.doesNotMatch(u, /48\.86|2\.36/);
+  assert.match(reviewsUrl({ name: 'Square', lat: 1, lng: 2 }), /query=Square%2C%20Paris$/);
 });

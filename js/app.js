@@ -1,7 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (99)';
+const VERSION = '16 novembre 2026 (100)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1167,7 +1167,9 @@ function openDetail(id, back = null) {
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
-      row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back))),
+      row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
+      el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
+        ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('h3', { class: 'fiche-sec' }, 'Rangement'),
     tidy,
     back ? backBtn(back) : null,
@@ -4122,6 +4124,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
     '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
     '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
@@ -4131,7 +4134,6 @@ const HELP = [
     '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
     '{plus} Nouveau lieu et Modifier : « + Nouvelle » au bout des catégories crée une catégorie sans quitter la fiche ; tu reviens avec elle déjà choisie, rien de ce que tu as tapé n\'est perdu.',
     '{palette} Interface harmonisée (charte « Plaques & pavés ») : un seul arrondi, les mêmes tailles de texte et de boutons partout, des icônes dessinées au lieu des emoji dans les boutons, les mêmes couleurs de qualité de l\'air qu\'à Mon Paris, et un mode sombre sans lueurs. Boussole et Métro des sorties affichent enfin leur nom (et plus « undefined »).',
-    '{save} Sauvegarde : ton prénom (ou pseudo) passe au-dessus d\'« Exporter » : tu vois sous quel nom tes lieux partiront. L\'appli demande aussi au téléphone de ne jamais effacer tes lieux s\'il manque de place. « Icônes seules en haut » remonte en tête de Catégories et listes. Retours nommés sur Où suis-je, Choisir une station et Nom ou adresse.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4195,7 +4197,7 @@ const HELP = [
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
     'Sous ton commentaire : Favori et {check} Déjà visité (touche à nouveau pour éteindre). Puis « Aujourd\'hui » (horaires) et le métro le plus proche, côte à côte.',
-    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
+    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
