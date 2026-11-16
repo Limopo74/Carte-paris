@@ -14,6 +14,8 @@
   --strong: #1f2a44;
   --on-strong: #ffffff;
   --field: #7d8592;
+  --btn: var(--soft);
+  --btn-bd: var(--line);
   --soft: #f4f5f8;
   --accent: #1f2a44;
   --resto: #d9480f;
@@ -109,7 +111,7 @@ button { cursor: pointer; }
 
 .btn {
   min-height: 50px; border-radius: 12px; padding: 0 16px;
-  border: 1px solid var(--line); background: var(--soft);
+  border: 1px solid var(--btn-bd); background: var(--btn);
   font-size: 16px; font-weight: 600;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   text-decoration: none; color: var(--ink); text-align: center;
@@ -321,7 +323,7 @@ ol.items { padding: 0; }
 /* Outils « se déplacer » en haut d'Autour de moi */
 .tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
 .tool {
-  min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft);
+  min-height: 56px; border-radius: 12px; border: 1px solid var(--btn-bd); background: var(--btn);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   font-size: 12px; font-weight: 600; padding: 4px 2px; line-height: 1.15; text-align: center;
 }
@@ -349,7 +351,7 @@ ol.items { padding: 0; }
 
 .go-compass {
   flex: none; width: 48px; min-height: 48px; align-self: center; border-radius: 12px;
-  border: 1px solid var(--line); background: var(--soft); font-size: 20px;
+  border: 1px solid var(--btn-bd); background: var(--btn); font-size: 20px;
 }
 .go-compass:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; }
 
@@ -608,13 +610,14 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 /* ---------- Mode sombre (⚙ → Mode sombre) ---------- */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #e8ebf2; --muted: #aab2c0; --line: #384052; --bg: #151922; --surface: #1d2230; --soft: #121620;
-  --strong: #c9d4ff; --on-strong: #10131c; --field: #8a93a5;
-  --metro: #9db8ff; --metro-bg: #16254a; --metro-bd: #2f4a8a;
-  --guide: #7fd6e2; --guide-bg: #0f3238; --guide-bd: #23656f;
-  --add: #8fdca0; --add-bg: #14321b; --add-bd: #2d6b3a;
-  --fav: #ffd77a; --fav-bg: #3a2c08; --fav-bd: #7a5c12;
-  --info: #c3b2ff; --info-bg: #26193f; --info-bd: #4f3a8a;
+  --ink: #eef1f7; --muted: #b3bbc9; --line: #3a4255; --bg: #151922; --surface: #1d2230; --soft: #121620;
+  --strong: #d3dcff; --on-strong: #10131c; --field: #8f98ab;
+  --btn: #2c3447; --btn-bd: #56607a;
+  --metro: #a9c2ff; --metro-bg: #1d3166; --metro-bd: #4a6fc4;
+  --guide: #8be0eb; --guide-bg: #164a54; --guide-bd: #3196a4;
+  --add: #9be6ac; --add-bg: #1c4626; --add-bd: #3f9150;
+  --fav: #ffdc85; --fav-bg: #4a3a0e; --fav-bd: #a8811c;
+  --info: #cbbcff; --info-bg: #33245a; --info-bd: #7058c2;
   --danger: #ff8a8a;
 }
 :root[data-theme="dark"] body { background: var(--soft); }
@@ -668,3 +671,14 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .rain.heat { background: #fff1e6; border-color: #ffc9a3; color: #8a3b00; }
 :root[data-theme="dark"] .rain.heat { background: #3a1f0c; border-color: #7a4113; color: #ffcfa8; }
 :root[data-theme="dark"] .compass-next { background: #e8ebf2; color: #10131c; }
+
+/* Mode sombre : les boutons ressortent du fond (relief léger + contour clair) */
+:root[data-theme="dark"] .btn, :root[data-theme="dark"] .tool, :root[data-theme="dark"] .go-compass, :root[data-theme="dark"] .seg button { box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 2px 6px rgba(0, 0, 0, .45); }
+:root[data-theme="dark"] .seg button:not([aria-pressed="true"]) { background: var(--btn); border-color: var(--btn-bd); }
+:root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn { background: #262d3d; border-color: #56607a; box-shadow: 0 2px 8px rgba(0, 0, 0, .55); }
+:root[data-theme="dark"] .map-btn { border-color: #6a7591; box-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
+:root[data-theme="dark"] .map-btn:not(.c-guide):not(.c-metro) { background: #262d3d; }
+:root[data-theme="dark"] .menu-row, :root[data-theme="dark"] .item-main, :root[data-theme="dark"] .help-item, :root[data-theme="dark"] .style-card { border-color: #46506a; }
+:root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .big-btn.primary, :root[data-theme="dark"] a.go { box-shadow: 0 2px 10px rgba(160, 180, 255, .25); }
+.menu-row.c-metro .menu-ico { background: var(--metro-bg); box-shadow: inset 0 0 0 1px var(--metro-bd); color: var(--metro); }
+.menu-row.c-metro .menu-chev { color: var(--metro); }
