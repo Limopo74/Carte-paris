@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (85)';
+const VERSION = '16 novembre 2026 (86)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -178,6 +178,8 @@ const named = (label, fn) => Object.assign(fn, { label });
 const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
+/** Barre collée en bas de la feuille : le retour (et Enregistrer) reste sous le pouce même sur une page longue. */
+const foot = (...kids) => { const k = kids.flat().filter(Boolean); return k.length ? el('div', { class: 'sheet-foot' }, ...k) : null; };
 
 /* ---------- Carte ---------- */
 
@@ -251,7 +253,7 @@ function openCartoKey(back = () => openSettings('style')) {
     el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (state.mapStyle === 'clean') state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
     el('p', { class: 'help' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
-    el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte')),
   ), { name: 'carto-key' });
 }
 applyMapStyle();
@@ -450,7 +452,7 @@ function openListPlaces(listId, query = '', picked = null) {
     state = setListMembers(state, listId, [...sel]); persist(); refresh(); openSettings('categories');
     toast(`« ${list.name} » : ${plural(sel.size, 'lieu', 'lieux')}`);
   } });
-  const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux')})`; };
+  const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux').replace(' ', '\u00a0')})`; };
   count();
   const search = el('input', { type: 'search', value: query, placeholder: 'Chercher un lieu', 'aria-label': 'Chercher un lieu', enterkeyhint: 'search' });
   let t = null;
@@ -467,8 +469,9 @@ function openListPlaces(listId, query = '', picked = null) {
     search,
     rows.length ? el('ul', { class: 'items' }, rows) : el('p', { class: 'empty' }, query ? 'Aucun lieu ne correspond.' : 'Aucun lieu sur ta carte.'),
     pts.length > 200 ? el('p', { class: 'help' }, `${pts.length - 200} lieux de plus : cherche par nom pour les trouver.`) : null,
-    save,
-    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories et listes'),
+    foot(el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories et listes'),
+      save)),
   ), { tall: true, name: `list:${listId}`, again: () => openListPlaces(listId, '', sel) });
 }
 
@@ -489,7 +492,7 @@ function openFilterChoice(back = openFilters) {
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
     hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); } }, 'Tout réafficher') : null,
-    backBtn(back),
+    foot(backBtn(back)),
   ), { name: 'filter-choice', again: () => openFilterChoice(back) });
 }
 
@@ -1922,7 +1925,7 @@ function openGoogleImport() {
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => file.click() }, ico('download'), 'Choisir le fichier'),
     el('p', { class: 'help' }, 'Les listes en .csv n\'ont pas de position : l\'appli cherche chaque lieu par son nom dans l\'annuaire OpenStreetMap, un par seconde. Vérifie ensuite ceux marqués « à vérifier ».'),
     file,
-    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, '← Sauvegarde et partage'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, '← Sauvegarde et partage')),
   ), { tall: true, name: 'gimport', again: openGoogleImport });
 }
 
@@ -2085,9 +2088,9 @@ function openMyParis(from = null) {
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
     el('p', { class: 'help' }, `Chaque case : lieux visités / lieux enregistrés. Plan schématique, à peu près à la place de chaque arrondissement.${unknown ? ` ${plural(unknown, 'lieu', 'lieux')} sans arrondissement connu (hors Paris ou en cours de recherche).` : ''}`),
     ...myStats(),
-    myParisBack === 'near' && origin
+    foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
-      : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages'),
+      : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
   findArrondissements();
 }
@@ -2420,7 +2423,7 @@ async function weekEvents() {
 async function openWeekExpos() {
   track('Expos de la semaine');
   const title = [ico('calendar-days'), ' Expos de la semaine'];
-  const back = backBtn(openEvents);
+  const back = foot(backBtn(openEvents));
   if (!weekCache || weekCache.day !== new Date().toDateString()) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'week' });
     try { await weekEvents(); } catch {
@@ -2570,7 +2573,7 @@ async function openEvents(start = null) {
         el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
         mode === 'art' ? el('p', { class: 'help' }, 'Galeries : la plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d\'y aller.') : null,
         ...notes.map((t) => el('p', { class: 'help' }, t)))),
-    backNear(),
+    foot(backNear()),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
   if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
@@ -2659,7 +2662,7 @@ function showAppQr() {
   openSheet([ico('qr-code'), ' Partager l\'appli'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, 'Ma carte de Paris'), box,
     el('p', { class: 'help' }, `Ton proche le scanne avec l'appareil photo, ouvre le lien dans Chrome, puis menu ⋮ → « Ajouter à l'écran d'accueil ». Sur iPhone : Safari, Partager → « Sur l'écran d'accueil ». Adresse : ${APP_URL()}`),
-    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application')),
   ), { name: 'appqr' });
 }
 
@@ -2748,7 +2751,7 @@ function openMyStations() {
       el('span', { class: 'cat-name' }, s.label, el('br'), el('span', { class: 'cat-count' }, `Ⓜ ${s.station}`)),
       el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer ${s.label}`, onclick: () => { state = removeMyStation(state, s.id); persist(); openMyStations(); } }, ico('x'))))) : null,
     el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false) }, ico('plus'), 'Ajouter une station'),
-    el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'mystations', again: openMyStations });
 }
 
@@ -3340,7 +3343,7 @@ function openSettings(section = null) {
     try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); markExported(); } catch { /* annulé */ }
   };
   const back = () => openSettings();
-  const backBtn = el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages');
+  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'));
   const due = backupDue(state);
   const unsaved = unsavedCount(state);
   const saveSummary = state.lastExport
@@ -3597,13 +3600,13 @@ function openFavStyle() {
     preview,
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(ICONS, icon, (v) => { icon = v; drawPreview(); })),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: openSettings }, 'Annuler'),
+    foot(el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
         state = setFavStyle(state, { icon, color });
         persist(); refresh(); openSettings();
         toast('Favoris modifiés');
-      } }, 'Enregistrer')),
+      } }, 'Enregistrer'))),
   ), { tall: true, name: 'favstyle', again: () => openFavStyle() });
 }
 
@@ -4009,6 +4012,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{arrow-up-down} Pages longues : le bouton de retour (« ← Réglages », « ← Autour de moi »…) et « Enregistrer » restent en bas de l\'écran pendant que tu fais défiler. Plus besoin de descendre tout en bas. L\'Aide a maintenant son « ← Réglages ».',
     '{share-2} Partager l\'appli : {settings} Réglages → Application → « Envoyer le lien » (SMS, WhatsApp, mail…) ou « QR code » à faire scanner. Ton proche reçoit une appli vide : rien de tes lieux ne part.',
     '{users} « Lieux de (personnes) » devient « Lieux de mes proches » : dans Filtres, choisir d\'afficher tes lieux, ceux d\'un proche dont tu as importé l\'export, ou tous.',
     '{tags} Catégories et listes : afficher, masquer et ranger la barre du haut se fait sur une seule page, comme pour les boutons de la carte. Une case pour afficher, des flèches pour l\'ordre, un crayon pour modifier. Réglages → Ce qui s\'affiche → Barre du haut ouvre la même page.',
@@ -4195,6 +4199,7 @@ function openHelp() {
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
       el('ul', {}, lines.map((l) => el('li', {}, ...l.split(/\{([a-z0-9-]+)\}/).map((part, i) => (i % 2 ? (ICON_NAMES.has(part) ? ico(part, { size: 17 }) : '') : part)))))))),
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { name: 'help', again: openHelp, tall: true });
 }
 
