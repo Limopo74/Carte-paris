@@ -897,6 +897,12 @@ body { background: var(--soft); }
 }
 .pin > svg, .pin > .pin-in { transform: rotate(45deg); }
 .pin-fav { transform: rotate(45deg); top: -8px; right: -8px; }
+/* Lieu d'un proche : son initiale dans une pastille, côté droit de la goutte (le favori est en haut) */
+.pin-who {
+  position: absolute; bottom: -7px; right: -7px; transform: rotate(45deg);
+  width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: #fff; color: #1f2a44; font: 800 10.5px/1 'Archivo', system-ui, sans-serif; box-shadow: 0 0 0 1.5px #1f2a44;
+}
 .z-far .pin { transform: rotate(-45deg) scale(.72); }
 .pin.done { opacity: .6; }
 .market-pin { border-radius: 6px; }

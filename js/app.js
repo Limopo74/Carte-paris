@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (86)';
+const VERSION = '16 novembre 2026 (87)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -320,6 +320,9 @@ const passFilters = (p) => (!filt.open || openState(p.hours)?.open === true) && 
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
 
+/** Initiale d'un proche pour son épingle : une seule lettre, jamais de texte saisi brut dans le HTML. */
+const initialOf = (name) => (String(name).match(/\p{L}|\p{N}/u)?.[0] ?? '?').toLocaleUpperCase('fr');
+
 function renderMarkers() {
   pointsLayer.clearLayers();
   for (const p of visible()) {
@@ -327,13 +330,13 @@ function renderMarkers() {
     const c = catOf(p.cat);
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
-    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}</span>`;
+    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(p.name, { direction: 'top', offset: [0, -16] })
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -494,23 +497,6 @@ function openFilterChoice(back = openFilters) {
     hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); } }, 'Tout réafficher') : null,
     foot(backBtn(back)),
   ), { name: 'filter-choice', again: () => openFilterChoice(back) });
-}
-
-function openPersonPicker() {
-  const pick = (who) => {
-    personFilter = who;
-    refresh();
-    if (navStack.length > 1) history.back(); else closeSheet();
-  };
-  const mine = state.points.filter((p) => !p.owner).length;
-  const btn = (who, label, icon, count) => el('button', {
-    type: 'button', class: 'cat-choice', 'aria-pressed': String(personFilter === who), onclick: () => pick(who),
-  }, el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, icon), el('span', { class: 'cat-choice-name' }, label), el('span', { class: 'cat-count' }, String(count)));
-  openSheet('Lieux de mes proches', el('div', { class: 'cat-grid' },
-    btn('all', 'Tout le monde', '👥', state.points.length),
-    btn('', state.me ? `Moi (${state.me})` : 'Moi', '👤', mine),
-    ...owners(state.points).map((o) => btn(o.name, o.name, '👤', o.n)),
-  ), { name: 'personpick', again: openPersonPicker });
 }
 
 /** Ajoute ou retire une catégorie du filtre du haut. */
@@ -4012,6 +3998,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{users} Lieux de tes proches : leur épingle porte l\'initiale de la personne (« M » pour Marie). Tu vois à qui est un lieu sans ouvrir sa fiche ni filtrer.',
     '{arrow-up-down} Pages longues : le bouton de retour (« ← Réglages », « ← Autour de moi »…) et « Enregistrer » restent en bas de l\'écran pendant que tu fais défiler. Plus besoin de descendre tout en bas. L\'Aide a maintenant son « ← Réglages ».',
     '{share-2} Partager l\'appli : {settings} Réglages → Application → « Envoyer le lien » (SMS, WhatsApp, mail…) ou « QR code » à faire scanner. Ton proche reçoit une appli vide : rien de tes lieux ne part.',
     '{users} « Lieux de (personnes) » devient « Lieux de mes proches » : dans Filtres, choisir d\'afficher tes lieux, ceux d\'un proche dont tu as importé l\'export, ou tous.',
