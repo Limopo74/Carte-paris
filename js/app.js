@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (83)';
+const VERSION = '16 novembre 2026 (84)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -419,7 +419,7 @@ function openFilters() {
         if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
       } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
       : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
-    people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de'), el('span', {}, '')) : null,
+    people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de mes proches'), el('span', {}, '')) : null,
     people.length && keep('people', personFilter !== 'all') ? el('div', { class: 'list-chips' },
       [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
         .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
@@ -475,7 +475,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -503,7 +503,7 @@ function openPersonPicker() {
   const btn = (who, label, icon, count) => el('button', {
     type: 'button', class: 'cat-choice', 'aria-pressed': String(personFilter === who), onclick: () => pick(who),
   }, el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, icon), el('span', { class: 'cat-choice-name' }, label), el('span', { class: 'cat-count' }, String(count)));
-  openSheet('Lieux de…', el('div', { class: 'cat-grid' },
+  openSheet('Lieux de mes proches', el('div', { class: 'cat-grid' },
     btn('all', 'Tout le monde', '👥', state.points.length),
     btn('', state.me ? `Moi (${state.me})` : 'Moi', '👤', mine),
     ...owners(state.points).map((o) => btn(o.name, o.name, '👤', o.n)),
@@ -3989,6 +3989,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{users} « Lieux de (personnes) » devient « Lieux de mes proches » : dans Filtres, choisir d\'afficher tes lieux, ceux d\'un proche dont tu as importé l\'export, ou tous.',
     '{tags} Catégories et listes : afficher, masquer et ranger la barre du haut se fait sur une seule page, comme pour les boutons de la carte. Une case pour afficher, des flèches pour l\'ordre, un crayon pour modifier. Réglages → Ce qui s\'affiche → Barre du haut ouvre la même page.',
     '{calendar-days} Sorties : en bas, « Aide, sources et mise à jour » explique ce qui est affiché et quand tout se met à jour seul, avec « Mettre à jour maintenant » et 6 liens pour aller plus loin (Que faire à Paris, Paris Musées, galeries, Paris je t\'aime, Sortir à Paris).',
     '{calendar-days} Sorties sans ta position : nouveau bouton calendrier dans la colonne de la carte. Il montre les sorties autour du centre de la carte, sans GPS et sans bouger la carte : déplace la carte sur le quartier voulu, puis touche-le. Autour de moi → Sorties reste « autour de toi ». Dans l\'onglet Expos, « Expos de la semaine, tout Paris » : 7 jours, rangées par arrondissement.',
@@ -4062,7 +4063,7 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
     'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
@@ -4136,7 +4137,7 @@ const HELP = [
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',
-    'Ensuite, {list-filter} Filtres → « Lieux de » : les tiens, les siens ou tous.',
+    'Ensuite, {list-filter} Filtres → « Lieux de mes proches » : les tiens, les siens ou tous.',
     'L\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
   ]],
   ['save', 'Sauvegarder (important)', [
