@@ -57,7 +57,10 @@ const ECRANS = {
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
+  sauvegarde: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Sauvegarde' }).first().click(); await p.waitForTimeout(300); },
+  restaurer: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Restaurer ou importer' }).click(); await p.waitForTimeout(300); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
+  vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');
 
@@ -70,7 +73,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/tile|cartocdn|openstreetmap|open-meteo|wikidata|overpass|nominatim|geopf|wikipedia|velib|smoove/, (r) => r.abort());
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
-  await page.evaluate((pts) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3 })), LIEUX);
+  await page.evaluate((pts) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3, lastExport: Date.now() })), LIEUX);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

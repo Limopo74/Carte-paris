@@ -138,7 +138,7 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [...DEFAULT_HIDDEN], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, hiddenChips: [], hiddenFilters: [] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [...DEFAULT_HIDDEN], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, hiddenChips: [], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -156,10 +156,16 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, hiddenChips: cleanChips(obj.hiddenChips), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
+    const st = { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, hiddenChips: cleanChips(obj.hiddenChips), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
+    // Avant la v119, seuls les lieux ajoutés étaient comptés : on repart de ce compte, avec l'empreinte actuelle.
+    st.backup = cleanBackup(obj.backup) ?? (() => {
+      const fresh = st.points.filter((p) => p.created > (lastExport ?? 0));
+      return { saved: null, last: backupHash(st), n: fresh.length, since: fresh.length ? Math.min(...fresh.map((p) => p.created)) : null };
+    })();
+    return st;
   } catch {
     return { ...empty(), ok: false };
   }
@@ -198,7 +204,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), layoutV: 3, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), layoutV: 3, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -414,12 +420,13 @@ export function setDone(p, done, now = Date.now()) {
   return p;
 }
 
-/** Nom explicite du fichier de sauvegarde, ex. « Ma carte de Paris - sauvegarde du 15-11-2026 à 22h05 (42 lieux).json ». */
+/** Nom explicite du fichier de sauvegarde, ex. « Ma carte de Paris - sauvegarde du 15-11-2026 22h05 (42 lieux).json ».
+ * Sans accent : un « à » dans le nom fait perdre le nom du fichier à certains navigateurs (« download »). */
 export function exportFileName(date, count) {
   const z = (n) => String(n).padStart(2, '0');
   const day = `${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()}`;
   const time = `${z(date.getHours())}h${z(date.getMinutes())}`;
-  return `Ma carte de Paris - sauvegarde du ${day} à ${time} (${count} lieu${count > 1 ? 'x' : ''}).json`;
+  return `Ma carte de Paris - sauvegarde du ${day} ${time} (${count} lieu${count > 1 ? 'x' : ''}).json`;
 }
 
 const foldName = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -432,22 +439,47 @@ export function suggestedPresets(categories) {
 
 const DAY = 86_400_000;
 
-/** Lieux ajoutés depuis la dernière sauvegarde (tous si jamais sauvegardé). */
+/** Lieux ajoutés depuis la dernière sauvegarde (tous si jamais sauvegardé). Sert seulement à reprendre l'ancien compteur. */
 export function unsavedCount(state) {
   const since = state.lastExport ?? 0;
   return state.points.filter((p) => p.created > since).length;
 }
 
+/** Empreinte de ce que contient une sauvegarde (lieux, photos rattachées, catégories, listes, favoris, mes stations). */
+export function backupHash(state) {
+  const text = JSON.stringify([state.points, state.categories, state.lists ?? [], state.fav, state.myStations ?? []]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
+
 /**
- * Faut-il rappeler de sauvegarder ? Oui dès 10 lieux ajoutés sans sauvegarde,
- * ou s'il y a au moins un lieu ajouté et que la dernière sauvegarde a plus de 7 jours
- * (ou n'a jamais été faite, à partir de 3 lieux).
+ * Suivi des changements non sauvegardés : { saved (empreinte à la dernière sauvegarde), last (dernière empreinte vue),
+ * n (changements depuis), since (heure du premier) }. Tout changement compte : lieu ajouté, modifié ou supprimé, note,
+ * étoiles, favori, déjà visité, billet, photo, catégorie, liste. Revenir exactement à l'état sauvegardé remet à zéro.
+ */
+export function trackChange(state, now = Date.now()) {
+  const b = state.backup ?? { saved: null, last: null, n: 0, since: null };
+  const h = backupHash(state);
+  if (h === b.saved) return { ...b, last: h, n: 0, since: null };
+  if (h === b.last) return b;
+  return { ...b, last: h, n: b.n + 1, since: b.since ?? now };
+}
+/** Après une sauvegarde (ou la restauration complète d'une sauvegarde) : plus rien en attente. */
+export const savedBackup = (state) => { const h = backupHash(state); return { saved: h, last: h, n: 0, since: null }; };
+
+const cleanBackup = (b) => (b && typeof b === 'object' && Number.isFinite(b.n) && b.n >= 0
+  ? { saved: typeof b.saved === 'string' ? b.saved : null, last: typeof b.last === 'string' ? b.last : null, n: Math.floor(b.n), since: Number.isFinite(b.since) ? b.since : null }
+  : null);
+
+/**
+ * Faut-il rappeler de sauvegarder (à l'ouverture, au plus une fois par jour) ? Oui dès 5 changements non sauvegardés,
+ * ou dès qu'un changement attend depuis plus de 3 jours.
  */
 export function backupDue(state, now = Date.now()) {
-  const n = unsavedCount(state);
-  if (n >= 10) return true;
-  if (!state.lastExport) return state.points.length >= 3 && n > 0;
-  return n > 0 && now - state.lastExport > 7 * DAY;
+  const b = state.backup;
+  if (!b || !b.n) return false;
+  return b.n >= 5 || (Number.isFinite(b.since) && now - b.since > 3 * DAY);
 }
 
 /** Les personnes dont j'ai des lieux (sans moi), avec leur nombre de lieux. */

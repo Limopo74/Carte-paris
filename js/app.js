@@ -4,7 +4,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (118)';
+const VERSION = '16 novembre 2026 (119)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -65,8 +65,9 @@ if (!state.ok) {
 try { navigator.storage?.persist?.(); } catch { /* facultatif */ }
 
 function persist() {
+  state.backup = trackChange(state); // tout changement de lieux, catégories ou listes compte pour la sauvegarde
   if (!saveState(storage, state)) {
-    toast('Attention : ce téléphone n\'a pas pu enregistrer. Fais un export dans les réglages.', true);
+    toast('Attention : ce téléphone n\'a pas pu enregistrer. Sauvegarde tes lieux : Réglages → Sauvegarde.', true);
     return false;
   }
   updatePlanningCount();
@@ -1124,7 +1125,6 @@ function openForm(draft, existing = null) {
     if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${ticketText(draft.ticketAt)}` : ''}`);
     if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
     if (ok && !existing) refreshParkHours().catch(() => {});
-    if (ok && !existing && unsavedCount(state) > 0 && unsavedCount(state) % 10 === 0) setTimeout(remindBackup, 1500);
   };
 
   // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
@@ -2100,7 +2100,7 @@ function openGoogleImport() {
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => file.click() }, ico('download'), 'Choisir le fichier'),
     el('p', { class: 'help' }, 'Les listes en .csv n\'ont pas de position : l\'appli cherche chaque lieu par son nom dans l\'annuaire OpenStreetMap, un par seconde. Vérifie ensuite ceux marqués « à vérifier ».'),
     file,
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, '← Sauvegarde et partage')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('importer') }, '← Restaurer ou importer')),
   ), { tall: true, name: 'gimport', again: openGoogleImport });
 }
 
@@ -3609,92 +3609,23 @@ function openSettings(section = null) {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
   const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
   const meInput = el('input', { type: 'text', maxlength: '30', value: state.me ?? '', autocomplete: 'given-name', placeholder: 'Ton prénom ou un pseudo' });
-  const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
   const count = state.points.length;
 
-  file.addEventListener('change', async () => {
-    const f = file.files?.[0];
-    file.value = '';
-    if (!f) return;
-    const text = await f.text();
-    const doImport = (owner) => {
-      try {
-        const r = mergeImport(state, text, owner);
-        state = { ...r.state, ok: state.ok };
-        importPhotos(text, state);
-        persist(); refresh();
-        openSettings('sauvegarde');
-        toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
-      } catch (e) {
-        toast(e.message || 'Import impossible.', true);
-      }
-    };
-    // À qui sont ces lieux ? Le prénom du fichier est proposé ; une sauvegarde à moi reste à moi.
-    const from = fileOwner(text);
-    if (from && from === state.me) { doImport(''); return; }
-    const other = el('input', { type: 'text', maxlength: '30', value: from, placeholder: 'Prénom', 'aria-label': 'Prénom de la personne' });
-    openSheet('À qui sont ces lieux ?', el('div', { class: 'stack' },
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => doImport('') }, 'Ce sont mes lieux (sauvegarde)'),
-      el('label', { class: 'field' }, 'Lieux d\'une autre personne', other),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
-        const name = other.value.trim();
-        if (!name) { other.focus(); toast('Indique son prénom.', true); return; }
-        doImport(name);
-      } }, 'Ajouter comme ses lieux'),
-      el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
-    ), { name: 'importwho' });
-  });
-
-  const withPhotos = el('input', { type: 'checkbox', class: 'check' });
+  // Les photos partent avec la sauvegarde par défaut : une restauration rend aussi les photos.
+  const withPhotos = el('input', { type: 'checkbox', class: 'check', checked: true });
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
-  let exportText = exportJSON(state);
-  const buildExport = async () => {
-    const obj = JSON.parse(exportJSON(state));
-    if (withPhotos.checked) {
-      obj.photos = {};
-      for (const p of state.points) {
-        for (const id of p.photos ?? []) {
-          const b = await getPhoto(id).catch(() => null);
-          if (b) obj.photos[id] = await blobToDataUrl(b);
-        }
-      }
-    }
-    exportText = JSON.stringify(obj);
-  };
-  withPhotos.addEventListener('change', buildExport);
-  const exportFile = () => new File([exportText], exportFileName(new Date(), state.points.length), { type: 'application/json' });
-  const markExported = () => { state.lastExport = Date.now(); persist(); };
-  const download = async () => {
-    if (withPhotos.checked) await buildExport(); else exportText = exportJSON(state);
-    const f = exportFile();
-    markExported();
-    const url = URL.createObjectURL(f);
-    const a = el('a', { href: url, download: f.name });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast(`« ${f.name} » enregistré dans tes Téléchargements`);
-  };
   const canShareFile = (() => {
-    try { return Boolean(navigator.canShare?.({ files: [exportFile()] })); } catch { return false; }
+    try { return Boolean(navigator.canShare?.({ files: [new File(['{}'], 'x.json', { type: 'application/json' })] })); } catch { return false; }
   })();
-  const share = async () => {
-    try { await navigator.share({ files: [exportFile()], title: 'Ma carte de Paris' }); markExported(); } catch { /* annulé */ }
-  };
   const back = () => openSettings();
   const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'));
-  const due = backupDue(state);
-  const unsaved = unsavedCount(state);
-  const saveSummary = state.lastExport
-    ? `${timeAgo(state.lastExport).replace(/^./, (c) => c.toUpperCase())}${unsaved ? ` · ${plural(unsaved, 'lieu non sauvegardé', 'lieux non sauvegardés')}` : ' · tout est sauvegardé'}`
-    : 'Jamais sauvegardé';
+  const unsaved = state.backup?.n ?? 0;
+  const saveSummary = backupSummary();
 
   if (section === 'sauvegarde') {
     openSheet([ico('save'), ' Sauvegarde'], el('div', { class: 'stack' },
-      el('p', { class: due ? 'warn' : 'help' }, `${plural(count, 'lieu', 'lieux')} sur ce téléphone. ${saveSummary}.`),
-      persisted === false ? el('p', { class: 'warn' }, 'Ce téléphone n\'a pas promis de garder tes lieux s\'il manque de place. Installe l\'appli sur l\'écran d\'accueil et exporte régulièrement.') : null,
-      nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Inclure les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
-          el('span', { class: 'item-sub' }, 'Le fichier sera plus lourd'))) : null,
+      el('p', { class: unsaved ? 'warn' : 'ok-line' }, unsaved ? null : ico('check'), `${unsaved ? '' : ' '}${plural(count, 'lieu', 'lieux')} sur ce téléphone. ${saveSummary}.`),
+      persisted === false ? el('p', { class: 'warn' }, 'Ce téléphone n\'a pas promis de garder tes lieux s\'il manque de place. Installe l\'appli sur l\'écran d\'accueil et sauvegarde régulièrement.') : null,
       // Le prénom passe AVANT les boutons d'envoi : on voit sous quel nom les lieux partiront.
       // Prénom déjà là : une seule ligne, pour que « Exporter » reste en haut.
       state.me && !editMe
@@ -3707,15 +3638,26 @@ function openSettings(section = null) {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
           el('p', { class: 'help' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: download, disabled: count === 0 }, ico('download'), 'Exporter mes lieux'),
-      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: share, disabled: count === 0 }, ico('send'), 'Envoyer le fichier (mail, Drive…)') : null,
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => file.click() }, ico('upload'), 'Importer un fichier'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
-      el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer les tiens : ta propre sauvegarde ou les lieux d\'un ami.'),
-      file,
-      el('p', { class: 'help' }, 'Pour partager : exporte ou envoie le fichier, ton ami l\'importe. Chacun garde ses lieux sur son téléphone.'),
-      backBtn,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (mail, Drive…)') : null,
+      nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
+          el('span', { class: 'item-sub' }, 'Fichier plus lourd, mais une restauration rend aussi les photos'))) : null,
+      el('p', { class: 'help' }, 'Le fichier va dans tes Téléchargements. Si tu perds ton téléphone, il part avec : de temps en temps, envoie-le aussi sur ton mail ou ton Drive. Pour partager tes lieux, envoie le fichier : ton proche fait « Importer les lieux d\'un proche ».'),
+      el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
+      foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'), el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer')),
     ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
+    return;
+  }
+  if (section === 'importer') {
+    openSheet([ico('upload'), ' Restaurer ou importer'], el('div', { class: 'stack' },
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
+      el('p', { class: 'help' }, 'Choisis ton dernier fichier « Ma carte de Paris - sauvegarde du … » (dossier Téléchargements). Les lieux qui manquent reviennent, avec leurs photos et tes stations ; ceux déjà là ne sont pas touchés.'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => pickImport('friend') }, ico('user'), 'Importer les lieux d\'un proche'),
+      el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens, à son nom. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
+      foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')),
+    ), { tall: true, name: 'settings:importer', again: () => openSettings('importer') });
     return;
   }
 
@@ -3948,7 +3890,7 @@ function openSettings(section = null) {
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer le lien'),
         el('button', { type: 'button', class: 'btn c-add', onclick: showAppQr }, ico('qr-code'), 'QR code')),
-      el('p', { class: 'help' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux : Sauvegarde et partage → Exporter.'),
+      el('p', { class: 'help' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux : Réglages → Sauvegarde → Envoyer le fichier.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -3986,12 +3928,19 @@ function openSettings(section = null) {
   el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
   openSheet('Réglages', el('div', { class: 'menu' },
-    !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
+    !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
+    el('h3', { class: 'ring-title menu-group' }, 'Mes données'),
+    // En tête : l'état de la sauvegarde se voit dès l'ouverture des Réglages.
+    el('button', { type: 'button', class: `menu-row c-add${unsaved ? ' warn-row' : ''}`, onclick: () => openSettings('sauvegarde') },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('save')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sauvegarde'), el('span', { class: 'menu-sub' }, unsaved ? plural(unsaved, 'changement non sauvegardé', 'changements non sauvegardés') : saveSummary)),
+      el('span', { class: unsaved ? 'tag due' : 'tag open' }, unsaved ? 'À faire' : 'À jour'),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
+    row('upload', 'Restaurer ou importer', 'Ta sauvegarde, les lieux d\'un proche, Google Maps', () => openSettings('importer'), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
     row('map', 'Mon Paris', 'Planning, arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
-    row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
@@ -4136,12 +4085,114 @@ function openCategory(id, ret = null) {
 /** Rappel de sauvegarde avec un bouton pour le faire tout de suite. */
 function remindBackup() {
   if (!sheet.hidden) return;
-  const n = unsavedCount(state);
+  const n = state.backup?.n ?? 0;
+  if (!n) return;
   openSheet('Sauvegarde', el('div', { class: 'stack' },
-    el('p', {}, `${plural(n, 'lieu n\'est', 'lieux ne sont')} pas encore ${n > 1 ? 'sauvegardés' : 'sauvegardé'}. Tes lieux n'existent que sur ce téléphone : une sauvegarde régulière évite de tout perdre.`),
-    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => openSettings('sauvegarde') }, 'Sauvegarder maintenant'),
+    el('p', {}, `${plural(n, 'changement n\'est', 'changements ne sont')} pas encore ${n > 1 ? 'sauvegardés' : 'sauvegardé'}. Tes lieux n'existent que sur ce téléphone : effacer les données de Chrome les efface aussi.`),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(closeSheet) }, ico('download'), 'Sauvegarder maintenant'),
     el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Plus tard'),
-  ));
+  ), { name: 'rappel-sauvegarde' });
+}
+
+/** « Sauvegardé il y a 2 h », « 3 changements non sauvegardés · dernière sauvegarde il y a 4 jours », « Jamais sauvegardé ». */
+function backupSummary() {
+  const n = state.backup?.n ?? 0;
+  const last = state.lastExport ? `${n ? 'dernière sauvegarde ' : 'Sauvegardé '}${timeAgo(state.lastExport)}` : '';
+  if (!n) return last || (state.points.length ? 'Sauvegardé' : 'Rien à sauvegarder');
+  return [plural(n, 'changement non sauvegardé', 'changements non sauvegardés'), last || 'jamais sauvegardé'].join(' · ');
+}
+
+/* ---------- Sauvegarde : un fichier dans Téléchargements, toujours sur décision de la personne ---------- */
+
+/** Le texte du fichier de sauvegarde, avec les photos si demandé. */
+async function backupText(withPhotos) {
+  const obj = JSON.parse(exportJSON(state));
+  if (withPhotos) {
+    obj.photos = {};
+    for (const p of state.points) {
+      for (const id of p.photos ?? []) {
+        const b = await getPhoto(id).catch(() => null);
+        if (b) obj.photos[id] = await blobToDataUrl(b);
+      }
+    }
+  }
+  return JSON.stringify(obj);
+}
+function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
+function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(state); persist(); }
+/** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
+async function saveBackup(withPhotos = true) {
+  const f = backupFile(await backupText(withPhotos));
+  const url = URL.createObjectURL(f);
+  const a = el('a', { href: url, download: f.name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  markSaved();
+  toast(`« ${f.name} » enregistré dans tes Téléchargements`);
+}
+/** Envoyer le fichier (mail, Drive…) par le menu de partage du téléphone. */
+async function sendBackup(withPhotos = true) {
+  const f = backupFile(await backupText(withPhotos));
+  try { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); markSaved(); } catch { /* annulé */ }
+}
+
+/* ---------- Restaurer ma sauvegarde, importer les lieux d'un proche ---------- */
+
+let importMode = 'mine';
+let importInput = null;
+function pickImport(mode) {
+  importMode = mode;
+  if (!importInput) {
+    importInput = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    document.body.append(importInput);
+    importInput.addEventListener('change', onImportFile);
+  }
+  importInput.click();
+}
+async function onImportFile() {
+  const f = importInput.files?.[0];
+  importInput.value = '';
+  if (!f) return;
+  const text = await f.text();
+  const from = fileOwner(text);
+  // Ma sauvegarde : directement. Si le fichier porte un autre prénom que le mien, on demande.
+  if (importMode === 'mine' && (!from || !state.me || from === state.me)) { importText(text, ''); return; }
+  if (importMode === 'friend' && from && from === state.me) { importText(text, ''); return; }
+  const other = el('input', { type: 'text', maxlength: '30', value: from, placeholder: 'Prénom', 'aria-label': 'Prénom de la personne' });
+  openSheet('À qui sont ces lieux ?', el('div', { class: 'stack' },
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => importText(text, '') }, 'Ce sont mes lieux (sauvegarde)'),
+    el('label', { class: 'field' }, 'Lieux d\'une autre personne', other),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
+      const name = other.value.trim();
+      if (!name) { other.focus(); toast('Indique son prénom.', true); return; }
+      importText(text, name);
+    } }, 'Ajouter comme ses lieux'),
+    el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
+  ), { name: 'importwho' });
+}
+function importText(text, owner) {
+  const wasEmpty = state.points.length === 0;
+  try {
+    const r = mergeImport(state, text, owner);
+    state = { ...r.state, ok: state.ok };
+    importPhotos(text, state);
+    if (!owner && wasEmpty) {
+      // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
+      let at = Date.now();
+      try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
+      if (!state.me) state.me = fileOwner(text);
+      state.lastExport = at;
+      state.backup = savedBackup(state);
+    }
+    persist(); refresh();
+    if (wasEmpty && state.points.length) {
+      closeSheet();
+      map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
+    } else openSettings(owner ? 'importer' : 'sauvegarde');
+    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
+  } catch (e) {
+    toast(e.message || 'Import impossible.', true);
+  }
 }
 
 /* ---------- Actualiser : ma position, la carte, l'appli ---------- */
@@ -4478,6 +4529,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
@@ -4487,7 +4539,6 @@ const HELP = [
     '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
     '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
     '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
-    '{copy} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {copy} copie le lien de la sortie, avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4588,18 +4639,20 @@ const HELP = [
     'Une sortie à deux : {calendar-clock} Mon planning → {copy} à côté de la sortie copie le lien ; colle-le dans un SMS. Ton ami reçoit le lieu avec le jour et l\'heure ; en l\'enregistrant, la sortie arrive dans son planning.',
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',
+    'Tous tes lieux : {settings} → Sauvegarde, écris ton prénom, Envoyer le fichier ; ton ami fait Réglages → Restaurer ou importer → Importer les lieux d\'un proche.',
     'Ensuite, {list-filter} Filtres → « Lieux de mes proches » : les tiens, les siens ou tous.',
     'L\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
   ]],
   ['save', 'Sauvegarder (important)', [
-    'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : {settings} → Sauvegarde et partage → Exporter.',
-    'Le fichier va dans tes Téléchargements. Sur un autre téléphone : Importer.',
+    'Tes lieux ne sont que sur ce téléphone. Sauvegarde-les souvent : {settings} → Sauvegarde (en tête des Réglages, en orange s\'il y a des changements) → Sauvegarder maintenant. Un rappel s\'affiche à l\'ouverture dès 5 changements, ou au bout de 3 jours.',
+    '{triangle-alert} Effacer les « données des sites » (ou « cookies et données des sites ») dans Chrome efface aussi tes lieux. Sauvegarde avant.',
+    'Le fichier va dans tes Téléchargements. Envoie-le aussi de temps en temps sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
+    '{upload} Pour retrouver tes lieux (nouveau téléphone, données effacées) : {settings} → Restaurer ou importer → Restaurer ma sauvegarde. Si la carte est vide à l\'ouverture, l\'appli te le propose tout de suite.',
     '{download} Importer de Google Maps : tes listes et tes lieux enregistrés (les étapes sont expliquées). Les listes .csv sont cherchées par leur nom : vérifie les lieux marqués « à vérifier ».',
   ]],
   ['zap', 'Raccourcis sur l\'icône', [
     'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
-    'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
+    'Absents ? Sauvegarde tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
   ]],
   ['palette', 'Le code couleur', [
     'Ardoise : y aller et se guider · Bleu vif : métro, Vélib\', rentrer · Terre cuite : découvrir (sorties, curiosités, surprise, Mon Paris) · Vert Wallace : ajouter, garder · Or : favori, notes · Zinc : réglages, aide · Brique : supprimer.',
@@ -4649,14 +4702,27 @@ renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
-} else if (!/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search)) { // pas par-dessus un lien reçu
-  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu. L\'aide est en tête des Réglages, en bas à gauche.');
+} else if (state.ok && !/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search)) { // pas par-dessus un lien reçu
+  // Carte vide : premier lancement, ou lieux effacés avec les données de Chrome. La restauration est proposée tout de suite.
+  openSheet('Ta carte est vide', el('div', { class: 'stack' },
+    el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => { closeSheet(); openAddChoice(); } }, ico('plus'), 'Ajouter mon premier lieu'),
+    el('p', { class: 'help' }, 'Tu peux aussi laisser le doigt appuyé sur la carte. L\'aide est en tête des Réglages, en bas à gauche.'),
+  ), { name: 'vide' });
 }
-if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
+if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à sauvegarder tes lieux.', true);
 
 const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
 runLaunchAction();
-if (!launched && state.ok && backupDue(state)) remindBackup();
+if (!launched && state.ok && backupDue(state)) {
+  let last = 0;
+  try { last = Number(storage.getItem('carte-paris.rappel-sauvegarde')) || 0; } catch { /* rien */ }
+  if (Date.now() - last > 864e5) { // au plus une fois par jour
+    try { storage.setItem('carte-paris.rappel-sauvegarde', String(Date.now())); } catch { /* rien */ }
+    remindBackup();
+  }
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

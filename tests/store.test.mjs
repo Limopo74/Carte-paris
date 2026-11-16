@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newPoint, validatePoint, loadState, saveState, exportJSON, mergeImport, KEY,
-  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, PRESETS, suggestedPresets, backupDue, unsavedCount, fileOwner, owners, addCategory, updateCategory, deleteCategory,
+  DEFAULT_CATEGORIES, PALETTE, ICONS, DEFAULT_ICON, DEFAULT_FAV, FAV_COLORS, setFavStyle, setDone, exportFileName, trackChange, savedBackup, PRESETS, suggestedPresets, backupDue, unsavedCount, fileOwner, owners, addCategory, updateCategory, deleteCategory,
 } from '../js/store.js';
 import { DEFAULT_RINGS } from '../js/geo.js';
 
@@ -232,8 +232,9 @@ test('date de visite : notée quand on passe à « Déjà visité », effacée s
 
 test('nom du fichier de sauvegarde : date, heure et nombre de lieux', () => {
   const d = new Date(2026, 10, 5, 9, 7);
-  assert.equal(exportFileName(d, 42), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (42 lieux).json');
-  assert.equal(exportFileName(d, 1), 'Ma carte de Paris - sauvegarde du 05-11-2026 à 09h07 (1 lieu).json');
+  assert.equal(exportFileName(d, 42), 'Ma carte de Paris - sauvegarde du 05-11-2026 09h07 (42 lieux).json');
+  assert.match(exportFileName(d, 42), /^[\x20-\x7e]+$/, 'nom sans accent');
+  assert.equal(exportFileName(d, 1), 'Ma carte de Paris - sauvegarde du 05-11-2026 09h07 (1 lieu).json');
   assert.doesNotMatch(exportFileName(d, 3), /[\/:*?"<>|]/);
 });
 
@@ -251,20 +252,52 @@ test('catégories toutes prêtes : valides, sans doublon, et celles déjà prés
   assert.ok(names.includes('Bars'));
 });
 
-test('rappel de sauvegarde : souvent', () => {
+test('sauvegarde : tout changement compte, revenir à l\'état sauvegardé remet à zéro', () => {
   const DAY = 86_400_000;
-  const now = Date.UTC(2026, 10, 15);
+  const now = Date.UTC(2026, 10, 16);
+  let st = { ...base(), points: [sample()] };
+  st.backup = savedBackup(st);
+  assert.equal(trackChange(st, now).n, 0, 'rien n\'a changé');
+  const step = (s, change) => { const next = { ...s, ...change(s) }; next.backup = trackChange(next, now); return next; };
+  st = step(st, (s) => ({ points: s.points.map((p) => ({ ...p, note: 'Le jardin' })) }));
+  assert.equal(st.backup.n, 1, 'une note');
+  st = step(st, (s) => ({ points: s.points.map((p) => ({ ...p, stars: 4 })) }));
+  st = step(st, (s) => ({ points: s.points.map((p) => ({ ...p, done: true })) }));
+  assert.equal(st.backup.n, 3, 'étoiles et déjà visité comptent aussi');
+  assert.equal(trackChange(st, now).n, 3, 'enregistrer deux fois le même état ne compte qu\'une fois');
+  assert.equal(st.backup.since, now);
+  const saved = { ...st, backup: savedBackup(st) };
+  const back = step(step(saved, (s) => ({ points: s.points.map((p) => ({ ...p, fav: !p.fav })) })), (s) => ({ points: s.points.map((p) => ({ ...p, fav: !p.fav })) }));
+  assert.equal(back.backup.n, 0, 'favori allumé puis éteint : rien à sauvegarder');
+  assert.equal(step(saved, () => ({ points: [] })).backup.n, 1, 'une suppression compte');
+});
+
+test('rappel de sauvegarde : dès 5 changements, ou un changement de plus de 3 jours', () => {
+  const DAY = 86_400_000;
+  const now = Date.UTC(2026, 10, 16);
+  const b = (n, age) => ({ backup: { saved: 'x', last: 'y', n, since: n ? now - age * DAY : null } });
+  assert.equal(backupDue(b(0, 0), now), false, 'rien en attente');
+  assert.equal(backupDue(b(4, 1), now), false, '4 changements récents');
+  assert.equal(backupDue(b(5, 0), now), true, '5 changements');
+  assert.equal(backupDue(b(1, 4), now), true, 'un changement de plus de 3 jours');
+  assert.equal(backupDue({}, now), false);
+});
+
+test('sauvegarde : reprise de l\'ancien compteur (lieux ajoutés) et état gardé', () => {
+  const DAY = 86_400_000;
+  const now = Date.UTC(2026, 10, 16);
   const pts = (n, age) => Array.from({ length: n }, () => ({ ...sample(), created: now - age * DAY }));
-  assert.equal(backupDue({ points: pts(2, 1), lastExport: null }, now), false, 'moins de 3 lieux, jamais sauvegardé');
-  assert.equal(backupDue({ points: pts(3, 1), lastExport: null }, now), true, '3 lieux jamais sauvegardés');
-  assert.equal(backupDue({ points: pts(5, 20), lastExport: now - 10 * DAY }, now), false, 'rien de nouveau depuis');
-  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(1, 2)], lastExport: now - 10 * DAY }, now), true, 'un lieu nouveau, sauvegarde de plus de 7 jours');
-  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(1, 1)], lastExport: now - 3 * DAY }, now), false, 'sauvegarde récente');
-  assert.equal(backupDue({ points: [...pts(5, 20), ...pts(10, 1)], lastExport: now - 2 * DAY }, now), true, '10 lieux nouveaux');
+  const old = memStorage();
+  old.setItem('carte-paris.v1', JSON.stringify({ points: [...pts(2, 20), ...pts(3, 4)], lastExport: now - 10 * DAY }));
+  const st = loadState(old);
+  assert.equal(st.backup.n, 3, 'les 3 lieux ajoutés depuis la dernière sauvegarde');
+  assert.equal(st.backup.since, now - 4 * DAY);
+  assert.equal(trackChange(st, now).n, 3, 'au chargement, rien de nouveau');
+  const mem = memStorage();
+  saveState(mem, { ...base(), lastExport: 1234, backup: { saved: 'a', last: 'b', n: 2, since: 99 } });
+  assert.equal(loadState(mem).lastExport, 1234);
+  assert.deepEqual(loadState(mem).backup, { saved: 'a', last: 'b', n: 2, since: 99 });
   assert.equal(unsavedCount({ points: [...pts(5, 20), ...pts(4, 1)], lastExport: now - 2 * DAY }), 4);
-  const st = memStorage();
-  saveState(st, { ...base(), lastExport: 1234 });
-  assert.equal(loadState(st).lastExport, 1234);
 });
 
 test('voix activée par défaut, réglage conservé', () => {
