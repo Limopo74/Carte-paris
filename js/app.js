@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (73)';
+const VERSION = '16 novembre 2026 (74)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2744,6 +2744,7 @@ const STREET_ICON = { marche: 'gift', brocante: 'tags', fete: 'sparkles', expo: 
 const STREET_LABEL = { marche: 'Marché éphémère', brocante: 'Brocante, puces, vide-grenier', fete: 'Fête, festival', expo: 'Expo en plein air' };
 async function drawMarkets() {
   marketsLayer.clearLayers();
+  document.getElementById('btnStreet')?.setAttribute('aria-pressed', String(Boolean(state.showMarkets)));
   if (!state.showMarkets) return;
   const list = marketsOn(await loadMarkets());
   if (!state.showMarkets) return;
@@ -3799,6 +3800,10 @@ drawLines();
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
+document.getElementById('btnStreet').addEventListener('click', () => {
+  state.showMarkets = !state.showMarkets; persist(); drawMarkets();
+  toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
+});
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -3808,6 +3813,7 @@ const TOOL_INFO = {
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
+  street: { el: 'btnStreet', icon: 'store', name: 'Dans la rue aujourd\'hui' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -3852,6 +3858,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{store} Nouveau bouton sur la carte : « Dans la rue aujourd\'hui » s\'allume et s\'éteint d\'un appui. Pour le cacher : {settings} → Boutons de la carte.',
     'Tampon d\'état du jour, le même partout (tes listes, galeries) : OUVERT, FERME DANS 20 MIN, OUVRE À 14H ou FERMÉ AUJOURD\'HUI. Les jours de fermeture restent écrits à côté.',
     '{copy} Icône « copier » plus discrète : plus petite et sans cadre (toujours facile à toucher).',
     '{store} « Dans la rue aujourd\'hui » remplace « Marchés du jour » dans {list-filter} Filtres : en plus des marchés, la carte montre les brocantes, fêtes, expos en plein air et marchés éphémères du jour. Un appui ouvre leur fiche (boussole, métro, enregistrer).',
@@ -3906,6 +3913,7 @@ const HELP = [
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
+    '{store} Dans la rue aujourd\'hui : un appui affiche (bouton allumé) ou cache sur la carte les marchés, brocantes, fêtes, expos en plein air et marchés éphémères du jour.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',

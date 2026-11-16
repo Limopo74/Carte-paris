@@ -355,8 +355,9 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'paris', 'locate']); // l'ancien bouton zoom disparaît
-  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'paris', 'home', 'locate']);
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'street', 'paris', 'locate']); // l'ancien bouton zoom disparaît
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'street', 'locate'], 'nouveau bouton juste avant Ma position');
+  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'home', 'paris', 'street', 'locate']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
 

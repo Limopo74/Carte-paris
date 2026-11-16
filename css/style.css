@@ -863,6 +863,8 @@ body { background: var(--soft); }
 .map-btn.c-add { --fam: var(--add); }
 #btnPratique { --fam: var(--add); }
 #btnVelib, #btnHome { --fam: var(--metro); }
+.map-btn.c-disc { --fam: var(--disc); width: 50px; height: 50px; border-radius: 12px; background: var(--bg); color: var(--fam); border: 2px solid var(--fam); box-shadow: 0 3px 0 var(--fam); }
+.map-btn.c-disc[aria-pressed="true"] { background: var(--fam); color: var(--bg); }
 .map-btn[aria-pressed="true"], .map-btn.c-guide[aria-pressed="true"] { background: var(--fam); color: var(--bg); border-color: var(--fam); }
 .paris-btn { font-weight: 800; font-size: 13px; }
 .wx-badge { border-radius: 8px; border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: 0 2px 0 var(--hard); font-family: var(--display); font-weight: 600; }
@@ -1076,3 +1078,4 @@ a.go, .item .go { background: var(--aller-bg); }
 .go-compass.copy-btn { flex: none; width: 44px; min-height: 44px; background: transparent; border: 0; box-shadow: none; color: var(--info); }
 .go-compass.copy-btn .ico svg { width: 18px; height: 18px; }
 .item-sub > .tag:first-child { margin-left: 0; }
+:root[data-theme="dark"] .map-tools .map-btn.c-disc[aria-pressed="true"] { background: var(--fam); color: #10131C; }
