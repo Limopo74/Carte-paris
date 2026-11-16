@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
 
 const notreDame = { lat: 48.852968, lng: 2.349902 };
 const eiffel = { lat: 48.858370, lng: 2.294481 };
@@ -88,4 +88,13 @@ test('avis Google : recherche par nom et adresse, sans position', () => {
   assert.equal(u, 'https://www.google.com/maps/search/?api=1&query=Caf%C3%A9%20des%20Pav%C3%A9s%2C%2012%20rue%20de%20Bretagne%2C%2075003%20Paris');
   assert.doesNotMatch(u, /48\.86|2\.36/);
   assert.match(reviewsUrl({ name: 'Square', lat: 1, lng: 2 }), /query=Square%2C%20Paris$/);
+});
+
+test('Uber : lien universel, départ = ta position côté Uber, destination nommée', () => {
+  const u = uberUrl({ name: 'Café des Pavés', address: '12 rue de Bretagne, 75003 Paris', lat: 48.86312, lng: 2.36152 });
+  assert.match(u, /^https:\/\/m\.uber\.com\/ul\/\?action=setPickup&pickup=my_location&/);
+  assert.match(u, /dropoff\[latitude\]=48\.863120&dropoff\[longitude\]=2\.361520/);
+  assert.match(u, /dropoff\[nickname\]=Caf%C3%A9%20des%20Pav%C3%A9s/);
+  assert.match(u, /dropoff\[formatted_address\]=12%20rue/);
+  assert.doesNotMatch(uberUrl({ name: 'X', lat: 1, lng: 2 }), /formatted_address/);
 });

@@ -1,7 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
@@ -11,7 +11,7 @@ import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, neare
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
-import { exportUrl, parseRecords, nearestOf } from './pratique.js';
+import { exportUrl, parseRecords, nearestOf, parseRatpToilets } from './pratique.js';
 import { TRANSPORT_FILES, COLORS_FILE, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
@@ -31,7 +31,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (104)';
+const VERSION = '16 novembre 2026 (105)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1183,7 +1183,9 @@ function openDetail(id, back = null) {
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
       el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
-        ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
+        ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+      el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
+        ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Ouvre Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('h3', { class: 'fiche-sec' }, 'Rangement'),
     tidy,
     back ? backBtn(back) : null,
@@ -3677,7 +3679,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: `btn c-metro`, onclick: () => openSettings('transports') }, ico('lines'),
         transportsDue(transportsUpdated) ? 'Données des transports : à mettre à jour' : `Données des transports (${frenchDate(transportsUpdated)})`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km) et Vélib\' (aucune position envoyée). Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -4025,6 +4027,8 @@ function showNearestMetro(from, note = null) {
 
 const PRATIQUE_KEY = 'carte-paris.pratique'; // copie locale des données de la Ville (rafraîchie chaque jour)
 const pratique = { fontaines: null, toilettes: null };
+let ratpToilets = null;
+const loadRatpToilets = async () => (ratpToilets ??= await fetch('data/sanitaires-ratp.json').then((r) => (r.ok ? r.json() : null)).then(parseRatpToilets).catch(() => []));
 
 async function loadPratique(kind) {
   if (pratique[kind]) return pratique[kind];
@@ -4049,14 +4053,16 @@ async function loadPratique(kind) {
 async function nearestPratique() {
   track('Fontaine et toilettes');
   toast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
-  const [from, fontaines, toilettes, fraisLieux, fraisParcs] = await Promise.all([
+  const [from, fontaines, toilettesVille, toilettesRatp, fraisLieux, fraisParcs] = await Promise.all([
     locate().catch(() => (here && Date.now() - here.time < 2 * 3600 * 1000 ? here : null)),
     loadPratique('fontaines'),
     loadPratique('toilettes'),
+    loadRatpToilets(),
     loadPratique('fraisLieux'),
     loadPratique('fraisParcs'),
   ]);
   hideToast();
+  const toilettes = [...toilettesVille, ...toilettesRatp];
   if (!from) { toast(GEO_ERRORS[1], true); return; }
   if (!fontaines.length && !toilettes.length && !fraisLieux.length && !fraisParcs.length) {
     toast('Les données de la Ville de Paris ne répondent pas. Vérifie ta connexion et réessaie.', true);
@@ -4070,9 +4076,9 @@ function showPratique(from, fs, ts, cs = []) {
     el('h3', { class: 'ring-title' }, el('span', {}, title), el('span', {}, '')),
     list.length
       ? el('ul', { class: 'items' }, list.map(({ item, d }) => {
-        const target = { name: `${icon} ${item.label}`, lat: item.lat, lng: item.lng };
+        const target = { name: item.label, lat: item.lat, lng: item.lng };
         return el('li', { class: 'item' },
-          el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, icon),
+          el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
             el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
           el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
@@ -4081,19 +4087,19 @@ function showPratique(from, fs, ts, cs = []) {
       : el('p', { class: 'empty' }, 'Aucune trouvée.'),
   ];
   openSheet('Pratique près de toi', el('div', { class: 'stack' },
-    ...block('Fontaine à boire', '🚰', fs),
-    ...block('Toilettes publiques', '🚻', ts),
-    ...(cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', '🌳', cs) : []),
-    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées.'),
+    ...block('Fontaine à boire', 'glass-water', fs),
+    ...block('Toilettes publiques', 'toilet', ts),
+    ...(cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', 'trees', cs) : []),
+    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées. Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
   ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng]];
-  for (const [list, icon] of [[fs, '🚰'], [ts, '🚻'], [cs, '🌳']]) {
+  for (const [list, icon] of [[fs, 'glass-water'], [ts, 'toilet'], [cs, 'trees']]) {
     list.forEach(({ item }, i) => {
       pts.push([item.lat, item.lng]);
       L.marker([item.lat, item.lng], { interactive: false, keyboard: false, zIndexOffset: i ? 1500 : 2000,
-        icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin${i ? ' far' : ''}">${icon}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+        icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin${i ? ' far' : ''}">${svgIcon(icon, { size: 16 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
     });
   }
   map.fitBounds(L.latLngBounds(pts).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
@@ -4163,6 +4169,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
     '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
@@ -4172,7 +4179,6 @@ const HELP = [
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
     '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
     '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
-    '{map-pin} Nouvelle fiche d\'un lieu, façon page de journal : la catégorie et l\'arrondissement au-dessus du nom ; ton commentaire en grand ; Favori et Déjà visité juste en dessous ; « Aujourd\'hui » et le métro côte à côte ; la photo en large. Plus de bouton « Plus » : Modifier, Partager, QR code, Mon billet, Horaires, Déplacer et Supprimer sont rangés en trois rubriques, chacun à un appui.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4181,7 +4187,7 @@ const HELP = [
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
-    '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
+    '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
@@ -4236,7 +4242,7 @@ const HELP = [
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
     'Sous ton commentaire : Favori et {check} Déjà visité (touche à nouveau pour éteindre). Puis « Aujourd\'hui » (horaires) et le métro le plus proche, côte à côte.',
-    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
+    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps ; {car-taxi-front} Uber jusqu\'ici : l\'appli Uber s\'ouvre avec la destination remplie) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',

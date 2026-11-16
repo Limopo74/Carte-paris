@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { exportUrl, parseRecords, nearestOf } from '../js/pratique.js';
+import { parseRatpToilets } from '../js/pratique.js';
 
 test('adresses des données ouvertes de la Ville de Paris', () => {
   assert.equal(exportUrl('fontaines'), 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/fontaines-a-boire/exports/json');
@@ -40,4 +41,17 @@ test('les plus proches en état de marche', () => {
   const r = nearestOf(items, { lat: 48.86, lng: 2.34 }, 2);
   assert.deepEqual(r.map((x) => x.item.label), ['a', 'b']);
   assert.deepEqual(parseRecords(null, 'fontaines'), []);
+});
+
+test('toilettes RATP : zone payante dite clairement, lignes illisibles écartées', () => {
+  const t = parseRatpToilets({ items: [
+    { n: 'Nation', l: 'A', lat: 48.848, lng: 2.397, zone: true, passe: false, payant: false, pmr: true, ou: 'En bas des escalators.' },
+    { n: 'Laplace', l: 'B', lat: 48.808, lng: 2.333, zone: false, passe: true, payant: false, pmr: true, ou: '' },
+    { n: 'Sans position' },
+  ] });
+  assert.equal(t.length, 2);
+  assert.equal(t[0].label, 'Toilettes RATP · Nation');
+  assert.match(t[0].detail, /zone payante.*ticket/); assert.match(t[0].detail, /Accès fauteuil/);
+  assert.match(t[1].detail, /Sans passer les tourniquets/); assert.match(t[1].detail, /passe Navigo/);
+  assert.deepEqual(parseRatpToilets(null), []);
 });

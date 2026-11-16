@@ -73,3 +73,14 @@ export function nearestOf(items, here, n = 3) {
     .sort((a, b) => a.d - b.d)
     .slice(0, n);
 }
+
+/** Toilettes des gares et stations RATP (fichier fixe data/sanitaires-ratp.json) au même format que les autres. */
+export function parseRatpToilets(json) {
+  return (Array.isArray(json?.items) ? json.items : []).filter((t) => Number.isFinite(t.lat) && Number.isFinite(t.lng)).map((t) => ({
+    lat: t.lat, lng: t.lng,
+    label: `Toilettes RATP · ${t.n || 'station'}`,
+    detail: [t.ou, t.zone ? 'Dans la zone payante : il faut un ticket ou un passe pour y aller' : 'Sans passer les tourniquets',
+      t.passe ? 'Porte ouverte avec un passe Navigo ou un ticket' : '', t.payant ? 'Payant' : '', t.pmr ? 'Accès fauteuil' : ''].filter(Boolean).join(' · '),
+    ok: true,
+  }));
+}

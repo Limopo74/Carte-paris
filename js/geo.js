@@ -67,6 +67,15 @@ export function reviewsUrl(p) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
+/** Lien universel Uber : ouvre l'appli Uber avec la destination remplie ; le départ est la position que l'appli Uber prend elle-même.
+ *  Ma carte de Paris n'envoie rien : seul l'appui transmet à Uber le lieu de destination. */
+export function uberUrl(p) {
+  const e = encodeURIComponent;
+  const q = ['action=setPickup', 'pickup=my_location', `dropoff[latitude]=${p.lat.toFixed(6)}`, `dropoff[longitude]=${p.lng.toFixed(6)}`, `dropoff[nickname]=${e(p.name)}`];
+  if (p.address) q.push(`dropoff[formatted_address]=${e(p.address)}`);
+  return `https://m.uber.com/ul/?${q.join('&')}`;
+}
+
 // Cercles en minutes à pied : même règle que walkMinutes (12 min/km, trajet 1,3 fois la ligne droite).
 export const DEFAULT_MINUTE_RINGS = [5, 10, 15, 20];
 const M_PER_MIN = 1000 / (MIN_PER_KM * DETOUR); // ≈ 64 m à vol d'oiseau par minute de marche
