@@ -77,8 +77,7 @@ test('sorties : requête du jour sans position, lecture robuste, proches d\'abor
   assert.equal(ev[3].url, '');
   const near = nearbyEvents(ev, START, 1000);
   assert.deepEqual(near.map((e) => e.title), ['Concert gratuit', 'Lien douteux']);
-  const h = new Date('2026-11-16T20:30:00+01:00');
-  assert.equal(whenText(ev[0], new Date('2026-11-16T17:00:00+01:00')), `à ${h.getHours()}h30`);
+  assert.equal(whenText(ev[0], new Date(2026, 10, 16, 17, 0)), 'à 20h30', 'l\'heure écrite est l\'heure de Paris');
 });
 
 test('lieux frais : adresse légère pour les parcs, lecture des équipements', () => {
@@ -99,4 +98,26 @@ test('sorties : brocantes, fêtes, gratuit, puces', async () => {
   assert.deepEqual(ev.map((e) => e.free), [true, false, false, false]);
   assert.equal(isFleaMarket({ name: 'Puces de Vanves', products: '' }), true);
   assert.equal(isFleaMarket({ name: 'Marché Bastille', products: 'Alimentaire' }), false);
+});
+
+test('agenda : heure de Paris malgré le faux fuseau, et seulement les créneaux du jour', async () => {
+  const { wallTime, parseSlots, todayOnly, whenText, startsLater, parseEvents } = await import('../js/events.js');
+  assert.equal(wallTime('2026-11-16T20:00:00+00:00').getHours(), 20, 'concert à 20 h : date_start écrit 20:00+00:00');
+  assert.equal(wallTime('2026-11-16T20:00:00+02:00').getHours(), 20, 'créneau écrit 20:00+02:00, même en hiver');
+  assert.equal(wallTime('n\'importe quoi'), null);
+  const now = new Date(2026, 10, 16, 15, 0); // lundi 16 novembre, 15 h
+  const json = [
+    { title: 'Répare ton vélo (le vendredi)', lat_lon: { lat: 48.86, lon: 2.34 }, date_start: '2023-11-10T18:00:00+00:00', date_end: '2026-11-20T21:30:00+00:00',
+      occurrences: '2026-11-13T18:00:00+02:00_2026-11-13T21:30:00+02:00;2026-11-20T18:00:00+02:00_2026-11-20T21:30:00+02:00' },
+    { title: 'Concert', lat_lon: { lat: 48.86, lon: 2.34 }, date_start: '2026-11-16T20:00:00+00:00', date_end: '2026-11-16T22:30:00+00:00', occurrences: '2026-11-16T20:00:00+02:00_2026-11-16T22:30:00+02:00' },
+    { title: 'Expo sans créneaux', lat_lon: { lat: 48.86, lon: 2.34 }, date_start: '2026-11-02T00:00:00+00:00', date_end: '2026-11-20T23:59:59+00:00', occurrences: null },
+    { title: 'Atelier du matin', lat_lon: { lat: 48.86, lon: 2.34 }, date_start: '2026-11-16T10:00:00+00:00', date_end: '2026-11-16T12:00:00+00:00', occurrences: '2026-11-16T10:00:00+02:00_2026-11-16T12:00:00+02:00' },
+  ];
+  const ev = parseEvents(json, now);
+  assert.equal(parseSlots(json[0].occurrences, now).length, 1, 'le vendredi passé (13) est hors de la fenêtre, le 20 y est');
+  const today = todayOnly(ev, now);
+  assert.deepEqual(today.map((e) => e.title), ['Concert', 'Expo sans créneaux'], 'le vélo est le vendredi, l\'atelier du matin est fini');
+  assert.equal(whenText(today[0], now), 'à 20h');
+  assert.equal(startsLater(today[0], now), true);
+  assert.equal(today[1].end.getDate(), 20, 'l\'expo garde sa date de fin (dernière chance)');
 });

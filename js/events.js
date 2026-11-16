@@ -14,7 +14,7 @@ export function eventsUrl(now = new Date()) {
 }
 
 /** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions). */
-export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url';
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url'; // sans « occurrences » : trop lourd pour la semaine
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
 export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
@@ -23,6 +23,45 @@ export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   if (light) q.select = EVENT_FIELDS;
   u.search = new URLSearchParams(q).toString();
   return u.toString();
+}
+
+/**
+ * Heure de l'agenda : c'est l'heure de Paris écrite avec un faux fuseau (« 20:00:00+00:00 » veut dire 20 h à Paris ;
+ * les créneaux portent « +02:00 » même en hiver). On lit donc l'heure telle qu'elle est écrite, sans le fuseau.
+ * Vérifié le 16 nov. 2026 sur l'API (concert à 20 h : date_start 20:00+00:00, créneau 20:00+02:00).
+ */
+export function wallTime(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(typeof s === 'string' ? s : '');
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+/** Créneaux « début_fin;début_fin… » : seulement ceux d'hier à dans 8 jours (une sortie peut en avoir des centaines). */
+export function parseSlots(text, now = new Date()) {
+  if (typeof text !== 'string' || !text.includes('_')) return null;
+  const from = new Date(now); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 1);
+  const to = new Date(from); to.setDate(to.getDate() + 10);
+  const out = [];
+  for (const part of text.split(';')) {
+    const [a, b] = part.split('_');
+    const s = wallTime(a); const e = wallTime(b);
+    if (s && e && e >= from && s <= to) out.push({ start: s, end: e });
+  }
+  return out; // tableau vide : la sortie a des créneaux, mais aucun ces jours-ci
+}
+/**
+ * Les sorties d'aujourd'hui, avec leur vrai créneau : en cours ou plus tard dans la journée.
+ * Une sortie sans créneaux (« occurrences » vide) garde ses dates de début et de fin.
+ */
+export function todayOnly(events, now = new Date()) {
+  const end = new Date(now); end.setHours(23, 59, 59, 999);
+  const out = [];
+  for (const e of events) {
+    if (!e.slots) { out.push(e); continue; }
+    const slot = e.slots.filter((x) => x.end > now && x.start <= end).sort((a, b) => a.start - b.start)[0];
+    if (slot) out.push({ ...e, slotStart: slot.start, slotEnd: slot.end });
+  }
+  return out;
 }
 
 const str = (v) => (typeof v === 'string' ? v.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '');
@@ -35,20 +74,19 @@ function where(r) {
 }
 
 /** [{ title, lat, lng, start, end, place, address, url, free, lead }] — ce qui est illisible est écarté. */
-export function parseEvents(json) {
+export function parseEvents(json, now = new Date()) {
   const out = [];
   for (const r of Array.isArray(json) ? json : []) {
     const p = where(r);
     const title = str(r.title);
     if (!p || !title || !(p.lat > 48 && p.lat < 49.5)) continue;
-    const start = r.date_start ? new Date(r.date_start) : null;
-    const end = r.date_end ? new Date(r.date_end) : null;
+    const start = wallTime(r.date_start);
+    const end = wallTime(r.date_end);
     const price = str(r.price_type).toLowerCase();
     const tags = (Array.isArray(r.qfap_tags) ? r.qfap_tags.join(';') : str(r.qfap_tags)).slice(0, 200);
     out.push({
       title: title.slice(0, 120), ...p,
-      start: start && !Number.isNaN(start.getTime()) ? start : null,
-      end: end && !Number.isNaN(end.getTime()) ? end : null,
+      start, end, slots: parseSlots(r.occurrences, now),
       place: str(r.address_name).slice(0, 80),
       address: [str(r.address_street), str(r.address_zipcode), str(r.address_city)].filter(Boolean).join(' ').slice(0, 120),
       url: /^https:\/\//.test(r.url ?? '') ? r.url : '',
@@ -71,8 +109,9 @@ export function nearbyEvents(events, here, maxM = 2000) {
 /** « jusqu'à 22h », « à 20h30 », « toute la journée ». */
 export function whenText(e, now = new Date()) {
   const hm = (d) => `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`.replace('h00', 'h');
-  if (e.start && e.start > now) return `à ${hm(e.start)}`;
-  if (e.end && e.end.toDateString() === now.toDateString()) return `jusqu'à ${hm(e.end)}`;
+  const s = e.slotStart ?? e.start; const en = e.slotEnd ?? e.end; // le créneau du jour s'il est connu
+  if (s && s > now) return `à ${hm(s)}`;
+  if (en && en.toDateString() === now.toDateString()) return `jusqu'à ${hm(en)}`;
   return 'en cours aujourd\'hui';
 }
 
@@ -142,4 +181,4 @@ export function genreOf(e, { expo = false } = {}) {
 }
 
 /** Commence plus tard dans la journée (sinon : en ce moment). */
-export const startsLater = (e, now = new Date()) => Boolean(e.start && e.start > now);
+export const startsLater = (e, now = new Date()) => { const s = e.slotStart ?? e.start; return Boolean(s && s > now); };

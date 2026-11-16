@@ -21,7 +21,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (113)';
+const VERSION = '16 novembre 2026 (114)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2661,7 +2661,7 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
   const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
   return sortieCard({ genre: genreOf(e, { expo }), name: e.title, href: e.url, sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null], feat, kicker,
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
-      : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: e.start.getTime() })) : null] });
+      : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
 };
 
 /** Un musée gratuit aujourd'hui. */
@@ -2769,7 +2769,7 @@ async function openEvents(start = null) {
   }
   const mode = eventsMode;
   const back = openEvents;
-  const near3 = nearbyEvents(eventsCache?.items ?? [], o, 3000);
+  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? []), o, 3000); // seulement les créneaux d'aujourd'hui
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -3180,13 +3180,13 @@ async function drawMarkets() {
   if (!(markets ?? []).some((x) => !x.covered)) toast('Les marchés découverts de la Ville de Paris ne répondent pas pour le moment.', true);
   // Dans la rue : brocantes, fêtes, expos en plein air, marchés éphémères de l'agenda du jour
   let ev = [];
-  try { ev = await todayEvents(); } catch { return; }
+  try { ev = todayOnly(await todayEvents()); } catch { return; }
   if (!state.showMarkets) return;
   const now = new Date();
   const seen = new Set();
   for (const e of ev) {
     const kind = streetKind(e);
-    if (!kind || (e.end && e.end < now)) continue;
+    if (!kind || ((e.slotEnd ?? e.end) && (e.slotEnd ?? e.end) < now)) continue;
     const key = `${e.title}|${e.lat.toFixed(4)}|${e.lng.toFixed(4)}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -4459,6 +4459,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
     '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
     '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
     '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
@@ -4468,7 +4469,6 @@ const HELP = [
     '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
     '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
     '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
-    '{lines} Réglages → Application → Données de l\'appli (autrefois Données des transports) : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
