@@ -46,6 +46,8 @@ const ECRANS = {
   nouveau: async (p) => { await p.locator('#btnAdd').click(); },
   reglages: async (p) => { await p.locator('#btnSettings').click(); },
   application: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Application' }).click(); },
+  transports: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Application' }).click(); await feuille(p).locator('button', { hasText: 'Données des transports' }).click(); await p.waitForTimeout(400); },
+  station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
 };
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');

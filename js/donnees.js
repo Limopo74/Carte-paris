@@ -12,6 +12,12 @@ export const TRANSPORT_FILES = [
 /** Seulement si une ligne change de couleur ou si une nouvelle ligne ouvre. */
 export const COLORS_FILE = { name: 'Référentiel des lignes', file: 'referentiel-des-lignes.json', url: `${IDFM_SITE}/explore/dataset/referentiel-des-lignes/export/` };
 
+/** Toilettes des gares et stations RATP (data/sanitaires-ratp.json, refait par tools/maj-sanitaires.py). */
+export const RATP_TOILETS_FILE = { name: 'Toilettes publiques dans le réseau RATP', file: 'sanitaires-reseau-ratp.geojson', url: 'https://data.ratp.fr/explore/dataset/sanitaires-reseau-ratp/export/' };
+
+/** Page « Infos trafic » d'Île-de-France Mobilités (simple lien : rien n'est envoyé avant l'appui). */
+export const TRAFFIC_URL = 'https://www.iledefrance-mobilites.fr/info-trafic';
+
 /** Vrai si la date (AAAA-MM-JJ) manque ou date de plus de `days` jours. */
 export function transportsDue(updated, now = Date.now(), days = TRANSPORT_EVERY_DAYS) {
   const t = Date.parse(updated ?? '');

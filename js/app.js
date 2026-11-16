@@ -12,7 +12,7 @@ import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets } from './pratique.js';
-import { TRANSPORT_FILES, COLORS_FILE, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
+import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate } from './donnees.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -31,7 +31,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (105)';
+const VERSION = '16 novembre 2026 (106)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2839,6 +2839,7 @@ async function openHomePlan(home) {
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
     best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     el('p', { class: 'help' }, 'Métro et RER (là où le RER croise le métro). Estimation sans horaires ; pour le bus, ouvre le trajet puis Google Maps.'),
+    trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
   nearLayer.clearLayers();
@@ -3641,6 +3642,11 @@ function openSettings(section = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → GeoJSON · fichier « ${f.file} »`)),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+    const ratpDate = el('p', { class: 'help' }, 'Une fois par an, ou dès qu\'une gare ouvre.');
+    fetch('data/sanitaires-ratp.json').then((r) => (r.ok ? r.json() : null)).then((j) => {
+      const d = frenchDate(j?.updated);
+      if (d) fill(ratpDate, `Version du ${d}. À refaire une fois par an, ou dès qu'une gare ouvre.`);
+    }).catch(() => {});
     openSheet([ico('lines'), ' Données des transports'], el('div', { class: 'stack' },
       el('p', { class: due ? 'warn' : 'help' }, transportsUpdated
         ? `Tracés des lignes et stations de métro : version du ${frenchDate(transportsUpdated)}.${due ? ' Plus de 6 mois : à mettre à jour.' : ''}`
@@ -3652,6 +3658,10 @@ function openSettings(section = null) {
       el('div', { class: 'menu' }, link({ ...COLORS_FILE, url: COLORS_FILE.url })),
       el('h3', { class: 'ring-title' }, el('span', {}, '2. Envoie-les à Claude'), el('span', {}, '')),
       el('p', { class: 'help' }, 'Dans le projet « Geoloc », joins les fichiers avec la phrase : « Mets à jour les tracés et les gares ». Claude lance tools/maj-lignes.py, vérifie, puis publie une nouvelle version.'),
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Toilettes des gares RATP'), el('span', {}, '')),
+      ratpDate,
+      el('div', { class: 'menu' }, link(RATP_TOILETS_FILE)),
+      el('p', { class: 'help' }, 'Envoie ce fichier à Claude avec la phrase : « Mets à jour les toilettes RATP ». Claude lance tools/maj-sanitaires.py.'),
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Application')),
     ), { tall: true, name: 'settings:transports', again: () => openSettings('transports') });
     return;
@@ -3950,6 +3960,7 @@ function renderMetroPlan(p, from, back, start = null) {
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
+    plan.type === 'walk' ? null : trafficLink(),
     back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
   nearLayer.clearLayers();
@@ -3970,6 +3981,10 @@ function renderMetroPlan(p, from, back, start = null) {
 
 // Ouvre l'appli Île-de-France Mobilités si elle est installée (Android), sinon son site d'itinéraires.
 const IDFM_APP = 'intent://#Intent;package=com.applidium.vianavigo;S.browser_fallback_url=https%3A%2F%2Fme-deplacer.iledefrance-mobilites.fr%2Fitineraire;end';
+/** Lien vers les infos trafic d'IDFM, toujours au même endroit : sous l'appli IDFM (Station, trajet), au-dessus de « Mes stations » (Rentrer). */
+function trafficLink() {
+  return el('a', { class: 'btn c-metro', href: TRAFFIC_URL, target: '_blank', rel: 'noopener' }, ico('triangle-alert'), 'Info trafic métro et RER');
+}
 
 const stationLabel = (st) => [st.l?.length ? `Ligne${st.l.length > 1 ? 's' : ''} ${st.l.join(', ')}` : '', st.rer?.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
 
@@ -4006,6 +4021,7 @@ function showNearestMetro(from, note = null) {
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
     el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
+    trafficLink(),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
     el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
@@ -4169,6 +4185,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
     '{car-taxi-front} Fiche d\'un lieu, rubrique Pratique : « Uber jusqu\'ici » ouvre l\'appli Uber avec la destination déjà remplie. Fontaine et toilettes : les toilettes des gares et stations RATP s\'ajoutent à celles de la Ville, avec l\'endroit précis et s\'il faut un ticket pour y accéder.',
     '{lines} Réglages → Application → Données des transports : la date des lignes et des stations de métro, et les deux fichiers à télécharger chez Île-de-France Mobilités pour les mettre à jour. Tous les 6 mois, l\'appli te le rappelle (dans Réglages et par un message à l\'ouverture, au plus une fois par semaine).',
     '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
@@ -4178,7 +4195,6 @@ const HELP = [
     '{palette} Boutons des écrans à plat : un simple contour de leur couleur (bleu métro, vert garder, terre cuite découvrir…), sans fond ni relief, angles plus francs. Les tuiles d\'Autour de moi, les réglages, les champs et Nouveau lieu suivent. Seule l\'action principale reste une plaque pleine.',
     '{store} Les 9 marchés couverts de Paris (Enfants-Rouges, Beauvau, Saint-Quentin, Batignolles…) apparaissent dans « Dans la rue aujourd\'hui » et dans Sorties, avec leurs horaires du jour, coupure de midi comprise. Pratique quand il pleut. Les styles Française et Douce indiquent qu\'ils ne s\'affichent pas sans réseau.',
     '{info} Aide : les Nouveautés ne gardent que les 10 dernières. Confidentialité : une phrase plus claire sur les fonds de carte, qui voient la zone affichée (comme toute carte en ligne).',
-    '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
