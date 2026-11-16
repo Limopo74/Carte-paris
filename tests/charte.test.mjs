@@ -29,9 +29,9 @@ test('charte : aucune couleur écrite en dur dans une règle d\'interface', () =
   assert.deepEqual(bad, [], `Utilise un jeton (CHARTE.md §2) :\n${bad.join('\n')}`);
 });
 
-test('charte : un seul rayon (8 px), 4 px pour les tampons, rond pour les pastilles', () => {
+test('charte : un seul rayon (4 px), rond pour les pastilles', () => {
   const KEEP = /^(\.sheet|\.pin|\.line-badge|\.line-tag|\.st-line|\.hbar)\b/;
-  const ok = /^(var\(--r(-s)?\)|50%|999px|0)( (var\(--r(-s)?\)|0))*$/;
+  const ok = /^(var\(--r\)|50%|999px|0)( (var\(--r\)|0))*$/;
   const bad = [];
   for (const r of rules) for (const v of decls(r, 'border(?:-top|-bottom)?(?:-left|-right)?-radius')) if (!KEEP.test(r.sel) && !ok.test(v)) bad.push(`${r.sel} → ${v}`);
   assert.deepEqual(bad, [], `Rayon hors charte (CHARTE.md §3) :\n${bad.join('\n')}`);
@@ -68,4 +68,23 @@ test('aide : 10 nouveautés au plus (les plus anciennes restent dans l\'historiq
 test('charte : aucun emoji écrit dans un bouton ou un lien (Ⓜ seul permis, pour nommer une station)', () => {
   const bad = app.split('\n').filter((l) => /el\('(?:button|a)'/.test(l) && /\p{Extended_Pictographic}/u.test(l.replace(/Ⓜ/g, '')));
   assert.deepEqual(bad.map((l) => l.trim().slice(0, 90)), [], 'Remplace l\'emoji par ico(\'…\') (CHARTE.md §7)');
+});
+
+test('charte « Papier » : 4 px, aucune ombre « pavé », pas de fond teinté au repos, contours jamais en filet', () => {
+  assert.match(css, /--r:\s*4px/, 'le rayon unique est 4 px');
+  assert.ok(!/--r-s|--pave|--plaque-line/.test(css), 'jetons de l\'ancienne charte encore présents');
+  const CTRL = /\.(btn|map-btn|chip|tool|big-btn|icon-btn|go-compass)(?![\w-])|\.seg button/;
+  const bad = [];
+  for (const r of rules) {
+    if (!CTRL.test(r.sel) || /aria-pressed|:active|\.on\b|\.solid|\.primary|focus/.test(r.sel)) continue;
+    for (const v of decls(r, 'background(?:-color)?')) if (/--[a-z]+-bg\)/.test(v)) bad.push(`${r.sel} → fond ${v}`);
+    for (const v of decls(r, 'border(?:-color)?')) if (/var\(--line\)/.test(v) && !/disabled/.test(r.sel)) bad.push(`${r.sel} → contour ${v}`);
+  }
+  assert.deepEqual(bad, [], `Charte « Papier » (CHARTE.md) :\n${bad.join('\n')}`);
+});
+
+test('charte : jamais d\'opacité sur un texte de l\'interface (une couleur atténuée à la place)', () => {
+  const TEXT = /\.(btn|compass-(label|hint|walk|step)|help|item-sub|menu-sub|fiche-|now-)/;
+  const bad = rules.filter((r) => TEXT.test(r.sel) && decls(r, 'opacity').length).map((r) => r.sel);
+  assert.deepEqual(bad, [], `Remplace l'opacité par var(--muted) : ${bad.join(' | ')}`);
 });

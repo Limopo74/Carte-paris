@@ -1,4 +1,4 @@
-/*  Jetons de la charte « Papier » (voir CHARTE.md ; couleurs « Papier » depuis v94) : toutes les couleurs et mesures sont ici, et nulle part ailleurs.  */
+/*  Jetons de la charte « Papier » (voir CHARTE.md) : toutes les couleurs et mesures sont ici, et nulle part ailleurs.  */
 
 :root {
   font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -15,49 +15,33 @@
   --btn: #FFFFFF;
   --btn-bd: rgba(21, 24, 29, .28);
   --guide: #15181D;
-  --guide-bg: #E6E8EC;
   --guide-bd: #15181D;
   --disc: #A54A28;
-  --disc-bg: #F6E6DE;
   --add: #2C5B4E;
   --add-bg: #E2EEE9;
   --add-bd: #2C5B4E;
   --fav: #8A6514;
   --fav-bg: #F5ECD6;
-  --fav-bd: #8A6514;
   --info: #5C6370;
   --info-bg: #ECEDEF;
   --info-bd: #5C6370;
   --danger: #9A2620;
-  --plaque-line: rgba(255, 255, 255, .5);
   --hard: rgba(21, 24, 29, .16);
-  --neutral-bg: #F3F0EA;
   --neutral-bd: #8C8273;
   --metro: #1B56E8;
-  --metro-bg: #E7EEFF;
   --metro-bd: #1B56E8;
-  --aller-bg: #E8E9EC;
   --aq-bon: #4AB5A7;
   --aq-moyen: #BB5B1B;
   --aq-mauvais: #571938;
   --aq-inconnu: #BDB7AB;
   --display: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --safe-b: env(safe-area-inset-bottom, 0px);
-  --g-musique: #E9E0F3;
-  --g-expo: #F6E6DE;
-  --g-chiner: #F2E8CF;
-  --g-fete: #F9E1E6;
-  --g-scene: #E1EAF0;
-  --g-balade: #E3EEE6;
-  --g-famille: #FCEBD7;
-  --g-autre: #ECEDEF;
   --focus: #1B56E8;
   --fav-icon: #B07B00;
-  --danger-bg: #F6E1DF;
   --warn-bg: #FFF4E6; --warn-bd: #FFD8A8; --warn-ink: #8A4B00;
   --rain-bg: #E7F1FB; --rain-bd: #B7D3EE; --rain-ink: #0B4A80;
   --heat-bg: #FFF1E6; --heat-bd: #FFC9A3; --heat-ink: #8A3B00;
-  --compass-bg: #15181D; --compass-ink: #FFFFFF; --r: 8px; --r-s: 4px; --pave: 0 2px 0 var(--hard); --float: 0 1px 4px rgba(21, 24, 29, .28); --h: 48px; --h-s: 44px; --h-l: 56px;
+  --compass-bg: #15181D; --compass-ink: #FFFFFF; --compass-muted: #C2C7CF; --r: 4px; --float: 0 1px 4px rgba(21, 24, 29, .28); --h: 48px; --h-s: 44px; --h-l: 56px;
 }
 
 :root[data-theme="dark"] {
@@ -70,10 +54,7 @@
   --guide: #EEF0F3;
   --guide-bd: #EEF0F3;
   --metro: #8CB1FF;
-  --metro-bg: #172A5E;
   --metro-bd: #8CB1FF;
-  --aller-bg: #272C38;
-  --neutral-bg: #2A3040;
   --neutral-bd: #8F98AB;
   --ink: #EEF0F3;
   --muted: #A9B0BC;
@@ -85,36 +66,23 @@
   --field: #8F98AB;
   --btn: #1C2028;
   --btn-bd: rgba(238, 241, 247, .32);
-  --guide-bg: #262D3F;
   --disc: #FFB08A;
-  --disc-bg: #4A2618;
   --add: #8FD6A5;
   --add-bg: #1C4626;
   --add-bd: #8FD6A5;
   --fav: #FFDC85;
   --fav-bg: #4A3A0E;
-  --fav-bd: #FFDC85;
   --info: #C3CAD6;
   --info-bg: #2C3240;
   --info-bd: #C3CAD6;
   --danger: #FF9A92;
-  --plaque-line: rgba(0, 0, 0, .35);
   --hard: rgba(0, 0, 0, .55);
-  --g-musique: #3A2F4D;
-  --g-expo: #4A2618;
-  --g-chiner: #43381C;
-  --g-fete: #4C2631;
-  --g-scene: #24364A;
-  --g-balade: #1F3A2C;
-  --g-famille: #4A3318;
-  --g-autre: #2C3240;
   --focus: #8CB1FF;
   --fav-icon: #FFDC85;
-  --danger-bg: #4A1F1C;
   --warn-bg: #3A2A0C; --warn-bd: #6B4C12; --warn-ink: #FFD8A0;
   --rain-bg: #10283D; --rain-bd: #2A5577; --rain-ink: #A9D4FF;
   --heat-bg: #3A1F0C; --heat-bd: #7A4113; --heat-ink: #FFCFA8;
-  --compass-bg: #14171D; --compass-ink: #EEF0F3;
+  --compass-bg: #14171D; --compass-ink: #EEF0F3; --compass-muted: #A9B0BC;
   --float: 0 1px 4px rgba(0, 0, 0, .6);
 }
 
@@ -206,12 +174,12 @@ button { cursor: pointer; }
 .btn.danger { border-color: var(--danger); }
 .btn.danger.solid { background: var(--danger); }
 .btn.big { min-height: var(--h-l); font-size: 18px; justify-content: flex-start; padding: 0 18px; }
-.btn:disabled { opacity: .5; }
+.btn:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; cursor: default; }
 
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 16px; }
 .field input, .field textarea {
   width: 100%; min-height: 48px; padding: 10px 12px; font-weight: 400; font-size: 16px;
-  border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface);
+  border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface);
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .field input:focus, .field textarea:focus, .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .item-main:focus-visible {
@@ -222,7 +190,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .error { color: var(--danger); font-size: 14px; margin: 0; }
 .warn {
   background: var(--warn-bg); border: 1px solid var(--warn-bd); color: var(--warn-ink);
-  border-radius: var(--r-s); padding: 10px 12px; font-size: 14px; margin: 0;
+  border-radius: var(--r); padding: 10px 12px; font-size: 14px; margin: 0;
 }
 
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -356,7 +324,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 24px 20px calc(24px + var(--safe-b)); text-align: center;
 }
-.compass-label { margin: 0; opacity: .7; font-size: 16px; }
+.compass-label { margin: 0; color: var(--compass-muted); font-size: 16px; }
 .compass-name { margin: 0; font-size: 24px; overflow-wrap: anywhere; }
 .compass-arrow { transition: transform .25s ease-out; margin: 18px 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
 @media (prefers-reduced-motion: reduce) { .compass-arrow { transition: none; } }
@@ -365,7 +333,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .compass-done { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 2px solid currentColor; background: transparent; color: inherit; font: inherit; font-weight: 700; font-size: 16px; }
 .compass-done[hidden] { display: none; }
 .compass-done:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
-.compass-hint { margin: 0; min-height: 40px; opacity: .8; font-size: 16px; max-width: 320px; }
+.compass-hint { margin: 0; min-height: 40px; color: var(--compass-muted); font-size: 16px; max-width: 320px; }
 .compass-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin-top: 12px; }
 .compass .btn { background: var(--surface); color: var(--ink); border-color: var(--compass-ink); }
 .compass .compass-close, .compass .compass-mute { background: transparent; color: var(--compass-ink); border-color: color-mix(in srgb, var(--compass-ink) 50%, transparent); }
@@ -452,7 +420,7 @@ ol.items { padding: 0; }
 .cat-choice-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .cat-choice:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.compass-walk { margin: 0; opacity: .85; font-size: 16px; min-height: 20px; }
+.compass-walk { margin: 0; color: var(--compass-muted); font-size: 16px; min-height: 20px; }
 
 /* Trajet en métro */
 .plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -472,7 +440,7 @@ ol.items { padding: 0; }
 .fiche-v.ok { color: var(--add); } .fiche-v.ko { color: var(--danger); } .fiche-v.m { color: var(--metro); } .fiche-v.muted { color: var(--muted); }
 .fiche-s { font-size: 14px; color: var(--muted); }
 .fiche-photo { margin: 0; }
-.fiche-photo button { display: block; width: 100%; height: 150px; padding: 0; border: 0; border-radius: var(--r-s); overflow: hidden; background: var(--soft); }
+.fiche-photo button { display: block; width: 100%; height: 150px; padding: 0; border: 0; border-radius: var(--r); overflow: hidden; background: var(--soft); }
 .fiche-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .fiche-photo figcaption { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .fiche-photo button:focus-visible, .fiche-row:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -510,7 +478,7 @@ ol.items { padding: 0; }
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 0; text-align: left; font: inherit; color: var(--ink);
 }
 .menu-row:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r-s); background: var(--warn-bg); }
+.menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r); background: var(--warn-bg); }
 .menu-ico { flex: none; width: 32px; font-size: 22px; text-align: center; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .menu-title { font-size: 16px; }
@@ -586,7 +554,7 @@ ol.items { padding: 0; }
 .chip.icon-only .cat-ico { width: 30px; height: 30px; font-size: 16px; margin: 0; }
 /* Ordre des catégories */
 .cat-row .btn.move { width: 44px; padding: 0; font-size: 18px; font-weight: 700; flex: none; }
-.cat-row .btn.move:disabled { opacity: .3; }
+.cat-row .btn.move:disabled { color: var(--muted); border-color: var(--line); }
 
 .tool-prev { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; background: var(--surface); }
 .tool-prev.txt { font-size: 11.5px; font-weight: 700; }
@@ -649,7 +617,7 @@ ol.items { padding: 0; }
 .arr.l2 { background: #4FAE66; color: #06200c; border: 2px solid #2f7f43; }
 .arr.l3 { background: #1B6129; color: #fff; border: 2px solid #1B6129; }
 .arr-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-.arr-legend .arr { width: 18px; height: 18px; border-radius: var(--r-s); display: inline-block; }
+.arr-legend .arr { width: 18px; height: 18px; border-radius: var(--r); display: inline-block; }
 ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 16px; line-height: 1.4; }
 .seg button .ico svg { width: 18px; height: 18px; }
 .row > input, .row > select { flex: 1; min-width: 0; }
@@ -660,7 +628,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .help-item li .ico svg { width: 17px; height: 17px; }
 #sheetTitle:focus { outline: none; }
 #sheetTitle:focus-visible { outline: none; }
-.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface); }
+.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); }
 .m-badge::before { content: 'M'; }
 
 /* Styles de carte : filtres faits par le téléphone */
@@ -708,7 +676,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 
 /* Lot balade guidée, sorties, où suis-je, QR */
 .compass-guide { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; flex-wrap: wrap; justify-content: center; }
-.compass-step { font-weight: 700; font-size: 16px; opacity: .9; }
+.compass-step { font-weight: 700; font-size: 16px; }
 .compass-next { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 0; background: var(--compass-ink); color: var(--compass-bg); font: inherit; font-weight: 700; font-size: 16px; }
 .near-bar { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
 .near-bar .where-btn { flex: 1 1 auto; min-height: 44px; }
@@ -747,7 +715,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .wx-badge b { font-size: 16px; }
 /* Rappel dimanche / jour férié dans le badge : un tampon terre cuite */
 .day-tag { font-family: var(--display); font-weight: 800; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--disc);
-  border: 1.5px solid currentColor; border-radius: var(--r-s); padding: 0 4px; transform: rotate(-2deg); }
+  border: 1.5px solid currentColor; border-radius: var(--r); padding: 0 4px; transform: rotate(-2deg); }
 .wx-badge::after { content: ''; position: absolute; inset: -4px 0; }
 /* Même code couleur que Mon Paris : bon bleu-vert, moyen orange, mauvais prune */
 .air-bon, .air-correct { --air: var(--aq-bon); } .air-moyen { --air: var(--aq-moyen); } .air-mediocre, .air-tres-mediocre, .air-extreme { --air: var(--aq-mauvais); }
@@ -784,10 +752,10 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 /* Feuille : papier, coin franc */
 .sheet { background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
 .sheet-head { border-bottom: 1px solid var(--line); }
-.sheet-head .icon-btn { border-radius: var(--r-s); border: 1.5px solid var(--ink); background: transparent; }
+.sheet-head .icon-btn { border-radius: var(--r); border: 1.5px solid var(--ink); background: transparent; }
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
-.btn { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; }
+.btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; }
 .btn.c-metro { color: var(--metro); border-color: var(--metro); }
 .btn.c-guide { color: var(--guide); border-color: var(--guide); }
 .btn.c-add { color: var(--add); border-color: var(--add); }
@@ -808,12 +776,12 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .big-btn:active { transform: translateY(1px); }
 
 /* Barre du bas */
-.big-btn { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
+.big-btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
 .big-btn.c-add { border-color: var(--add); color: var(--add); }
 
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
 .tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
-  --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--fam); border-radius: var(--r-s);
+  --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--fam); border-radius: var(--r);
   min-height: 82px; gap: 6px; font-size: 13px; font-weight: 700; box-shadow: none; background: transparent;
 }
 .tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
@@ -827,15 +795,15 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tool.on .tool-ico { animation: none; }
 
 /* ---- Jetons (catégories, filtres) ---- */
-.chip { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
+.chip { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
 .chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
-.chip .cat-ico { border-radius: var(--r-s); }
-.icon-btn { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
+.chip .cat-ico { border-radius: var(--r); }
+.icon-btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
 .help-btn { color: var(--info); }
 
 /* ---- Tampons (états) ---- */
 .tag, .tag.open, .tag.closed {
-  display: inline-block; background: transparent; border: 1.5px solid currentColor; border-radius: var(--r-s);
+  display: inline-block; background: transparent; border: 1.5px solid currentColor; border-radius: var(--r);
   padding: 1px 6px; margin-left: 4px; font-family: var(--display); font-size: 10.5px; font-weight: 800;
   letter-spacing: .1em; text-transform: uppercase; transform: rotate(-2deg); color: var(--disc);
 }
@@ -844,13 +812,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 
 /* ---- Listes et cartes de rubrique ---- */
 .item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.style-card { border: 1.5px solid var(--btn-bd); border-radius: var(--r-s); background: transparent; }
+.style-card { border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: transparent; }
 .menu-row.c-disc .menu-ico { color: var(--disc); }
 .menu-row.c-disc .menu-chev { color: var(--disc); }
 .menu-row.c-guide .menu-ico { color: var(--guide); }
-.go-compass { border-radius: var(--r-s); border: 1.5px solid var(--ink); color: var(--ink); }
+.go-compass { border-radius: var(--r); border: 1.5px solid var(--ink); color: var(--ink); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
-.seg button { border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
+.seg button { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); }
 .switch.on { background: var(--add); }
 
@@ -858,7 +826,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
    Seule exception à « aucune ombre » : une ombre douce (--float) pour ce qui flotte sur la carte, sinon le bouton se perd dans le fond. ---- */
 .map-btn, .map-btn.c-guide, .map-btn.c-metro, .map-btn.c-add, .map-btn.c-disc, .metro-btn {
   --fam: var(--ink);
-  width: 50px; height: 50px; border-radius: var(--r-s); background: var(--bg); color: var(--fam);
+  width: 50px; height: 50px; border-radius: var(--r); background: var(--bg); color: var(--fam);
   border: 1.5px solid var(--fam); box-shadow: var(--float);
 }
 .map-btn.c-metro, .metro-btn { --fam: var(--metro); }
@@ -869,7 +837,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .map-btn.c-disc[aria-pressed="true"] { background: var(--fam); color: var(--bg); }
 .map-btn[aria-pressed="true"], .map-btn.c-guide[aria-pressed="true"] { background: var(--fam); color: var(--on-strong); border-color: var(--fam); }
 .paris-btn { font-weight: 800; font-size: 13px; }
-.wx-badge { top: 66px; left: 10px; z-index: 499; border-radius: var(--r-s); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
+.wx-badge { top: 66px; left: 10px; z-index: 499; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
 
 /* ---- Épingles : goutte qui pointe le lieu exact ---- */
 .pin {
@@ -901,7 +869,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 :root[data-theme="dark"] .star-pick button.on { color: var(--fav); }
 .go-dist { font-weight: 600; margin-left: 4px; font-size: 13px; }
 /* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
-a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow: none; border-radius: var(--r-s); font-family: var(--display); font-weight: 700; }
+a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow: none; border-radius: var(--r); font-family: var(--display); font-weight: 700; }
 .menu-group { margin: 18px 0 0; } .menu-group:first-of-type { margin-top: 2px; }
 .badge .ico svg, .where .ico svg { width: 15px; height: 15px; } .badge .ico, .where .ico { flex: none; margin-right: 4px; vertical-align: -2px; }
 /* Monuments : une ligne de liens sous chaque monument */
@@ -909,7 +877,7 @@ a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow:
 .item-row { display: flex; gap: 8px; align-items: center; }
 .item-row .item-main { flex: 1; min-width: 0; }
 .links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
-.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r-s); border: 1.5px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: 14px; text-decoration: none; }
+.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r); border: 1.5px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: 14px; text-decoration: none; }
 .mini-link .ico svg { width: 16px; height: 16px; }
 
 /* Bouton « Ma position et direction » : plus grand, mis en valeur ; plaque pleine quand il est actif */
@@ -919,7 +887,7 @@ a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow:
 #btnLocate.paused { color: var(--ink); border-style: dashed; }
 /* Carte « Maintenant » au-dessus de la barre du bas */
 .now-card { position: fixed; left: 10px; right: 72px; bottom: calc(86px + var(--safe-b)); z-index: 480; display: flex; align-items: stretch;
-  background: var(--bg); border: 1.5px solid var(--disc); border-radius: var(--r-s); box-shadow: var(--float); }
+  background: var(--bg); border: 1.5px solid var(--disc); border-radius: var(--r); box-shadow: var(--float); }
 body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
 .now-card[hidden] { display: none; }
 .now-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 8px 4px 8px 12px; text-align: left; color: var(--ink); min-height: 56px; font: inherit; }
@@ -975,7 +943,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .st-line { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 9px;
   background: var(--c); color: var(--t); font-family: var(--display); font-weight: 800; font-size: 10.5px; box-shadow: 0 0 0 1.5px var(--bg); }
 .st-line.rer { border-radius: 3px; }
-.st-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: var(--r-s); background: color-mix(in srgb, var(--bg) 88%, transparent);
+.st-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: var(--r); background: color-mix(in srgb, var(--bg) 88%, transparent);
   font-family: var(--display); font-weight: 700; font-size: 11.5px; color: var(--ink); }
 #map.z-name .st-name { display: inline; }
 
@@ -1000,7 +968,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .stats-readout { min-height: 2.6em; margin: 4px 0 0; }
 .stats-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
 .stats-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.air-key { width: 12px; height: 12px; border-radius: var(--r-s); display: inline-block; }
+.air-key { width: 12px; height: 12px; border-radius: var(--r); display: inline-block; }
 .stats-table summary { min-height: 44px; display: flex; align-items: center; color: var(--metro); font-weight: 700; cursor: pointer; }
 .stats-table table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .stats-table th, .stats-table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
@@ -1041,7 +1009,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 
 /* Liste : le nom ouvre le choix des lieux */
 .cat-row .cat-open { background: none; border: 0; padding: 4px 0; min-height: 44px; text-align: left; font: inherit; font-size: 16px; color: var(--ink); cursor: pointer; }
-#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r-s); background: var(--surface); color: var(--ink); }
+#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); color: var(--ink); }
 
 /* Dans la rue aujourd'hui : bouton de la barre du haut (terre cuite, plein quand allumé) */
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }
@@ -1078,7 +1046,7 @@ a.menu-row .menu-chev { font-size: 20px; }
   display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
   padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none;
 }
-.ev-main:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: var(--r-s); }
+.ev-main:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: var(--r); }
 .ev-name {
   font-family: var(--display); font-weight: 700; font-size: 16px; font-stretch: 92%; line-height: 1.25; color: var(--ink);
   overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere;
@@ -1092,7 +1060,7 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev-foot .go-compass { width: 48px; }
 
 .ev.feat {
-  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: var(--r-s);
+  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: var(--r);
   background: var(--pl); color: var(--on-strong); box-shadow: none; margin-bottom: 8px;
 }
 .ev.feat .genre { width: 52px; height: 52px; border-radius: 50%; background: transparent; color: inherit; border: 1.5px solid currentColor; }

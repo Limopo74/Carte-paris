@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (102)';
+const VERSION = '16 novembre 2026 (103)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1151,7 +1151,7 @@ function openDetail(id, back = null) {
   showTidy();
 
   const kick = [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ');
-  openSheet([el('span', { class: 'fiche-kick' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name)], el('div', { class: 'stack detail' },
+  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
     goBox,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
@@ -4124,6 +4124,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{palette} Charte « Papier » terminée : un seul arrondi (4 px) partout, plus aucun texte rendu pâle par transparence (boussole, boutons inactifs), et les anciennes couleurs inutiles retirées. Avec un lecteur d\'écran, la fiche annonce d\'abord le nom du lieu, puis sa catégorie.',
     '{palette} La carte passe aussi en « Papier » : boutons de la colonne, barre du haut, météo et bandeau « Maintenant » sur fond blanc, contour de leur couleur, angles plus francs, une ombre légère pour bien les détacher de la carte. En bas, « Autour de moi » reste la seule plaque pleine ; « Ajouter » devient un contour vert.',
     '{lines} Lignes et stations à jour (Île-de-France Mobilités) : la ligne 14 va de Saint-Denis Pleyel à l\'aéroport d\'Orly, avec ses 7 nouvelles stations. Bréguet-Sabin, qui n\'apparaissait pas, est de retour ; Oberkampf, Porte de Pantin, Invalides, Concorde, Gallieni et Basilique de Saint-Denis sont mieux placées ; Gambetta (3bis), Louis Blanc (7bis), Richelieu-Drouot (9) et Maison Blanche (14) ont leurs lignes au complet.',
     '{star} Fiche d\'un lieu, rubrique Pratique : « Avis Google » ouvre la page du lieu dans Google Maps, avec sa note et ses avis. Rien n\'est envoyé à Google tant que tu n\'appuies pas. Les lignes de métro prennent les couleurs officielles d\'Île-de-France Mobilités.',
@@ -4133,7 +4134,6 @@ const HELP = [
     '{list} Listes plus légères, façon journal : Autour de moi, Chercher, Sorties, Réglages et l\'Aide ne montrent plus de cadres ni d\'ombres, seulement des lignes séparées par un filet fin, sous des titres soulignés d\'un trait noir. Les petits boutons des lignes (boussole, Y aller, M) sont de simples contours.',
     '{map-pin} Nouvelle fiche d\'un lieu, façon page de journal : la catégorie et l\'arrondissement au-dessus du nom ; ton commentaire en grand ; Favori et Déjà visité juste en dessous ; « Aujourd\'hui » et le métro côte à côte ; la photo en large. Plus de bouton « Plus » : Modifier, Partager, QR code, Mon billet, Horaires, Déplacer et Supprimer sont rangés en trois rubriques, chacun à un appui.',
     '{palette} Nouvelles couleurs « Papier » : texte encre presque noire sur fond blanc, plus contrasté et plus lisible dehors au soleil ; mode sombre « papier de nuit » plus profond. Les étoiles des notes sont d\'un or plus foncé, enfin assez visible sur le blanc. Première étape de la nouvelle charte : les formes changeront ensuite, écran par écran, en commençant par la fiche.',
-    '{palette} Fiche d\'un lieu : « Y aller » (avec Boussole, Métro et Photo) monte juste sous le nom : visible tout de suite, sans faire défiler, même avec une photo. Visité, Favori, Modifier et Plus restent en bas, après l\'adresse. Des filets fins séparent maintenant chaque information (catégorie, horaires, métro, billet…) et chaque bloc (note, commentaire, adresse), comme dans une page de journal.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
