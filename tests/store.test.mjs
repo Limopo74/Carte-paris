@@ -435,3 +435,25 @@ test('boutons Paris et Zoom cachés au départ, une seule fois pour les anciens 
   st.hiddenTools = []; saveState(old, st); // l'utilisatrice les réaffiche : ça doit tenir
   assert.deepEqual(loadState(old).hiddenTools, []);
 });
+
+test('Mon billet : gardé s\'il est lisible, sinon rien', () => {
+  const st = memStorage();
+  const at = new Date(2026, 10, 17, 15).getTime();
+  st.setItem(KEY, JSON.stringify({ points: [
+    { id: 'a', name: 'Orsay', cat: 'x', lat: 48.86, lng: 2.33, ticket: { at, junk: 1 } },
+    { id: 'b', name: 'Louvre', cat: 'x', lat: 48.86, lng: 2.34, ticket: { at: 'demain' } },
+  ] }));
+  const s = loadState(st);
+  assert.deepEqual(s.points[0].ticket, { at });
+  assert.equal(s.points[1].ticket, undefined);
+});
+
+test('barre du haut : boutons masqués gardés, valeurs inconnues écartées', () => {
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav', 'cat:resto', 'cat:resto', '<script>', 42, 'all'] }));
+  const s = loadState(st);
+  assert.deepEqual(s.hiddenChips, ['fav', 'cat:resto', 'all']);
+  saveState(st, { ...s, hiddenChips: ['filters'] });
+  assert.deepEqual(loadState(st).hiddenChips, ['filters']);
+  assert.deepEqual(loadState(memStorage()).hiddenChips, []);
+});

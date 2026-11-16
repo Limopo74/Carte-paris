@@ -78,3 +78,25 @@ export function openState(hours, date = new Date()) {
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   return { open: false, opensAt: later ? hhmm(later.from) : null };
 }
+
+/** Minutes avant la fermeture si c'est ouvert et que l'heure de fin est connue, sinon null. */
+export function minutesLeft(hours, date = new Date()) {
+  const st = openState(hours, date);
+  if (!st?.open || !st.until) return null;
+  const [h, m] = st.until.split(':').map(Number);
+  let end = (h === 0 && m === 0 ? 24 * 60 : h * 60 + m);
+  const now = date.getHours() * 60 + date.getMinutes();
+  if (end < now) end += 24 * 60; // ferme après minuit
+  return end - now;
+}
+
+const FR_DAYS = { Mo: 'lundi', Tu: 'mardi', We: 'mercredi', Th: 'jeudi', Fr: 'vendredi', Sa: 'samedi', Su: 'dimanche' };
+/** « Fermé le lundi », « Fermé le lundi et le mardi », ou '' (tous les jours ouverts, ou horaires inconnus). */
+export function closedDaysText(hours) {
+  const week = parseRules(hours);
+  if (!week) return '';
+  const closed = ORDER.filter((d) => !(week[d]?.length));
+  if (!closed.length || closed.length >= 6) return '';
+  const names = closed.map((d) => `le ${FR_DAYS[d]}`);
+  return `Fermé ${names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0]}`;
+}
