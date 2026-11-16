@@ -4,9 +4,9 @@
 const BASE = 'https://data.geopf.fr/geocodage';
 const PARIS = { lat: 48.8566, lon: 2.3522 };
 
-export function searchUrl(q) {
+export function searchUrl(q, { zone = false } = {}) {
   const u = new URL(`${BASE}/search`);
-  u.search = new URLSearchParams({ q, limit: '5', autocomplete: '1', lat: String(PARIS.lat), lon: String(PARIS.lon) });
+  u.search = new URLSearchParams({ q, limit: zone ? '20' : '5', autocomplete: '1', lat: String(PARIS.lat), lon: String(PARIS.lon) });
   return u.toString();
 }
 
@@ -40,10 +40,14 @@ async function getJSON(url, signal) {
   return res.json();
 }
 
-/** Suggestions d'adresses (5 au plus). Lève une erreur en cas de souci réseau. */
-export async function searchAddress(q, signal) {
+/** Paris et départements limitrophes : code commune qui commence par 75, 92, 93 ou 94. */
+export const inZone = (r) => ['75', '92', '93', '94'].includes(String(r.citycode ?? '').slice(0, 2));
+
+/** Suggestions d'adresses (5 au plus). `zone` : Paris, 92, 93 et 94 seulement. Lève une erreur en cas de souci réseau. */
+export async function searchAddress(q, signal, { zone = false } = {}) {
   if (q.trim().length < 3) return [];
-  return parseFeatures(await getJSON(searchUrl(q.trim()), signal));
+  const all = parseFeatures(await getJSON(searchUrl(q.trim(), { zone }), signal));
+  return zone ? all.filter(inZone).slice(0, 5) : all;
 }
 
 /** Adresse la plus proche d'une position, ou null si introuvable ou sans réseau. */

@@ -31,3 +31,15 @@ test('adresses des requêtes', () => {
   assert.equal(r.searchParams.get('lat'), '48.85');
   assert.equal(r.searchParams.get('lon'), '2.35');
 });
+
+test('adresses : Paris et départements limitrophes seulement', async () => {
+  const { searchUrl, inZone } = await import('../js/adresse.js');
+  assert.equal(new URL(searchUrl('rue de la paix', { zone: true })).searchParams.get('limit'), '20');
+  assert.equal(new URL(searchUrl('rue de la paix')).searchParams.get('limit'), '5');
+  assert.equal(inZone({ citycode: '75102' }), true);
+  assert.equal(inZone({ citycode: '92012' }), true);
+  assert.equal(inZone({ citycode: '93048' }), true);
+  assert.equal(inZone({ citycode: '94028' }), true);
+  assert.equal(inZone({ citycode: '78646' }), false);
+  assert.equal(inZone({}), false);
+});

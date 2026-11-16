@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (88)';
+const VERSION = '16 novembre 2026 (89)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -814,7 +814,7 @@ const ROUGH = {
 /** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
 function openPlaceSearch(initial = '', autoRun = false) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
-  const info = el('p', { class: 'help', id: 'placeHelp' }, 'Tape un nom de lieu ou une adresse, puis appuie sur « Chercher ».');
+  const info = el('p', { class: 'help', id: 'placeHelp' }, 'Tape un nom de lieu ou une adresse, puis appuie sur « Chercher ». Recherche dans Paris et les départements voisins (92, 93, 94).');
   const out = el('div', { class: 'stack' });
   let ctrl;
 
@@ -828,7 +828,7 @@ function openPlaceSearch(initial = '', autoRun = false) {
     ctrl = new AbortController();
     info.textContent = 'Recherche…';
     fill(out, );
-    const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal), searchAddress(q, ctrl.signal)]);
+    const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal, { zone: true }), searchAddress(q, ctrl.signal, { zone: true })]);
     if (ctrl.signal.aborted) return;
     const P = places.status === 'fulfilled' ? places.value : [];
     const A = addrs.status === 'fulfilled' ? addrs.value : [];
@@ -848,7 +848,7 @@ function openPlaceSearch(initial = '', autoRun = false) {
     } else {
       info.textContent = failed
         ? 'La recherche ne répond pas. Vérifie ta connexion internet, puis réessaie.'
-        : 'Rien trouvé. Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
+        : 'Rien trouvé dans Paris et les départements voisins (92, 93, 94). Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
     }
     if (P.length) out.append(el('p', { class: 'help' }, 'Lieux : données © OpenStreetMap. Un petit commerce récent peut manquer.'));
   };
@@ -4022,6 +4022,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{search} Chercher un nom ou une adresse dans l\'annuaire : seulement dans Paris et les départements voisins (Hauts-de-Seine, Seine-Saint-Denis, Val-de-Marne). Plus de résultats à Lyon ou à Orléans. L\'import de listes et le partage depuis une autre appli cherchent toujours partout.',
     '{calendar-days} Sorties du jour, nouvelle allure : la sortie en cours la plus proche en grande plaque, puis « En ce moment » et « Plus tard aujourd\'hui ». Chaque carte a une icône de genre (musique, spectacle, cinéma, balade, en famille…), le temps à pied, et ses boutons dedans. Un marché déjà fini n\'apparaît plus.',
     '{users} Lieux de tes proches : leur épingle porte l\'initiale de la personne (« M » pour Marie). Tu vois à qui est un lieu sans ouvrir sa fiche ni filtrer.',
     '{arrow-up-down} Pages longues : le bouton de retour (« ← Réglages », « ← Autour de moi »…) et « Enregistrer » restent en bas de l\'écran pendant que tu fais défiler. Plus besoin de descendre tout en bas. L\'Aide a maintenant son « ← Réglages ».',

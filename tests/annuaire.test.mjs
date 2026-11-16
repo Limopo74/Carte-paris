@@ -50,3 +50,20 @@ test('une requête au plus par seconde', () => {
   assert.equal(nextDelay(10_000, 10_400), 700);
   assert.equal(nextDelay(10_000, 11_200), 0);
 });
+
+test('recherche par nom : Paris et départements limitrophes seulement', async () => {
+  const { deptOf } = await import('../js/annuaire.js');
+  const u = new URL(placesUrl('fnac', { zone: true }));
+  assert.equal(u.searchParams.get('bounded'), '1');
+  assert.equal(u.searchParams.get('viewbox'), '2.14,48.99,2.62,48.68');
+  assert.equal(u.searchParams.get('limit'), '15');
+  assert.equal(deptOf({ 'ISO3166-2-lvl6': 'FR-92', postcode: '75001' }), '92');
+  assert.equal(deptOf({ postcode: '93100' }), '93');
+  assert.equal(deptOf({}), '');
+  assert.equal(deptOf({ 'ISO3166-2-lvl6': 'FR-75C' }), '75');
+  const r = (name, a) => ({ name, lat: '48.85', lon: '2.35', category: 'shop', type: 'books', address: a });
+  const json = [r('Paris', { postcode: '75006', city: 'Paris' }), r('Montreuil', { 'ISO3166-2-lvl6': 'FR-93' }), r('Versailles', { 'ISO3166-2-lvl6': 'FR-78', postcode: '78000' }),
+    r('Créteil', { postcode: '94000' }), r('Boulogne', { postcode: '92100' }), r('Sans adresse', {}), r('Argenteuil', { postcode: '95100' })];
+  assert.deepEqual(parsePlaces(json, { zone: true }).map((p) => p.name), ['Paris', 'Montreuil', 'Créteil', 'Boulogne', 'Sans adresse']);
+  assert.equal(parsePlaces(json).length, 7); // sans zone (import de listes) : rien n'est écarté
+});
