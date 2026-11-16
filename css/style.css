@@ -897,3 +897,17 @@ a.go, .item .go { background: var(--btn); color: var(--ink); border: 2px solid v
 #btnLocate[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); box-shadow: inset 0 0 0 2px var(--strong), inset 0 0 0 3.5px var(--plaque-line), 0 3px 0 var(--hard); }
 #btnLocate.paused { background: var(--btn); color: var(--ink); border-style: dashed; }
 :root[data-theme="dark"] #btnLocate[aria-pressed="true"] { color: #10131C; }
+/* Carte « Maintenant » au-dessus de la barre du bas */
+.now-card { position: fixed; left: 10px; right: 72px; bottom: calc(86px + var(--safe-b)); z-index: 480; display: flex; align-items: stretch;
+  background: var(--bg); border: 2px solid var(--disc); border-radius: 8px; box-shadow: 0 3px 0 var(--disc); }
+body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
+.now-card[hidden] { display: none; }
+.now-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 8px 4px 8px 12px; text-align: left; color: var(--ink); min-height: 56px; font: inherit; }
+.now-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.now-kicker { font-family: var(--display); font-size: 10.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--disc); }
+.now-name { font-family: var(--display); font-weight: 800; font-stretch: 90%; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-sub { font-size: 13px; color: var(--muted); }
+.now-chev { font-size: 22px; color: var(--disc); }
+.now-close { width: 44px; background: none; border: 0; border-left: 1.5px dashed var(--line); font-size: 22px; color: var(--muted); }
+body:has(#sheet:not([hidden])) .now-card, body:has(.compass:not([hidden])) .now-card { display: none; }
+body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom { bottom: calc(150px + var(--safe-b)); } /* le crédit OpenStreetMap reste visible au-dessus de « Maintenant » */

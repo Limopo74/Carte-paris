@@ -86,3 +86,17 @@ test('lieux frais : adresse légère pour les parcs, lecture des équipements', 
   const r = parseRecords([{ nom: 'Bibliothèque X', type: 'Bibliothèques', adresse: '1 rue Y', payant: 'Non', geo_point_2d: { lat: 48.86, lon: 2.34 } }, { nom: 'Sans pos' }], 'fraisLieux');
   assert.equal(r.length, 1); assert.equal(r[0].label, 'Bibliothèque X'); assert.match(r[0].detail, /gratuit/);
 });
+
+test('sorties : brocantes, fêtes, gratuit, puces', async () => {
+  const { parseEvents, eventKind, isFleaMarket } = await import('../js/events.js');
+  const ev = parseEvents([
+    { title: 'Grand vide-grenier de la rue des Martyrs', lat_lon: { lat: 48.88, lon: 2.34 }, price_type: 'gratuit' },
+    { title: 'Concert', qfap_tags: ['Fête de quartier', 'Musique'], lat_lon: { lat: 48.88, lon: 2.34 }, price_type: 'payant' },
+    { title: 'Exposition Monet', lat_lon: { lat: 48.88, lon: 2.34 } },
+    { title: 'Défilé', lead_text: 'Une brocante solidaire au profit…', lat_lon: { lat: 48.88, lon: 2.34 } },
+  ]);
+  assert.deepEqual(ev.map(eventKind), ['brocante', 'fete', 'autre', 'brocante']);
+  assert.deepEqual(ev.map((e) => e.free), [true, false, false, false]);
+  assert.equal(isFleaMarket({ name: 'Puces de Vanves', products: '' }), true);
+  assert.equal(isFleaMarket({ name: 'Marché Bastille', products: 'Alimentaire' }), false);
+});

@@ -32,6 +32,7 @@ export function parseEvents(json) {
     const start = r.date_start ? new Date(r.date_start) : null;
     const end = r.date_end ? new Date(r.date_end) : null;
     const price = str(r.price_type).toLowerCase();
+    const tags = (Array.isArray(r.qfap_tags) ? r.qfap_tags.join(';') : str(r.qfap_tags)).slice(0, 200);
     out.push({
       title: title.slice(0, 120), ...p,
       start: start && !Number.isNaN(start.getTime()) ? start : null,
@@ -41,6 +42,7 @@ export function parseEvents(json) {
       url: /^https:\/\//.test(r.url ?? '') ? r.url : '',
       free: price.startsWith('gratuit'),
       lead: str(r.lead_text).slice(0, 200),
+      tags,
     });
   }
   return out;
@@ -61,3 +63,17 @@ export function whenText(e, now = new Date()) {
   if (e.end && e.end.toDateString() === now.toDateString()) return `jusqu'à ${hm(e.end)}`;
   return 'en cours aujourd\'hui';
 }
+
+/** Rubrique d'un événement : 'brocante' (brocantes, vide-greniers, puces), 'fete' (fêtes, festivals, bals) ou 'autre'. */
+const BROC = /brocante|vide[- ]?grenier|march[ée] aux puces|\bpuces\b|braderie|\btroc\b|vide[- ]?dressing/i;
+const FETE = /f[êe]te|festival|\bbal\b|carnaval|guinguette|kermesse|parade|f[ée]erie|f[êe]tes? de (quartier|rue)/i;
+export function eventKind(e) {
+  const t = `${e.title ?? ''} ${e.tags ?? ''}`;
+  if (BROC.test(t)) return 'brocante';
+  if (FETE.test(t)) return 'fete';
+  if (BROC.test(e.lead ?? '')) return 'brocante';
+  return 'autre';
+}
+
+/** Marché aux puces ou brocante dans la liste des marchés de la Ville. */
+export const isFleaMarket = (m) => /puces|brocante|antiquit|livres? anciens?|vieux papiers/i.test(`${m.name ?? ''} ${m.products ?? ''}`);

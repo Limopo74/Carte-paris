@@ -16,7 +16,7 @@ import { openState } from './hours.js';
 import { metroPlan } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, parseEvents, nearbyEvents, whenText } from './events.js';
+import { eventsUrl, parseEvents, nearbyEvents, whenText, eventKind, isFleaMarket } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (54)';
+const VERSION = '16 novembre 2026 (55)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -396,6 +396,7 @@ function toggleCat(id) {
 function refresh() {
   renderChips();
   renderMarkers();
+  updateNow(true);
   if (view === 'near' && origin) renderNear();
 }
 
@@ -489,6 +490,8 @@ document.getElementById('sheetClose').addEventListener('click', () => closeSheet
 /* ---------- Localisation ---------- */
 
 let here = null; // dernière position GPS : { lat, lng, acc, time }
+let nowHidden = false; // carte « Maintenant » cachée par la croix
+let nowLast = 0;
 const LAST_KEY = 'carte-paris.derniere-position'; // reste sur le téléphone, jamais envoyée
 try {
   const last = JSON.parse(storage.getItem(LAST_KEY) ?? 'null');
@@ -503,6 +506,28 @@ const GEO_ERRORS = {
 function remember(fix) {
   here = fix;
   try { storage.setItem(LAST_KEY, JSON.stringify(fix)); } catch { /* facultatif */ }
+  updateNow();
+}
+
+/* « Maintenant » : sur la carte, le lieu à faire le plus proche et ouvert (15 min à pied au plus).
+   Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
+function updateNow(force = false) {
+  const card = document.getElementById('nowCard');
+  if (!card) return;
+  if (!force && Date.now() - nowLast < 20000) return;
+  nowLast = Date.now();
+  const pos = freshHere();
+  const best = !pos || nowHidden ? null : visible().filter((p) => !p.done && openState(p.hours)?.open !== false)
+    .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => a.d - b.d)[0];
+  card.hidden = !best;
+  if (!best) return;
+  const { p, d } = best;
+  const st = openState(p.hours);
+  fill(card.querySelector('.now-text'),
+    el('span', { class: 'now-kicker' }, 'Maintenant'),
+    el('span', { class: 'now-name' }, p.name),
+    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'ouvert') : null].filter(Boolean).join(' · ')));
+  card.querySelector('.now-open').onclick = () => openDetail(p.id);
 }
 
 /**
@@ -1240,9 +1265,7 @@ function renderNear(fit = false) {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
   body.push(el('div', { class: 'tools' },
-    tool('hourglass', 'Temps libre', () => openFreeTime()),
-    tool('footprints', 'Chemin', () => openWayPicker()),
-    tool('route', 'Parcours', () => openRoutePicker()),
+    tool('route', 'Itinéraire', () => openRoutes()),
     tool('calendar-days', 'Sorties', () => openEvents(), null, 'c-disc'),
     tool('shuffle', 'Surprise', () => surprise(), null, 'c-disc'),
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-disc'),
@@ -1885,6 +1908,7 @@ async function openWhereAmI() {
 /* ---------- Ce soir près de moi : agenda « Que faire à Paris ? » ---------- */
 
 let eventsCache = null; // { day, items }
+let eventsFree = false;
 async function openEvents() {
   if (!origin) { openNear(); return; }
   const day = new Date().toDateString();
@@ -1901,22 +1925,36 @@ async function openEvents() {
       return;
     }
   }
-  const list = nearbyEvents(eventsCache.items, origin, 2000).slice(0, 25);
-  const mk = nearestMarkets(await loadMarkets(), origin).filter((m) => m.d <= 2500);
+  const all = nearbyEvents(eventsCache.items, origin, 2000).filter((e) => !eventsFree || e.free).slice(0, 40);
+  const mkAll = nearestMarkets(await loadMarkets(), origin).filter((m) => m.d <= 2500);
+  const food = mkAll.filter((m) => !isFleaMarket(m));
+  const flea = mkAll.filter(isFleaMarket);
+  const broc = all.filter((e) => eventKind(e) === 'brocante');
+  const fetes = all.filter((e) => eventKind(e) === 'fete');
+  const other = all.filter((e) => eventKind(e) === 'autre').slice(0, 20);
+  const list = [...broc, ...fetes, ...other];
+  const head = (label, n) => (n ? el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(n))) : null);
+  const marketRow = (m) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openMarket(m, openEvents) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('store', { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, [hoursToday(m), `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`].filter(Boolean).join(' · ')))));
+  const eventRow = (e) => el('li', { class: 'item' },
+    el(e.url ? 'a' : 'span', { class: 'item-main', ...(e.url ? { href: e.url, target: '_blank', rel: 'noopener' } : {}) },
+      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(eventKind(e) === 'brocante' ? 'tags' : eventKind(e) === 'fete' ? 'sparkles' : 'calendar-days', { size: 18 })),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.title),
+        el('span', { class: 'item-sub' }, [whenText(e), e.place, `${fmtDist(e.d)} · ${walkMinutes(e.d)} min`].filter(Boolean).join(' · '), e.free ? el('span', { class: 'tag open' }, 'Gratuit') : null))),
+    el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }), 'aria-label': `Boussole vers ${e.title}` }, ico('compass')));
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Sorties à afficher' },
+    el('button', { type: 'button', 'aria-pressed': String(!eventsFree), onclick: () => { eventsFree = false; openEvents(); } }, 'Tout'),
+    el('button', { type: 'button', 'aria-pressed': String(eventsFree), onclick: () => { eventsFree = true; openEvents(); } }, 'Gratuit seulement'));
   openSheet([ico('calendar-days'), ' Sorties du jour'], el('div', { class: 'stack' },
-    mk.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Marchés aujourd\'hui'), el('span', {}, String(mk.length))) : null,
-    mk.length ? el('ul', { class: 'items' }, mk.map((m) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openMarket(m, openEvents) },
-      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('store', { size: 18 })),
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, [hoursToday(m), `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`].filter(Boolean).join(' · '))))))) : null,
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Événements'), el('span', {}, String(list.length))),
-    el('p', { class: 'help' }, list.length ? `${plural(list.length, 'sortie', 'sorties')} aujourd'hui à moins de 2 km.` : 'Aucune sortie trouvée aujourd\'hui à moins de 2 km.'),
-    el('ul', { class: 'items' }, list.map((e) => el('li', { class: 'item' },
-      el(e.url ? 'a' : 'span', { class: 'item-main', ...(e.url ? { href: e.url, target: '_blank', rel: 'noopener' } : {}) },
-        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('calendar-days', { size: 18 })),
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.title),
-          el('span', { class: 'item-sub' }, [whenText(e), e.place, `${fmtDist(e.d)} · ${walkMinutes(e.d)} min`].filter(Boolean).join(' · '), e.free ? el('span', { class: 'tag open' }, 'Gratuit') : null))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }), 'aria-label': `Boussole vers ${e.title}` }, ico('compass'))))),
-    el('p', { class: 'help' }, 'Source : « Que faire à Paris ? », Ville de Paris. Ta position n\'est pas envoyée : l\'appli trie sur le téléphone.'),
+    seg,
+    head('Marchés aujourd\'hui', food.length), food.length ? el('ul', { class: 'items' }, food.map(marketRow)) : null,
+    head('Puces, brocantes, vide-greniers', flea.length + broc.length),
+    flea.length || broc.length ? el('ul', { class: 'items' }, flea.map(marketRow), broc.map(eventRow)) : null,
+    head('Fêtes et festivals', fetes.length), fetes.length ? el('ul', { class: 'items' }, fetes.map(eventRow)) : null,
+    head('Autres sorties', other.length), other.length ? el('ul', { class: 'items' }, other.map(eventRow)) : null,
+    !food.length && !flea.length && !list.length ? el('p', { class: 'empty' }, `Aucune sortie${eventsFree ? ' gratuite' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
+    el('p', { class: 'help' }, 'Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris. Les vide-greniers ne sont listés que s\'ils sont dans cet agenda. Ta position n\'est pas envoyée : l\'appli trie sur le téléphone.'),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
@@ -2184,6 +2222,21 @@ async function openCuriosities() {
   nearLayer.clearLayers();
   if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
   for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+}
+
+/* ---------- Itinéraire : un seul outil pour les trois façons de tracer un trajet ---------- */
+
+function openRoutes() {
+  const row = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-guide', onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+  openSheet([ico('route'), ' Itinéraire'], el('div', { class: 'menu' },
+    row('hourglass', 'J\'ai du temps', 'Une boucle à pied qui revient ici, selon ton temps libre', () => openFreeTime()),
+    row('footprints', 'Sur mon chemin', 'Tes lieux à faire sur le trajet vers une destination', () => openWayPicker()),
+    row('route', 'Relier des lieux', '2 à 4 de tes lieux dans le meilleur ordre', () => openRoutePicker()),
+    el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => renderNear() }, '← Autour de moi'),
+  ), { name: 'routes', again: openRoutes });
 }
 
 /* ---------- Monuments historiques (Wikidata, protégés MH) ---------- */
@@ -3092,6 +3145,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
     'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
     '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
     'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu émail = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
@@ -3142,9 +3196,10 @@ const HELP = [
   ['map-pinned', 'Autour de moi', [
     'Tes lieux rangés par cercles, du plus proche au plus loin.',
     '{landmark} Monuments : les monuments historiques protégés à moins de 1 km, avec leur site officiel (visites, billets), la fiche du ministère de la Culture et Wikipédia.',
-    '{hourglass} Temps libre : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
+    '{route} Itinéraire réunit trois façons de tracer un trajet : « J\'ai du temps », « Sur mon chemin », « Relier des lieux ».',
+    '{hourglass} J\'ai du temps (Temps libre) : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
     '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. Tes lieux atteints sont notés « déjà visité ».',
-    '{footprints} Chemin : tes lieux à faire sur ton trajet. {route} Parcours : 2 à 4 lieux dans le meilleur ordre.',
+    '{footprints} Sur mon chemin : tes lieux à faire sur ton trajet. {route} Relier des lieux : 2 à 4 lieux dans le meilleur ordre.',
     '{shuffle} Surprise : un lieu à faire au hasard, à moins de 15 min.',
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
@@ -3252,4 +3307,14 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   // Demande au navigateur de ne pas effacer tes lieux et la carte gardée quand le téléphone manque de place
   navigator.storage?.persist?.().catch(() => {});
+}
+
+// « Maintenant » : la croix cache la suggestion ; si la position est déjà autorisée, on la lit
+// discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
+document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
+setInterval(() => updateNow(true), 5 * 60000);
+if (navigator.permissions && 'geolocation' in navigator) {
+  navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
+    if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => remember({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() }), () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });
+  }).catch(() => {});
 }
