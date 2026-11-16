@@ -315,7 +315,7 @@ export const MAP_STYLES = ['classic', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'paris', 'zoom', 'locate'];
+export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'paris', 'locate'];
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {
@@ -325,7 +325,7 @@ export function normalizeTools(list) {
 
 /** Boutons de la carte masqués : seulement des noms connus, sans doublon. */
 /** Boutons cachés au départ (réactivables dans Réglages → Boutons de la carte) : la colonne reste lisible. */
-export const DEFAULT_HIDDEN = ['paris', 'zoom'];
+export const DEFAULT_HIDDEN = ['paris'];
 
 export function cleanHidden(list) {
   return Array.isArray(list) ? MAP_TOOLS.filter((t) => list.includes(t)) : [];

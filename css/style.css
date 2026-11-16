@@ -911,3 +911,59 @@ body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
 .now-close { width: 44px; background: none; border: 0; border-left: 1.5px dashed var(--line); font-size: 22px; color: var(--muted); }
 body:has(#sheet:not([hidden])) .now-card, body:has(.compass:not([hidden])) .now-card { display: none; }
 body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom { bottom: calc(150px + var(--safe-b)); } /* le crédit OpenStreetMap reste visible au-dessus de « Maintenant » */
+
+/* =====================================================================
+   PLUS DE COULEUR (charte inchangée) : chaque bouton de famille est teinté de sa couleur.
+   Plaque pleine = action principale · teinte + contour = action secondaire · pierre = neutre
+   ===================================================================== */
+:root { --neutral-bg: #E9E1D2; --neutral-bd: #8C8273; --aller-bg: #DDE3EE; }
+:root[data-theme="dark"] { --neutral-bg: #2A3040; --neutral-bd: #8F98AB; --aller-bg: #262D3F; }
+
+/* Boutons secondaires : fond teinté de la famille */
+.btn { background: var(--neutral-bg); border-color: var(--neutral-bd); }
+.btn.c-metro { background: var(--metro-bg); }
+.btn.c-guide { background: var(--aller-bg); }
+.btn.c-add { background: var(--add-bg); }
+.btn.c-fav { background: var(--fav-bg); }
+.btn.c-info { background: var(--info-bg); }
+.btn.c-disc { background: var(--disc-bg); }
+.btn.danger { background: #F6E1DF; }
+:root[data-theme="dark"] .btn.danger { background: #4A1F1C; }
+.btn.primary, .btn.solid, .big-btn.solid, .big-btn.primary { background: var(--pl); }
+.btn.mini[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--strong); }
+.btn.mini.c-add[aria-pressed="true"] { background: var(--add); }
+.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav); }
+
+/* Outils d'Autour de moi : tuile teintée, médaillon plein */
+.tool, .tool.c-guide { background: var(--aller-bg); border-color: color-mix(in srgb, var(--fam) 35%, transparent); }
+.tool.c-metro { background: var(--metro-bg); } .tool.c-add { background: var(--add-bg); } .tool.c-fav { background: var(--fav-bg); }
+.tool.c-info { background: var(--info-bg); } .tool.c-disc { background: var(--disc-bg); }
+.tool { box-shadow: 0 2px 0 color-mix(in srgb, var(--fam) 45%, transparent); }
+
+/* Rubriques (réglages, itinéraire…) : un liseré de la couleur de la famille */
+.menu-row { border-left: 5px solid var(--neutral-bd); }
+.menu-row.c-guide { border-left-color: var(--guide); } .menu-row.c-metro { border-left-color: var(--metro); }
+.menu-row.c-add { border-left-color: var(--add); } .menu-row.c-fav { border-left-color: var(--fav); }
+.menu-row.c-info { border-left-color: var(--info); } .menu-row.c-disc { border-left-color: var(--disc); }
+
+/* Boutons de la carte : teintés de leur famille */
+.map-btn, .map-btn.c-guide { background: var(--aller-bg); }
+.map-btn.c-metro, .metro-btn, #btnVelib, #btnHome { background: var(--metro-bg); }
+#btnPratique { background: var(--add-bg); }
+:root[data-theme="dark"] .map-btn, :root[data-theme="dark"] .map-btn:not(.c-guide):not(.c-metro) { background: var(--aller-bg); }
+:root[data-theme="dark"] .map-btn.c-metro, :root[data-theme="dark"] #btnVelib, :root[data-theme="dark"] #btnHome { background: var(--metro-bg); }
+:root[data-theme="dark"] #btnPratique { background: var(--add-bg); }
+#btnLocate.paused { background: var(--aller-bg); }
+
+/* Barre du bas : Réglages en zinc teinté */
+.big-btn.square { background: var(--info-bg); border-color: var(--info); color: var(--info); }
+
+/* Liens et petites actions de liste */
+a.go, .item .go { background: var(--aller-bg); }
+.go-compass { background: var(--aller-bg); }
+.go-compass.add { background: var(--add-bg); }
+.mini-link { background: var(--disc-bg); }
+.chip:not([aria-pressed="true"]) { background: var(--bg); }
+.btn.danger.solid { --pl: var(--danger); color: #fff; }
+:root[data-theme="dark"] .btn.danger.solid { color: #10131C; }
+.tools { grid-template-columns: repeat(3, 1fr); } /* 6 outils : 2 rangées de 3 */

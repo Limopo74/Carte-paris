@@ -355,14 +355,14 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'velib', 'home', 'paris', 'locate']);
-  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'velib', 'home', 'zoom', 'paris', 'locate']);
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'paris', 'locate']); // l'ancien bouton zoom disparaît
+  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'paris', 'home', 'locate']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
 
 test('boutons cachés : noms connus seulement', async () => {
   const { cleanHidden } = await import('../js/store.js');
-  assert.deepEqual(cleanHidden(['zoom', 'pirate', 'zoom', 'metro']), ['metro', 'zoom']);
+  assert.deepEqual(cleanHidden(['paris', 'pirate', 'paris', 'metro', 'zoom']), ['metro', 'paris']);
   assert.deepEqual(cleanHidden(null), []);
 });
 
@@ -430,7 +430,7 @@ test('boutons Paris et Zoom cachés au départ, une seule fois pour les anciens 
   assert.deepEqual(loadState(mem(null)).hiddenTools, DEFAULT_HIDDEN);
   const old = mem(JSON.stringify({ points: [], hiddenTools: ['velib'] }));
   const st = loadState(old);
-  assert.deepEqual(st.hiddenTools, ['velib', 'paris', 'zoom']);
+  assert.deepEqual(st.hiddenTools, ['velib', 'paris']);
   assert.equal(st.mapTools.at(-1), 'locate'); // le bouton position passe en bas
   st.hiddenTools = []; saveState(old, st); // l'utilisatrice les réaffiche : ça doit tenir
   assert.deepEqual(loadState(old).hiddenTools, []);

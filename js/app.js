@@ -27,7 +27,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (55)';
+const VERSION = '16 novembre 2026 (56)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -867,7 +867,7 @@ function openDetail(id, back = null) {
   };
   const showActions = () => {
     fill(more, );
-    const moreBtn = el('button', { type: 'button', class: 'btn mini', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, ico('ellipsis'), 'Plus');
+    const moreBtn = el('button', { type: 'button', class: 'btn mini c-info', 'aria-expanded': 'false', onclick: () => toggleMore(moreBtn) }, ico('ellipsis'), 'Plus');
     fill(actions, 
       el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
         el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null),
@@ -878,7 +878,7 @@ function openDetail(id, back = null) {
       el('div', { class: 'row4' },
         el('button', { type: 'button', class: 'btn mini c-add', 'aria-pressed': String(!!p.done), 'aria-label': p.done ? 'Déjà visité : remettre à faire' : 'Marquer comme déjà visité', onclick: () => update(() => { setDone(p, !p.done); }) }, ico(p.done ? 'rotate-ccw' : 'check'), p.done ? 'À refaire' : 'Visité'),
         el('button', { type: 'button', class: 'btn mini c-fav', 'aria-pressed': String(!!p.fav), 'aria-label': p.fav ? 'Retirer des favoris' : 'Mettre en favori', onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: true }), p.fav ? 'Retirer' : 'Favori'),
-        el('button', { type: 'button', class: 'btn mini', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, ico('pencil'), 'Modifier'),
+        el('button', { type: 'button', class: 'btn mini c-info', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, ico('pencil'), 'Modifier'),
         moreBtn),
       more,
       back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
@@ -1274,8 +1274,8 @@ function renderNear(fit = false) {
   ));
   body.push(el('div', { class: 'near-bar' },
     origin.kind === 'station' ? el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station')
-      : origin.kind === 'last' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openNear }, ico('refresh-cw'), 'Réessayer ma position')
-        : el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?')));
+      : origin.kind === 'last' ? el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openNear }, ico('refresh-cw'), 'Réessayer ma position')
+        : el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?')));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -2856,25 +2856,8 @@ function locateOnMap() {
   toast('Position et direction arrêtées');
 }
 
-/** Zoom automatique sur ma position, au niveau de la rue (17 : environ 280 m de large sur un téléphone). */
+/** Niveau « rue » utilisé par Ma position et direction (17 : environ 280 m de large sur un téléphone). */
 const ZOOM_RUE = 17;
-const zoomLayer = L.layerGroup().addTo(map);
-async function zoomOnMe() {
-  closeSheet();
-  if (meShown) { map.setView([meShown.lat, meShown.lng], ZOOM_RUE, { animate: false }); return; }
-  toast('Recherche de ta position…');
-  try {
-    const fix = await locate();
-    hideToast();
-    zoomLayer.clearLayers();
-    if (fix.acc > 30) L.circle([fix.lat, fix.lng], { radius: fix.acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(zoomLayer);
-    meMarker(fix.lat, fix.lng).addTo(zoomLayer);
-    map.setView([fix.lat, fix.lng], ZOOM_RUE, { animate: false });
-    if (fix.acc > 100) toast(`Position peu précise (à ${Math.round(fix.acc)} m près).`, true);
-  } catch (e) {
-    toast(e.message, true);
-  }
-}
 
 function reloadMap() {
   if (!navigator.onLine) { toast('Pas de connexion internet : la carte ne peut pas se recharger.', true); return; }
@@ -3088,7 +3071,6 @@ function showPratique(from, fs, ts, cs = []) {
 document.getElementById('btnPratique').addEventListener('click', nearestPratique);
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
-document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
 
@@ -3098,7 +3080,6 @@ const TOOL_INFO = {
   metro: { el: 'btnMetro', icon: 'Ⓜ', name: 'Métro le plus proche' },
   locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et direction' },
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
-  zoom: { el: 'btnZoomMe', icon: 'zoom-in', name: 'Zoom sur ma position' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
 };
@@ -3145,6 +3126,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Boutons plus colorés : chaque bouton prend la teinte de sa famille. Le bouton « zoom sur ma position » disparaît : Ma position et direction fait déjà ce zoom.',
     'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
     'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
     '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
@@ -3169,7 +3151,7 @@ const HELP = [
     'M la station de métro la plus proche.',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un lieu à faire.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
-    'Cachés au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre) et {zoom-in} zoom sur ta position.',
+    'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{house} Rentrer : quel métro prendre vers ta station Maison (ou Travail…). Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
