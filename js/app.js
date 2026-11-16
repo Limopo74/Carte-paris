@@ -13,13 +13,13 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
 import { openState, minutesLeft, closedDaysText } from './hours.js';
-import { isExpo, lastChance, endText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, parseEvents, nearbyEvents, whenText, eventKind, streetKind, isFleaMarket } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, eventKind, streetKind, isFleaMarket } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, marketsOn, nearestMarkets, airUrl, readAir } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (80)';
+const VERSION = '16 novembre 2026 (81)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -175,7 +175,7 @@ const hideToast = () => { document.getElementById('toast').hidden = true; };
 
 /* Retour visible : toujours « ← nom de l'écran d'avant », jamais un « Retour » sans destination. */
 const named = (label, fn) => Object.assign(fn, { label });
-const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres']]);
+const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
 
@@ -1565,7 +1565,7 @@ function renderNear(fit = false) {
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
   body.push(el('div', { class: 'tools' },
     tool('route', 'Itinéraire', () => openRoutes()),
-    tool('calendar-days', 'Sorties', () => openEvents(), null, 'c-disc'),
+    tool('calendar-days', 'Sorties', () => openEvents('near'), null, 'c-disc'),
     tool('shuffle', 'Surprise', () => surprise(), null, 'c-disc'),
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-disc'),
     tool('landmark', 'Monuments', () => openMonuments(), null, 'c-disc'),
@@ -2392,7 +2392,7 @@ const galleryRow = (g, back) => {
 };
 
 /** Une expo ou une sortie : titre, quand, où ; boussole, métro, et pour une expo « garder » (avec sa date de fin). */
-const eventRow = (e, back, { last = false } = {}) => {
+const eventRow = (e, back, { last = false, week = false } = {}) => {
   const kind = eventKind(e);
   const expo = isExpo(e);
   const keep = () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null,
@@ -2401,7 +2401,7 @@ const eventRow = (e, back, { last = false } = {}) => {
     el(e.url ? 'a' : 'span', { class: 'item-main', ...(e.url ? { href: e.url, target: '_blank', rel: 'noopener' } : {}) },
       el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(expo ? 'palette' : kind === 'brocante' ? 'tags' : kind === 'fete' ? 'sparkles' : 'calendar-days', { size: 18 })),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.title),
-        el('span', { class: 'item-sub' }, [last ? endText(e.end) : whenText(e), e.place, `${fmtDist(e.d)} · ${walkMinutes(e.d)} min`].filter(Boolean).join(' · '),
+        el('span', { class: 'item-sub' }, [week ? weekText(e) : last ? endText(e.end) : whenText(e), e.place, e.d != null ? `${fmtDist(e.d)} · ${walkMinutes(e.d)} min` : ''].filter(Boolean).join(' · '),
           e.free ? el('span', { class: 'tag open' }, 'Gratuit') : null))),
     compassBtn(e), metroBtn(e, back),
     expo ? el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter l'expo ${e.title} à ma carte`, onclick: keep }, ico('plus')) : null);
@@ -2428,9 +2428,60 @@ async function todayEvents() {
   return eventsLoading;
 }
 
-async function openEvents() {
+let weekCache = null; // { day, items } : la semaine de tout Paris, gardée le temps de la journée
+async function weekEvents() {
+  const day = new Date().toDateString();
+  if (weekCache?.day === day) return weekCache.items;
+  // Version légère (champs utiles seulement) ; si le serveur la refuse, la version complète, plus courte
+  let r = await fetch(weekEventsUrl());
+  if (!r.ok) r = await fetch(weekEventsUrl(new Date(), 7, false));
+  if (!r.ok) throw new Error(String(r.status));
+  weekCache = { day, items: parseEvents(await r.json()) };
+  return weekCache.items;
+}
+
+/** Expos de la semaine dans tout Paris, par arrondissement, sans déplacer la carte. */
+async function openWeekExpos() {
+  track('Expos de la semaine');
+  const title = [ico('calendar-days'), ' Expos de la semaine'];
+  const back = backBtn(openEvents);
+  if (!weekCache || weekCache.day !== new Date().toDateString()) {
+    openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'week' });
+    try { await weekEvents(); } catch {
+      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), back), { name: 'week' });
+      return;
+    }
+  }
+  const o = evFrom;
+  const now = new Date();
+  const until = new Date(now); until.setDate(until.getDate() + 7);
+  const groups = weekExpos(weekCache.items.map((e) => ({ ...e, d: o ? distanceM(o, e) : null })), now);
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  const arrName = (a) => (a == null ? 'Hors Paris ou sans adresse' : a === 1 ? '1er' : `${a}e`);
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(total, 'expo', 'expos')} jusqu'au ${until.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}, tout Paris.`),
+    el('p', { class: 'help' }, 'Touche un arrondissement pour l\'ouvrir. Dans chacun, celles qui ferment le plus tôt d\'abord.'),
+    total ? el('div', { class: 'help-list' }, groups.map((g) => {
+      const near = o ? Math.min(...g.items.map((e) => e.d)) : null;
+      return el('details', { class: 'help-item week-arr' },
+        el('summary', {}, el('span', { class: 'week-arr-name' }, arrName(g.arr)),
+          el('span', { class: 'week-arr-sub' }, [plural(g.items.length, 'expo', 'expos'), near != null ? `${g.items.length > 1 ? 'la plus proche ' : ''}à ${fmtDist(near)}` : ''].filter(Boolean).join(' · '))),
+        el('ul', { class: 'items week-items' }, g.items.slice(0, 40).map((e) => eventRow(e, openWeekExpos, { week: true }))));
+    })) : el('p', { class: 'empty' }, 'Aucune expo trouvée dans l\'agenda cette semaine.'),
+    el('p', { class: 'help' }, `Source : agenda « Que faire à Paris ? » de la Ville de Paris, téléchargé pour tout Paris (ta position n'est pas envoyée). Les galeries privées n'y sont souvent pas. ${o ? (o.kind === 'map' ? 'Distances depuis le centre de la carte.' : 'Distances depuis toi.') : ''}`),
+    back,
+  ), { tall: true, name: 'week', again: openWeekExpos });
+}
+
+let evFrom = null; // point de départ des Sorties : ma position (Autour de moi) ou le centre de la carte (bouton de la colonne)
+async function openEvents(start = null) {
   track('Sorties');
-  if (!origin) { openNear(); return; }
+  if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
+  else if (start === 'near' || !evFrom) evFrom = origin;
+  if (!evFrom) { openNear(); return; }
+  const o = evFrom;
+  const fromMap = o.kind === 'map';
+  const backNear = () => (fromMap ? null : el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties du jour'];
   if (!eventsCache || eventsCache.day !== day) {
@@ -2440,13 +2491,13 @@ async function openEvents() {
     } catch {
       openSheet(title, el('div', { class: 'stack' },
         el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'),
-        el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')), { name: 'events' });
+        backNear()), { name: 'events' });
       return;
     }
   }
   const mode = eventsMode;
   const back = openEvents;
-  const near3 = nearbyEvents(eventsCache.items, origin, 3000);
+  const near3 = nearbyEvents(eventsCache.items, o, 3000);
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -2456,7 +2507,7 @@ async function openEvents() {
 
   // En tête, pour tous : les temps forts de la semaine, et la gratuité exceptionnelle du jour
   const soon = highlightsSoon();
-  const freeAll = freeNear(origin, new Date(), 3000, 5);
+  const freeAll = freeNear(o, new Date(), 3000, 5);
   const freeSpecial = freeAll.filter((f) => f.rule !== 'always');
   const top = [
     ...soon.map((h) => el('p', { class: 'hl-line' }, ico('sparkles'), ` ${highlightText(h)} — ${h.what}`)),
@@ -2475,7 +2526,7 @@ async function openEvents() {
     const galBox = el('div', { class: 'stack' });
     const drawGal = () => {
       if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Chargement de la liste des galeries de Paris (une fois par mois)…')); return; }
-      const g = galleriesNear(galleries, origin).slice(0, 15);
+      const g = galleriesNear(galleries, o).slice(0, 15);
       const open = g.filter((x) => openState(x.hours)?.open).length;
       fill(galBox,
         el('h3', { class: 'ring-title' }, el('span', {}, 'Galeries à moins de 1,5 km'), el('span', {}, g.length ? `${open} ouverte${open > 1 ? 's' : ''}` : '')),
@@ -2489,11 +2540,12 @@ async function openEvents() {
       head('Dernière chance : expos qui ferment', last.length), list(last.slice(0, 8).map((e) => eventRow(e, back, { last: true }))),
       galBox,
       head('Autres expos aujourd\'hui', expos.length), list(expos.map((e) => eventRow(e, back))),
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openWeekExpos() }, ico('calendar-days'), 'Expos de la semaine, tout Paris'),
       ...freeSection(),
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les expos des galeries privées n\'y sont souvent pas : regarde les galeries ci-dessus.') : null,
     ];
   } else {
-    const mkAll = nearestMarkets(await loadMarkets(), origin).filter((m) => m.d <= 2500);
+    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= 2500);
     const food = mkAll.filter((m) => !isFleaMarket(m));
     const flea = mkAll.filter(isFleaMarket);
     const rest = all.filter((e) => !lastIds.has(e));
@@ -2516,6 +2568,7 @@ async function openEvents() {
   }
   openSheet(title, el('div', { class: 'stack' },
     seg, // les onglets restent toujours à la même place ; les annonces viennent dessous
+    el('p', { class: 'from-line' }, ico(fromMap ? 'map' : 'locate-fixed'), fromMap ? ' Autour du centre de la carte. Pour un autre quartier : déplace la carte et rouvre Sorties.' : ' Autour de toi.'),
     ...top,
     ...body,
     el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Sources et mise à jour'),
@@ -2525,12 +2578,12 @@ async function openEvents() {
         el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
         mode === 'art' ? el('p', { class: 'help' }, `Galeries : OpenStreetMap${galleriesTime ? ` (liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : ''}. La plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d'y aller.`) : null,
         ...notes.map((t) => el('p', { class: 'help' }, t)))),
-    el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
+    backNear(),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
-  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
   for (const e of mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, origin).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
 /* ---------- Parcours galeries : une boucle à pied par les galeries ouvertes à ton arrivée ---------- */
@@ -2540,7 +2593,8 @@ let galBack = null; // d'où l'on vient : Sorties ou Itinéraire
 async function openGalleryWalk(from = null) {
   if (from) galBack = from;
   track('Parcours galeries');
-  if (!origin) { openNear(); return; }
+  const origin0 = galBack === openEvents && evFrom ? evFrom : origin; // depuis Sorties : le même point de départ
+  if (!origin0) { openNear(); return; }
   if (!galleries) {
     openSheet([ico('palette'), ' Parcours galeries'], el('p', { class: 'help' }, 'Chargement de la liste des galeries…'), { name: 'galwalk' });
     try { await loadGalleries(); } catch {
@@ -2549,12 +2603,12 @@ async function openGalleryWalk(from = null) {
     }
   }
   // Seulement les galeries aux horaires connus : sans horaires, on risque de trouver porte close
-  const cands = galleriesNear(galleries, origin, new Date(), 2000).filter((g) => openState(g.hours) != null);
+  const cands = galleriesNear(galleries, origin0, new Date(), 2000).filter((g) => openState(g.hours) != null);
   const isOpen = (g, t) => { const st = openState(g.hours, new Date(Date.now() + t * 60000)); return st ? st.open : null; };
-  const plan = planLoopOpen(origin, cands, galMin, isOpen, { dwell: 15, maxStops: 6 });
+  const plan = planLoopOpen(origin0, cands, galMin, isOpen, { dwell: 15, maxStops: 6 });
   const choice = el('div', { class: 'seg', role: 'group', 'aria-label': 'Durée' }, [60, 120, 180].map((v) =>
     el('button', { type: 'button', 'aria-pressed': String(v === galMin), onclick: () => { galMin = v; openGalleryWalk(); } }, `${v / 60} h`)));
-  let prev = origin;
+  let prev = origin0;
   const steps = plan.route.map((g, i) => {
     const leg = distanceM(prev, g); prev = g;
     return el('li', { class: 'item' }, el('span', { class: 'item-main' },
@@ -2567,15 +2621,15 @@ async function openGalleryWalk(from = null) {
       ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'galerie', 'galeries')} ouvertes à ton arrivée, retour au départ : ${plan.walk} min de marche + 15 min par galerie = ${plan.total} min.`)
       : el('p', { class: 'empty' }, cands.length ? 'Aucune galerie ouverte sur ce temps. Essaie plus long, ou un autre jour (beaucoup ferment le dimanche et le lundi).' : 'Aucune galerie aux horaires connus à moins de 2 km.'),
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
-    plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin.lat, lng: origin.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
-    plan.route.length ? el('a', { class: 'btn', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
+    plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin0.lat, lng: origin0.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
+    plan.route.length ? el('a', { class: 'btn', href: loopUrl(origin0, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
     el('p', { class: 'help' }, 'Seules les galeries dont les horaires sont connus (OpenStreetMap) sont proposées, et seulement si elles sont ouvertes à ton arrivée. Ta position n\'est pas envoyée.'),
     el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire'),
   ), { tall: true, name: 'galwalk', again: () => openGalleryWalk() });
   nearLayer.clearLayers();
-  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following && origin0.kind !== 'map') meMarker(origin0.lat, origin0.lng).addTo(nearLayer);
   if (plan.route.length) {
-    const line = [origin, ...plan.route, origin].map((p) => [p.lat, p.lng]);
+    const line = [origin0, ...plan.route, origin0].map((p) => [p.lat, p.lng]);
     L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
     plan.route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
@@ -3881,6 +3935,7 @@ const TOOL_INFO = {
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
+  sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -3893,6 +3948,8 @@ function applyToolOrder() {
   }
 }
 applyToolOrder();
+// Sorties sans GPS : autour du centre de la carte, la carte ne bouge pas
+document.getElementById('btnSorties').addEventListener('click', () => openEvents('map'));
 document.getElementById('btnParis').addEventListener('click', () => {
   closeSheet();
   map.setView(PARIS, 13, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches });
@@ -3925,6 +3982,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Sorties sans ta position : nouveau bouton calendrier dans la colonne de la carte. Il montre les sorties autour du centre de la carte, sans GPS et sans bouger la carte : déplace la carte sur le quartier voulu, puis touche-le. Autour de moi → Sorties reste « autour de toi ». Dans l\'onglet Expos, « Expos de la semaine, tout Paris » : 7 jours, rangées par arrondissement.',
     '{lines} Lignes de métro et RER : nouveau bouton en haut, juste après « Dans la rue ». Un appui les montre ou les cache (l\'appui long sur M marche toujours). Pour le masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Rangement : {circle-help} l\'Aide passe en tête des {settings} Réglages (une catégorie de plus visible en haut). Nouvelle rubrique « Ce qui s\'affiche » : Barre du haut, Boutons de la carte et Filtres affichés au même endroit. Filtres en deux blocs : « Filtrer mes lieux » et « Ajouter sur la carte ». Chaque retour dit où il mène (← Autour de moi, ← Fiche…). Le bouton Favori de la fiche garde son nom, allumé = étoile pleine et contour épais. Sorties : sources et mise à jour repliées tout en bas. Les sous-titres ne sont plus coupés.',
     'Nouvelle police pour le texte : Inter, plus moderne et très lisible (titres et boutons gardent Archivo). Elle est dans l\'appli : rien n\'est demandé à un service.',
@@ -3986,6 +4044,7 @@ const HELP = [
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
+    '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -4048,6 +4107,8 @@ const HELP = [
   ]],
   ['palette', 'Expos et art', [
     '{calendar-days} Sorties → « Expos » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
+    '{calendar-days} « Expos de la semaine, tout Paris » (en bas de l\'onglet Expos) : toutes les expos de l\'agenda sur 7 jours, rangées par arrondissement, celles qui ferment le plus tôt d\'abord. Rien ne bouge sur la carte.',
+    '{calendar-days} Pour regarder un autre quartier sans ta position : déplace la carte, puis le bouton calendrier de la colonne.',
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
     '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',

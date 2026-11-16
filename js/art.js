@@ -21,6 +21,36 @@ export function lastChance(events, now = new Date(), days = 7) {
     .sort((a, b) => a.end - b.end);
 }
 
+/** Arrondissement d'une sortie d'après son code postal (75003 → 3, 75116 → 16), ou null hors Paris. */
+export function arrondOf(e) {
+  const m = /\b75(0(\d\d)|116)\b/.exec(`${e.address ?? ''} ${e.zip ?? ''}`);
+  if (!m) return null;
+  const n = m[1] === '116' ? 16 : Number(m[2]);
+  return n >= 1 && n <= 20 ? n : null;
+}
+
+/**
+ * Les expos de la semaine dans tout Paris, rangées par arrondissement (1er → 20e, puis « hors Paris »).
+ * Dans chaque arrondissement : celles qui ferment le plus tôt d'abord. Doublons (même titre, même lieu) retirés.
+ */
+export function weekExpos(events, now = new Date(), days = 7) {
+  const until = dayStart(now).getTime() + (days + 1) * DAY;
+  const seen = new Set();
+  const list = events.filter((e) => isExpo(e) && (!e.end || e.end >= now) && (!e.start || e.start.getTime() < until))
+    .filter((e) => { const k = `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  const groups = new Map();
+  for (const e of list) { const a = arrondOf(e); if (!groups.has(a)) groups.set(a, []); groups.get(a).push(e); }
+  const far = 864e13;
+  for (const g of groups.values()) g.sort((a, b) => (a.end?.getTime() ?? far) - (b.end?.getTime() ?? far) || a.title.localeCompare(b.title, 'fr'));
+  return [...groups.entries()].sort(([a], [b]) => (a ?? 99) - (b ?? 99)).map(([arr, items]) => ({ arr, items }));
+}
+
+/** « Dès samedi 21 nov. » pour une expo pas encore ouverte, sinon la date de fin. */
+export function weekText(e, now = new Date()) {
+  if (e.start && dayStart(e.start) > dayStart(now)) return `Dès ${shortDate(e.start)}`;
+  return e.end ? endText(e.end, now) : 'En cours';
+}
+
 /** « Dernier jour », « Finit demain », « Finit dimanche 22 nov. ». */
 export function endText(end, now = new Date()) {
   const n = daysBetween(now, end);

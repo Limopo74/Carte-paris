@@ -108,3 +108,44 @@ test('rappel : listes fixes à mettre à jour', () => {
   assert.equal(listsStale(new Date(2027, 10, 20), [{ name: 'X', from: '2028-06-01', to: '2028-06-01' }]), true, 'gratuités vérifiées il y a plus d\'un an');
   assert.equal(listsStale(new Date(2027, 5, 1), [{ name: 'X', from: '2027-06-05', to: '2027-06-05' }], '2027-01-10'), false);
 });
+
+import { arrondOf, weekExpos, weekText } from '../js/art.js';
+import { weekEventsUrl, EVENT_FIELDS } from '../js/events.js';
+
+test('arrondOf : code postal → arrondissement', () => {
+  assert.equal(arrondOf({ address: '38 rue de Bretagne 75003 Paris' }), 3);
+  assert.equal(arrondOf({ address: '1 av. Foch 75116 Paris' }), 16);
+  assert.equal(arrondOf({ address: '2 place 75020 Paris' }), 20);
+  assert.equal(arrondOf({ address: '10 rue X 93100 Montreuil' }), null);
+  assert.equal(arrondOf({ address: '' }), null);
+  assert.equal(arrondOf({ address: '75021 ?' }), null, 'pas un arrondissement');
+});
+
+test('weekExpos : tout Paris, par arrondissement, fin la plus proche d\'abord', () => {
+  const now = new Date('2026-11-16T15:00:00+01:00');
+  const d = (s) => new Date(s);
+  const ev = [
+    { title: 'Exposition B', tags: 'Expo', address: 'x 75011 Paris', lat: 48.86, lng: 2.37, start: d('2026-10-01'), end: d('2027-01-10') },
+    { title: 'Exposition A', tags: 'Expo', address: 'x 75011 Paris', lat: 48.861, lng: 2.371, start: d('2026-10-01'), end: d('2026-11-19') },
+    { title: 'Exposition C', tags: 'Expo', address: 'x 75003 Paris', lat: 48.86, lng: 2.36, start: d('2026-11-20T10:00:00+01:00'), end: d('2027-02-01') },
+    { title: 'Exposition trop tard', tags: 'Expo', address: 'x 75003 Paris', lat: 48.86, lng: 2.36, start: d('2026-12-10'), end: d('2027-02-01') },
+    { title: 'Exposition finie', tags: 'Expo', address: 'x 75003 Paris', lat: 48.86, lng: 2.36, start: d('2026-09-01'), end: d('2026-11-15') },
+    { title: 'Concert', tags: 'Concert', address: 'x 75003 Paris', lat: 48.86, lng: 2.36, start: d('2026-11-17'), end: d('2026-11-17') },
+    { title: 'Exposition Montreuil', tags: 'Expo', address: 'x 93100 Montreuil', lat: 48.86, lng: 2.44, start: d('2026-11-01'), end: d('2026-12-01') },
+    { title: 'Exposition B', tags: 'Expo', address: 'x 75011 Paris', lat: 48.86, lng: 2.37, start: d('2026-10-01'), end: d('2027-01-10') },
+  ];
+  const g = weekExpos(ev, now);
+  assert.deepEqual(g.map((x) => x.arr), [3, 11, null]);
+  assert.deepEqual(g[1].items.map((e) => e.title), ['Exposition A', 'Exposition B'], 'doublon retiré, fin la plus proche d\'abord');
+  assert.deepEqual(g[0].items.map((e) => e.title), ['Exposition C']);
+  assert.match(weekText(g[0].items[0], now), /^Dès vendredi 20 nov/);
+  assert.match(weekText(g[1].items[0], now), /^Finit jeudi 19 nov/);
+});
+
+test('weekEventsUrl : sans position, une semaine, champs utiles seulement', () => {
+  const u = new URL(weekEventsUrl(new Date('2026-11-16T15:00:00+01:00')));
+  assert.equal(u.searchParams.get('select'), EVENT_FIELDS);
+  assert.match(u.searchParams.get('where'), /date_end >= "2026-11-16T14:00:00.000Z" AND date_start <= "2026-11-2/);
+  assert.doesNotMatch(u.toString(), /within_distance|geofilter/);
+  assert.equal(new URL(weekEventsUrl(new Date(), 7, false)).searchParams.get('select'), null, 'version de secours sans select');
+});

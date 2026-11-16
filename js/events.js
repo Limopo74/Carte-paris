@@ -13,6 +13,18 @@ export function eventsUrl(now = new Date()) {
   return u.toString();
 }
 
+/** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions). */
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url';
+/** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
+export function weekEventsUrl(now = new Date(), days = 7, light = true) {
+  const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
+  const u = new URL(BASE);
+  const q = { where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}"`, limit: light ? '3000' : '800' };
+  if (light) q.select = EVENT_FIELDS;
+  u.search = new URLSearchParams(q).toString();
+  return u.toString();
+}
+
 const str = (v) => (typeof v === 'string' ? v.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '');
 function where(r) {
   for (const g of [r.lat_lon, r.geo_point_2d, r.geo]) {
