@@ -14,7 +14,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
 import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
-import { openState, minutesLeft, closedDaysText } from './hours.js';
+import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -22,7 +22,7 @@ import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly } from './events.js';
-import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON } from './markets.js';
+import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -32,7 +32,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (115)';
+const VERSION = '16 novembre 2026 (116)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -1421,7 +1421,8 @@ function stateTag(hours) {
   if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${left} min`);
   if (st.open) return el('span', { class: 'tag open' }, 'Ouvert');
   if (st.opensAt) return el('span', { class: 'tag soon' }, `Ouvre à ${hhText(st.opensAt)}`);
-  return el('span', { class: 'tag closed' }, 'Fermé aujourd\'hui');
+  // Fermé toute la journée, ou déjà fermé ce soir (le lieu a ouvert plus tôt) : on ne dit pas « aujourd'hui » à tort
+  return el('span', { class: 'tag closed' }, opensThatDay(hours) ? 'Fermé' : 'Fermé aujourd\'hui');
 }
 function hoursTag(p) { return stateTag(hoursOf(p)); }
 
@@ -3102,7 +3103,8 @@ async function loadMarkets(force = false) {
       if (items.length) { cached = { time: Date.now(), items }; try { storage.setItem('carte-paris.marches', JSON.stringify(cached)); } catch { /* trop gros */ } }
     } catch { if (force) throw new Error('marchés'); /* sinon on garde l'ancienne copie */ }
   }
-  markets = [...(cached?.items ?? []), ...COVERED_MARKETS]; // les couverts : liste fixe, toujours là
+  // niceName : une copie gardée d'avant la v116 a encore les noms en majuscules
+  markets = [...(cached?.items ?? []).map((m) => ({ ...m, name: niceName(m.name) })), ...COVERED_MARKETS]; // les couverts : liste fixe, toujours là
   marketsTime = cached?.time ?? 0;
   return markets;
 }
@@ -4465,6 +4467,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
     '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
     '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
@@ -4474,7 +4477,6 @@ const HELP = [
     '{copy} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {copy} copie le lien de la sortie, avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
     '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
     '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
-    '{triangle-alert} « Info trafic métro et RER » ouvre la page des perturbations d\'Île-de-France Mobilités, depuis Rentrer, la station la plus proche et un trajet en métro. Réglages → Application → Données des transports : les toilettes des gares RATP ont aussi leur date et leur fichier à télécharger.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

@@ -79,6 +79,14 @@ export function openState(hours, date = new Date()) {
   return { open: false, opensAt: later ? hhmm(later.from) : null };
 }
 
+/** Le lieu ouvre-t-il à un moment de ce jour ? (vrai, faux, ou null si les horaires sont inconnus) */
+export function opensThatDay(hours, date = new Date()) {
+  const week = parseRules(hours);
+  if (!week) return null;
+  const today = (holidayOn(date) && week.PH) ? week.PH : (week[DAYS[date.getDay()]] ?? []);
+  return today.length > 0;
+}
+
 /** Minutes avant la fermeture si c'est ouvert et que l'heure de fin est connue, sinon null. */
 export function minutesLeft(hours, date = new Date()) {
   const st = openState(hours, date);

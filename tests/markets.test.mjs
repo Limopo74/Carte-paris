@@ -49,3 +49,14 @@ test('marché découvert : même lecture qu\'avant (« À 7h », « Jusqu\'à 13
   assert.deepEqual(whenToday(m, mercredi(9)), { when: 'now', text: 'Jusqu\'à 13h30' });
   assert.deepEqual(whenToday(m, mercredi(15)), { when: 'done', text: '' });
 });
+
+test('marchés découverts : noms en casse normale, téléchargement sans les contours', async () => {
+  const { niceName, MARKETS_URL } = await import('../js/markets.js');
+  assert.equal(niceName('MARCHÉ CHARONNE'), 'Marché Charonne');
+  assert.equal(niceName('MARCHÉ DE LA PORTE DE VANVES'), 'Marché de la Porte de Vanves');
+  assert.equal(niceName("MARCHÉ D'ALIGRE"), "Marché d'Aligre");
+  assert.equal(niceName('Marché Bastille'), 'Marché Bastille', 'casse mixte gardée');
+  assert.match(MARKETS_URL, /select=/);
+  assert.ok(!/geo_shape/.test(MARKETS_URL));
+  for (const f of ['nom_long', 'lundi', 'dimanche', 'h_deb_sem_1', 'h_fin_dim', 'geo_point_2d']) assert.ok(MARKETS_URL.includes(f), f);
+});

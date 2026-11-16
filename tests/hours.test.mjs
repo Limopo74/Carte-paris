@@ -54,3 +54,11 @@ test('formats non gérés : inconnu plutôt que faux', () => {
 test('jours fériés ignorés (PH)', () => {
   assert.deepEqual(openState('Mo-Sa 09:00-19:00; PH off', at(17, 10)), { open: true, until: '19:00' });
 });
+
+test('fermé ce soir ou fermé toute la journée', async () => {
+  const { opensThatDay } = await import('../js/hours.js');
+  const sq = 'Mo-Fr 08:00-17:00; Sa,Su off';
+  assert.equal(opensThatDay(sq, new Date(2026, 10, 16, 23, 0)), true, 'lundi : a ouvert plus tôt → « Fermé »');
+  assert.equal(opensThatDay(sq, new Date(2026, 10, 15, 12, 0)), false, 'dimanche : « Fermé aujourd\'hui »');
+  assert.equal(opensThatDay('', new Date()), null);
+});

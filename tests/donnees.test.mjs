@@ -25,7 +25,7 @@ test('données des transports : les fichiers de l\'appli portent leur date, les 
 test('données des transports : lien des toilettes RATP et page info trafic IDFM', async () => {
   const { RATP_TOILETS_FILE, TRAFFIC_URL } = await import('../js/donnees.js');
   assert.match(RATP_TOILETS_FILE.url, /^https:\/\/data\.ratp\.fr\/explore\/dataset\/sanitaires-reseau-ratp\/export\/$/);
-  assert.match(TRAFFIC_URL, /^https:\/\/www\.iledefrance-mobilites\.fr\//);
+  assert.match(TRAFFIC_URL, /^https:\/\/me-deplacer\.iledefrance-mobilites\.fr\/infos-trafic\//);
   const j = JSON.parse(readFileSync(new URL('../data/sanitaires-ratp.json', import.meta.url), 'utf8'));
   assert.match(j.updated ?? '', /^\d{4}-\d{2}-\d{2}$/, 'sanitaires-ratp.json : champ « updated »');
 });

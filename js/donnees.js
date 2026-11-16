@@ -16,7 +16,7 @@ export const COLORS_FILE = { name: 'Référentiel des lignes', file: 'referentie
 export const RATP_TOILETS_FILE = { name: 'Toilettes publiques dans le réseau RATP', file: 'sanitaires-reseau-ratp.geojson', url: 'https://data.ratp.fr/explore/dataset/sanitaires-reseau-ratp/export/' };
 
 /** Page « Infos trafic » d'Île-de-France Mobilités (simple lien : rien n'est envoyé avant l'appui). */
-export const TRAFFIC_URL = 'https://www.iledefrance-mobilites.fr/info-trafic';
+export const TRAFFIC_URL = 'https://me-deplacer.iledefrance-mobilites.fr/infos-trafic/metro'; // vérifié le 16 nov. 2026 (l'ancienne adresse www…/info-trafic donnait une erreur 500)
 
 /** Données figées dans l'appli : seules elles demandent un rappel (les données en direct se rechargent seules). */
 export const FIXED_DATA = [

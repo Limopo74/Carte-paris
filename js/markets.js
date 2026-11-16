@@ -1,7 +1,9 @@
 // Marchés découverts de Paris (données ouvertes de la Ville de Paris) : jours et horaires de tenue.
 import { distanceM } from './geo.js';
 
-export const MARKETS_URL = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/marches-decouverts/exports/json';
+// Champs vérifiés sur l'API le 16 nov. 2026. Sans les contours (geo_shape), lourds et inutiles ici.
+export const MARKETS_URL = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/marches-decouverts/exports/json'
+  + '?select=nom_court,nom_long,produit,localisation,lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche,h_deb_sem_1,h_fin_sem_1,h_deb_sam,h_fin_sam,h_deb_dim,h_fin_dim,geo_point_2d';
 const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const str = (v) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim());
@@ -15,6 +17,12 @@ export function hm(v) {
   return `${h}h${mi ? String(mi).padStart(2, '0') : ''}`;
 }
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+const SMALL = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'et', 'aux', 'au', 'sur', 'en', 'à', 'd', 'l']);
+/** « MARCHÉ CHARONNE » → « Marché Charonne » (les noms arrivent en majuscules) ; un nom déjà en casse mixte est gardé. */
+export function niceName(s) {
+  if (!s || s !== s.toUpperCase()) return s;
+  return s.toLowerCase().split(/(\s+|-|')/).map((w, i) => (i > 0 && SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join('');
+}
 
 function point(r) {
   for (const g of [r.geo_point_2d, r.geo_point, r.coordonnees]) {
@@ -32,7 +40,7 @@ export function parseMarkets(json) {
   for (const r of Array.isArray(json) ? json : []) {
     const p = point(r);
     if (!p || !(p.lat > 48.7 && p.lat < 49)) continue;
-    const name = cap(str(r.nom_long) || str(r.nom_court) || str(r.nom) || 'Marché');
+    const name = cap(niceName(str(r.nom_long) || str(r.nom_court) || str(r.nom) || 'Marché'));
     out.push({
       name: /^march/i.test(name) ? name : `Marché ${name}`, ...p,
       days: DAYS.map((d) => yes(r[d])),
