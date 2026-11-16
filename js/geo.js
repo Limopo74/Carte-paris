@@ -42,14 +42,16 @@ export function normalizeRings(input) {
  * Un point à exactement R mètres va dans le cercle R. Les points au-delà
  * du dernier cercle ne sont pas renvoyés.
  */
-export function groupByRings(points, here, rings) {
+export function groupByRings(points, here, rings, { favBonus = 0 } = {}) {
   const groups = rings.map((ring) => ({ ring, items: [] }));
   for (const point of points) {
     const d = distanceM(here, point);
     const g = groups.find((x) => d <= x.ring);
     if (g) g.items.push({ point, d });
   }
-  for (const g of groups) g.items.sort((x, y) => x.d - y.d);
+  // Dans chaque cercle, un favori passe devant un lieu jusqu'à `favBonus` mètres plus proche
+  const key = (x) => x.d - (x.point.fav ? favBonus : 0);
+  for (const g of groups) g.items.sort((x, y) => key(x) - key(y));
   return groups;
 }
 

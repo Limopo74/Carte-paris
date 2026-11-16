@@ -71,3 +71,14 @@ test('cercles en minutes à pied', () => {
   assert.deepEqual(normalizeMinuteRings('15, 5, 5, 90, x, 0'), [5, 15, 60]);
   assert.deepEqual(normalizeMinuteRings(''), [5, 10, 15, 20]);
 });
+
+test('cercles : un favori passe devant, dans la limite du bonus', async () => {
+  const { groupByRings } = await import('../js/geo.js');
+  const here = { lat: 48.86, lng: 2.34 };
+  const at = (m) => ({ lat: 48.86 + m / 111195, lng: 2.34 });
+  const a = { id: 'a', ...at(100) }, f = { id: 'f', fav: true, ...at(300) }, g = { id: 'g', fav: true, ...at(800) };
+  const [ring] = groupByRings([a, f, g], here, [1000], { favBonus: 400 });
+  assert.deepEqual(ring.items.map((x) => x.point.id), ['f', 'a', 'g']); // f gagne (200 m d'écart), g non (700 m)
+  const [plain] = groupByRings([a, f], here, [1000]);
+  assert.deepEqual(plain.items.map((x) => x.point.id), ['a', 'f']); // sans bonus : distance seule
+});

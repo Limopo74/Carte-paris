@@ -28,7 +28,7 @@ export function todoSummary(groups) {
   let n = 0;
   let first = null;
   for (const g of groups) {
-    n += g.items.filter((i) => !i.point.done).length;
+    n += g.items.length; // tous les lieux : « déjà visité » n'est qu'une information
     if (n && !first) first = { ring: g.ring, n };
   }
   return { first, last: { ring: groups.at(-1).ring, n } };

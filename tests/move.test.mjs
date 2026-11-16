@@ -53,7 +53,7 @@ test('sur mon chemin : lieux à faire avec un petit détour, dans l\'ordre du tr
   ];
   assert.ok(MAX_DETOUR_M > 250 && MAX_DETOUR_M < 400);
   const r = onTheWay(pts, O, B);
-  assert.deepEqual(r.map((x) => x.point.id), ['debut', 'fin']);
+  assert.deepEqual(r.map((x) => x.point.id), ['debut', 'visite', 'fin']); // « déjà visité » compte aussi
   assert.ok(r[0].detour >= 0);
 });
 
@@ -92,7 +92,7 @@ test('suivi : lieux à faire qui viennent d\'entrer à moins de 100 m', () => {
     { id: 'loin', done: false, ...off(O, 500, 0) },
   ];
   const r = newlyNear(pts, O, new Set(['deja']), 100);
-  assert.deepEqual(r.map((p) => p.id), ['pres']);
+  assert.deepEqual(r.map((p) => p.id), ['pres', 'visite']); // « déjà visité » compte aussi
   assert.ok(distanceM(O, pts[0]) < 100);
 });
 

@@ -36,10 +36,9 @@ export function detourM(a, p, b) {
 // 5 minutes de marche en plus, avec 12 min/km et des rues 1,3 fois plus longues que la ligne droite.
 export const MAX_DETOUR_M = Math.round((5 / 12) * 1000 / 1.3);
 
-/** Lieux à faire qui demandent un petit détour entre a et b, dans l'ordre où on les croise. */
+/** Lieux qui demandent un petit détour entre a et b, dans l'ordre où on les croise (« déjà visité » n'est qu'une information). */
 export function onTheWay(points, a, b, maxDetour = MAX_DETOUR_M) {
   return points
-    .filter((p) => !p.done)
     .map((point) => {
       const da = distanceM(a, point);
       return { point, detour: Math.max(0, detourM(a, point, b)), along: da / (da + distanceM(point, b) || 1) };
@@ -93,9 +92,9 @@ export function routeUrl(route) {
   return u.toString();
 }
 
-/** Lieux à faire à moins de `radius` m qui n'ont pas encore été signalés. */
+/** Lieux à moins de `radius` m qui n'ont pas encore été signalés. */
 export function newlyNear(points, here, alreadySignaled, radius = 100) {
-  return points.filter((p) => !p.done && !alreadySignaled.has(p.id) && distanceM(here, p) <= radius);
+  return points.filter((p) => !alreadySignaled.has(p.id) && distanceM(here, p) <= radius);
 }
 
 /** Direction à dire à voix haute selon l'angle de la flèche (0 = devant). */

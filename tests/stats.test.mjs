@@ -24,9 +24,10 @@ test('résumé des lieux à faire autour de moi', () => {
   const g = (ring, done) => ({ ring, items: done.map((d) => ({ point: { done: d } })) });
   // cercles : 100 m (rien à faire), 300 m (1 à faire + 1 visité), 1 km (2 à faire)
   const groups = [g(100, [true]), g(300, [false, true]), g(1000, [false, false])];
-  assert.deepEqual(todoSummary(groups), { first: { ring: 300, n: 1 }, last: { ring: 1000, n: 3 } });
+  // « déjà visité » n'est qu'une information : tous les lieux sont comptés
+  assert.deepEqual(todoSummary(groups), { first: { ring: 100, n: 1 }, last: { ring: 1000, n: 5 } });
   assert.deepEqual(todoSummary([g(100, [false]), g(500, [])]), { first: { ring: 100, n: 1 }, last: { ring: 500, n: 1 } });
-  assert.deepEqual(todoSummary([g(100, [true]), g(500, [])]), { first: null, last: { ring: 500, n: 0 } });
+  assert.deepEqual(todoSummary([g(100, []), g(500, [])]), { first: null, last: { ring: 500, n: 0 } });
 });
 
 test('compte par catégorie', () => {

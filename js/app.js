@@ -28,7 +28,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (62)';
+const VERSION = '16 novembre 2026 (63)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -541,7 +541,7 @@ function dayNote(now = new Date()) {
   return null;
 }
 
-/* « Maintenant » : sur la carte, le lieu à faire le plus proche et ouvert (15 min à pied au plus).
+/* « Maintenant » : sur la carte, le lieu le plus proche et ouvert (15 min à pied au plus).
    Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
 function updateNow(force = false) {
   const card = document.getElementById('nowCard');
@@ -553,12 +553,13 @@ function updateNow(force = false) {
   // le matin cafés et boulangeries, à midi et le soir restos (et bars le soir).
   const slot = timeSlot();
   const fits = (p) => slot && slot.re.test(`${catOf(p.cat).name} ${p.name}`);
-  const score = (x) => x.d - (fits(x.p) ? 400 : 0);
-  const best = !pos || nowHidden ? null : visible().filter((p) => !p.done && openState(p.hours)?.open !== false)
+  // Un favori (même déjà visité) passe devant un lieu jusqu'à 5 min de marche plus proche
+  const score = (x) => x.d - (fits(x.p) ? 400 : 0) - (x.p.fav ? minutesToMeters(5) : 0);
+  const best = !pos || nowHidden ? null : visible().filter((p) => openState(p.hours)?.open !== false)
     .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => score(a) - score(b))[0];
   // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
   const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
-  const useMarket = mk && (!best || !fits(best.p) || mk.d < best.d);
+  const useMarket = mk && (!best || (!fits(best.p) && !best.p.fav) || mk.d < best.d);
   card.hidden = !best && !useMarket;
   if (card.hidden) return;
   if (useMarket) {
@@ -572,7 +573,7 @@ function updateNow(force = false) {
   const { p, d } = best;
   const st = openState(p.hours);
   fill(card.querySelector('.now-text'),
-    el('span', { class: 'now-kicker' }, fits(p) ? slot.label : 'Maintenant'),
+    el('span', { class: 'now-kicker' }, [fits(p) ? slot.label : 'Maintenant', p.fav ? 'ton favori' : null].filter(Boolean).join(' · ')),
     el('span', { class: 'now-name' }, p.name),
     el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
   card.querySelector('.now-open').onclick = () => openDetail(p.id);
@@ -1302,7 +1303,7 @@ function nearTitle() {
 
 function renderNear(fit = false) {
   const pts = visible();
-  const groups = groupByRings(pts, origin, nearRings());
+  const groups = groupByRings(pts, origin, nearRings(), { favBonus: minutesToMeters(5) }); // favoris en tête de leur cercle
   const inside = groups.reduce((n, g) => n + g.items.length, 0);
   const farther = pts.length - inside;
   const maxRing = nearRings().at(-1);
@@ -1327,10 +1328,10 @@ function renderNear(fit = false) {
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
-      ? `Aucun lieu à faire à moins de ${ringText(t.last.ring)}.`
-      : t.first.ring === t.last.ring
-        ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.last.ring)}.`
-        : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
+      ? `Aucun lieu à moins de ${ringText(t.last.ring)}.`
+      : t.first.ring === t.last.ring || t.first.n === t.last.n
+        ? `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}.`
+        : `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
   }
   if (meteo && !meteo.rain && meteo.temp >= 28 && origin.kind !== 'station') {
@@ -1462,7 +1463,7 @@ function stopQuietNear() {
 
 /* Mode « Ma position et direction » (bouton cible de la carte) : point bleu + cône tant qu'on ne rappuie pas,
    la carte suit ; si on la déplace au doigt, elle arrête de suivre jusqu'au prochain appui. Écran allumé,
-   vibration à 100 m d'un lieu à faire. Tout reste sur le téléphone. */
+   vibration à 100 m d'un de tes lieux. Tout reste sur le téléphone. */
 let trackFollow = true;
 function setLocateBtn() {
   const b = document.getElementById('btnLocate');
@@ -1571,8 +1572,8 @@ function renderWay(from, dest) {
   const total = distanceM(from, dest);
   const body = [
     el('p', { class: 'summary' }, found.length
-      ? `${plural(found.length, 'lieu', 'lieux')} à faire sur ton chemin, à moins de 5 min de détour.`
-      : 'Aucun lieu à faire sur ton chemin (moins de 5 min de détour).'),
+      ? `${plural(found.length, 'lieu', 'lieux')} sur ton chemin, à moins de 5 min de détour.`
+      : 'Aucun de tes lieux sur ton chemin (moins de 5 min de détour).'),
     el('p', { class: 'help' }, `Trajet : ${fmtDist(total)} · ${fmtWalk(total)}.`),
     el('ul', { class: 'items' }, found.map(({ point: p, detour }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderWay(from, dest)) },
@@ -2284,7 +2285,7 @@ let freeMin = 60;
 let freeDwell = 15;
 function openFreeTime() {
   if (!origin) { openNear(); return; }
-  const todo = visible().filter((p) => !p.done);
+  const todo = visible(); // « déjà visité » n'est qu'une information : tous les lieux comptent
   // Ouvert à l'heure d'arrivée ? (horaires inconnus : on garde)
   const isOpen = (p, t) => { const st = openState(p.hours, new Date(Date.now() + t * 60000)); return st ? st.open : null; };
   const plan = planLoopOpen(origin, todo, freeMin, isOpen, { dwell: freeDwell });
@@ -2301,8 +2302,8 @@ function openFreeTime() {
     el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice([30, 60, 90, 120, 180], freeMin, (v) => (v < 60 ? `${v} min` : `${v / 60} h`.replace('.5', ' h 30').replace(' h h', ' h')), (v) => { freeMin = v; })),
     el('div', {}, el('div', { class: 'legend' }, 'Temps sur place, par lieu'), choice([5, 15, 30], freeDwell, (v) => `${v} min`, (v) => { freeDwell = v; })),
     plan.route.length
-      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')} à faire, retour au départ : ${plan.walk} min de marche + ${plan.route.length * freeDwell} min sur place = ${plan.total} min.`)
-      : el('p', { class: 'empty' }, todo.length ? 'Aucun lieu à faire assez proche pour ce temps. Essaie plus long ou moins de temps sur place.' : 'Aucun lieu « à faire » avec les filtres actuels.'),
+      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')}, retour au départ : ${plan.walk} min de marche + ${plan.route.length * freeDwell} min sur place = ${plan.total} min.`)
+      : el('p', { class: 'empty' }, todo.length ? 'Aucun lieu assez proche pour ce temps. Essaie plus long ou moins de temps sur place.' : 'Aucun lieu avec les filtres actuels.'),
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
     plan.closed ? el('p', { class: 'help' }, `${plural(plan.closed, 'lieu écarté', 'lieux écartés')} : fermé${plan.closed > 1 ? 's' : ''} à ton arrivée.`) : null,
     plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin.lat, lng: origin.lng }], 'Temps libre') }, ico('navigation'), 'Balade guidée') : null,
@@ -2323,13 +2324,13 @@ function openFreeTime() {
   }
 }
 
-/* ---------- Surprends-moi : un lieu à faire au hasard, à moins de 15 min ---------- */
+/* ---------- Surprends-moi : un de tes lieux au hasard, à moins de 15 min ---------- */
 
 function surprise() {
   if (!origin) { openNear(); return; }
   const max = minutesToMeters(15);
-  const pool = visible().filter((p) => !p.done && distanceM(origin, p) <= max);
-  if (!pool.length) { toast('Aucun lieu à faire à moins de 15 min (avec les filtres actuels).', true); return; }
+  const pool = visible().filter((p) => distanceM(origin, p) <= max);
+  if (!pool.length) { toast('Aucun de tes lieux à moins de 15 min (avec les filtres actuels).', true); return; }
   const p = pool[Math.floor(Math.random() * pool.length)];
   openDetail(p.id, () => renderNear());
   toast(`Surprise : ${p.name}, à ${walkMinutes(distanceM(origin, p))} min à pied`);
@@ -2382,7 +2383,7 @@ function openRoutes() {
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
   openSheet([ico('route'), ' Itinéraire'], el('div', { class: 'menu' },
     row('hourglass', 'J\'ai du temps', 'Une boucle à pied qui revient ici, selon ton temps libre', () => openFreeTime()),
-    row('footprints', 'Sur mon chemin', 'Tes lieux à faire sur le trajet vers une destination', () => openWayPicker()),
+    row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
     row('route', 'Relier des lieux', '2 à 4 de tes lieux dans le meilleur ordre', () => openRoutePicker()),
     el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => renderNear() }, '← Autour de moi'),
   ), { name: 'routes', again: openRoutes });
@@ -3278,6 +3279,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '« Déjà visité » n\'est plus qu\'une information : tous tes lieux comptent dans Maintenant, Surprise, Itinéraire, les alertes à 100 m et les cercles. Tes favoris passent en premier : dans « Maintenant » et en tête de chaque cercle d\'Autour de moi, s\'ils sont à moins de 5 min de plus qu\'un autre lieu.',
     'Bleu modernisé : le bleu des transports est plus vif ; en mode sombre, les boutons principaux sont blanc cassé.',
     '« Maintenant » s\'adapte à l\'heure : le matin un café, une boulangerie ou un marché ; à midi et le soir un resto (ou un bar le soir). Le dimanche et les jours fériés, « Dim. » ou « Férié » apparaît à côté de la température ; « Ouvert maintenant » tient compte des jours fériés quand les horaires le précisent.',
     '{calendar-days} Sorties : bouton « Mettre à jour » en bas, pour redemander tout de suite les marchés et l\'agenda de la Ville.',
@@ -3285,7 +3287,7 @@ const HELP = [
     'Lignes de métro et RER sur la carte, dans leurs couleurs : appui long sur M, ou {list-filter} Filtres → Lignes de métro et RER.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches de toi, avec le temps jusqu\'à chez toi depuis chacune ; la plus rapide est marquée.',
     'Boutons plus colorés : chaque bouton prend la teinte de sa famille. Le bouton « zoom sur ma position » disparaît : Ma position et direction fait déjà ce zoom.',
-    'Sur la carte, « Maintenant » propose le lieu à faire le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
+    'Sur la carte, « Maintenant » propose le lieu le plus proche et ouvert (15 min à pied au plus) ; × pour le cacher. {route} Itinéraire remplace Temps libre, Chemin et Parcours. Sorties : marchés, puces et brocantes, fêtes, et un filtre « Gratuit seulement ».',
     'Carte sans réseau : les quartiers déjà regardés restent visibles dans le métro (styles Classique, Pastel, Nuit).',
     '{locate-fixed} Ma position et direction : un appui, le cône reste et la carte te suit jusqu\'au prochain appui. {landmark} Monuments historiques dans Autour de moi, avec site officiel. Vélib\' réparé.',
     'Nouvelle charte « Plaques & pavés » : la couleur dit la famille (ardoise = y aller, bleu vif = transport, terre cuite = découvrir, vert = garder, or = favori), la forme dit l\'importance (plaque pleine = action principale).',
@@ -3307,7 +3309,7 @@ const HELP = [
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
-    '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un lieu à faire.',
+    '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
@@ -3339,8 +3341,8 @@ const HELP = [
     '{route} Itinéraire réunit trois façons de tracer un trajet : « J\'ai du temps », « Sur mon chemin », « Relier des lieux ».',
     '{hourglass} J\'ai du temps (Temps libre) : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
     '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. Tes lieux atteints sont notés « déjà visité ».',
-    '{footprints} Sur mon chemin : tes lieux à faire sur ton trajet. {route} Relier des lieux : 2 à 4 lieux dans le meilleur ordre.',
-    '{shuffle} Surprise : un lieu à faire au hasard, à moins de 15 min.',
+    '{footprints} Sur mon chemin : tes lieux sur ton trajet. {route} Relier des lieux : 2 à 4 lieux dans le meilleur ordre.',
+    '{shuffle} Surprise : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
