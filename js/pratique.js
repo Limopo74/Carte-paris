@@ -5,10 +5,14 @@ const BASE = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets';
 export const DATASETS = {
   fontaines: 'fontaines-a-boire',
   toilettes: 'sanisettesparis',
+  fraisLieux: 'ilots-de-fraicheur-equipements-activites',
+  fraisParcs: 'ilots-de-fraicheur-espaces-verts-frais',
 };
 
 export function exportUrl(kind) {
-  return `${BASE}/${DATASETS[kind]}/exports/json`;
+  // Les parcs ont des contours lourds : on ne demande que le nom, le type, l'adresse et le point central.
+  const q = kind === 'fraisParcs' ? '?select=nom,type,adresse,geo_point_2d' : '';
+  return `${BASE}/${DATASETS[kind]}/exports/json${q}`;
 }
 
 /** Position d'un enregistrement, quelle que soit la forme du champ géographique. */
@@ -38,6 +42,15 @@ export function parseRecords(json, kind) {
         label: cap(str(r.modele)) || cap(str(r.type_objet)) || 'Fontaine',
         detail: [street, str(r.commune)].filter(Boolean).join(', '),
         ok: str(r.dispo).toUpperCase() !== 'NON',
+      });
+    } else if (kind === 'fraisLieux' || kind === 'fraisParcs') {
+      const name = str(r.nom);
+      const pay = str(r.payant).toLowerCase();
+      out.push({
+        ...p,
+        label: name || cap(str(r.type)) || 'Lieu frais',
+        detail: [cap(str(r.type)), str(r.adresse), pay === 'oui' ? 'payant' : pay === 'non' ? 'gratuit' : ''].filter(Boolean).join(' · '),
+        ok: true,
       });
     } else {
       out.push({

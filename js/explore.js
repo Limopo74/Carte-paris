@@ -261,3 +261,131 @@ export function readMeteo(json) {
   const rain = Number(c.precipitation) >= 0.1 || RAIN.has(Number(c.weather_code));
   return { rain, temp: Number.isFinite(c.temperature_2m) ? Math.round(c.temperature_2m) : null };
 }
+
+/* ---------- Balade partagée et rendez-vous (dans le #, jamais envoyés au serveur) ---------- */
+
+/** Lien vers une balade : liste d'étapes { name, lat, lng } (12 au plus). */
+export function routeLink(base, stops, title = '') {
+  const o = { v: 1, t: String(title).slice(0, 60), s: stops.slice(0, 12).map((p) => [String(p.name ?? '').slice(0, 60), r5(p.lat), r5(p.lng)]) };
+  return `${base.split('#')[0]}#balade=${b64url(JSON.stringify(o))}`;
+}
+export function readRouteLink(hash) {
+  const m = /(?:^|[#&])balade=([\w-]+)/.exec(hash ?? '');
+  if (!m) return null;
+  try {
+    const o = JSON.parse(unb64url(m[1]));
+    const stops = (Array.isArray(o.s) ? o.s : []).slice(0, 12).map(([n, lat, lng]) => ({ name: String(n ?? '').trim().slice(0, 60) || 'Étape', lat: Number(lat), lng: Number(lng) }))
+      .filter((p) => p.lat > 48 && p.lat < 49.5 && p.lng > 1.4 && p.lng < 3.6);
+    return stops.length ? { title: String(o.t ?? '').slice(0, 60), stops } : null;
+  } catch { return null; }
+}
+
+/** Lien « Rejoins-moi » : une position envoyée une seule fois. */
+export function meetLink(base, at, name = '') {
+  return `${base.split('#')[0]}#rdv=${b64url(JSON.stringify({ v: 1, n: String(name).slice(0, 40), y: r5(at.lat), x: r5(at.lng), t: Math.round((at.time ?? Date.now()) / 60000) }))}`;
+}
+export function readMeetLink(hash) {
+  const m = /(?:^|[#&])rdv=([\w-]+)/.exec(hash ?? '');
+  if (!m) return null;
+  try {
+    const o = JSON.parse(unb64url(m[1]));
+    const lat = Number(o.y); const lng = Number(o.x);
+    if (!(lat > 48 && lat < 49.5 && lng > 1.4 && lng < 3.6)) return null;
+    return { name: String(o.n ?? '').trim().slice(0, 40), lat, lng, time: Number.isFinite(o.t) ? o.t * 60000 : null };
+  } catch { return null; }
+}
+
+/* ---------- Temps libre qui respecte les horaires ---------- */
+
+/**
+ * Comme planLoop, mais chaque étape doit être ouverte à l'heure d'arrivée : isOpen(lieu, minutesDepuisMaintenant)
+ * renvoie true (ouvert), false (fermé) ou null (horaires inconnus : accepté).
+ */
+export function planLoopOpen(start, candidates, minutes, isOpen, opts = {}) {
+  const { dwell = 15 } = opts;
+  const fits = (route) => {
+    let t = 0; let prev = start;
+    for (const p of route) {
+      t += walkMin(prev, p);
+      if (isOpen(p, t) === false || isOpen(p, t + Math.min(dwell, 5)) === false) return false;
+      t += dwell; prev = p;
+    }
+    return true;
+  };
+  const ok = candidates.filter((c) => isOpen(c, walkMin(start, c)) !== false);
+  const res = planLoopWith(start, ok, minutes, { ...opts, fits });
+  return { ...res, closed: candidates.length - ok.length };
+}
+
+function planLoopWith(start, candidates, minutes, { dwell = 15, maxStops = 8, fits = () => true } = {}) {
+  let route = [];
+  const left = [...candidates];
+  for (;;) {
+    if (route.length >= maxStops) break;
+    let best = null;
+    for (const c of left) {
+      for (let k = 0; k <= route.length; k++) {
+        const r = [...route.slice(0, k), c, ...route.slice(k)];
+        const total = loopWalk(start, r) + dwell * r.length;
+        if (total > minutes || !fits(r)) continue;
+        const score = total - (c.stars ?? 0) * 0.5 - (c.fav ? 1 : 0);
+        if (!best || score < best.score) best = { r, c, score };
+      }
+    }
+    if (!best) break;
+    route = best.r;
+    left.splice(left.indexOf(best.c), 1);
+  }
+  const walk = Math.round(loopWalk(start, route));
+  return { route, walk, total: walk + dwell * route.length };
+}
+
+/* ---------- Ajouter un lieu depuis une photo : position GPS lue dans l'EXIF ---------- */
+
+/** Position GPS d'une photo JPEG (ArrayBuffer), ou null. Lu sur le téléphone, rien n'est envoyé. */
+export function gpsFromJpeg(buf) {
+  const v = new DataView(buf);
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;
+  let off = 2;
+  while (off + 4 <= v.byteLength) {
+    const marker = v.getUint16(off);
+    const size = v.getUint16(off + 2);
+    if (marker === 0xffe1 && v.getUint32(off + 4) === 0x45786966) return readExifGps(v, off + 10);
+    if ((marker & 0xff00) !== 0xff00 || size < 2) return null;
+    off += 2 + size;
+  }
+  return null;
+}
+
+function readExifGps(v, tiff) {
+  if (tiff + 8 > v.byteLength) return null;
+  const le = v.getUint16(tiff) === 0x4949;
+  const u16 = (o) => v.getUint16(o, le);
+  const u32 = (o) => v.getUint32(o, le);
+  const ifd0 = tiff + u32(tiff + 4);
+  let gpsIfd = null;
+  for (let i = 0, n = u16(ifd0); i < n; i++) {
+    const e = ifd0 + 2 + i * 12;
+    if (e + 12 > v.byteLength) return null;
+    if (u16(e) === 0x8825) gpsIfd = tiff + u32(e + 8);
+  }
+  if (gpsIfd == null || gpsIfd + 2 > v.byteLength) return null;
+  const tags = {};
+  for (let i = 0, n = u16(gpsIfd); i < n; i++) {
+    const e = gpsIfd + 2 + i * 12;
+    if (e + 12 > v.byteLength) break;
+    const tag = u16(e); const type = u16(e + 2); const count = u32(e + 4);
+    if (type === 2) tags[tag] = String.fromCharCode(v.getUint8(count <= 4 ? e + 8 : tiff + u32(e + 8)));
+    if (type === 5 && count === 3) {
+      const at = tiff + u32(e + 8);
+      if (at + 24 > v.byteLength) continue;
+      const r = (k) => { const d = u32(at + k * 8 + 4); return d ? u32(at + k * 8) / d : 0; };
+      tags[tag] = r(0) + r(1) / 60 + r(2) / 3600;
+    }
+  }
+  if (typeof tags[2] !== 'number' || typeof tags[4] !== 'number') return null;
+  const lat = tags[2] * (tags[1] === 'S' ? -1 : 1);
+  const lng = tags[4] * (tags[3] === 'W' ? -1 : 1);
+  if (!lat && !lng) return null;
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}

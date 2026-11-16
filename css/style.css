@@ -582,7 +582,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 .help-item li .ico { vertical-align: -3px; margin: 0 2px; color: var(--guide); }
 .help-item li .ico svg { width: 17px; height: 17px; }
 #sheetTitle:focus { outline: none; }
-#sheetTitle:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 3px; border-radius: 6px; }
+#sheetTitle:focus-visible { outline: none; }
 .row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: 16px; border: 1px solid #7d8592; border-radius: 10px; background: var(--surface); }
 .m-badge::before { content: 'M'; }
 
@@ -651,3 +651,20 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9c
 
 .my-settings { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .ok-line { margin: 0; display: flex; align-items: center; gap: 4px; color: var(--add); font-weight: 600; font-size: 15px; }
+
+/* Lot balade guidée, sorties, où suis-je, QR */
+.compass-guide { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; flex-wrap: wrap; justify-content: center; }
+.compass-step { font-weight: 700; font-size: 15px; opacity: .9; }
+.compass-next { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 0; background: #fff; color: #1f2a44; font: inherit; font-weight: 700; font-size: 16px; }
+.near-bar { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
+.near-bar .where-btn { flex: 1 1 auto; min-height: 44px; }
+.near-bar .seg.unit { flex: 0 0 auto; flex-wrap: nowrap; gap: 0; }
+.near-bar .seg.unit button { flex: none; min-height: 44px; padding: 0 10px; font-size: 14px; border-radius: 0; }
+.near-bar .seg.unit button:first-child { border-radius: 10px 0 0 10px; }
+.near-bar .seg.unit button:last-child { border-radius: 0 10px 10px 0; border-left: 0; }
+.where-big { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; }
+.qr-box { background: #fff; border-radius: 14px; padding: 10px; width: min(78vw, 300px); align-self: center; }
+.qr-box svg { width: 100%; height: auto; display: block; }
+.rain.heat { background: #fff1e6; border-color: #ffc9a3; color: #8a3b00; }
+:root[data-theme="dark"] .rain.heat { background: #3a1f0c; border-color: #7a4113; color: #ffcfa8; }
+:root[data-theme="dark"] .compass-next { background: #e8ebf2; color: #10131c; }

@@ -130,7 +130,7 @@ const clean = (p) => ({
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -148,7 +148,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings),
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -166,6 +166,18 @@ export function cleanSettings(o = {}) {
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
 }
+/** Mes stations (personnelles, comme mes lieux) : { id, station, label }, 10 au plus. */
+export const cleanMyStations = (a) => (Array.isArray(a) ? a.filter((s) => s && typeof s.station === 'string' && s.station.trim() && typeof s.id === 'string' && /^[\w-]{1,64}$/.test(s.id))
+  .map((s) => ({ id: s.id, station: s.station.trim().slice(0, 60), label: String(s.label ?? '').trim().slice(0, 20) || 'Ma station' })).slice(0, 10) : []);
+
+export function addMyStation(state, station, label) {
+  const list = cleanMyStations(state.myStations);
+  const same = list.find((s) => s.station === station);
+  if (same) return { ...state, myStations: list.map((s) => (s === same ? { ...s, label: String(label).trim().slice(0, 20) || s.label } : s)) };
+  return { ...state, myStations: cleanMyStations([...list, { id: makeId(), station, label }]) };
+}
+export const removeMyStation = (state, id) => ({ ...state, myStations: cleanMyStations(state.myStations).filter((s) => s.id !== id) });
+
 const cleanMySettings = (o) => (o && typeof o === 'object' && o.settings ? { at: Number.isFinite(o.at) ? o.at : Date.now(), settings: cleanSettings(o.settings) } : null);
 
 /** Fige les réglages actuels comme « mes réglages par défaut ». Renvoie un nouvel état. */
@@ -178,7 +190,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations) }));
     return true;
   } catch {
     return false;
@@ -191,6 +203,7 @@ export function exportJSON(state) {
     app: 'carte-paris', version: 2, exported: new Date().toISOString(), owner: state.me ?? '',
     categories: state.categories, fav: state.fav, rings: state.rings, lists: state.lists ?? [],
     mySettings: cleanMySettings(state.mySettings),
+    myStations: cleanMyStations(state.myStations),
     // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
     points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
   }, null, 2);
@@ -255,7 +268,9 @@ export function mergeImport(state, text, owner = '') {
   }
   // Ma propre sauvegarde : je retrouve aussi mes réglages par défaut (sans les appliquer d'office)
   const mine = !owner ? cleanMySettings(obj.mySettings) : null;
-  return { state: { ...state, points, categories, lists, ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped };
+  // Mes stations aussi, seulement depuis ma propre sauvegarde (celles d'un ami restent les siennes)
+  const myStations = !owner ? cleanMyStations([...(state.myStations ?? []), ...cleanMyStations(obj.myStations).filter((s) => !(state.myStations ?? []).some((x) => x.station === s.station))]) : state.myStations;
+  return { state: { ...state, points, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped };
 }
 
 function checkFields({ name, color, icon = DEFAULT_ICON }, keepColor = null) {
@@ -299,7 +314,7 @@ export function deleteCategory(state, id, moveTo) {
 export const MAP_STYLES = ['classic', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
-export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom', 'velib'];
+export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom', 'velib', 'home'];
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {

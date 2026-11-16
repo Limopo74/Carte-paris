@@ -4,7 +4,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -16,6 +16,9 @@ import { openState } from './hours.js';
 import { metroPlan } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
+import { eventsUrl, parseEvents, nearbyEvents, whenText } from './events.js';
+import qrcode from '../vendor/qrcode.mjs';
+import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
@@ -23,7 +26,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (44)';
+const VERSION = '16 novembre 2026 (46)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -398,6 +401,13 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   if (focusOutside || !sheet.contains(document.activeElement)) sheetTitle.focus({ preventScroll: true });
 }
 
+/** Ferme la feuille puis lance `fn` une fois le retour arrière terminé (sinon il fermerait aussi la boussole). */
+function closeSheetThen(fn) {
+  if (sheet.hidden || !historyPushed) { closeSheet(); fn(); return; }
+  window.addEventListener('popstate', () => setTimeout(fn, 0), { once: true });
+  closeSheet();
+}
+
 function closeSheet(fromHistory = false) {
   if (sheet.hidden) return;
   sheet.hidden = true;
@@ -497,6 +507,7 @@ function openAddChoice() {
   openSheet('Ajouter un lieu', el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big c-add solid', onclick: addAtPosition }, '📍  À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch() }, '🔎  Avec un nom ou une adresse'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), ' Depuis une photo de ma galerie'),
     el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, à l\'endroit voulu.'),
   ), { name: 'add', again: openAddChoice });
 }
@@ -620,9 +631,12 @@ function addAtShared(s) {
 
 /** Lancé depuis un raccourci de l'icône ou un partage : l'adresse de la page dit quoi faire. */
 function runLaunchAction() {
-  const shared = readPlaceLink(location.hash);
-  if (location.hash.includes('lieu=')) history.replaceState(null, '', location.pathname + location.search);
+  const h = location.hash;
+  const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h);
+  if (/(lieu|balade|rdv)=/.test(h)) history.replaceState(null, '', location.pathname + location.search);
   if (shared) { receivePlace(shared); return; }
+  if (walk) { stationsReady.then(() => receiveRoute(walk)); return; }
+  if (meet) { receiveMeet(meet); return; }
   const q = new URLSearchParams(location.search);
   if (![...q.keys()].length) return;
   history.replaceState(null, '', location.pathname); // pour ne pas relancer l'action en rechargeant
@@ -728,7 +742,9 @@ function openForm(draft, existing = null) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       setDone(existing, done);
     } else {
-      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds }));
+      const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
+      state.points.push(np);
+      if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
     const ok = persist();
     renderMarkers();
@@ -776,7 +792,9 @@ function openDetail(id, back = null) {
     btn.textContent = open ? '⋯ Plus' : '⋯ Moins';
     if (open) { fill(more, ); return; }
     fill(more, 
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => sharePlace(p) }, ico('share-2'), 'Partager ce lieu par un lien'),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => sharePlace(p) }, ico('share-2'), 'Partager'),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => showQr(p, back) }, ico('qr-code'), 'QR code')),
       el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, p.hours ? '🕐 Mettre à jour les horaires' : '🕐 Chercher les horaires'),
       p.hours ? el('p', { class: 'help' }, `Horaires OpenStreetMap : ${p.hours}`) : null,
       el('div', { class: 'row' },
@@ -1191,14 +1209,15 @@ function renderNear(fit = false) {
     tool('hourglass', 'Temps libre', () => openFreeTime()),
     tool('footprints', 'Chemin', () => openWayPicker()),
     tool('route', 'Parcours', () => openRoutePicker()),
+    tool('calendar-days', 'Sorties', () => openEvents(), null, 'c-fav'),
     tool('shuffle', 'Surprise', () => surprise(), null, 'c-fav'),
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-info'),
     tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
-    // Bascule des cercles : affiche ce qu'on obtiendra en appuyant
-    el('button', { type: 'button', class: 'tool', onclick: () => { state.ringUnit = inMinutes() ? 'm' : 'min'; persist(); renderNear(true); },
-      'aria-label': inMinutes() ? 'Cercles en mètres' : 'Cercles en minutes à pied' },
-    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico(inMinutes() ? 'ruler' : 'timer')), inMinutes() ? 'Mètres' : 'Minutes'),
   ));
+  body.push(el('div', { class: 'near-bar' },
+    origin.kind !== 'station' ? el('button', { type: 'button', class: 'btn where-btn', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?') : el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker() }, 'Ⓜ Autre station'),
+    el('div', { class: 'seg unit', role: 'group', 'aria-label': 'Cercles en' },
+      ['m', 'min'].map((u) => el('button', { type: 'button', 'aria-pressed': String((inMinutes() ? 'min' : 'm') === u), onclick: () => { state.ringUnit = u; persist(); renderNear(true); } }, u === 'm' ? 'Mètres' : 'Minutes')))));
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -1207,6 +1226,10 @@ function renderNear(fit = false) {
         ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.last.ring)}.`
         : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
+  }
+  if (meteo && !meteo.rain && meteo.temp >= 28 && origin.kind !== 'station') {
+    body.push(el('div', { class: 'rain heat' }, ico('thermometer-sun'), el('span', {}, `Il fait chaud (${meteo.temp}°).`),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, 'Lieux frais')));
   }
   if (meteo?.rain && origin.kind !== 'station') {
     const n = pts.filter((p) => p.covered).length;
@@ -1465,7 +1488,10 @@ function renderRoute(start, chosen) {
   openSheet('Ton parcours', el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${fmtDist(total)} au total · ${fmtWalk(total)} (sans les arrêts).`),
     el('ol', { class: 'items' }, steps),
-    el('a', { class: 'btn primary', href: routeUrl(route), target: '_blank', rel: 'noopener' }, 'Ouvrir le parcours dans Google Maps'),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(route, 'Parcours') }, ico('navigation'), 'Balade guidée'),
+    el('div', { class: 'row' },
+      el('a', { class: 'btn', href: routeUrl(route), target: '_blank', rel: 'noopener' }, 'Google Maps'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(route, 'Mon parcours') }, ico('share-2'), 'Partager')),
     el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker(new Set(chosen.map((p) => p.id))) }, 'Changer les lieux'),
   ), { tall: true, name: 'route', again: () => renderRoute(start, chosen) });
   nearLayer.clearLayers();
@@ -1676,6 +1702,205 @@ function openMyParis(from = null) {
   findArrondissements();
 }
 
+/* ---------- Balade guidée : la boussole t'emmène d'étape en étape ---------- */
+
+let guide = null; // { stops, i, title }
+function startGuide(stops, title = 'Balade') {
+  if (!stops.length) return;
+  const go = () => {
+    guide = { stops, i: 0, title };
+    openCompass(stops[0], { label: `Étape 1 sur ${stops.length}`, last: stops.length === 1 });
+    speak(`${title}. ${plural(stops.length, 'étape', 'étapes')}. Première étape : ${stops[0].name}.`);
+  };
+  closeSheetThen(go);
+}
+function guideNext() {
+  if (!guide) return;
+  if (guide.i >= guide.stops.length - 1) { guide = null; closeCompass(); toast('Balade terminée. Bravo !'); return; }
+  guide.i++;
+  const p = guide.stops[guide.i];
+  compassStop?.();
+  openCompass(p, { label: `Étape ${guide.i + 1} sur ${guide.stops.length}`, last: guide.i === guide.stops.length - 1, replace: true });
+  speak(`Étape suivante : ${p.name}.`);
+}
+
+/* ---------- Partager une balade, rejoindre quelqu'un ---------- */
+
+async function shareLink(title, text, url) {
+  try { if (navigator.share) { await navigator.share({ title, text, url }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message.'); } catch { prompt('Copie ce lien :', url); }
+}
+const shareRoute = (stops, title) => shareLink(title, `${title} : ${stops.map((s) => s.name).join(', ')}`, routeLink(location.href, stops, title));
+
+/** Une balade reçue par lien : les étapes, la balade guidée, Google Maps, et ajouter ce qui manque. */
+function receiveRoute(r) {
+  const missing = r.stops.filter((s) => !findDuplicate(state.points, s));
+  openSheet([ico('route'), ' Balade reçue'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${r.title || 'Balade'} · ${plural(r.stops.length, 'étape', 'étapes')}`),
+    el('ol', { class: 'items' }, r.stops.map((s, i) => el('li', { class: 'item' }, el('span', { class: 'item-main' },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)), el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name)))))),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(r.stops, r.title || 'Balade') }, ico('navigation'), 'Balade guidée'),
+    el('a', { class: 'btn', href: routeUrl(r.stops), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
+    missing.length ? el('button', { type: 'button', class: 'btn c-add', onclick: () => {
+      for (const s of missing) state.points.push(newPoint({ name: s.name, cat: state.categories[0].id, lat: s.lat, lng: s.lng, note: 'Reçu dans une balade partagée.' }));
+      persist(); refresh(); toast(`${plural(missing.length, 'lieu ajouté', 'lieux ajoutés')} à ta carte`); receiveRoute(r);
+    } }, ico('plus'), `Ajouter ${plural(missing.length, 'lieu', 'lieux')} à ma carte`) : el('p', { class: 'help' }, 'Toutes les étapes sont déjà sur ta carte.'),
+  ), { tall: true, name: 'route-in' });
+  nearLayer.clearLayers();
+  L.polyline(r.stops.map((s) => [s.lat, s.lng]), { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+  r.stops.forEach((s, i) => L.marker([s.lat, s.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
+  map.fitBounds(L.latLngBounds(r.stops.map((s) => [s.lat, s.lng])).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
+/** Quelqu'un t'a envoyé où il est : la boussole t'y emmène. */
+function receiveMeet(m) {
+  const ago = m.time ? Math.round((Date.now() - m.time) / 60000) : null;
+  const target = { name: m.name ? `${m.name}` : 'Point de rendez-vous', lat: m.lat, lng: m.lng };
+  openSheet([ico('send'), ' Rejoindre'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${m.name || 'Quelqu\'un'} t'attend ici${ago != null && ago >= 0 ? ` (position envoyée il y a ${ago < 1 ? 'moins d\'une minute' : ago < 120 ? `${ago} min` : `${Math.round(ago / 60)} h`})` : ''}.`),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheetThen(() => openCompass(target)) }, ico('compass'), 'Y aller avec la boussole'),
+    el('a', { class: 'btn', href: mapsUrl(target, 1000), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
+    el('p', { class: 'help' }, 'La position a été envoyée une seule fois : elle ne bouge pas si la personne se déplace.'),
+  ), { name: 'meet' });
+  nearLayer.clearLayers();
+  L.circleMarker([m.lat, m.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#c2255c', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  centerOn(m.lat, m.lng, 17);
+}
+
+/* ---------- Où suis-je ? ---------- */
+
+async function openWhereAmI() {
+  let at = freshHere();
+  if (!at) { toast('Recherche de ta position…'); try { at = await locate(); hideToast(); } catch (e) { toast(e.message, true); return; } }
+  await stationsReady;
+  const near = nearestStation(stations, at);
+  const body = el('div', { class: 'stack' });
+  const addr = el('p', { class: 'where-big' }, 'Recherche de l\'adresse…');
+  const arrLine = el('p', { class: 'help' }, '');
+  fill(body,
+    addr, arrLine,
+    near ? el('p', { class: 'badge' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
+    el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Enregistrer ce lieu'),
+    el('p', { class: 'help' }, 'Ta position n\'est envoyée qu\'une fois, dans le lien, à la personne que tu choisis. L\'adresse vient de l\'IGN.'),
+  );
+  openSheet([ico('locate'), ' Où suis-je ?'], body, { name: 'where', again: openWhereAmI });
+  try {
+    const r = await reverseInfo(at.lat, at.lng);
+    const a = arrFromCitycode(r?.citycode) ?? arrFromText(r?.label);
+    addr.textContent = r?.label ?? 'Adresse introuvable';
+    arrLine.textContent = a ? `${a === 1 ? '1er' : `${a}e`} arrondissement` : '';
+  } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
+}
+
+/* ---------- Ce soir près de moi : agenda « Que faire à Paris ? » ---------- */
+
+let eventsCache = null; // { day, items }
+async function openEvents() {
+  if (!origin) { openNear(); return; }
+  const day = new Date().toDateString();
+  if (!eventsCache || eventsCache.day !== day) {
+    openSheet([ico('calendar-days'), ' Sorties du jour'], el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris…'), { name: 'events' });
+    try {
+      const r = await fetch(eventsUrl());
+      if (!r.ok) throw new Error(String(r.status));
+      eventsCache = { day, items: parseEvents(await r.json()) };
+    } catch {
+      openSheet([ico('calendar-days'), ' Sorties du jour'], el('div', { class: 'stack' },
+        el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'),
+        el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')), { name: 'events' });
+      return;
+    }
+  }
+  const list = nearbyEvents(eventsCache.items, origin, 2000).slice(0, 25);
+  openSheet([ico('calendar-days'), ' Sorties du jour'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, list.length ? `${plural(list.length, 'sortie', 'sorties')} aujourd'hui à moins de 2 km.` : 'Aucune sortie trouvée aujourd\'hui à moins de 2 km.'),
+    el('ul', { class: 'items' }, list.map((e) => el('li', { class: 'item' },
+      el(e.url ? 'a' : 'span', { class: 'item-main', ...(e.url ? { href: e.url, target: '_blank', rel: 'noopener' } : {}) },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('calendar-days', { size: 18 })),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.title),
+          el('span', { class: 'item-sub' }, [whenText(e), e.place, `${fmtDist(e.d)} · ${walkMinutes(e.d)} min`].filter(Boolean).join(' · '), e.free ? el('span', { class: 'tag open' }, 'Gratuit') : null))),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }), 'aria-label': `Boussole vers ${e.title}` }, ico('compass'))))),
+    el('p', { class: 'help' }, 'Source : « Que faire à Paris ? », Ville de Paris. Ta position n\'est pas envoyée : l\'appli trie sur le téléphone.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
+  ), { tall: true, name: 'events', again: openEvents });
+  nearLayer.clearLayers();
+  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  for (const e of list) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+}
+
+/* ---------- Ajouter un lieu depuis une photo (position lue dans la photo, sur le téléphone) ---------- */
+
+function addFromPhoto() {
+  const input = el('input', { type: 'file', accept: 'image/jpeg,image/*', hidden: true });
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0]; input.remove();
+    if (!f) return;
+    let g = null;
+    try { g = gpsFromJpeg(await f.slice(0, 256 * 1024).arrayBuffer()); } catch { g = null; }
+    if (!g) { toast('Cette photo ne contient pas de position. Active « Position » dans l\'appareil photo, ou place le lieu sur la carte.', true); return; }
+    const draft = { lat: g.lat, lng: g.lng, address: '', acc: null, photoFile: f };
+    centerOn(g.lat, g.lng, 17);
+    openForm(draft);
+    reverseAddress(g.lat, g.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
+  });
+  document.body.append(input);
+  input.click();
+}
+
+/* ---------- QR code d'un lieu, à montrer à quelqu'un à côté de toi ---------- */
+
+function showQr(p, back) {
+  const c = catOf(p.cat);
+  const url = placeLink(location.href, p, c.name, c.icon);
+  const q = qrcode(0, 'M'); q.addData(url); q.make();
+  const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': `QR code du lieu ${p.name}` });
+  box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  openSheet([ico('qr-code'), ' QR code'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, p.name), box,
+    el('p', { class: 'help' }, 'Ton ami le scanne avec l\'appareil photo : le lieu s\'ouvre, prêt à être ajouté à sa carte.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche'),
+  ), { name: 'qr' });
+}
+
+/* ---------- Rentrer : mes stations (personnelles, comme mes lieux) ---------- */
+
+const stationByName = (n) => stations.find((s) => s.n === n);
+async function goHome() {
+  await stationsReady;
+  const mine = (state.myStations ?? []).map((s) => ({ ...s, st: stationByName(s.station) })).filter((s) => s.st);
+  if (!mine.length) { pickMyStation(true); return; }
+  if (mine.length === 1) { showMetroPlan({ name: `${mine[0].label} (${mine[0].st.n})`, lat: mine[0].st.lat, lng: mine[0].st.lng }); return; }
+  openSheet([ico('house'), ' Rentrer'], el('div', { class: 'menu' }, mine.map((s) => el('button', { type: 'button', class: 'menu-row c-metro', onclick: () => showMetroPlan({ name: `${s.label} (${s.st.n})`, lat: s.st.lat, lng: s.st.lng }) },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('house')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, s.label), el('span', { class: 'menu-sub' }, `Ⓜ ${s.st.n}`)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))), { name: 'home' });
+}
+function pickMyStation(thenGo = false) {
+  openStationPicker((st) => {
+    const label = prompt(`Nom pour la station ${st.n} (ex. Maison, Travail)`, (state.myStations ?? []).length ? 'Travail' : 'Maison');
+    if (label == null) return;
+    state = addMyStation(state, st.n, label || 'Ma station'); persist();
+    toast(`${label || 'Ma station'} : ${st.n}`);
+    if (thenGo) goHome(); else openMyStations();
+  });
+  toast('Choisis ta station (Maison, Travail…)');
+}
+function openMyStations() {
+  const mine = state.myStations ?? [];
+  openSheet([ico('house'), ' Mes stations'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Tes stations à toi (Maison, Travail…). Le bouton Maison sur la carte te dit quel métro prendre pour y aller. Elles partent dans ta sauvegarde, pas dans les lieux partagés.'),
+    mine.length ? el('div', {}, mine.map((s) => el('div', { class: 'cat-row' },
+      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('house', { size: 18 })),
+      el('span', { class: 'cat-name' }, s.label, el('br'), el('span', { class: 'cat-count' }, `Ⓜ ${s.station}`)),
+      el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer ${s.label}`, onclick: () => { state = removeMyStation(state, s.id); persist(); openMyStations(); } }, ico('x'))))) : null,
+    el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false) }, ico('plus'), 'Ajouter une station'),
+    el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages'),
+  ), { tall: true, name: 'mystations', again: openMyStations });
+}
+
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
 
 let meteo = null;
@@ -1697,7 +1922,9 @@ let freeDwell = 15;
 function openFreeTime() {
   if (!origin) { openNear(); return; }
   const todo = visible().filter((p) => !p.done);
-  const plan = planLoop(origin, todo, freeMin, { dwell: freeDwell });
+  // Ouvert à l'heure d'arrivée ? (horaires inconnus : on garde)
+  const isOpen = (p, t) => { const st = openState(p.hours, new Date(Date.now() + t * 60000)); return st ? st.open : null; };
+  const plan = planLoopOpen(origin, todo, freeMin, isOpen, { dwell: freeDwell });
   const choice = (vals, cur, fmt, set) => el('div', { class: 'seg', role: 'group' }, vals.map((v) => el('button', { type: 'button', 'aria-pressed': String(v === cur), onclick: () => { set(v); openFreeTime(); } }, fmt(v))));
   let prev = origin;
   const steps = plan.route.map((p, i) => {
@@ -1714,7 +1941,11 @@ function openFreeTime() {
       ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')} à faire, retour au départ : ${plan.walk} min de marche + ${plan.route.length * freeDwell} min sur place = ${plan.total} min.`)
       : el('p', { class: 'empty' }, todo.length ? 'Aucun lieu à faire assez proche pour ce temps. Essaie plus long ou moins de temps sur place.' : 'Aucun lieu « à faire » avec les filtres actuels.'),
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
-    plan.route.length ? el('a', { class: 'btn primary go-bar', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Partir (Google Maps)') : null,
+    plan.closed ? el('p', { class: 'help' }, `${plural(plan.closed, 'lieu écarté', 'lieux écartés')} : fermé${plan.closed > 1 ? 's' : ''} à ton arrivée.`) : null,
+    plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin.lat, lng: origin.lng }], 'Temps libre') }, ico('navigation'), 'Balade guidée') : null,
+    plan.route.length ? el('div', { class: 'row' },
+      el('a', { class: 'btn', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(plan.route, 'Ma balade') }, ico('share-2'), 'Partager')) : null,
     el('p', { class: 'help' }, 'Les lieux les mieux notés et les favoris passent en priorité. Les filtres en haut s\'appliquent.'),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'freetime', again: openFreeTime });
@@ -1785,9 +2016,16 @@ let compassOpen = false;
 let compassStop = null;
 const compassEl = document.getElementById('compass');
 
-function openCompass(p) {
+function openCompass(p, step = null) {
   if (compassOpen) return;
   compassOpen = true;
+  if (!step) guide = null;
+  const gbar = compassEl.querySelector('.compass-guide');
+  gbar.hidden = !step;
+  if (step) {
+    gbar.querySelector('.compass-step').textContent = step.label;
+    gbar.querySelector('.compass-next').textContent = step.last ? 'Terminer la balade ✓' : 'Étape suivante →';
+  }
   let pos = freshHere();
   let heading = null;
   const arrow = compassEl.querySelector('.compass-arrow');
@@ -1800,13 +2038,22 @@ function openCompass(p) {
   compassEl.querySelector('.compass-name').textContent = p.name;
   compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
   compassEl.hidden = false;
-  history.pushState({ compass: true }, '');
+  if (!step?.replace) history.pushState({ compass: true }, '');
   keepScreenOn(true);
 
   // Ce qui a déjà été dit, pour ne pas répéter sans arrêt.
   const said = { first: false, step: null, dir: null, dirAt: 0, arrived: false };
   const talk = (d, rel) => {
-    if (d < 20) { if (!said.arrived) { said.arrived = true; speak(`Tu y es. ${p.name}.`); } return; }
+    if (d < 20) {
+      if (!said.arrived) {
+        said.arrived = true;
+        speak(`Tu y es. ${p.name}.${step && !step.last ? ' Touche Étape suivante quand tu veux.' : ''}`);
+        // Balade guidée : un de mes lieux atteint est noté « déjà visité »
+        const mine = step && p.id && state.points.find((x) => x.id === p.id);
+        if (mine && !mine.done) { setDone(mine, true); persist(); renderMarkers(); toast(`${mine.name} : noté « déjà visité »`); }
+      }
+      return;
+    }
     const dir = rel == null ? null : directionWord(rel);
     if (!said.first) {
       said.first = true; said.step = Math.floor(d / 100); said.dir = dir; said.dirAt = Date.now();
@@ -1885,7 +2132,8 @@ function closeCompass(fromHistory = false) {
   compassStop();
   if (!fromHistory) history.back();
 }
-compassEl.querySelector('.compass-close').addEventListener('click', () => closeCompass());
+compassEl.querySelector('.compass-close').addEventListener('click', () => { guide = null; closeCompass(); });
+compassEl.querySelector('.compass-next').addEventListener('click', guideNext);
 window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true); });
 
 /* ---------- Réglages ---------- */
@@ -2150,6 +2398,7 @@ function openSettings(section = null) {
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
     row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-guide'),
+    row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
@@ -2512,22 +2761,24 @@ async function loadPratique(kind) {
 }
 
 async function nearestPratique() {
-  toast('Recherche de la fontaine et des toilettes les plus proches…');
-  const [from, fontaines, toilettes] = await Promise.all([
+  toast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
+  const [from, fontaines, toilettes, fraisLieux, fraisParcs] = await Promise.all([
     locate().catch(() => (here && Date.now() - here.time < 2 * 3600 * 1000 ? here : null)),
     loadPratique('fontaines'),
     loadPratique('toilettes'),
+    loadPratique('fraisLieux'),
+    loadPratique('fraisParcs'),
   ]);
   hideToast();
   if (!from) { toast(GEO_ERRORS[1], true); return; }
-  if (!fontaines.length && !toilettes.length) {
+  if (!fontaines.length && !toilettes.length && !fraisLieux.length && !fraisParcs.length) {
     toast('Les données de la Ville de Paris ne répondent pas. Vérifie ta connexion et réessaie.', true);
     return;
   }
-  showPratique(from, nearestOf(fontaines, from, 2), nearestOf(toilettes, from, 2));
+  showPratique(from, nearestOf(fontaines, from, 2), nearestOf(toilettes, from, 2), nearestOf([...fraisLieux, ...fraisParcs], from, 2));
 }
 
-function showPratique(from, fs, ts) {
+function showPratique(from, fs, ts, cs = []) {
   const block = (title, icon, list) => [
     el('h3', { class: 'ring-title' }, el('span', {}, title), el('span', {}, '')),
     list.length
@@ -2537,7 +2788,7 @@ function showPratique(from, fs, ts) {
           el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, icon),
             el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
-          el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, '🧭'),
+          el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
       }))
       : el('p', { class: 'empty' }, 'Aucune trouvée.'),
@@ -2545,12 +2796,13 @@ function showPratique(from, fs, ts) {
   openSheet('Pratique près de toi', el('div', { class: 'stack' },
     ...block('Fontaine à boire', '🚰', fs),
     ...block('Toilettes publiques', '🚻', ts),
-    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour. Les fontaines signalées hors service sont écartées.'),
-  ), { name: 'pratique', again: () => showPratique(from, fs, ts), tall: true });
+    ...(cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', '🌳', cs) : []),
+    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées.'),
+  ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
   nearLayer.clearLayers();
   meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng]];
-  for (const [list, icon] of [[fs, '🚰'], [ts, '🚻']]) {
+  for (const [list, icon] of [[fs, '🚰'], [ts, '🚻'], [cs, '🌳']]) {
     list.forEach(({ item }, i) => {
       pts.push([item.lat, item.lng]);
       L.marker([item.lat, item.lng], { interactive: false, keyboard: false, zIndexOffset: i ? 1500 : 2000,
@@ -2565,6 +2817,7 @@ document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
+document.getElementById('btnHome').addEventListener('click', goHome);
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -2574,6 +2827,7 @@ const TOOL_INFO = {
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   zoom: { el: 'btnZoomMe', icon: 'zoom-in', name: 'Zoom sur ma position' },
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
+  home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -2618,6 +2872,9 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{navigation} Balade guidée : la boussole t\'emmène d\'étape en étape (Temps libre, Parcours, balade reçue).',
+    '{calendar-days} Sorties du jour près de toi, {locate} Où suis-je ? et envoi de ta position, {house} Rentrer en 1 appui.',
+    '{image} Ajouter un lieu depuis une photo, {qr-code} QR code d\'un lieu, lieux frais quand il fait chaud.',
     '{list-filter} Filtres en haut : ouvert maintenant, mieux notés, abrités, listes, personne.',
     '{hourglass} Temps libre, {shuffle} Surprise et {book-open-text} Curiosités dans Autour de moi.',
     '{bike} Vélib\' en temps réel, {map} Mon Paris, {share-2} partage d\'un lieu par lien, import Google Maps.',
@@ -2628,12 +2885,13 @@ const HELP = [
     'Puis « Tout », {list-filter} Filtres, {star} favoris et tes catégories. Fais glisser la barre pour toutes les voir.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
     'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
-    '{droplets} la fontaine à boire et les toilettes les plus proches.',
+    '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche.',
     '{locate-fixed} ta position avec les cercles de temps à pied. Encore un appui pour les retirer.',
     'Paris : revenir au centre de Paris.',
     '{zoom-in} zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
+    '{house} Rentrer : quel métro prendre vers ta station Maison (ou Travail…). Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Française, Douce, Pastel, Nuit).',
     'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
@@ -2649,18 +2907,24 @@ const HELP = [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
     'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »).',
     'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
+    '{image} Depuis une photo de ta galerie : l\'appli place le lieu là où la photo a été prise, et l\'ajoute à sa fiche.',
     'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
     'Dans le formulaire : catégorie, note, état, {star} étoiles, {list} listes et « Abrité de la pluie ».',
   ]],
   ['map-pinned', 'Autour de moi', [
-    'Tes lieux rangés par cercles, du plus proche au plus loin. {timer} Minutes : cercles en temps à pied.',
+    'Tes lieux rangés par cercles, du plus proche au plus loin.',
     '{radio} Suivre : les cercles te suivent ; le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
-    '{hourglass} Temps libre : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité.',
+    '{hourglass} Temps libre : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité, sans les lieux fermés à ton arrivée.',
+    '{navigation} Balade guidée (Temps libre, Parcours) : la boussole te mène d\'étape en étape ; « Étape suivante » passe à la suite. Tes lieux atteints sont notés « déjà visité ».',
     '{footprints} Chemin : tes lieux à faire sur ton trajet. {route} Parcours : 2 à 4 lieux dans le meilleur ordre.',
     '{shuffle} Surprise : un lieu à faire au hasard, à moins de 15 min.',
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
+    '{calendar-days} Sorties : les événements du jour à moins de 2 km (agenda de la Ville de Paris).',
+    '{locate} Où suis-je ? : ton adresse, l\'arrondissement, la station la plus proche, et « Envoyer ma position » à quelqu\'un.',
+    'Mètres / Minutes, à côté : la taille des cercles.',
+    '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
     'En bas : {map} Mon Paris.',
   ]],
   ['compass', 'La fiche d\'un lieu', [
@@ -2686,7 +2950,9 @@ const HELP = [
     'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi.',
   ]],
   ['users', 'Partager avec un ami', [
-    'Un lieu : ⋯ Plus → {share-2} Partager ce lieu par un lien. Ton ami touche le lien et l\'enregistre.',
+    'Un lieu : ⋯ Plus → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
+    'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
+    'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',
     'Ensuite, {list-filter} Filtres → « Lieux de » : les tiens, les siens ou tous.',
     'L\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',

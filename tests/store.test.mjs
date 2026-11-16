@@ -355,8 +355,8 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'locate', 'paris', 'velib']);
-  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris', 'velib']);
+  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'locate', 'paris', 'velib', 'home']);
+  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris', 'velib', 'home']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
 
@@ -407,4 +407,19 @@ test('mes réglages par défaut : enregistrer, détecter un changement, revenir,
   assert.equal(other.state.theme, undefined);
   // pas repris depuis le fichier d'un ami
   assert.equal(mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [] }, exportJSON(st), 'Paul').state.mySettings, undefined);
+});
+
+test('mes stations : personnelles, sans doublon, dans ma sauvegarde mais pas reprises d\'un ami', async () => {
+  const { addMyStation, removeMyStation, exportJSON, mergeImport, DEFAULT_CATEGORIES } = await import('../js/store.js');
+  let st = { points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], myStations: [] };
+  st = addMyStation(st, 'Nation', 'Maison');
+  st = addMyStation(st, 'Nation', 'Chez moi');
+  st = addMyStation(st, 'Opéra', 'Travail');
+  assert.deepEqual(st.myStations.map((s) => [s.station, s.label]), [['Nation', 'Chez moi'], ['Opéra', 'Travail']]);
+  const file = exportJSON(st);
+  const empty = () => ({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], myStations: [] });
+  assert.equal(mergeImport(empty(), file, '').state.myStations.length, 2);
+  assert.equal(mergeImport(empty(), file, 'Paul').state.myStations.length, 0);
+  st = removeMyStation(st, st.myStations[0].id);
+  assert.deepEqual(st.myStations.map((s) => s.station), ['Opéra']);
 });
