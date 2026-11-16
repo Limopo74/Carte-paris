@@ -43,11 +43,16 @@ const cleanFav = (f) => ({
   color: FAV_COLORS.includes(f?.color) ? f.color : DEFAULT_FAV.color,
 });
 
+/** Identifiants de listes : courts, sans doublon, 30 au plus. */
+const cleanIds = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)))].slice(0, 30) : []);
+const cleanLists = (a) => (Array.isArray(a) ? a.filter((l) => l && typeof l.id === 'string' && /^[\w-]{1,64}$/.test(l.id) && typeof l.name === 'string' && l.name.trim())
+  .map((l) => ({ id: l.id, name: l.name.trim().slice(0, 30) })).slice(0, 50) : []);
+
 /** Note d'un lieu : un entier de 0 (pas de note) à 5 étoiles. */
 export const cleanStars = (n) => (Number.isInteger(n) && n >= 0 && n <= 5 ? n : 0);
 
 /** Crée un lieu complet à partir des champs saisis. */
-export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '', owner = '', stars = 0 }) {
+export function newPoint({ name, cat, note = '', done = false, fav = false, lat, lng, address = '', hours = '', owner = '', stars = 0, lists = [], covered = false }) {
   return {
     id: makeId(),
     name: String(name ?? '').trim(),
@@ -62,6 +67,9 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     hours: String(hours ?? '').slice(0, 300),
     owner: String(owner ?? '').trim().slice(0, 30),
     stars: cleanStars(stars),
+    lists: cleanIds(lists),
+    covered: Boolean(covered),
+    arr: null,
     photos: [],
     created: Date.now(),
   };
@@ -113,13 +121,16 @@ const clean = (p) => ({
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
   owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
   stars: cleanStars(p.stars),
+  lists: cleanIds(p.lists),
+  covered: Boolean(p.covered),
+  arr: Number.isInteger(p.arr) && p.arr >= 1 && p.arr <= 20 ? p.arr : null, // arrondissement, trouvé une fois pour toutes
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], lists: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -137,7 +148,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools),
+    return { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: normalizeTools(obj.mapTools), hiddenTools: cleanHidden(obj.hiddenTools), lists: cleanLists(obj.lists),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -149,7 +160,7 @@ export function loadState(storage) {
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), lists: cleanLists(state.lists) }));
     return true;
   } catch {
     return false;
@@ -160,7 +171,7 @@ export function saveState(storage, state) {
 export function exportJSON(state) {
   return JSON.stringify({
     app: 'carte-paris', version: 2, exported: new Date().toISOString(), owner: state.me ?? '',
-    categories: state.categories, fav: state.fav, rings: state.rings,
+    categories: state.categories, fav: state.fav, rings: state.rings, lists: state.lists ?? [],
     // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
     points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
   }, null, 2);
@@ -202,6 +213,12 @@ export function mergeImport(state, text, owner = '') {
     if (!catIds.has(c.id) && usedCats.has(c.id)) { categories.push(c); catIds.add(c.id); }
   }
 
+  // Listes du fichier : ajoutées si elles servent et ne sont pas déjà là (même id)
+  const lists = [...(state.lists ?? [])];
+  const listIds = new Set(lists.map((l) => l.id));
+  const usedLists = new Set(obj.points.flatMap((p) => (Array.isArray(p?.lists) ? p.lists : [])));
+  for (const l of cleanLists(obj.lists)) if (!listIds.has(l.id) && usedLists.has(l.id)) { lists.push(l); listIds.add(l.id); }
+
   const known = new Set(state.points.map((p) => p.id));
   const points = [...state.points];
   let added = 0;
@@ -211,12 +228,13 @@ export function mergeImport(state, text, owner = '') {
     if (known.has(p.id)) continue;
     known.add(p.id);
     const c = clean(p);
+    c.lists = c.lists.filter((x) => listIds.has(x));
     if (owner) c.owner = c.owner || owner;
     if (state.me && c.owner === state.me) c.owner = '';
     points.push(c);
     added++;
   }
-  return { state: { ...state, points, categories }, added, skipped };
+  return { state: { ...state, points, categories, lists }, added, skipped };
 }
 
 function checkFields({ name, color, icon = DEFAULT_ICON }, keepColor = null) {
@@ -257,7 +275,7 @@ export function deleteCategory(state, id, moveTo) {
 }
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
-export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom'];
+export const MAP_TOOLS = ['pratique', 'metro', 'locate', 'paris', 'zoom', 'velib'];
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {
@@ -288,6 +306,31 @@ export function moveCategory(state, id, delta) {
   if (i < 0 || j < 0 || j >= list.length) return state;
   [list[i], list[j]] = [list[j], list[i]];
   return { ...state, categories: list };
+}
+
+/** Crée une liste (« Sous la pluie », « Avec Paul »…), ou reprend celle qui a déjà ce nom. Renvoie { state, id }. */
+export function addList(state, name) {
+  const n = String(name ?? '').trim().slice(0, 30);
+  if (!n) throw new Error('Donne un nom à la liste.');
+  const same = (state.lists ?? []).find((l) => l.name.toLowerCase() === n.toLowerCase());
+  if (same) return { state, id: same.id };
+  const id = makeId();
+  return { state: { ...state, lists: [...(state.lists ?? []), { id, name: n }] }, id };
+}
+
+export function renameList(state, id, name) {
+  const n = String(name ?? '').trim().slice(0, 30);
+  if (!n) throw new Error('Donne un nom à la liste.');
+  return { ...state, lists: (state.lists ?? []).map((l) => (l.id === id ? { ...l, name: n } : l)) };
+}
+
+/** Supprime une liste ; les lieux restent, ils sortent seulement de la liste. */
+export function deleteList(state, id) {
+  return {
+    ...state,
+    lists: (state.lists ?? []).filter((l) => l.id !== id),
+    points: state.points.map((p) => (p.lists?.includes(id) ? { ...p, lists: p.lists.filter((x) => x !== id) } : p)),
+  };
 }
 
 /** Change l'icône et la couleur des favoris. Renvoie un nouvel état. */

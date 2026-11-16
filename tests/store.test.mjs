@@ -355,8 +355,8 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'locate', 'paris']);
-  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris']);
+  assert.deepEqual(normalizeTools(['zoom', 'zoom', 'pirate']), ['zoom', 'pratique', 'metro', 'locate', 'paris', 'velib']);
+  assert.deepEqual(moveTool(MAP_TOOLS, 'zoom', -1), ['pratique', 'metro', 'locate', 'zoom', 'paris', 'velib']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
 });
 
@@ -364,4 +364,24 @@ test('boutons cachés : noms connus seulement', async () => {
   const { cleanHidden } = await import('../js/store.js');
   assert.deepEqual(cleanHidden(['zoom', 'pirate', 'zoom', 'metro']), ['metro', 'zoom']);
   assert.deepEqual(cleanHidden(null), []);
+});
+
+test('listes : créer, reprendre le même nom, renommer, supprimer, export et import', async () => {
+  const { addList, renameList, deleteList, exportJSON, mergeImport, newPoint, DEFAULT_CATEGORIES } = await import('../js/store.js');
+  let st = { points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], fav: {}, rings: [] };
+  const a = addList(st, 'Sous la pluie'); st = a.state;
+  assert.equal(addList(st, 'sous la pluie').id, a.id);
+  assert.throws(() => addList(st, '  '), /nom/);
+  st = { ...st, points: [newPoint({ name: 'X', cat: 'resto', lat: 48.86, lng: 2.34, lists: [a.id, a.id, 'bad id!'], covered: true })] };
+  assert.deepEqual(st.points[0].lists, [a.id]);
+  assert.equal(st.points[0].covered, true);
+  st = renameList(st, a.id, 'Abrités');
+  assert.equal(st.lists[0].name, 'Abrités');
+  const file = exportJSON(st);
+  const other = mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [] }, file);
+  assert.equal(other.state.lists[0].name, 'Abrités');
+  assert.deepEqual(other.state.points[0].lists, [a.id]);
+  st = deleteList(st, a.id);
+  assert.deepEqual(st.lists, []);
+  assert.deepEqual(st.points[0].lists, []);
 });

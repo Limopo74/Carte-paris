@@ -4,11 +4,11 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import {
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, renameList, deleteList, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, unsavedCount,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
-import { searchAddress, reverseAddress } from './adresse.js';
+import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
 import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf } from './pratique.js';
@@ -16,13 +16,14 @@ import { openState } from './hours.js';
 import { metroPlan } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, VELIB_INFO, VELIB_STATUS, mergeVelib, nearestVelib, meteoUrl, readMeteo } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (35)';
+const VERSION = '16 novembre 2026 (39)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -196,8 +197,14 @@ const draftLayer = L.layerGroup().addTo(map);
 let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
+// Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
+const filt = { open: false, top: false, covered: false, lists: new Set() };
+const activeFilters = () => [filt.open, filt.top, filt.covered, filt.lists.size > 0, personFilter !== 'all'].filter(Boolean).length;
+const passFilters = (p) => (!filt.open || openState(p.hours)?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
+  && (!filt.covered || p.covered) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
+  && (personFilter === 'all' || p.owner === personFilter);
 const visible = () => state.points.filter((p) =>
-  (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && (personFilter === 'all' || p.owner === personFilter));
+  (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
 
 function renderMarkers() {
   pointsLayer.clearLayers();
@@ -247,13 +254,10 @@ function renderChips() {
   const box = document.getElementById('chips');
   fill(box, ...[
     chip('Tout', !filterCats.size, () => { filterCats.clear(); refresh(); }),
+    chip([ico('list-filter'), activeFilters() ? ` ${activeFilters()}` : ''], activeFilters() > 0, openFilters,
+      { class: 'filters', aria: activeFilters() ? `Filtres : ${activeFilters()} actifs` : 'Filtres' }),
     chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); }, { class: 'star', aria: 'Seulement les favoris' }),
     ...state.categories.map(catChip),
-    // Lieux reçus d'autres personnes : choisir de qui on affiche les lieux
-    owners(state.points).length
-      ? chip(personFilter === 'all' ? '👥 Tous ▾' : personFilter === '' ? '👤 Moi ▾' : `👤 ${personFilter} ▾`, personFilter !== 'all', openPersonPicker,
-        { class: 'cat-pick', aria: 'Choisir de qui afficher les lieux' })
-      : null,
   ].filter(Boolean));
   const star = box.querySelector('.star');
   if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; star.style.color = '#fff'; } else star.style.color = state.fav.color;
@@ -264,6 +268,38 @@ function renderChips() {
 }
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
+/** Les filtres en une feuille : chaque ligne s'allume ou s'éteint d'un appui, le nombre de lieux suit. */
+function openFilters() {
+  const count = (fn) => state.points.filter(fn).length;
+  const sw = (on, icon, title, sub, toggle) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { toggle(); refresh(); openFilters(); } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  const withHours = count((p) => openState(p.hours) != null);
+  const people = owners(state.points);
+  const shown = visible().length;
+  openSheet([ico('list-filter'), ' Filtres'], el('div', { class: 'menu' },
+    el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
+    sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
+    sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
+    sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
+    el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
+    (state.lists ?? []).length
+      ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
+        if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
+      } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
+      : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
+    people.length ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de'), el('span', {}, '')) : null,
+    people.length ? el('div', { class: 'list-chips' },
+      [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
+        .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
+          ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
+    activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
+      filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
+    } }, ico('x'), 'Effacer les filtres') : null,
+  ), { name: 'filters', again: openFilters, tall: true });
+}
+
 function openPersonPicker() {
   const pick = (who) => {
     personFilter = who;
@@ -549,6 +585,9 @@ function addAtShared(s) {
 
 /** Lancé depuis un raccourci de l'icône ou un partage : l'adresse de la page dit quoi faire. */
 function runLaunchAction() {
+  const shared = readPlaceLink(location.hash);
+  if (location.hash.includes('lieu=')) history.replaceState(null, '', location.pathname + location.search);
+  if (shared) { receivePlace(shared); return; }
   const q = new URLSearchParams(location.search);
   if (![...q.keys()].length) return;
   history.replaceState(null, '', location.pathname); // pour ne pas relancer l'action en rechargeant
@@ -581,16 +620,35 @@ function starPicker(value, onPick) {
 
 function openForm(draft, existing = null) {
   const firstCat = filterCats.size === 1 ? [...filterCats][0] : state.categories[0].id;
-  const v = existing ?? { name: draft.name ?? '', cat: firstCat, note: '', done: false, fav: favOnly, address: draft.address };
+  const v = existing ?? { name: draft.name ?? '', cat: draft.cat ?? firstCat, note: draft.note ?? '', done: false, fav: favOnly, address: draft.address, stars: draft.stars ?? 0 };
   let cat = v.cat;
   let done = v.done;
   let fav = v.fav;
   let stars = v.stars ?? 0;
+  let covered = Boolean(v.covered);
+  const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
+  let dupOk = false; // « Ajouter quand même » après l'alerte doublon
+
+  // Mes listes : un appui pour mettre ou retirer, et un champ pour en créer une
+  const listBox = el('div', { class: 'list-chips' });
+  const newList = el('input', { type: 'text', maxlength: '30', placeholder: 'Nouvelle liste, ex. Sous la pluie', 'aria-label': 'Nom de la nouvelle liste', enterkeyhint: 'done' });
+  const drawLists = () => fill(listBox, ...(state.lists ?? []).map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(lists.has(l.id)), onclick: () => {
+    if (lists.has(l.id)) lists.delete(l.id); else lists.add(l.id); drawLists();
+  } }, lists.has(l.id) ? ico('check') : ico('list'), ` ${l.name}`)));
+  const createList = () => {
+    const n = newList.value.trim();
+    if (!n) { newList.focus(); return; }
+    try { const r = addList(state, n); state = r.state; lists.add(r.id); persist(); newList.value = ''; drawLists(); } catch (e) { toast(e.message, true); }
+  };
+  newList.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); createList(); } });
+  drawLists();
+  const coveredBox = el('input', { type: 'checkbox', class: 'check', checked: covered });
+  coveredBox.addEventListener('change', () => { covered = coveredBox.checked; });
 
   const name = el('input', { type: 'text', value: v.name, maxlength: '80', autocomplete: 'off', enterkeyhint: 'next', required: true });
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
   note.value = v.note;
-  const err = el('p', { class: 'error', role: 'alert' });
+  const err = el('div', { class: 'error', role: 'alert' });
 
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   const catSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Catégorie' });
@@ -618,11 +676,24 @@ function openForm(draft, existing = null) {
   const save = () => {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
+    if (!existing && !dupOk) {
+      const dup = findDuplicate(state.points, { name: n, lat: draft.lat, lng: draft.lng });
+      if (dup) {
+        fill(err,
+          `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
+          el('div', { class: 'row', style: 'margin-top:8px' },
+            el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
+            el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
+        err.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+    }
+    const listIds = [...lists].filter((id) => (state.lists ?? []).some((l) => l.id === id));
     if (existing) {
-      Object.assign(existing, { name: n, cat, note: note.value, fav, stars });
+      Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       setDone(existing, done);
     } else {
-      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars }));
+      state.points.push(newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds }));
     }
     const ok = persist();
     renderMarkers();
@@ -639,6 +710,10 @@ function openForm(draft, existing = null) {
     el('label', { class: 'field' }, 'Note (facultatif)', note),
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
     el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
+    el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
+      el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
+    el('label', { class: 'item-main check-row' }, coveredBox,
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
     err,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
@@ -666,6 +741,7 @@ function openDetail(id, back = null) {
     btn.textContent = open ? '⋯ Plus' : '⋯ Moins';
     if (open) { fill(more, ); return; }
     fill(more, 
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => sharePlace(p) }, ico('share-2'), 'Partager ce lieu par un lien'),
       el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, p.hours ? '🕐 Mettre à jour les horaires' : '🕐 Chercher les horaires'),
       p.hours ? el('p', { class: 'help' }, `Horaires OpenStreetMap : ${p.hours}`) : null,
       el('div', { class: 'row' },
@@ -715,6 +791,7 @@ function openDetail(id, back = null) {
         p.owner || owners(state.points).length ? el('div', { class: 'badge' }, `👤 Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
         hoursLine(p) ? el('div', { class: `badge hours ${openState(p.hours)?.open ? 'open' : 'closed'}` }, `🕐 ${hoursLine(p)}`) : null,
         stationLine(p) ? el('div', { class: 'badge' }, stationLine(p)) : null,
+        (p.lists ?? []).length || p.covered ? el('div', { class: 'badge' }, [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((id) => state.lists?.find((l) => l.id === id)?.name)].filter(Boolean).join(' · ')) : null,
         el('div', { class: 'badge' }, ageLine(p)))),
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     p.note ? el('p', { class: 'note' }, p.note) : null,
@@ -977,6 +1054,7 @@ async function openNear() {
     hideToast();
     origin = { ...fix, kind: 'gps' };
     renderNear(true);
+    checkMeteo(fix);
   } catch (e) {
     hideToast();
     offerFallback(e);
@@ -1075,8 +1153,11 @@ function renderNear(fit = false) {
     origin.kind === 'gps'
       ? tool('radio', following ? 'Suivi actif' : 'Suivre', () => (following ? stopFollow(true) : startFollow()), following)
       : tool('refresh-cw', 'Ma position', openNear),
+    tool('hourglass', 'Temps libre', () => openFreeTime()),
     tool('footprints', 'Chemin', () => openWayPicker()),
     tool('route', 'Parcours', () => openRoutePicker()),
+    tool('shuffle', 'Surprise', () => surprise(), null, 'c-fav'),
+    tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-info'),
     tool('Ⓜ', 'Station', () => openStationPicker(), null, 'c-metro'),
     // Bascule des cercles : affiche ce qu'on obtiendra en appuyant
     el('button', { type: 'button', class: 'tool', onclick: () => { state.ringUnit = inMinutes() ? 'm' : 'min'; persist(); renderNear(true); },
@@ -1091,6 +1172,12 @@ function renderNear(fit = false) {
         ? `${plural(t.last.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.last.ring)}.`
         : `${plural(t.first.n, 'lieu', 'lieux')} à faire à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
+  }
+  if (meteo?.rain && origin.kind !== 'station') {
+    const n = pts.filter((p) => p.covered).length;
+    body.push(el('div', { class: 'rain' }, ico('cloud-rain'),
+      el('span', {}, `Il pleut${meteo.temp != null ? ` (${meteo.temp}°)` : ''}. ${n ? plural(n, 'lieu abrité', 'lieux abrités') : 'Aucun lieu coché « abrité »'}.`),
+      n ? el('button', { type: 'button', class: 'btn c-guide', 'aria-pressed': String(filt.covered), onclick: () => { filt.covered = !filt.covered; refresh(); renderNear(); } }, filt.covered ? 'Tout voir' : 'Abrités') : null));
   }
   if (following) {
     body.push(el('p', { class: 'help' }, `🚶 Cette balade : ${walkText(walkSession)} · aujourd'hui : ${walkText(todayWalk())}`));
@@ -1128,7 +1215,8 @@ function renderNear(fit = false) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${ringText(maxRing)}.`));
   }
   if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».'));
-  body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, '↻ Actualiser ma position'));
+  body.push(el('button', { type: 'button', class: 'btn', style: 'margin-top:12px;width:100%', onclick: openNear }, ico('refresh-cw'), 'Actualiser ma position'));
+  body.push(el('button', { type: 'button', class: 'btn c-guide', style: 'margin-top:8px;width:100%', onclick: openMyParis }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
   openSheet(nearTitle(), body, { name: 'near', again: () => renderNear() });
   if (fit) {
@@ -1353,6 +1441,304 @@ function renderRoute(start, chosen) {
   map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
 }
 
+/* ---------- Partager un lieu par un lien (tout est dans le #, rien ne passe par un serveur) ---------- */
+
+async function sharePlace(p) {
+  const c = catOf(p.cat);
+  const url = placeLink(location.href, p, c.name, c.icon);
+  const text = `${p.name}${p.address ? ` — ${p.address}` : ''}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: p.name, text, url }); return; }
+  } catch (e) { if (e?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message.'); } catch { prompt('Copie ce lien :', url); }
+}
+
+/** Un lien reçu : on montre le lieu et on propose de l'ajouter (catégorie du même nom si elle existe). */
+function receivePlace(r) {
+  const cat = state.categories.find((c) => fold(c.name) === fold(r.catName))?.id;
+  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null });
+  toast('Lieu reçu par un lien : vérifie et enregistre.');
+}
+
+/* ---------- Import des lieux Google Maps (Google Takeout) ---------- */
+
+function openGoogleImport() {
+  const file = el('input', { type: 'file', accept: '.json,.csv,.geojson,application/json,text/csv', hidden: true });
+  file.addEventListener('change', async () => {
+    const f = file.files?.[0]; file.value = '';
+    if (!f) return;
+    try { previewGoogleImport(parseTakeout(await f.text(), f.name)); } catch (e) { toast(e.message || 'Fichier illisible.', true); }
+  });
+  openSheet([ico('download'), ' Importer de Google Maps'], el('div', { class: 'stack' },
+    el('ol', { class: 'steps' },
+      el('li', {}, 'Sur takeout.google.com, clique « Tout désélectionner », puis coche « Enregistré » (tes listes) et « Maps (vos adresses) » (tes étoiles).'),
+      el('li', {}, 'Exporte, puis ouvre le fichier .zip reçu sur ton téléphone.'),
+      el('li', {}, 'Ici, choisis « Saved Places.json » ou une liste en .csv (par exemple « Envie d\'y aller.csv »).')),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => file.click() }, ico('download'), 'Choisir le fichier'),
+    el('p', { class: 'help' }, 'Les listes en .csv n\'ont pas de position : l\'appli cherche chaque lieu par son nom dans l\'annuaire OpenStreetMap, un par seconde. Vérifie ensuite ceux marqués « à vérifier ».'),
+    file,
+    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, '← Sauvegarde et partage'),
+  ), { tall: true, name: 'gimport', again: openGoogleImport });
+}
+
+const inRegion = (x) => x.lat > 48.1 && x.lat < 49.3 && x.lng > 1.4 && x.lng < 3.6;
+function previewGoogleImport({ list, items }) {
+  let cat = state.categories[0].id;
+  let makeList = Boolean(list);
+  const located = items.filter((x) => x.lat != null);
+  const toFind = items.filter((x) => x.lat == null).slice(0, 100);
+  const outside = located.filter((x) => !inRegion(x)).length;
+  const catSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Catégorie' });
+  const drawCats = () => fill(catSeg, ...state.categories.map((c) => el('button', { type: 'button', 'aria-pressed': String(c.id === cat), onclick: () => { cat = c.id; drawCats(); } }, catDot(c.id), c.name)));
+  drawCats();
+  const listBox = el('input', { type: 'checkbox', class: 'check', checked: makeList });
+  listBox.addEventListener('change', () => { makeList = listBox.checked; });
+  openSheet([ico('download'), ' Importer de Google Maps'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(items.length, 'lieu trouvé', 'lieux trouvés')}${list ? ` dans « ${list} »` : ''}.`),
+    el('p', { class: 'help' }, [located.length - outside ? `${located.length - outside} avec leur position.` : null, toFind.length ? `${toFind.length} à chercher par leur nom (environ ${Math.ceil(toFind.length * 1.1 / 60)} min).` : null, outside ? `${outside} hors de l'Île-de-France, ignorés.` : null].filter(Boolean).join(' ')),
+    el('div', {}, el('div', { class: 'legend' }, 'Ranger dans la catégorie'), catSeg),
+    list ? el('label', { class: 'item-main check-row' }, listBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Créer la liste « ${list} »`), el('span', { class: 'item-sub' }, 'Pour les retrouver ensemble avec le bouton Filtres'))) : null,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => runGoogleImport([...located.filter(inRegion), ...toFind].slice(0, 500), cat, makeList ? list : '') }, ico('download'), 'Importer'),
+    el('button', { type: 'button', class: 'btn', onclick: openGoogleImport }, 'Choisir un autre fichier'),
+  ), { tall: true, name: 'gimport2' });
+}
+
+let importStop = false;
+async function runGoogleImport(items, cat, listName) {
+  let listId = null;
+  if (listName) { const r = addList(state, listName); state = r.state; listId = r.id; }
+  let added = 0; let dup = 0; let notFound = 0; let i = 0;
+  importStop = false;
+  const status = el('p', { class: 'summary', role: 'status' }, 'Import…');
+  openSheet([ico('download'), ' Import en cours'], el('div', { class: 'stack' }, status,
+    el('button', { type: 'button', class: 'btn', onclick: () => { importStop = true; } }, 'Arrêter (garder ceux déjà ajoutés)')), { name: 'gimport3' });
+  for (const it of items) {
+    if (importStop) break;
+    i++;
+    let { lat, lng } = it; let rough = false; let address = it.address;
+    if (lat == null) {
+      status.textContent = `Recherche ${i}/${items.length} : ${it.name}…`;
+      try {
+        const res = await searchPlaces([it.name, it.address].filter(Boolean).join(' '));
+        const hit = res.find(inRegion);
+        if (!hit) { notFound++; continue; }
+        ({ lat, lng } = hit); address = address || hit.address; rough = true;
+      } catch { notFound++; continue; }
+    } else status.textContent = `Ajout ${i}/${items.length}…`;
+    if (findDuplicate(state.points, { name: it.name, lat, lng })) { dup++; continue; }
+    const p = newPoint({ name: it.name || it.address, cat, note: [it.note, rough ? 'Position trouvée par le nom : à vérifier.' : ''].filter(Boolean).join(' '), lat, lng, address, lists: listId ? [listId] : [] });
+    p.arr = arrFromText(address);
+    state.points.push(p);
+    added++;
+    if (added % 10 === 0) { persist(); renderMarkers(); }
+  }
+  persist(); refresh();
+  openSheet([ico('download'), ' Import terminé'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(added, 'lieu ajouté', 'lieux ajoutés')}.`),
+    el('p', { class: 'help' }, [dup ? `${plural(dup, 'déjà présent', 'déjà présents')} (non ajoutés).` : null, notFound ? `${plural(notFound, 'introuvable', 'introuvables')} dans l'annuaire.` : null, importStop ? 'Import arrêté avant la fin.' : null].filter(Boolean).join(' ') || 'Tout est passé.'),
+    listId ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { filt.lists = new Set([listId]); refresh(); closeSheet(); } }, ico('list'), `Voir la liste « ${listName} »`) : null,
+    el('button', { type: 'button', class: 'btn', onclick: closeSheet }, 'Fermer'),
+  ), { name: 'gimport4' });
+  if (added) setTimeout(remindBackup, 1500);
+}
+
+/* ---------- Vélib' en temps réel ---------- */
+
+const VELIB_KEY = 'carte-paris.velib';
+let velibNeed = 'bike';
+async function velibStations() {
+  let info = null;
+  try { const c = JSON.parse(localStorage.getItem(VELIB_KEY) ?? 'null'); if (c && Date.now() - c.t < 7 * 864e5) info = c.info; } catch { /* rien */ }
+  const statusP = fetch(VELIB_STATUS).then((r) => r.json());
+  if (!info) {
+    const full = await (await fetch(VELIB_INFO)).json();
+    info = { data: { stations: (full?.data?.stations ?? []).map((s) => ({ station_id: s.station_id, name: s.name, lat: s.lat, lon: s.lon })) } };
+    try { localStorage.setItem(VELIB_KEY, JSON.stringify({ t: Date.now(), info })); } catch { /* stockage plein : tant pis */ }
+  }
+  return mergeVelib(info, await statusP);
+}
+
+async function showVelib(at = null) {
+  toast('Recherche des Vélib\'…');
+  let from = at;
+  try {
+    if (!from) from = freshHere() ?? await locate();
+  } catch (e) { toast(e.message, true); return; }
+  let stations;
+  try { stations = await velibStations(); } catch { toast('Les données Vélib\' ne répondent pas. Réessaie dans un moment.', true); return; }
+  hideToast();
+  const list = nearestVelib(stations, from, velibNeed, 3);
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Je cherche' },
+    el('button', { type: 'button', 'aria-pressed': String(velibNeed === 'bike'), onclick: () => { velibNeed = 'bike'; showVelib(from); } }, ico('bike'), ' Un vélo'),
+    el('button', { type: 'button', 'aria-pressed': String(velibNeed === 'dock'), onclick: () => { velibNeed = 'dock'; showVelib(from); } }, ico('square-parking'), ' Une place'));
+  openSheet([ico('bike'), ' Vélib\''], el('div', { class: 'stack' }, seg,
+    list.length ? el('ul', { class: 'items' }, list.map((s) => el('li', { class: 'item' },
+      el('div', { class: 'item-main' }, el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bike', { size: 18 })),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name),
+          el('span', { class: 'item-sub' }, `${fmtDist(s.d)} · ${walkMinutes(s.d)} min · `,
+            velibNeed === 'bike' ? `${plural(s.bikes, 'vélo', 'vélos')} (${s.mech} méca., ${s.ebike} élec.)` : plural(s.docks, 'place libre', 'places libres')))),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
+      el('a', { class: 'go', href: mapsUrl(s, s.d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${s.name}` }, 'Y aller'))))
+      : el('p', { class: 'empty' }, 'Aucune station disponible trouvée.'),
+    el('p', { class: 'help' }, 'Données Vélib\' Métropole en temps réel, à quelques minutes près.'),
+  ), { name: 'velib', again: () => showVelib(from) });
+  nearLayer.clearLayers();
+  meMarker(from.lat, from.lng).addTo(nearLayer);
+  for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#0b6f80', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
+/* ---------- Mon Paris : les arrondissements explorés ---------- */
+
+let arrBusy = false;
+async function findArrondissements() {
+  if (arrBusy) return;
+  arrBusy = true;
+  let changed = false;
+  for (const p of state.points) {
+    if (p.arr) continue;
+    const a = arrFromText(p.address);
+    if (a) { p.arr = a; changed = true; }
+  }
+  // Les autres : demander l'adresse officielle (IGN), 20 au plus à la fois
+  const todo = state.points.filter((p) => !p.arr && p.lat > 48.81 && p.lat < 48.91 && p.lng > 2.22 && p.lng < 2.47).slice(0, 20);
+  for (const p of todo) {
+    try { const r = await reverseInfo(p.lat, p.lng); const a = arrFromCitycode(r?.citycode) ?? arrFromText(r?.label); if (a) { p.arr = a; changed = true; } } catch { break; }
+  }
+  arrBusy = false;
+  if (changed) { persist(); if (view === 'myparis') openMyParis(); }
+}
+
+function openMyParis() {
+  const by = new Map();
+  for (const p of state.points) {
+    if (!p.arr) continue;
+    const e = by.get(p.arr) ?? { done: 0, all: 0 };
+    e.all++; if (p.done) e.done++;
+    by.set(p.arr, e);
+  }
+  const explored = [...by.values()].filter((e) => e.done).length;
+  const unknown = state.points.filter((p) => !p.arr).length;
+  const ord = (n) => (n === 1 ? '1er' : `${n}e`);
+  const tiles = Object.entries(ARR_GRID).map(([n, [c, r]]) => {
+    const e = by.get(Number(n)) ?? { done: 0, all: 0 };
+    const level = e.done >= 5 ? 3 : e.done >= 2 ? 2 : e.done ? 1 : 0;
+    return el('div', { class: `arr l${level}`, style: `grid-column:${c + 1};grid-row:${r + 1}`, role: 'img', 'aria-label': `${ord(Number(n))} : ${e.done} visité${e.done > 1 ? 's' : ''} sur ${e.all}` },
+      el('b', {}, ord(Number(n))), el('span', {}, e.all ? `${e.done}/${e.all}` : '–'));
+  });
+  openSheet([ico('map'), ' Mon Paris'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
+    el('div', { class: 'arr-grid' }, tiles),
+    el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
+    el('p', { class: 'help' }, `Chaque case : lieux visités / lieux enregistrés. Plan schématique, à peu près à la place de chaque arrondissement.${unknown ? ` ${plural(unknown, 'lieu', 'lieux')} sans arrondissement connu (hors Paris ou en cours de recherche).` : ''}`),
+    el('p', { class: 'help' }, `Marche aujourd'hui : ${walkText(todayWalk())}.`),
+  ), { tall: true, name: 'myparis', again: openMyParis });
+  findArrondissements();
+}
+
+/* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
+
+let meteo = null;
+let meteoAt = 0;
+async function checkMeteo(at) {
+  if (Date.now() - meteoAt < 30 * 60 * 1000 || !navigator.onLine) return;
+  meteoAt = Date.now();
+  try {
+    const r = await fetch(meteoUrl(at?.lat, at?.lng));
+    const m = readMeteo(await r.json());
+    if (m) { const changed = m.rain !== meteo?.rain; meteo = m; if (changed && view === 'near') renderNear(); }
+  } catch { /* hors ligne : pas d'alerte pluie */ }
+}
+
+/* ---------- Temps libre : une boucle qui revient au point de départ ---------- */
+
+let freeMin = 60;
+let freeDwell = 15;
+function openFreeTime() {
+  if (!origin) { openNear(); return; }
+  const todo = visible().filter((p) => !p.done);
+  const plan = planLoop(origin, todo, freeMin, { dwell: freeDwell });
+  const choice = (vals, cur, fmt, set) => el('div', { class: 'seg', role: 'group' }, vals.map((v) => el('button', { type: 'button', 'aria-pressed': String(v === cur), onclick: () => { set(v); openFreeTime(); } }, fmt(v))));
+  let prev = origin;
+  const steps = plan.route.map((p, i) => {
+    const leg = distanceM(prev, p); prev = p;
+    return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, openFreeTime) },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
+        el('span', { class: 'item-sub' }, `${fmtWalk(leg)} `, starsText(p.stars), hoursTag(p)))));
+  });
+  openSheet([ico('hourglass'), ' Temps libre'], el('div', { class: 'stack' },
+    el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice([30, 60, 90, 120, 180], freeMin, (v) => (v < 60 ? `${v} min` : `${v / 60} h`.replace('.5', ' h 30').replace(' h h', ' h')), (v) => { freeMin = v; })),
+    el('div', {}, el('div', { class: 'legend' }, 'Temps sur place, par lieu'), choice([5, 15, 30], freeDwell, (v) => `${v} min`, (v) => { freeDwell = v; })),
+    plan.route.length
+      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')} à faire, retour au départ : ${plan.walk} min de marche + ${plan.route.length * freeDwell} min sur place = ${plan.total} min.`)
+      : el('p', { class: 'empty' }, todo.length ? 'Aucun lieu à faire assez proche pour ce temps. Essaie plus long ou moins de temps sur place.' : 'Aucun lieu « à faire » avec les filtres actuels.'),
+    plan.route.length ? el('ol', { class: 'items' }, steps) : null,
+    plan.route.length ? el('a', { class: 'btn primary go-bar', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Partir (Google Maps)') : null,
+    el('p', { class: 'help' }, 'Les lieux les mieux notés et les favoris passent en priorité. Les filtres en haut s\'appliquent.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
+  ), { tall: true, name: 'freetime', again: openFreeTime });
+  nearLayer.clearLayers();
+  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (plan.route.length) {
+    const line = [origin, ...plan.route, origin].map((p) => [p.lat, p.lng]);
+    L.polyline(line, { color: '#1f2a44', weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
+    plan.route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
+    map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
+  }
+}
+
+/* ---------- Surprends-moi : un lieu à faire au hasard, à moins de 15 min ---------- */
+
+function surprise() {
+  if (!origin) { openNear(); return; }
+  const max = minutesToMeters(15);
+  const pool = visible().filter((p) => !p.done && distanceM(origin, p) <= max);
+  if (!pool.length) { toast('Aucun lieu à faire à moins de 15 min (avec les filtres actuels).', true); return; }
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  openDetail(p.id, () => renderNear());
+  toast(`Surprise : ${p.name}, à ${walkMinutes(distanceM(origin, p))} min à pied`);
+}
+
+/* ---------- Curiosités : articles Wikipédia autour (position arrondie à 100 m environ) ---------- */
+
+const wikiCache = new Map();
+async function openCuriosities() {
+  if (!origin) { openNear(); return; }
+  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}`;
+  let list = wikiCache.get(key);
+  if (!list) {
+    openSheet([ico('book-open-text'), ' Curiosités'], el('p', { class: 'help' }, 'Recherche dans Wikipédia…'), { name: 'wiki' });
+    try {
+      const r = await fetch(wikiUrl(origin.lat, origin.lng, 1000));
+      list = parseWiki(await r.json());
+      wikiCache.set(key, list);
+    } catch {
+      openSheet([ico('book-open-text'), ' Curiosités'], el('div', { class: 'stack' },
+        el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.'),
+        el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')), { name: 'wiki' });
+      return;
+    }
+  }
+  const items = list.map((w) => ({ ...w, d: distanceM(origin, w) })).sort((a, b) => a.d - b.d);
+  const have = (w) => findDuplicate(state.points, { name: w.title, lat: w.lat, lng: w.lng });
+  openSheet([ico('book-open-text'), ' Curiosités'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${plural(items.length, 'article', 'articles')} Wikipédia à moins de 1 km : monuments, rues, histoire. « + » pour en faire un lieu.`),
+    el('ul', { class: 'items' }, items.map((w) => el('li', { class: 'item' },
+      el('a', { class: 'item-main', href: wikiPage(w.title), target: '_blank', rel: 'noopener' },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('book-open-text', { size: 18 })),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, w.title), el('span', { class: 'item-sub' }, `${fmtDist(w.d)} · ${walkMinutes(w.d)} min · lire l'article`))),
+      have(w) ? el('span', { class: 'tag' }, 'Déjà là')
+        : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))),
+    el('p', { class: 'help' }, 'Source : Wikipédia (CC BY-SA). Seule une position arrondie à 100 m est envoyée.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
+  ), { tall: true, name: 'wiki', again: openCuriosities });
+  nearLayer.clearLayers();
+  meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+}
+
 /* ---------- Boussole « Vers ce lieu » ---------- */
 
 let compassOpen = false;
@@ -1562,6 +1948,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn c-add solid', onclick: download, disabled: count === 0 }, '⬇  Exporter mes lieux'),
       canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: share, disabled: count === 0 }, '✉  Envoyer le fichier (mail, Drive…)') : null,
       el('button', { type: 'button', class: 'btn c-add', onclick: () => file.click() }, '⬆  Importer un fichier'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
       el('p', { class: 'help' }, 'L\'import ajoute les lieux du fichier sans effacer les tiens : ta propre sauvegarde ou les lieux d\'un ami.'),
       file,
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager avec un ami'), el('span', {}, '')),
@@ -1576,7 +1963,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'categories') {
-    openSheet([ico('tags'), ' Catégories'], el('div', { class: 'stack' },
+    openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
       el('p', { class: 'help' }, 'L\'ordre ici est celui de la barre du haut. Flèches pour déplacer, Modifier pour le nom, l\'icône et la couleur.'),
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
@@ -1599,6 +1986,19 @@ function openSettings(section = null) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
       el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
       el('p', { class: 'help' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
+      el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
+      (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => el('div', { class: 'cat-row' },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('list', { size: 18 })),
+        el('span', { class: 'cat-name' }, l.name, el('br'), el('span', { class: 'cat-count' }, plural(state.points.filter((p) => p.lists?.includes(l.id)).length, 'lieu', 'lieux'))),
+        el('button', { type: 'button', class: 'btn', 'aria-label': `Renommer ${l.name}`, onclick: () => {
+          const n = prompt('Nouveau nom de la liste', l.name);
+          if (n == null) return;
+          try { state = renameList(state, l.id, n); persist(); refresh(); openSettings('categories'); } catch (e) { toast(e.message, true); }
+        } }, 'Renommer'),
+        el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Supprimer la liste ${l.name}`, onclick: () => {
+          if (!confirm(`Supprimer la liste « ${l.name} » ? Les lieux restent sur ta carte.`)) return;
+          state = deleteList(state, l.id); filt.lists.delete(l.id); persist(); refresh(); openSettings('categories'); toast('Liste supprimée');
+        } }, ico('x'))))) : el('p', { class: 'help' }, 'Une liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). Crée-la en modifiant un lieu.'),
       backBtn,
     ), { tall: true, name: 'settings:categories', again: () => openSettings('categories') });
     return;
@@ -1694,8 +2094,9 @@ function openSettings(section = null) {
 
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
+    row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', openMyParis, false, 'c-guide'),
     row('save', 'Sauvegarde et partage', saveSummary, () => openSettings('sauvegarde'), due, 'c-add'),
-    row('tags', 'Catégories', plural(state.categories.length, 'catégorie', 'catégories'), () => openSettings('categories'), false, 'c-add'),
+    row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
@@ -2099,6 +2500,7 @@ document.getElementById('btnPratique').addEventListener('click', nearestPratique
 document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnZoomMe').addEventListener('click', zoomOnMe);
+document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -2107,6 +2509,7 @@ const TOOL_INFO = {
   locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et cercles de temps' },
   paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
   zoom: { el: 'btnZoomMe', icon: 'zoom-in', name: 'Zoom sur ma position' },
+  velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
 };
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
@@ -2135,7 +2538,18 @@ const HELP = [
     '◎ ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
     'Paris : revenir au centre de Paris.',
     'Loupe + : zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
+    'Vélo : les 3 stations Vélib\' les plus proches avec des vélos (mécaniques ou électriques) ou des places libres, en temps réel.',
     'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
+  ]],
+  ['list-filter', 'Filtres', [
+    'Le bouton Filtres, juste après « Tout », ouvre : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités (pluie), tes listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'Le chiffre sur le bouton indique combien de filtres sont actifs. « Effacer les filtres » remet tout.',
+    'Les filtres s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
+  ]],
+  ['list', 'Mes listes', [
+    'Une liste regroupe des lieux de catégories différentes : « Sous la pluie », « Avec Paul », « Brunch ».',
+    'Dans « Modifier » (ou à l\'ajout), touche une liste pour y mettre le lieu, ou écris un nom puis « Créer ».',
+    'Renommer ou supprimer : ⚙ → Catégories et listes.',
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
@@ -2148,6 +2562,10 @@ const HELP = [
     'Suivre : les cercles te suivent, le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
     'Chemin : tes lieux à faire sur ton trajet. Parcours : 2 à 4 lieux dans le meilleur ordre.',
     'Station : voir ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
+    'Temps libre : dis combien de temps tu as ; l\'appli propose une boucle de lieux à faire qui revient à ton point de départ.',
+    'Surprise : un lieu à faire au hasard, à moins de 15 min à pied.',
+    'Curiosités : les articles Wikipédia autour de toi (monuments, rues, histoire), avec « + » pour en faire un lieu.',
+    'S\'il pleut, un bandeau bleu propose de n\'afficher que tes lieux abrités.',
   ]],
   ['compass', 'La fiche d\'un lieu', [
     'Touche le lieu sur la carte pour ouvrir sa fiche.',
@@ -2172,11 +2590,17 @@ const HELP = [
     '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
     'Ton ami fait Importer : il choisit « Ajouter comme ses lieux ». Chaque lieu garde le prénom de qui l\'a ajouté.',
     'Le bouton 👥 en haut affiche tes lieux, les siens ou tous.',
+    'Un seul lieu : dans sa fiche, ⋯ Plus → Partager ce lieu par un lien. Ton ami touche le lien et peut l\'ajouter à sa carte.',
     'Pour partager l\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
   ]],
   ['save', 'Sauvegarder (important)', [
     'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : ⚙ → Sauvegarde et partage → Exporter.',
     'Le fichier va dans tes Téléchargements. Pour le retrouver sur un autre téléphone : Importer.',
+    'Tes lieux enregistrés dans Google Maps : ⚙ → Sauvegarde et partage → Importer de Google Maps (les étapes sont expliquées).',
+  ]],
+  ['map', 'Mon Paris', [
+    '⚙ → Mon Paris : les 20 arrondissements se colorent au fil des lieux que tu as visités (« Déjà visité »).',
+    'Chaque case montre lieux visités / lieux enregistrés. Tu y trouves aussi ta marche du jour.',
   ]],
   ['zap', 'Raccourcis sur l\'icône', [
     'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',

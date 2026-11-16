@@ -1,0 +1,263 @@
+// Fonctions sans interface pour : partage d'un lieu par lien, temps libre (boucle), import Google Maps,
+// doublons, Wikipédia, arrondissements, Vélib' et météo. Tout est testé dans tests/explore.test.mjs.
+import { distanceM } from './geo.js';
+import { fold } from './search.js';
+
+/* ---------- 1. Partager un lieu par lien (dans le #, jamais envoyé au serveur) ---------- */
+
+const b64url = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
+const r5 = (x) => Math.round(x * 1e5) / 1e5;
+
+/** Lien vers l'appli qui contient le lieu (nom, adresse, position, note, catégorie, mot). */
+export function placeLink(base, p, catName = '', catIcon = '') {
+  const o = { v: 1, n: p.name, y: r5(p.lat), x: r5(p.lng) };
+  if (p.address) o.a = p.address;
+  if (catName) o.c = catName;
+  if (catIcon) o.i = catIcon;
+  if (p.stars) o.s = p.stars;
+  if (p.note) o.o = String(p.note).slice(0, 300);
+  if (p.hours) o.h = p.hours;
+  return `${base.split('#')[0]}#lieu=${b64url(JSON.stringify(o))}`;
+}
+
+/** Lit un lien reçu. Renvoie null s'il est abîmé ou hors de l'Île-de-France. */
+export function readPlaceLink(hash) {
+  const m = /(?:^|[#&])lieu=([\w-]+)/.exec(hash ?? '');
+  if (!m) return null;
+  try {
+    const o = JSON.parse(unb64url(m[1]));
+    const lat = Number(o.y);
+    const lng = Number(o.x);
+    const name = String(o.n ?? '').trim().slice(0, 80);
+    if (!name || !(lat > 48 && lat < 49.5) || !(lng > 1.4 && lng < 3.6)) return null;
+    const stars = Number.isInteger(o.s) && o.s >= 1 && o.s <= 5 ? o.s : 0;
+    return {
+      name, lat, lng, stars,
+      address: String(o.a ?? '').slice(0, 200), catName: String(o.c ?? '').slice(0, 30), catIcon: String(o.i ?? ''),
+      note: String(o.o ?? '').slice(0, 300), hours: String(o.h ?? '').slice(0, 300),
+    };
+  } catch { return null; }
+}
+
+/* ---------- 2. J'ai du temps libre : une boucle qui revient au départ ---------- */
+
+const MIN_PER_M = (12 / 1000) * 1.3; // 12 min/km, rues 1,3 fois plus longues que la ligne droite
+const walkMin = (a, b) => distanceM(a, b) * MIN_PER_M;
+const loopWalk = (start, route) => {
+  let t = 0; let prev = start;
+  for (const p of route) { t += walkMin(prev, p); prev = p; }
+  return route.length ? t + walkMin(prev, start) : 0;
+};
+
+/**
+ * Choisit des lieux à faire pour une boucle qui tient dans `minutes` (marche + `dwell` min sur place),
+ * en insérant à chaque fois le lieu qui coûte le moins de temps. Les lieux mieux notés passent devant à égalité.
+ */
+export function planLoop(start, candidates, minutes, { dwell = 15, maxStops = 8 } = {}) {
+  let route = [];
+  const left = [...candidates];
+  for (;;) {
+    if (route.length >= maxStops) break;
+    let best = null;
+    for (const c of left) {
+      for (let k = 0; k <= route.length; k++) {
+        const r = [...route.slice(0, k), c, ...route.slice(k)];
+        const total = loopWalk(start, r) + dwell * r.length;
+        if (total > minutes) continue;
+        const score = total - (c.stars ?? 0) * 0.5 - (c.fav ? 1 : 0);
+        if (!best || score < best.score) best = { r, c, score };
+      }
+    }
+    if (!best) break;
+    route = best.r;
+    left.splice(left.indexOf(best.c), 1);
+  }
+  const walk = Math.round(loopWalk(start, route));
+  return { route, walk, total: walk + dwell * route.length };
+}
+
+/** Lien Google Maps à pied : par les lieux puis retour au départ (9 étapes au plus). */
+export function loopUrl(start, route) {
+  const ll = (p) => `${r5(p.lat)},${r5(p.lng)}`;
+  const u = new URL('https://www.google.com/maps/dir/');
+  u.search = new URLSearchParams({ api: '1', origin: ll(start), destination: ll(start), travelmode: 'walking', waypoints: route.slice(0, 9).map(ll).join('|') });
+  return u.toString();
+}
+
+/* ---------- 5. Import des lieux enregistrés dans Google Maps (Google Takeout) ---------- */
+
+/** Coordonnées lisibles dans un lien Google Maps, ou null. */
+export function coordsFromUrl(url) {
+  const s = String(url ?? '');
+  const pats = [/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|query|ll)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i];
+  for (const re of pats) {
+    const m = re.exec(s);
+    if (m) {
+      const lat = Number(m[1]); const lng = Number(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng)) return { lat, lng };
+    }
+  }
+  return null;
+}
+
+/** Découpe un CSV (guillemets et retours à la ligne dans les champs compris). */
+export function parseCsv(text) {
+  const rows = []; let row = []; let f = ''; let q = false;
+  const t = String(text).replace(/^﻿/, '');
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (q) {
+      if (ch === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(f); f = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && t[i + 1] === '\n') i++;
+      row.push(f); f = '';
+      if (row.some((x) => x !== '')) rows.push(row);
+      row = [];
+    } else f += ch;
+  }
+  row.push(f);
+  if (row.some((x) => x !== '')) rows.push(row);
+  return rows;
+}
+
+/**
+ * Lit un fichier de Google Takeout : « Saved Places.json » (GeoJSON) ou une liste « …csv ».
+ * Renvoie { list, items: [{ name, address, note, lat, lng }] } ; lat/lng sont null quand il faut chercher l'adresse.
+ */
+export function parseTakeout(text, filename = '') {
+  const list = String(filename).replace(/^.*[\\/]/, '').replace(/\.(csv|json|geojson)$/i, '').trim();
+  const trimmed = String(text).trim();
+  if (trimmed.startsWith('{')) {
+    const o = JSON.parse(trimmed);
+    if (!Array.isArray(o.features)) throw new Error('Ce fichier JSON ne vient pas de Google Maps.');
+    const items = o.features.map((f) => {
+      const pr = f.properties ?? {};
+      const loc = pr.Location ?? pr.location ?? {};
+      const [lng, lat] = Array.isArray(f.geometry?.coordinates) ? f.geometry.coordinates.map(Number) : [0, 0];
+      const name = String(pr.Title ?? pr.name ?? loc['Business Name'] ?? loc.name ?? '').trim();
+      const url = pr['Google Maps URL'] ?? pr.google_maps_url ?? '';
+      const c = lat || lng ? { lat, lng } : coordsFromUrl(url);
+      return { name, address: String(loc.Address ?? loc.address ?? pr.address ?? ''), note: String(pr.Comment ?? pr.note ?? ''), lat: c?.lat ?? null, lng: c?.lng ?? null };
+    }).filter((x) => x.name || x.address);
+    return { list: list === 'Saved Places' ? 'Google Maps' : list, items };
+  }
+  const rows = parseCsv(trimmed);
+  if (!rows.length) return { list, items: [] };
+  const head = rows[0].map((h) => fold(h));
+  const col = (...names) => head.findIndex((h) => names.includes(h));
+  const iT = col('title', 'titre', 'nom', 'name'); const iN = col('note', 'notes'); const iU = col('url', 'lien'); const iC = col('comment', 'commentaire');
+  if (iT < 0) throw new Error('Ce fichier CSV ne ressemble pas à une liste Google Maps (colonne « Title » absente).');
+  const items = rows.slice(1).map((r) => {
+    const c = coordsFromUrl(r[iU] ?? '');
+    return { name: String(r[iT] ?? '').trim(), address: '', note: [r[iN], r[iC]].filter(Boolean).join(' — '), lat: c?.lat ?? null, lng: c?.lng ?? null };
+  }).filter((x) => x.name);
+  return { list, items };
+}
+
+/* ---------- 6. Doublons ---------- */
+
+/** Lieu déjà enregistré qui ressemble au nouveau : même endroit (≤ 12 m) ou nom proche à moins de 60 m. */
+export function findDuplicate(points, cand, ignoreId = null) {
+  const n = fold(cand.name);
+  let best = null;
+  for (const p of points) {
+    if (p.id === ignoreId) continue;
+    const d = distanceM(p, cand);
+    if (d > 60) continue;
+    const pn = fold(p.name);
+    const similar = n && pn && (pn === n || pn.includes(n) || n.includes(pn));
+    if ((d <= 12 || similar) && (!best || d < best.d)) best = { point: p, d };
+  }
+  return best;
+}
+
+/* ---------- 7. Wikipédia : ce qu'il y a d'intéressant autour ---------- */
+
+/** Recherche d'articles autour d'un point (position arrondie à 100 m environ). */
+export function wikiUrl(lat, lng, radius = 1000) {
+  const u = new URL('https://fr.wikipedia.org/w/api.php');
+  u.search = new URLSearchParams({ action: 'query', list: 'geosearch', gscoord: `${lat.toFixed(3)}|${lng.toFixed(3)}`, gsradius: String(Math.min(10000, radius)), gslimit: '30', format: 'json', origin: '*' });
+  return u.toString();
+}
+
+export function parseWiki(json) {
+  const list = json?.query?.geosearch;
+  if (!Array.isArray(list)) return [];
+  return list.filter((g) => g.title && Number.isFinite(g.lat) && Number.isFinite(g.lon) && !/^(Liste|Arrondissement|Quartier) /i.test(g.title))
+    .map((g) => ({ title: String(g.title), lat: g.lat, lng: g.lon, pageid: g.pageid }));
+}
+
+export const wikiPage = (title) => `https://fr.m.wikipedia.org/wiki/${encodeURIComponent(String(title).replace(/ /g, '_'))}`;
+
+/* ---------- 8. Paris à colorier ---------- */
+
+/** Numéro d'arrondissement (1 à 20) lu dans une adresse (code postal 75001…75020, 75116), ou null. */
+export function arrFromText(text) {
+  const m = /\b75(0(\d\d)|116)\b/.exec(String(text ?? ''));
+  if (!m) return null;
+  const n = m[1] === '116' ? 16 : Number(m[2]);
+  return n >= 1 && n <= 20 ? n : null;
+}
+
+/** Numéro d'arrondissement lu dans un code commune INSEE (75101…75120), ou null. */
+export function arrFromCitycode(code) {
+  const m = /^751(\d\d)$/.exec(String(code ?? ''));
+  const n = m ? Number(m[1]) : 0;
+  return n >= 1 && n <= 20 ? n : null;
+}
+
+/** Position de chaque arrondissement dans une grille schématique (colonne, rangée), proche de la carte réelle. */
+export const ARR_GRID = {
+  17: [1, 0], 18: [2, 0], 19: [3, 0],
+  16: [0, 1], 8: [1, 1], 9: [2, 1], 10: [3, 1], 20: [4, 1],
+  7: [1, 2], 1: [2, 2], 2: [3, 2], 3: [4, 2], 11: [5, 2],
+  15: [0, 3], 6: [1, 3], 5: [2, 3], 4: [3, 3], 12: [4, 3],
+  14: [1, 4], 13: [2, 4],
+};
+
+/* ---------- 11. Vélib' en temps réel (données ouvertes GBFS) ---------- */
+
+const VELIB = 'https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/';
+export const VELIB_INFO = `${VELIB}station_information.json`;
+export const VELIB_STATUS = `${VELIB}station_status.json`;
+
+/** Assemble la liste des stations et leur état. */
+export function mergeVelib(info, status) {
+  const st = new Map((status?.data?.stations ?? []).map((s) => [String(s.station_id), s]));
+  return (info?.data?.stations ?? []).map((s) => {
+    const x = st.get(String(s.station_id)) ?? {};
+    const types = x.num_bikes_available_types ?? [];
+    const pick = (k) => types.reduce((n, t) => n + (Number(t?.[k]) || 0), 0);
+    return {
+      id: String(s.station_id), name: String(s.name ?? ''), lat: Number(s.lat), lng: Number(s.lon),
+      bikes: Number(x.num_bikes_available ?? x.numBikesAvailable ?? 0), mech: pick('mechanical'), ebike: pick('ebike'),
+      docks: Number(x.num_docks_available ?? x.numDocksAvailable ?? 0), open: x.is_renting === 1 || x.is_renting === true || x.is_renting === undefined,
+    };
+  }).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+}
+
+/** Les stations les plus proches qui ont des vélos (need='bike') ou des places (need='dock'). */
+export function nearestVelib(stations, here, need = 'bike', k = 3) {
+  return stations.filter((s) => s.open && (need === 'dock' ? s.docks > 0 : s.bikes > 0))
+    .map((s) => ({ ...s, d: distanceM(here, s) })).sort((a, b) => a.d - b.d).slice(0, k);
+}
+
+/* ---------- 12. Météo (Open-Meteo, sans clé) ---------- */
+
+export function meteoUrl(lat = 48.857, lng = 2.352) {
+  const u = new URL('https://api.open-meteo.com/v1/forecast');
+  u.search = new URLSearchParams({ latitude: lat.toFixed(2), longitude: lng.toFixed(2), current: 'precipitation,weather_code,temperature_2m', timezone: 'Europe/Paris' });
+  return u.toString();
+}
+
+const RAIN = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]);
+/** { rain, temp } d'après la réponse, ou null si elle est illisible. */
+export function readMeteo(json) {
+  const c = json?.current;
+  if (!c || typeof c !== 'object') return null;
+  const rain = Number(c.precipitation) >= 0.1 || RAIN.has(Number(c.weather_code));
+  return { rain, temp: Number.isFinite(c.temperature_2m) ? Math.round(c.temperature_2m) : null };
+}

@@ -28,7 +28,8 @@ export function parseFeatures(json) {
     const [lng, lat] = c;
     if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const type = typeof f.properties.type === 'string' ? f.properties.type : 'housenumber';
-    out.push({ label, lat, lng, type });
+    const citycode = f.properties.citycode;
+    out.push({ label, lat, lng, type, ...(typeof citycode === 'string' ? { citycode } : {}) });
   }
   return out;
 }
@@ -46,6 +47,11 @@ export async function searchAddress(q, signal) {
 }
 
 /** Adresse la plus proche d'une position, ou null si introuvable ou sans réseau. */
+/** Adresse officielle d'un point avec son code commune (75101…75120 pour les arrondissements). Lève une erreur réseau. */
+export async function reverseInfo(lat, lng) {
+  return parseFeatures(await getJSON(reverseUrl(lat, lng)))[0] ?? null;
+}
+
 export async function reverseAddress(lat, lng) {
   try {
     const r = parseFeatures(await getJSON(reverseUrl(lat, lng)));
