@@ -36,6 +36,10 @@ const AGENDA = [
 ].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3),
   address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', qfap_tags: tags, url: 'https://quefaire.paris.fr/' }));
 
+// Monuments : réponse Wikidata simulée (un musée, un immeuble protégé en façade seulement).
+const WIKIDATA = { results: { bindings: [
+  ['Q1', 'Hôtel Scheffer-Renan', 'Point(2.3337 48.8818)', 'PA00088936'], ['Q2', 'Immeuble', 'Point(2.3350 48.8805)', 'PA00085808'],
+].map(([id, label, coord, ref]) => ({ item: { value: `http://www.wikidata.org/entity/${id}` }, itemLabel: { value: label }, coord: { value: coord }, merimee: { value: ref } })) } };
 const feuille = (p) => p.locator('#sheet');
 const ECRANS = {
   carte: async () => {},
@@ -50,6 +54,7 @@ const ECRANS = {
   navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   donnees: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Application' }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await p.waitForTimeout(400); },
   donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Application' }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
+  monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
@@ -63,6 +68,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   const page = await ctx.newPage(); const erreurs = []; page.on('pageerror', (e) => erreurs.push(e.message));
   await page.route(/opendata\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AGENDA) }));
   await page.route(/tile|cartocdn|openstreetmap|open-meteo|wikidata|overpass|nominatim|geopf|wikipedia|velib|smoove/, (r) => r.abort());
+  await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   await page.evaluate((pts) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3 })), LIEUX);
   for (const nom of choisis) {

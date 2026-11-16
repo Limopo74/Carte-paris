@@ -149,6 +149,26 @@ test('monuments historiques : regroupe, garde le site https, ignore les sans-nom
   assert.deepEqual(parseHist(null), []);
 });
 
+test('Mérimée : ligne « Classé · 16e siècle · hôtel particulier », façade seulement, musée', async () => {
+  const { parseMerimee, merimeeLine, museumLine } = await import('../js/explore.js');
+  const { updated, items } = parseMerimee({ updated: '2026-11-16', items: {
+    PA00086125: { p: 'C', s: '16e siècle', t: 'hôtel particulier', m: ['Musée Carnavalet'] },
+    PA00088116: { p: 'I', s: '18e siècle', t: 'immeuble', f: 'façade' },
+    PA00088117: { p: 'I', t: 'boutique', f: 'devanture' },
+    '<img>': { p: 'C' },
+    PA00088118: 'texte',
+  } });
+  assert.equal(updated, '2026-11-16');
+  assert.equal(items.size, 3, 'référence invalide ou notice illisible écartée');
+  assert.equal(merimeeLine(items.get('PA00086125')), 'Classé · 16e siècle · hôtel particulier');
+  assert.equal(museumLine(items.get('PA00086125')), 'Se visite : Musée Carnavalet');
+  assert.equal(merimeeLine(items.get('PA00088116')), 'Inscrit · 18e siècle · immeuble · façade seulement');
+  assert.equal(merimeeLine(items.get('PA00088117')), 'Inscrit · boutique · devanture seulement');
+  assert.equal(museumLine(items.get('PA00088116')), '');
+  assert.equal(merimeeLine(undefined), '');
+  assert.equal(parseMerimee(null).items.size, 0);
+});
+
 test('invitation à une sortie : le jour et l\'heure passent par le lien, seulement si on invite', () => {
   const at = new Date(Date.now() + 3 * 864e5).setSeconds(0, 0);
   const p = { name: 'Le Grand Rex', lat: 48.8707, lng: 2.3477, ticket: { at } };

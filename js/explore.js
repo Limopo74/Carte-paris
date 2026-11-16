@@ -475,3 +475,27 @@ export function parseHist(json) {
 
 /** Fiche officielle du ministère de la Culture (base Mérimée, plateforme POP). */
 export const merimeeUrl = (ref) => `https://www.pop.culture.gouv.fr/notice/merimee/${ref}`;
+
+/* ---------- Mérimée : protection, siècle, type et musée d'un monument (data/merimee.json, refait par tools/maj-merimee.py) ---------- */
+
+/** Fichier de l'appli -> { updated, items: Map(référence PA -> { p, s, t, f, m }) }. */
+export function parseMerimee(json) {
+  const items = new Map();
+  const src = json?.items && typeof json.items === 'object' ? json.items : {};
+  const str = (v) => (typeof v === 'string' ? v.slice(0, 80) : '');
+  for (const [ref, x] of Object.entries(src)) {
+    if (!/^PA\w{8}$/.test(ref) || !x || typeof x !== 'object') continue;
+    items.set(ref, { p: str(x.p), s: str(x.s), t: str(x.t), f: str(x.f), m: Array.isArray(x.m) ? x.m.map(str).filter(Boolean).slice(0, 3) : [] });
+  }
+  return { updated: typeof json?.updated === 'string' ? json.updated : '', items };
+}
+
+/** « Classé · 17e siècle · église » et « façade seulement » ; '' si rien n'est connu. */
+export function merimeeLine(x) {
+  if (!x) return '';
+  const prot = x.p === 'C' ? 'Classé' : x.p === 'I' ? 'Inscrit' : '';
+  return [prot, x.s, x.t, x.f ? `${x.f} seulement` : ''].filter(Boolean).join(' · ');
+}
+
+/** « Se visite : Musée Carnavalet » quand le monument abrite un musée de France ; '' sinon. */
+export const museumLine = (x) => (x?.m?.length ? `Se visite : ${x.m.join(', ')}` : '');

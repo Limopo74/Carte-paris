@@ -13,7 +13,7 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
-import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -25,14 +25,14 @@ import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKi
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (116)';
+const VERSION = '16 novembre 2026 (117)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -104,7 +104,7 @@ const stationsReady = fetch('data/stations.json')
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
 function remindData() {
@@ -3405,6 +3405,10 @@ function openRoutes() {
 
 const HIST_KEY = 'carte-paris.monuments';
 let histList = null;
+/** Protection, siècle, type et musée des monuments de Paris (fichier de l'appli, joint par la référence PA). */
+let merimeeInfo = null;
+const loadMerimee = async () => (merimeeInfo ??= await fetch('data/merimee.json').then((r) => (r.ok ? r.json() : null))
+  .then(parseMerimee).catch(() => parseMerimee(null)));
 async function monuments() {
   if (histList) return histList;
   try { const c = JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null'); if (c && Date.now() - c.t < 30 * 864e5 && c.list?.length) histList = c.list; } catch { /* rien */ }
@@ -3422,7 +3426,7 @@ async function openMonuments() {
   const title = [ico('landmark'), ' Monuments historiques'];
   let all;
   if (!histList) openSheet(title, el('p', { class: 'help' }, 'Chargement des monuments de Paris (la première fois seulement)…'), { name: 'hist' });
-  try { all = await monuments(); } catch {
+  try { all = await monuments(); await loadMerimee(); } catch {
     openSheet(title, el('div', { class: 'stack' },
       el('p', { class: 'warn' }, 'La base des monuments ne répond pas. Réessaie dans un moment.'),
       el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')), { name: 'hist' });
@@ -3430,6 +3434,7 @@ async function openMonuments() {
   }
   const items = all.map((m) => ({ ...m, d: distanceM(origin, m) })).filter((m) => m.d <= 1000).sort((a, b) => a.d - b.d).slice(0, 25);
   const have = (m) => findDuplicate(state.points, { name: m.name, lat: m.lat, lng: m.lng });
+  const info = (m) => merimeeInfo?.items.get(m.merimee);
   const link = (href, icon, label, aria) => el('a', { class: 'mini-link', href, target: '_blank', rel: 'noopener', 'aria-label': aria }, ico(icon), label);
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'help' }, items.length ? `${plural(items.length, 'monument protégé', 'monuments protégés')} à moins de 1 km, du plus proche au plus loin.` : 'Aucun monument historique à moins de 1 km.'),
@@ -3437,7 +3442,8 @@ async function openMonuments() {
       el('div', { class: 'item-row wrap' },
         el('div', { class: 'item-main' },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
-          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`))),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`),
+            ...[merimeeLine(info(m)), museumLine(info(m))].filter(Boolean).map((t) => el('span', { class: 'item-sub small' }, t)))),
         el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
         metroBtn(m, openMonuments),
         have(m) ? null : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${m.name} à ma carte`, onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, acc: null }) }, ico('plus'))),
@@ -3445,7 +3451,7 @@ async function openMonuments() {
         m.site ? link(m.site, 'send', 'Site officiel', `Site officiel de ${m.name} (visites, billets)`) : null,
         m.merimee ? link(merimeeUrl(m.merimee), 'landmark', 'Fiche Culture', `Fiche du ministère de la Culture : ${m.name}`) : null,
         m.wiki ? link(m.wiki, 'book-open-text', 'Wikipédia', `Article Wikipédia : ${m.name}`) : null)))),
-    el('p', { class: 'help' }, 'Billets et horaires : sur le site officiel quand il existe. Sources : Wikidata (CC0) et base Mérimée du ministère de la Culture. La liste de Paris est téléchargée une fois par mois ; ta position n\'est pas envoyée.'),
+    el('p', { class: 'help' }, `Billets et horaires : sur le site officiel quand il existe. « Façade seulement » : seul l'extérieur est protégé, l'intérieur ne se visite en général pas. Sources : Wikidata (CC0), base Mérimée du ministère de la Culture${merimeeInfo?.updated ? ` (${frenchDate(merimeeInfo.updated)})` : ''} et liste des musées de la Région Île-de-France. La liste de Paris est téléchargée une fois par mois ; ta position n'est pas envoyée.`),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'hist', again: openMonuments });
   nearLayer.clearLayers();
@@ -3896,7 +3902,7 @@ function openSettings(section = null) {
     const late = dataDue({ [id]: date }).includes(id);
     const link = (f) => el('a', { class: 'menu-row c-metro', href: f.url, target: '_blank', rel: 'noopener' },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.json') ? 'JSON' : 'GeoJSON'} · fichier « ${f.file} »`)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.xlsx') ? 'Excel' : f.file.endsWith('.json') ? 'JSON' : 'GeoJSON'} · fichier « ${f.file} »`)),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
     const say = (phrase, tool) => el('p', { class: 'help' }, `Dans le projet « Geoloc », envoie-le à Claude avec la phrase : « ${phrase} ».${tool ? ` Claude lance ${tool}, vérifie, puis publie une nouvelle version.` : ''}`);
     const body = {
@@ -3912,6 +3918,11 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : les lieux partenaires et les offres changent (festivals, saisons).`),
         el('div', { class: 'menu' }, link({ name: 'Lieux bénéficiant des avantages culture Navigo', file: 'lieux-avantages-cultures-navigo.geojson', url: NAVIGO_SOURCE })),
         say('Mets à jour les avantages Navigo', 'tools/maj-navigo.py')],
+      merimee: () => [
+        el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année. Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments.`),
+        el('div', { class: 'menu' }, ...MERIMEE_FILES.map(link)),
+        el('p', { class: 'help' }, 'Sur pop.culture.gouv.fr : base « Patrimoine architectural (Mérimée) », filtre Localisation : Paris, puis Exporter. Pour les musées : export GeoJSON.'),
+        say('Mets à jour les monuments (Mérimée)', 'tools/maj-merimee.py')],
       ratp: () => [
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)}, ou dès qu'une gare ouvre.`),
         el('div', { class: 'menu' }, link(RATP_TOILETS_FILE)),
@@ -4467,6 +4478,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
     '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
@@ -4476,7 +4488,6 @@ const HELP = [
     '{calendar-clock} Mon planning en dit plus sur chaque sortie : « Fermé à cette heure-là » si les horaires connus du lieu le disent, l\'heure de départ pour les sorties du jour, la pluie ou la chaleur annoncées à Paris ce jour-là (prévisions pour tout Paris : aucune position envoyée), et avec qui tu y vas (Mon billet → Avec qui). Une invitation dit à ton proche qui l\'invite.',
     '{copy} Inviter un proche à une sortie : dans Mon planning (ou Mon billet), le bouton {copy} copie le lien de la sortie, avec le jour et l\'heure. Ton proche ouvre le lien et l\'enregistre : la sortie arrive dans son planning. Les billets d\'un proche ne viennent plus avec sa sauvegarde, ils ne se mélangent donc plus aux tiens. Mon planning est aussi plus léger : seulement la liste de tes sorties.',
     '{calendar-clock} Mon planning (bouton de la carte, sous Sorties, avec le nombre de sorties prévues ; aussi en tête de Mon Paris) : tous tes billets à venir, rangés par jour, avec la boussole. Le bandeau « Maintenant » annonce ta prochaine sortie : celle de demain en priorité, celles de la semaine quand il n\'a rien d\'autre à proposer. Dans Sorties, le + d\'une sortie de « Plus tard aujourd\'hui » l\'ajoute à ta carte et la note dans ton planning avec son heure.',
-    '{badge-percent} Avantages culture Navigo : dans Sorties, un 4e onglet « Navigo » liste les 142 lieux partenaires de Paris et de la petite couronne (cinémas, salles, théâtres, musées), du plus proche au plus loin, avec leur offre. Si un de tes lieux est partenaire, sa fiche le dit dans Pratique. Dans les fiches d\'une sortie, d\'un marché ou d\'un lieu Navigo, le bouton « Enregistrer », coupé sur petit écran, devient « Ajouter ».',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4664,7 +4675,7 @@ loadMarkets().then(() => updateNow(true)).catch(() => {});
 updatePlanningCount();
 refreshParkHours().catch(() => {}); // horaires de la Ville pour mes parcs (liste sans position, gardée un jour)
 // Fichiers de l'appli (rien n'est envoyé) : Navigo pour les fiches ; une fois toutes les dates connues, le rappel groupé
-Promise.all([stationsReady, loadNavigo(), loadRatpToilets()]).then(remindData).catch(() => {});
+Promise.all([stationsReady, loadNavigo(), loadRatpToilets(), loadMerimee()]).then(remindData).catch(() => {});
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
     if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => remember({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() }), () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });

@@ -15,6 +15,12 @@ export const COLORS_FILE = { name: 'Référentiel des lignes', file: 'referentie
 /** Toilettes des gares et stations RATP (data/sanitaires-ratp.json, refait par tools/maj-sanitaires.py). */
 export const RATP_TOILETS_FILE = { name: 'Toilettes publiques dans le réseau RATP', file: 'sanitaires-reseau-ratp.geojson', url: 'https://data.ratp.fr/explore/dataset/sanitaires-reseau-ratp/export/' };
 
+/** Monuments : export Mérimée (POP) et liste des musées franciliens (data/merimee.json, refait par tools/maj-merimee.py). */
+export const MERIMEE_FILES = [
+  { name: 'Base Mérimée : Localisation Paris', file: 'merimee_AAAAMMJJ.xlsx', url: 'https://www.pop.culture.gouv.fr/' },
+  { name: 'Liste des musées franciliens', file: 'liste_des_musees_franciliens.geojson', url: 'https://www.data.gouv.fr/datasets/liste-des-musees-franciliens-idf' },
+];
+
 /** Page « Infos trafic » d'Île-de-France Mobilités (simple lien : rien n'est envoyé avant l'appui). */
 export const TRAFFIC_URL = 'https://me-deplacer.iledefrance-mobilites.fr/infos-trafic/metro'; // vérifié le 16 nov. 2026 (l'ancienne adresse www…/info-trafic donnait une erreur 500)
 
@@ -23,6 +29,7 @@ export const FIXED_DATA = [
   { id: 'lignes', name: 'Lignes et gares', every: 183 }, // ou dès qu'une ligne ouvre ou se prolonge
   { id: 'navigo', name: 'Avantages culture Navigo', every: 183 }, // offres de saison, festivals
   { id: 'ratp', name: 'Toilettes des gares RATP', every: 365 },
+  { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Expos, gratuités, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre
 ];
