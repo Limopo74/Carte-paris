@@ -575,3 +575,5 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 
 a.item-main { color: inherit; text-decoration: none; }
 a.item-main .item-name { text-decoration: underline; text-decoration-color: #c9ced8; text-underline-offset: 3px; }
+.help-item li .ico { vertical-align: -3px; margin: 0 2px; color: var(--guide); }
+.help-item li .ico svg { width: 17px; height: 17px; }

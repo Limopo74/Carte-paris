@@ -12,7 +12,7 @@ Appli personnelle (appli web installable sur Android) pour garder ses lieux pré
 - Compteur de balade (km et pas estimés, appli ouverte seulement), rappel de sauvegarde, export et import (avec ou sans photos).
 
 ## Confidentialité
-Les lieux, photos et positions restent sur le téléphone. L'appli ne peut contacter que : tuiles OpenStreetMap, géocodage IGN, Nominatim (OpenStreetMap) et les données ouvertes de la Ville de Paris (sans la position).
+Les lieux, photos et positions restent sur le téléphone. L'appli ne contacte, à la demande : tuiles OpenStreetMap, géocodage IGN, Nominatim (OpenStreetMap), données ouvertes de la Ville de Paris (sans la position), Wikipédia (position arrondie à 100 m), Open-Meteo (position arrondie à 1 km) et Vélib' Métropole (aucune position).
 
 ## Sources
 Carte © OpenStreetMap. Adresses : IGN (Base Adresse Nationale). Annuaire et horaires : OpenStreetMap (Nominatim, ODbL). Fontaines et toilettes : Ville de Paris (ODbL). Stations : jeu de données « metro » de great_tables (d'après Wikipédia, 2024).

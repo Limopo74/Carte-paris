@@ -23,7 +23,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (39)';
+const VERSION = '16 novembre 2026 (40)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -2069,7 +2069,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne peut parler qu\'à 4 services, et seulement pour ce que tu demandes : la carte (OpenStreetMap), les adresses (IGN), l\'annuaire (OpenStreetMap) et les fontaines et toilettes (Ville de Paris, sans ta position). Comme tout site, ces services voient l\'adresse internet du téléphone et, pour la carte, le quartier affiché.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : la carte (OpenStreetMap, qui voit le quartier affiché), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines et toilettes (Ville de Paris, sans ta position), les Curiosités (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km) et Vélib\' (aucune position envoyée). Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -2529,93 +2529,96 @@ document.getElementById('btnParis').addEventListener('click', () => {
 /* ---------- Aide ---------- */
 
 const HELP = [
+  ['sparkles', 'Nouveautés', [
+    '{list-filter} Filtres en haut : ouvert maintenant, mieux notés, abrités, listes, personne.',
+    '{hourglass} Temps libre, {shuffle} Surprise et {book-open-text} Curiosités dans Autour de moi.',
+    '{bike} Vélib\' en temps réel, {map} Mon Paris, {share-2} partage d\'un lieu par lien, import Google Maps.',
+  ]],
   ['map', 'Les boutons de la carte', [
-    'En haut : 🔍 chercher dans tes lieux (et dans l\'annuaire), ? cette aide.',
-    'Puces en haut : n\'afficher qu\'une catégorie, les favoris, ou les lieux d\'une personne 👥. Fais glisser la barre pour voir toutes les catégories. Tu peux en choisir plusieurs ; touche-la encore pour la retirer, ou « Tout » pour tout revoir. Appui long : la modifier.',
-    'À droite (ordre réglable, et boutons à cacher, dans ⚙ → Boutons de la carte) :',
-    '🚰 la fontaine à boire et les toilettes les plus proches.',
+    'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris et tes catégories. Fais glisser la barre pour toutes les voir.',
+    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir. Appui long : la modifier.',
+    'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
+    '{droplets} la fontaine à boire et les toilettes les plus proches.',
     'M la station de métro la plus proche.',
-    '◎ ta position avec les cercles de temps à pied. Appuie encore pour les retirer.',
+    '{locate-fixed} ta position avec les cercles de temps à pied. Encore un appui pour les retirer.',
     'Paris : revenir au centre de Paris.',
-    'Loupe + : zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
-    'Vélo : les 3 stations Vélib\' les plus proches avec des vélos (mécaniques ou électriques) ou des places libres, en temps réel.',
-    'En bas : ⚙ Réglages, + Ajouter, Autour de moi.',
+    '{zoom-in} zoomer sur ta position, au niveau de la rue (environ 280 m à l\'écran).',
+    '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
+    'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton Filtres, juste après « Tout », ouvre : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités (pluie), tes listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
-    'Le chiffre sur le bouton indique combien de filtres sont actifs. « Effacer les filtres » remet tout.',
-    'Les filtres s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
-  ]],
-  ['list', 'Mes listes', [
-    'Une liste regroupe des lieux de catégories différentes : « Sous la pluie », « Avec Paul », « Brunch ».',
-    'Dans « Modifier » (ou à l\'ajout), touche une liste pour y mettre le lieu, ou écris un nom puis « Créer ».',
-    'Renommer ou supprimer : ⚙ → Catégories et listes.',
+    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
+    'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
+    'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
+    'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
     'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »).',
     'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
+    'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
+    'Dans le formulaire : catégorie, note, état, {star} étoiles, {list} listes et « Abrité de la pluie ».',
   ]],
-  ['map-pinned', 'Voir ce qui est autour de moi', [
-    'Appuie sur Autour de moi : tes lieux sont rangés par cercles, du plus proche au plus loin.',
-    'Bouton Minutes : des cercles en temps à pied au lieu des mètres.',
-    'Suivre : les cercles te suivent, le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
-    'Chemin : tes lieux à faire sur ton trajet. Parcours : 2 à 4 lieux dans le meilleur ordre.',
-    'Station : voir ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
-    'Temps libre : dis combien de temps tu as ; l\'appli propose une boucle de lieux à faire qui revient à ton point de départ.',
-    'Surprise : un lieu à faire au hasard, à moins de 15 min à pied.',
-    'Curiosités : les articles Wikipédia autour de toi (monuments, rues, histoire), avec « + » pour en faire un lieu.',
-    'S\'il pleut, un bandeau bleu propose de n\'afficher que tes lieux abrités.',
+  ['map-pinned', 'Autour de moi', [
+    'Tes lieux rangés par cercles, du plus proche au plus loin. {timer} Minutes : cercles en temps à pied.',
+    '{radio} Suivre : les cercles te suivent ; le téléphone vibre et parle à 100 m d\'un lieu à faire (appli ouverte).',
+    '{hourglass} Temps libre : choisis ton temps et le temps sur place ; l\'appli trace une boucle qui revient au départ, mieux notés en priorité.',
+    '{footprints} Chemin : tes lieux à faire sur ton trajet. {route} Parcours : 2 à 4 lieux dans le meilleur ordre.',
+    '{shuffle} Surprise : un lieu à faire au hasard, à moins de 15 min.',
+    '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
+    'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
+    '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
+    'En bas : {map} Mon Paris.',
   ]],
   ['compass', 'La fiche d\'un lieu', [
-    'Touche le lieu sur la carte pour ouvrir sa fiche.',
-    'La grande barre « Y aller » ouvre Google Maps (à pied, ou en transports au-delà de 1 km). Elle indique le temps à pied.',
-    'Boussole : une flèche et une voix te guident jusqu\'au lieu.',
-    'Métro : la ligne à prendre et la correspondance, estimées, avec un lien vers l\'appli Île-de-France Mobilités.',
-    'Photo : ouvre directement l\'appareil photo.',
-    'Étoiles : ta note, de 1 à 5. Touche la même étoile pour la retirer.',
-    'En dessous : Déjà visité, Favori, Modifier, et ⋯ Plus (horaires, déplacer, supprimer).',
+    'Touche un lieu sur la carte pour ouvrir sa fiche.',
+    'La grande barre « Y aller » ouvre Google Maps et indique le temps à pied.',
+    '{compass} Boussole : une flèche et une voix te guident. M Métro : la ligne et la correspondance, estimées. {camera} Photo : l\'appareil photo direct.',
+    '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
+    'En dessous : Déjà visité, Favori, Modifier, et ⋯ Plus : {share-2} partager, horaires, déplacer, supprimer.',
   ]],
   ['camera', 'Photos', [
-    'Dans la fiche, le bouton 📷 Photo ouvre l\'appareil photo (6 photos par lieu).',
-    'Ensuite, touche la vignette à gauche de la fiche : voir les photos, en ajouter depuis la Galerie, ou ✕ pour en supprimer.',
-    'Touche une photo pour la voir en grand. Les photos restent sur ton téléphone, sans leur position GPS.',
+    '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
+    'Touche la vignette à gauche de la fiche : voir les photos, en ajouter depuis la {image-plus} Galerie, ou {x} supprimer.',
+    'Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
-  ['star', 'Catégories et favoris', [
-    '⚙ → Catégories : ajoute les tiennes (14 toutes prêtes), change leur icône et leur couleur, et leur ordre avec ↑ ↓ (c\'est l\'ordre de la barre du haut).',
-    '« Icônes seules en haut » : la barre n\'affiche que les logos, pour en voir plus d\'un coup.',
-    'Dans la fiche : bouton Favori. ⚙ → Favoris pour choisir l\'icône et la couleur (❤️ évite la confusion avec les étoiles de note).',
-  ]],
-  ['users', 'Partager avec un ami', [
-    '⚙ → Sauvegarde et partage : écris ton prénom, puis Exporter, et envoie le fichier.',
-    'Ton ami fait Importer : il choisit « Ajouter comme ses lieux ». Chaque lieu garde le prénom de qui l\'a ajouté.',
-    'Le bouton 👥 en haut affiche tes lieux, les siens ou tous.',
-    'Un seul lieu : dans sa fiche, ⋯ Plus → Partager ce lieu par un lien. Ton ami touche le lien et peut l\'ajouter à sa carte.',
-    'Pour partager l\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
-  ]],
-  ['save', 'Sauvegarder (important)', [
-    'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : ⚙ → Sauvegarde et partage → Exporter.',
-    'Le fichier va dans tes Téléchargements. Pour le retrouver sur un autre téléphone : Importer.',
-    'Tes lieux enregistrés dans Google Maps : ⚙ → Sauvegarde et partage → Importer de Google Maps (les étapes sont expliquées).',
+  ['tags', 'Catégories, listes et favoris', [
+    '{settings} → Catégories et listes : ajoute tes catégories (14 toutes prêtes), icône, couleur et ordre avec ↑ ↓ (l\'ordre de la barre du haut).',
+    '« Icônes seules en haut » : la barre n\'affiche que les logos.',
+    'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul ») ; crée-la depuis Modifier.',
+    'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
   ]],
   ['map', 'Mon Paris', [
-    '⚙ → Mon Paris : les 20 arrondissements se colorent au fil des lieux que tu as visités (« Déjà visité »).',
-    'Chaque case montre lieux visités / lieux enregistrés. Tu y trouves aussi ta marche du jour.',
+    'Les 20 arrondissements se colorent selon les lieux « Déjà visité ». Chaque case : visités / enregistrés.',
+    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi.',
+  ]],
+  ['users', 'Partager avec un ami', [
+    'Un lieu : ⋯ Plus → {share-2} Partager ce lieu par un lien. Ton ami touche le lien et l\'enregistre.',
+    'Tous tes lieux : {settings} → Sauvegarde et partage, écris ton prénom, Exporter, envoie le fichier ; ton ami fait Importer.',
+    'Ensuite, {list-filter} Filtres → « Lieux de » : les tiens, les siens ou tous.',
+    'L\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
+  ]],
+  ['save', 'Sauvegarder (important)', [
+    'Tes lieux ne sont que sur ce téléphone. Exporte-les souvent : {settings} → Sauvegarde et partage → Exporter.',
+    'Le fichier va dans tes Téléchargements. Sur un autre téléphone : Importer.',
+    '{download} Importer de Google Maps : tes listes et tes lieux enregistrés (les étapes sont expliquées). Les listes .csv sont cherchées par leur nom : vérifie les lieux marqués « à vérifier ».',
   ]],
   ['zap', 'Raccourcis sur l\'icône', [
     'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     'Absents ? Exporte tes lieux, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
   ]],
   ['palette', 'Le code couleur', [
-    'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori · Violet : aide et réglages · Rouge : supprimer · Gris : le reste.',
+    'Bleu nuit : y aller · Bleu métro : métro · Vert-bleu : se guider · Vert : ajouter, garder · Doré : favori, surprise · Violet : aide, réglages, curiosités · Rouge : supprimer · Gris : le reste.',
   ]],
   ['wrench', 'Ça ne marche pas ?', [
-    'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io. Vérifie aussi que la Position du téléphone est allumée.',
-    'Carte grise : vérifie internet, puis ⚙ → Application → Recharger la carte.',
-    'Perdu sur la carte : bouton Paris, ou la loupe + pour revenir sur toi.',
-    'Une nouveauté n\'apparaît pas : ⚙ → Application → Mettre à jour l\'appli.',
-    'La voix ne parle pas : monte le volume, et vérifie ⚙ → Voix.',
-    'Boussole « indisponible » : ton téléphone ne donne pas son orientation ; la flèche montre alors la direction avec le nord en haut.',
+    'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io, et allume la Position du téléphone.',
+    'Carte grise : vérifie internet, puis {settings} → Application → Recharger la carte.',
+    'Perdu sur la carte : Paris, ou {zoom-in} pour revenir sur toi.',
+    'Une nouveauté n\'apparaît pas : {settings} → Application → Mettre à jour l\'appli.',
+    'La voix ne parle pas : monte le volume, et vérifie {settings} → Voix.',
+    'Vélib\', Curiosités ou météo muets : ces services en ligne ne répondent peut-être pas ; réessaie plus tard.',
+    'Boussole « indisponible » : le téléphone ne donne pas son orientation ; la flèche montre la direction, nord en haut.',
   ]],
 ];
 
@@ -2624,7 +2627,7 @@ function openHelp() {
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
-      el('ul', {}, lines.map((l) => el('li', {}, l)))))),
+      el('ul', {}, lines.map((l) => el('li', {}, ...l.split(/\{([a-z0-9-]+)\}/).map((part, i) => (i % 2 ? (ICON_NAMES.has(part) ? ico(part, { size: 17 }) : '') : part)))))))),
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
   ), { name: 'help', again: openHelp, tall: true });
 }
