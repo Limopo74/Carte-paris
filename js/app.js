@@ -30,7 +30,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (78)';
+const VERSION = '16 novembre 2026 (79)';
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
 const COLOR_NAMES = ['Rouge orangé', 'Bleu', 'Violet', 'Vert', 'Marron', 'Framboise', 'Turquoise', 'Gris'];
@@ -172,6 +172,12 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3000);
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
+
+/* Retour visible : toujours « ← nom de l'écran d'avant », jamais un « Retour » sans destination. */
+const named = (label, fn) => Object.assign(fn, { label });
+const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres']]);
+const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
+const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
 
 /* ---------- Carte ---------- */
 
@@ -384,13 +390,13 @@ function renderChips() {
 }
 
 /** Réglages → Catégories → Boutons de la barre du haut : afficher ou masquer chaque bouton (les lieux restent sur la carte). */
-function openChipsSettings() {
+function openChipsSettings(back = named('Catégories', () => openSettings('categories'))) {
   const hidden = new Set(state.hiddenChips ?? []);
   const sw = (key, iconEl, title, sub) => {
     const on = !hidden.has(key);
     return el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => {
       if (on) hidden.add(key); else hidden.delete(key);
-      state.hiddenChips = [...hidden]; persist(); refresh(); openChipsSettings();
+      state.hiddenChips = [...hidden]; persist(); refresh(); openChipsSettings(back);
     } },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, iconEl),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
@@ -404,9 +410,9 @@ function openChipsSettings() {
       sw('fav', glyph(state.fav.icon, { filled: true }), 'Favoris', 'Seulement les favoris'),
       sw('street', ico('tent'), 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air'),
       ...state.categories.map((c) => sw(`cat:${c.id}`, catDot(c.id), c.name, `Catégorie · ${plural(state.points.filter((p) => p.cat === c.id).length, 'lieu', 'lieux')}`))),
-    hidden.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openChipsSettings(); } }, 'Tout réafficher') : null,
-    el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories'),
-  ), { name: 'chips', again: openChipsSettings });
+    hidden.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openChipsSettings(back); } }, 'Tout réafficher') : null,
+    backBtn(back),
+  ), { name: 'chips', again: () => openChipsSettings(back) });
 }
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
@@ -425,10 +431,9 @@ function openFilters() {
   const keep = (key, active) => !hid.has(key) || active;
   openSheet([ico('list-filter'), ' Filtres'], el('div', { class: 'menu' },
     el('p', { class: 'help' }, `${plural(shown, 'lieu affiché', 'lieux affichés')} sur ${state.points.length}.`),
+    el('h3', { class: 'ring-title menu-group' }, 'Filtrer mes lieux'),
     !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(p.hours)?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
     !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
-    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
     !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
     !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
@@ -444,7 +449,10 @@ function openFilters() {
     activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
       filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
     } }, ico('x'), 'Effacer les filtres') : null,
-    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: openFilterChoice }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
+    keep('lines', state.showLines) || keep('markets', state.showMarkets) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
+    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'route', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
 
@@ -487,24 +495,24 @@ function openListPlaces(listId, query = '', picked = null) {
 }
 
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
-function openFilterChoice() {
+function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de (personnes)'], ['lines', 'route', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
       const on = !hid.has(key);
       return el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => {
         if (on) hid.add(key); else hid.delete(key);
-        state.hiddenFilters = [...hid]; persist(); openFilterChoice();
+        state.hiddenFilters = [...hid]; persist(); openFilterChoice(back);
       } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
-    hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(); } }, 'Tout réafficher') : null,
-    el('button', { type: 'button', class: 'btn', onclick: openFilters }, '← Filtres'),
-  ), { name: 'filter-choice', again: openFilterChoice });
+    hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); } }, 'Tout réafficher') : null,
+    backBtn(back),
+  ), { name: 'filter-choice', again: () => openFilterChoice(back) });
 }
 
 function openPersonPicker() {
@@ -1102,15 +1110,15 @@ function openDetail(id, back = null) {
         el('span', { 'aria-hidden': 'true' }, '→'), d != null ? `Y aller · ${fmtWalk(d)}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null),
       el('div', { class: 'row3' },
         el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
-        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+        el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, named('Fiche', () => openDetail(p.id, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
         el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')),
       el('div', { class: 'row4' },
         el('button', { type: 'button', class: 'btn mini c-add', 'aria-pressed': String(!!p.done), 'aria-label': p.done ? 'Déjà visité : remettre à faire' : 'Marquer comme déjà visité', onclick: () => update(() => { setDone(p, !p.done); }) }, ico(p.done ? 'rotate-ccw' : 'check'), p.done ? 'À refaire' : 'Visité'),
-        el('button', { type: 'button', class: 'btn mini c-fav', 'aria-pressed': String(!!p.fav), 'aria-label': p.fav ? 'Retirer des favoris' : 'Mettre en favori', onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: true }), p.fav ? 'Retirer' : 'Favori'),
+        el('button', { type: 'button', class: 'btn mini c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
         el('button', { type: 'button', class: 'btn mini c-info', onclick: () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p) }, ico('pencil'), 'Modifier'),
         moreBtn),
       more,
-      back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+      back ? backBtn(back) : null,
     );
   };
   const askDelete = () => fill(actions, 
@@ -1339,7 +1347,7 @@ function openTicket(p, back = null) {
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('ticket'), 'Enregistrer le billet'),
     p.ticket ? el('button', { type: 'button', class: 'btn danger', onclick: () => { delete p.ticket; persist(); updateNow(true); toast('Billet retiré'); done(); } }, 'Retirer le billet') : null,
     el('p', { class: 'help' }, 'Le jour même, « Maintenant » sur la carte te dit à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Pour garder le billet lui-même, prends-le en photo avec le bouton Photo de la fiche. Rien ne part du téléphone.'),
-    el('button', { type: 'button', class: 'btn', onclick: done }, '← Retour'),
+    el('button', { type: 'button', class: 'btn', onclick: done }, '← Fiche'),
   ), { name: `ticket:${p.id}` });
 }
 
@@ -1427,7 +1435,7 @@ function openSearch(initial = '') {
       ? 'Tu n\'as encore aucun lieu.'
       : res.length ? `${plural(res.length, 'lieu', 'lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun lieu ne correspond.';
     fill(list, ...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => openSearch(input.value)) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Recherche', () => openSearch(input.value))) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
@@ -1602,7 +1610,7 @@ function renderNear(fit = false) {
       el('span', {}, from === 0 ? `Moins de ${ringText(g.ring)}` : `De ${ringText(from)} à ${ringText(g.ring)}`),
       el('span', {}, String(g.items.length))));
     body.push(el('ul', { class: 'items' }, g.items.map(({ point: p, d }) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderNear()) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Autour de moi', () => renderNear())) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
@@ -1819,7 +1827,7 @@ function renderWay(from, dest) {
       : 'Aucun de tes lieux sur ton chemin (moins de 5 min de détour).'),
     el('p', { class: 'help' }, `Trajet : ${fmtDist(total)} · ${fmtWalk(total)}.`),
     el('ul', { class: 'items' }, found.map(({ point: p, detour }) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderWay(from, dest)) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Sur mon chemin', () => renderWay(from, dest))) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
@@ -1829,7 +1837,7 @@ function renderWay(from, dest) {
       ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
         found.length > MAX_ROUTE - 1 ? `Itinéraire avec les ${MAX_ROUTE - 1} premiers arrêts` : 'Itinéraire avec ces arrêts')
       : el('a', { class: 'btn primary', href: routeUrl([dest]), target: '_blank', rel: 'noopener' }, 'Itinéraire direct'),
-    el('button', { type: 'button', class: 'btn', onclick: () => renderNear(true) }, '← Retour'),
+    el('button', { type: 'button', class: 'btn', onclick: () => renderNear(true) }, '← Autour de moi'),
   ];
   openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true, name: 'way', again: () => renderWay(from, dest) });
   nearLayer.clearLayers();
@@ -1878,7 +1886,7 @@ function renderRoute(start, chosen) {
   const steps = route.map((p, i) => {
     const leg = distanceM(prev, p);
     prev = p;
-    return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, () => renderRoute(start, chosen)) },
+    return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Relier des lieux', () => renderRoute(start, chosen))) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
         el('span', { class: 'item-sub' }, i === 0 && !start ? 'Départ' : `${fmtDist(leg)} · ${fmtWalk(leg)}`))));
@@ -2440,6 +2448,7 @@ async function openEvents() {
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
+  const notes = []; // sources et précautions : regroupées tout en bas, dans « Sources et mise à jour »
   const head = (label, n) => (n ? el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(n))) : null);
   const list = (rows) => (rows.length ? el('ul', { class: 'items' }, rows) : null);
 
@@ -2456,7 +2465,7 @@ async function openEvents() {
     [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos']].map(([m, label]) =>
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
   const freeSection = () => [head('Musées gratuits aujourd\'hui', freeAll.length), list(freeAll.map((f) => freeRow(f, back))),
-    freeAll.length ? el('p', { class: 'help' }, `Liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`) : null];
+    freeAll.length ? (notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`), null) : null];
 
   let body;
   if (mode === 'art') {
@@ -2469,8 +2478,7 @@ async function openEvents() {
       fill(galBox,
         el('h3', { class: 'ring-title' }, el('span', {}, 'Galeries à moins de 1,5 km'), el('span', {}, g.length ? `${open} ouverte${open > 1 ? 's' : ''}` : '')),
         g.length ? el('ul', { class: 'items' }, g.map((x) => galleryRow(x, back))) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'),
-        g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openGalleryWalk(openEvents) }, ico('route'), 'Parcours galeries ouvertes') : null,
-        el('p', { class: 'help' }, `Galeries : OpenStreetMap (liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}). La plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d'y aller.`));
+        g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openGalleryWalk(openEvents) }, ico('route'), 'Parcours galeries ouvertes') : null);
     };
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
@@ -2508,9 +2516,13 @@ async function openEvents() {
     seg, // les onglets restent toujours à la même place ; les annonces viennent dessous
     ...top,
     ...body,
-    el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'),
+    el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Sources et mise à jour'),
+      el('div', { class: 'stack sources-body' },
+        el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'),
       marketsTime ? `Mettre à jour (liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : 'Mettre à jour'),
-    el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
+        el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
+        mode === 'art' ? el('p', { class: 'help' }, `Galeries : OpenStreetMap${galleriesTime ? ` (liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })})` : ''}. La plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d'y aller.`) : null,
+        ...notes.map((t) => el('p', { class: 'help' }, t)))),
     el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
@@ -2530,7 +2542,7 @@ async function openGalleryWalk(from = null) {
   if (!galleries) {
     openSheet([ico('palette'), ' Parcours galeries'], el('p', { class: 'help' }, 'Chargement de la liste des galeries…'), { name: 'galwalk' });
     try { await loadGalleries(); } catch {
-      openSheet([ico('palette'), ' Parcours galeries'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, '← Retour')), { name: 'galwalk' });
+      openSheet([ico('palette'), ' Parcours galeries'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire')), { name: 'galwalk' });
       return;
     }
   }
@@ -2627,7 +2639,7 @@ async function openHomePlan(home) {
   }
   hideToast();
   const dest = { name: `${home.label} (${home.st.n})`, lat: home.st.lat, lng: home.st.lng };
-  const back = () => openHomePlan(home);
+  const back = named('Rentrer', () => openHomePlan(home));
   const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
   const walk = walkMinutes(distanceM(from, dest));
   const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
@@ -2833,7 +2845,7 @@ function openStreetEvent(e) {
     el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, () => openStreetEvent(e)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Événement', () => openStreetEvent(e))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Enregistrer')),
     e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('calendar-days'), 'Voir dans « Que faire à Paris »') : null,
     el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. « Dans la rue » est deviné d\'après le titre et le lieu : vérifie sur la page de l\'événement.'),
@@ -2849,9 +2861,9 @@ function openMarket(m, back = null) {
     el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, () => openMarket(m, back)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Enregistrer')),
-    back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+    back ? backBtn(back) : null,
     el('p', { class: 'help' }, 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
   ), { name: 'market' });
 }
@@ -2930,7 +2942,7 @@ function surprise() {
   const pool = visible().filter((p) => distanceM(origin, p) <= max);
   if (!pool.length) { toast('Aucun de tes lieux à moins de 15 min (avec les filtres actuels).', true); return; }
   const p = pool[Math.floor(Math.random() * pool.length)];
-  openDetail(p.id, () => renderNear());
+  openDetail(p.id, named('Autour de moi', () => renderNear()));
   toast(`Surprise : ${p.name}, à ${walkMinutes(distanceM(origin, p))} min à pied`);
 }
 
@@ -3457,6 +3469,7 @@ function openSettings(section = null) {
 
   openSheet('Réglages', el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Fais un export régulier pour ne rien perdre.') : null,
+    row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
     row('map', 'Mon Paris', 'Arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
@@ -3466,7 +3479,6 @@ function openSettings(section = null) {
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
-    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
       state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
       toast(isDark() ? 'Mode sombre activé' : 'Mode clair activé');
@@ -3475,8 +3487,11 @@ function openSettings(section = null) {
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     voiceSwitch,
-    el('h3', { class: 'ring-title menu-group' }, 'Aide et application'),
-    row('circle-help', 'Aide', 'Comment utiliser l\'appli, problèmes fréquents', openHelp),
+    el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
+    row('list-filter', 'Barre du haut', (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous les boutons affichés', () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
+    row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
+    el('h3', { class: 'ring-title menu-group' }, 'Application'),
     row('info', 'Application', `Mettre à jour · confidentialité · marche`, () => openSettings('appli')),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
@@ -3696,7 +3711,7 @@ function renderMetroPlan(p, from, back, start = null) {
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, '🚇 Ouvrir l\'appli Île-de-France Mobilités'),
-    back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Retour') : null,
+    back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
@@ -3908,6 +3923,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    'Rangement : {circle-help} l\'Aide passe en tête des {settings} Réglages (une catégorie de plus visible en haut). Nouvelle rubrique « Ce qui s\'affiche » : Barre du haut, Boutons de la carte et Filtres affichés au même endroit. Filtres en deux blocs : « Filtrer mes lieux » et « Ajouter sur la carte ». Chaque retour dit où il mène (← Autour de moi, ← Fiche…). Le bouton Favori de la fiche garde son nom, allumé = étoile pleine et contour épais. Sorties : sources et mise à jour repliées tout en bas. Les sous-titres ne sont plus coupés.',
     'Nouvelle police pour le texte : Inter, plus moderne et très lisible (titres et boutons gardent Archivo). Elle est dans l\'appli : rien n\'est demandé à un service.',
     '{star} Favoris et catégories : « Tout » enlève aussi le filtre des favoris, et n\'est plus allumé quand seuls les favoris sont affichés. Si une combinaison ne montre plus aucun lieu (ex. favoris + Boutiques), l\'appli le dit.',
     '{tent} « Dans la rue aujourd\'hui » passe en haut de l\'écran, juste après l\'étoile des favoris : c\'est un choix de ce que la carte montre. Un appui l\'allume ou l\'éteint ; pour le masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
@@ -3920,7 +3936,7 @@ const HELP = [
     '{palette} Nouveau style de carte « Épuré », sans icônes de commerces (CARTO) : {settings} → La carte → Style. Il demande une clé gratuite à créer sur carto.com, que tu colles une fois ; elle reste sur ton téléphone.',
     '{list-filter} Filtres : en bas, « Choisir les filtres affichés » pour masquer les lignes dont tu ne te sers pas (Ouvert maintenant, Mieux notés, Lignes de métro, Marchés, Abrités, Listes, Personnes).',
     '{refresh-cw} Rappel : quand la liste des temps forts n\'a plus rien à venir, ou que celle des musées gratuits a plus d\'un an, Sorties l\'indique en haut. Une mise à jour est aussi préparée par Claude chaque début septembre.',
-    '{list-filter} Barre du haut : {settings} → Catégories et listes → « Boutons de la barre du haut » pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
+    '{list-filter} Barre du haut : {settings} → Ce qui s\'affiche → Barre du haut pour afficher ou masquer Tout, Filtres, Favoris et chaque catégorie.',
     '{calendar-days} Sorties : nouvel onglet « Expos » avec les expos qui ferment dans la semaine (« Dernière chance », aussi en tête de « Tout »), les galeries proches (ouvertes d\'abord, jours de fermeture) et le « Parcours galeries ».',
     '{landmark} Musées gratuits aujourd\'hui (Ville de Paris, 1er dimanche, Louvre le 1er vendredi soir) dans « Gratuit » et « Expos » ; les temps forts de la semaine (Nuit Blanche, Art Basel Paris…) en tête de Sorties.',
     '{ticket} Mon billet : dans la fiche d\'un lieu, ⋯ Plus → « Mon billet ». Le jour J, « Maintenant » te dit à quelle heure partir.',
@@ -3955,12 +3971,12 @@ const HELP = [
     '{palette} 6 styles de carte, {moon} mode sombre, boutons de la carte à gauche ou à droite : dans {settings}.',
   ]],
   ['map', 'Les boutons de la carte', [
-    'En haut : {search} chercher dans tes lieux (et dans l\'annuaire), {circle-help} cette aide.',
+    'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache) et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Catégories et listes → Boutons de la barre du haut.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache) et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
-    'À droite (ordre et boutons à cacher : {settings} → Boutons de la carte) :',
+    'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
     '{droplets} la fontaine à boire, les toilettes et un lieu frais (ombre, musée, bibliothèque) les plus proches.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
@@ -3975,8 +3991,8 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {route} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux.',
-    'En bas de Filtres, « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as des lieux d\'amis, de qui afficher les lieux. « Ajouter sur la carte » : {route} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
+    'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
     'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
@@ -4091,7 +4107,6 @@ document.getElementById('btnAdd').addEventListener('click', openAddChoice);
 document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
-document.getElementById('btnHelp').addEventListener('click', openHelp);
 drawMarkets();
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {
@@ -4106,7 +4121,7 @@ renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
 } else {
-  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu. Le bouton ? en haut à droite explique tout.');
+  toast('Appuie sur « + Ajouter », ou laisse le doigt appuyé sur la carte, pour enregistrer ton premier lieu. L\'aide est en tête des Réglages, en bas à gauche.');
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à exporter tes lieux.', true);
 

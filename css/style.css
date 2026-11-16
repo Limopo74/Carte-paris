@@ -170,7 +170,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
   min-height: 56px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
 }
 .item-text { min-width: 0; display: flex; flex-direction: column; }
-.item-name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-name { font-weight: 600; font-size: 16px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .item-sub { color: var(--muted); font-size: 14px; }
 .item .go {
   flex: none; min-height: 56px; padding: 0 14px; border-radius: 12px;
@@ -434,7 +434,7 @@ ol.items { padding: 0; }
 .menu-ico { flex: none; width: 32px; font-size: 22px; text-align: center; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .menu-title { font-weight: 600; font-size: 16px; }
-.menu-sub { font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-sub { font-size: 13.5px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .warn-row .menu-sub { color: #8a4b00; }
 .menu-chev { flex: none; font-size: 26px; color: var(--muted); line-height: 1; }
 .switch { flex: none; width: 46px; height: 28px; border-radius: 14px; background: #868e96; position: relative; transition: background .15s; }
@@ -465,6 +465,10 @@ ol.items { padding: 0; }
   font-weight: 600; font-size: 16px;
 }
 .help-item summary::-webkit-details-marker { display: none; }
+/* Sorties : sources et bouton de mise à jour repliés en bas, la liste vient d'abord */
+.sources { margin-top: 6px; }
+.sources summary .ico { color: var(--muted); }
+.sources-body { padding: 0 14px 12px; }
 .help-item summary::after { content: '›'; margin-left: auto; font-size: 24px; color: var(--muted); transition: transform .15s; }
 .help-item[open] summary::after { transform: rotate(90deg); }
 .help-item summary:focus-visible { outline: 3px solid #4c6ef5; outline-offset: 2px; border-radius: 12px; }
@@ -903,8 +907,9 @@ body { background: var(--soft); }
 .btn.mini { flex-direction: column; gap: 3px; min-height: 58px; padding: 6px 2px; font-size: 13px; line-height: 1.1; }
 .btn.mini .ico svg, .btn.mini svg { width: 20px; height: 20px; }
 .btn.mini[aria-pressed="true"] { background: var(--strong); border-color: var(--strong); color: var(--on-strong); }
-.btn.mini.c-add[aria-pressed="true"] { background: var(--add); border-color: var(--add); color: var(--bg); }
-.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav); border-color: var(--fav); color: var(--bg); }
+/* Visité et Favori allumés : teinte + filet épais, pas de plaque pleine (la seule plaque de la fiche reste « Y aller ») */
+.btn.mini.c-add[aria-pressed="true"] { background: var(--add-bg); border-color: var(--add); color: var(--add); box-shadow: inset 0 0 0 2px var(--add); font-weight: 800; }
+.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav-bg); border-color: var(--fav); color: var(--fav); box-shadow: inset 0 0 0 2px var(--fav); font-weight: 800; }
 .go-dist { font-weight: 600; opacity: .8; margin-left: 4px; font-size: 13px; }
 /* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
 a.go, .item .go { background: var(--btn); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--hard); border-radius: 6px; font-family: var(--display); font-weight: 700; }
@@ -959,8 +964,8 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 :root[data-theme="dark"] .btn.danger { background: #4A1F1C; }
 .btn.primary, .btn.solid, .big-btn.solid, .big-btn.primary { background: var(--pl); }
 .btn.mini[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--strong); }
-.btn.mini.c-add[aria-pressed="true"] { background: var(--add); }
-.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav); }
+.btn.mini.c-add[aria-pressed="true"] { background: var(--add-bg); }
+.btn.mini.c-fav[aria-pressed="true"] { background: var(--fav-bg); }
 
 /* Outils d'Autour de moi : tuile teintée, médaillon plein */
 .tool, .tool.c-guide { background: var(--aller-bg); border-color: color-mix(in srgb, var(--fam) 35%, transparent); }
