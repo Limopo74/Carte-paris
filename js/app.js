@@ -9,7 +9,7 @@ import { cleanMore, DEFAULT_MORE,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
-import { searchPlaces } from './annuaire.js';
+import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (127)';
+const VERSION = '17 novembre 2026 (128)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -897,31 +897,47 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
     ctrl = new AbortController();
     info.textContent = 'Recherche…';
     fill(out, );
-    const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal, { zone: true }), searchAddress(q, ctrl.signal, { zone: true })]);
+    // Les lieux : d'abord dans la zone que montre la carte ; moins de 5 réponses → complétés par tout Paris et la petite couronne.
+    // Les adresses : toujours dans toute la zone (une adresse précise est unique).
+    const b = map.getBounds();
+    const box = viewBox({ west: b.getWest(), north: b.getNorth(), east: b.getEast(), south: b.getSouth() });
+    const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal, { zone: true, box }), searchAddress(q, ctrl.signal, { zone: true })]);
     if (ctrl.signal.aborted) return;
+    let inView = places.status === 'fulfilled' ? places.value : [];
+    let more = [];
+    let moreFailed = false;
+    if (box && places.status === 'fulfilled' && inView.length < 5) {
+      info.textContent = 'Peu de réponses dans la zone de la carte : recherche dans tout Paris…';
+      try {
+        const all = await searchPlaces(q, ctrl.signal, { zone: true });
+        more = all.filter((r) => !inView.some((v) => v.name === r.name && Math.abs(v.lat - r.lat) < 0.0004 && Math.abs(v.lng - r.lng) < 0.0006));
+      } catch { moreFailed = true; }
+      if (ctrl.signal.aborted) return;
+    }
     // Du plus proche au plus loin : de ma position récente, sinon du centre de la carte (pas de GPS demandé)
     const ref = freshHere() ?? map.getCenter();
-    const P = (places.status === 'fulfilled' ? places.value : []).map((r) => ({ ...r, d: distanceM(ref, r) })).sort((a, b) => a.d - b.d);
+    const near = (list) => list.map((r) => ({ ...r, d: distanceM(ref, r) })).sort((x, y) => x.d - y.d);
+    const P = near(inView);
+    const M = near(more);
     const A = addrs.status === 'fulfilled' ? addrs.value : [];
-    if (P.length) {
-      out.append(el('h3', { class: 'ring-title' }, el('span', {}, freshHere() ? 'Lieux, du plus proche de toi' : 'Lieux, du plus proche du centre de la carte'), el('span', {}, String(P.length))),
-        el('ul', { class: 'results' }, P.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
-          () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours })))));
-    }
+    const placeRows = (list) => el('ul', { class: 'results' }, list.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
+      () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours }))));
+    if (P.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, box ? 'Lieux dans la zone de la carte' : 'Lieux, du plus proche'), el('span', {}, String(P.length))), placeRows(P));
+    if (M.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, P.length ? 'Ailleurs à Paris et autour' : 'Rien dans la zone de la carte : ailleurs à Paris et autour'), el('span', {}, String(M.length))), placeRows(M));
     if (A.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
         el('ul', { class: 'results' }, A.map((r) => row(r.label, ROUGH[r.type] ?? null,
           () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null })))));
     }
-    const failed = places.status === 'rejected' || addrs.status === 'rejected';
-    if (P.length || A.length) {
+    const failed = places.status === 'rejected' || addrs.status === 'rejected' || moreFailed;
+    if (P.length || M.length || A.length) {
       info.textContent = failed ? 'Une partie de la recherche n\'a pas répondu, les résultats peuvent être incomplets.' : 'Choisis un résultat :';
     } else {
       info.textContent = failed
         ? 'La recherche ne répond pas. Vérifie ta connexion internet, puis réessaie.'
         : 'Rien trouvé dans Paris et les départements voisins (92, 93, 94). Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
     }
-    if (P.length) out.append(el('p', { class: 'help' }, `Lieux : données © OpenStreetMap, ${P.length >= 30 ? 'les 40 premières réponses du service au plus' : 'toutes les réponses du service'}. OpenStreetMap ne connaît pas tous les commerces (surtout les récents), et un nom générique (« boulangerie ») ne donne qu'une partie des lieux : ajoute la rue ou le quartier.`));
+    if (P.length || M.length) out.append(el('p', { class: 'help' }, `Lieux : données © OpenStreetMap, ${box ? 'cherchés d\'abord dans la zone que montre la carte (déplace ou zoome la carte, puis relance)' : 'cherchés dans tout Paris et autour'}, 40 au plus. OpenStreetMap ne connaît pas tous les commerces (surtout les récents) : pour un nom courant (« boulangerie »), zoome sur le quartier ou ajoute la rue.`));
   };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
 
@@ -4812,6 +4828,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{search} Ajouter → Avec un nom : les lieux sont cherchés d\'abord dans la zone que montre la carte. Zoome sur un quartier, cherche « boulangerie », et tu as celles du quartier. Moins de 5 réponses : la recherche continue dans tout Paris, dans un second bloc. Les adresses restent cherchées dans tout Paris.',
     '{search} Ajouter → Avec un nom ou une adresse : jusqu\'à 40 lieux (avant 8 au plus) et 10 adresses (avant 5), rangés du plus proche, avec la distance. Les gares et les lieux de santé apparaissent aussi, et un même lieu n\'est plus montré deux fois.',
     '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
     '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
@@ -4821,7 +4838,6 @@ const HELP = [
     '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. TTB : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TTB. Le nom du guide est abrégé en TTB, la source est citée dans Réglages → TTB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
     '{utensils} TTB : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → TTB, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton TTB en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
-    '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4855,7 +4871,7 @@ const HELP = [
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
-    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »). Les lieux trouvés (40 au plus) sont rangés du plus proche de toi, ou du centre de la carte. L\'annuaire (OpenStreetMap) ne connaît pas tous les commerces : pour un nom courant (« boulangerie »), ajoute la rue ou le quartier.',
+    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »). Les lieux sont cherchés d\'abord dans la zone que montre la carte (zoome sur le quartier avant de chercher) ; s\'il y en a moins de 5, la recherche continue dans tout Paris. 40 au plus, rangés du plus proche. Les adresses sont toujours cherchées dans tout Paris. L\'annuaire (OpenStreetMap) ne connaît pas tous les commerces : pour un nom courant (« boulangerie »), ajoute la rue ou le quartier.',
     'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} Depuis une photo de ta galerie : l\'appli place le lieu là où la photo a été prise, et l\'ajoute à sa fiche.',
     'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',

@@ -9,13 +9,24 @@ export const ZONE_DEPTS = ['75', '92', '93', '94'];
 const ZONE_BOX = '2.14,48.99,2.62,48.68'; // rectangle autour de Paris et de la petite couronne ; le tri par département se fait ensuite
 const GAP_MS = 1100;
 
-export function placesUrl(q, { zone = false } = {}) {
+export function placesUrl(q, { zone = false, box = null } = {}) {
   const u = new URL(BASE);
   u.search = new URLSearchParams({
     q, format: 'jsonv2', limit: zone ? '40' : '8', /* 40 : le maximum du service */ countrycodes: 'fr', addressdetails: '1',
-    'accept-language': 'fr', viewbox: zone ? ZONE_BOX : PARIS_BOX, bounded: zone ? '1' : '0', extratags: '1',
+    'accept-language': 'fr', viewbox: box ?? (zone ? ZONE_BOX : PARIS_BOX), bounded: zone || box ? '1' : '0', extratags: '1',
   });
   return u.toString();
+}
+
+/** La zone que montre la carte, en « ouest,nord,est,sud » pour le service, ramenée à Paris et la petite couronne.
+ * null si la carte montre déjà toute cette zone (inutile de chercher deux fois la même chose). */
+export function viewBox({ west, north, east, south }) {
+  const [W, N, E, S] = ZONE_BOX.split(',').map(Number);
+  const w = Math.max(west, W), e = Math.min(east, E), n = Math.min(north, N), s = Math.max(south, S);
+  if (!(w < e && s < n)) return null; // la carte regarde ailleurs
+  if (w <= W && e >= E && s <= S && n >= N) return null;
+  const f = (x) => x.toFixed(5);
+  return `${f(w)},${f(n)},${f(e)},${f(s)}`;
 }
 
 /** « 19 Rue Scribe 75009 Paris » à partir du détail d'adresse renvoyé. */
@@ -92,11 +103,11 @@ export function nextDelay(lastAt, now) {
 let lastAt = 0;
 
 /** Lieux correspondant au nom cherché. Lève une erreur si le service ne répond pas. */
-export async function searchPlaces(q, signal, { zone = false } = {}) {
+export async function searchPlaces(q, signal, { zone = false, box = null } = {}) {
   const wait = nextDelay(lastAt, Date.now());
   if (wait) await new Promise((r) => setTimeout(r, wait));
   lastAt = Date.now();
-  const res = await fetch(placesUrl(q.trim(), { zone }), { signal: withLimit(signal), headers: { Accept: 'application/json' } });
+  const res = await fetch(placesUrl(q.trim(), { zone, box }), { signal: withLimit(signal), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parsePlaces(await res.json(), { zone });
 }
