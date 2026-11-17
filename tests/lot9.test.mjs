@@ -131,3 +131,15 @@ test('Dehors / À l\'abri : champ event_indoor lu, inconnu écarté seulement qu
   assert.ok(passWhere(c.indoor, '') && !passWhere(c.indoor, 'in') && !passWhere(c.indoor, 'out'));
   assert.ok(passWhere(true, 'in') && passWhere(false, 'out'), 'marché couvert / découvert');
 });
+
+test('photo officielle : seulement depuis cdn.paris.fr, avec le crédit', () => {
+  const base = { title: 'X', lat_lon: { lat: 48.86, lon: 2.35 }, date_start: '2026-11-17T10:00:00+00:00', date_end: '2026-11-17T18:00:00+00:00' };
+  const [a, b, c] = parseEvents([
+    { ...base, cover_url: 'https://cdn.paris.fr/qfapv4/2025/07/31/huge-4f90c7ea0ec04dd2ba9bc833048d39a9.jpg', cover_credit: 'AS Productions', cover_alt: 'Affiche' },
+    { ...base, cover_url: 'https://exemple.com/x.jpg' },
+    { ...base, cover_url: 'javascript:alert(1)' },
+  ]);
+  assert.equal(a.cover, 'https://cdn.paris.fr/qfapv4/2025/07/31/huge-4f90c7ea0ec04dd2ba9bc833048d39a9.jpg');
+  assert.equal(a.coverCredit, 'AS Productions'); assert.equal(a.coverAlt, 'Affiche');
+  assert.equal(b.cover, ''); assert.equal(c.cover, '');
+});

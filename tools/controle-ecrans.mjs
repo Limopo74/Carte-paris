@@ -34,7 +34,7 @@ const AGENDA = [
   ['Brocante de la rue des Martyrs', 48.8790, 2.3390, 'Brocante'], ['Atelier dessin en famille', 48.8770, 2.3320, 'Enfants'],
   ['Balade commentée Pigalle', 48.8820, 2.3370, 'Balade urbaine'],
 ].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3),
-  address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, qfap_tags: tags, url: 'https://quefaire.paris.fr/' }));
+  address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, cover_url: `https://cdn.paris.fr/qfapv4/2026/11/17/huge-test${i}.jpg`, cover_credit: 'Photo de test', cover_alt: title, qfap_tags: tags, url: 'https://quefaire.paris.fr/' }));
 
 // Monuments : réponse Wikidata simulée (un musée, un immeuble protégé en façade seulement).
 const WIKIDATA = { results: { bindings: [
@@ -52,6 +52,7 @@ const ECRANS = {
   application: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); },
   navigo: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); },
   grandslieux: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Expos' }).click(); await p.waitForTimeout(600); await feuille(p).locator('button', { hasText: 'Grands lieux' }).click(); await p.waitForTimeout(1500); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
+  sortie: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(800); },
   dehors: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.chip', { hasText: 'Dehors' }).click(); await p.waitForTimeout(800); },
   gratuit: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Gratuit' }).click(); await p.waitForTimeout(800); },
   navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
@@ -73,6 +74,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   const ctx = await b.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2, geolocation: { latitude: 48.8812, longitude: 2.3361 }, permissions: ['geolocation'], colorScheme: theme, serviceWorkers: 'block', bypassCSP: true });
   const page = await ctx.newPage(); const erreurs = []; page.on('pageerror', (e) => erreurs.push(e.message));
   await page.route(/opendata\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AGENDA) }));
+  await page.route(/cdn\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'image/png', path: 'icons/icon-512.png' })); // photo de sortie simulée
   await page.route(/tile|cartocdn|openstreetmap|open-meteo|wikidata|overpass|nominatim|geopf|wikipedia|velib|smoove/, (r) => r.abort());
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);

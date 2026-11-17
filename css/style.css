@@ -687,6 +687,11 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Voir sur la carte (Navigo, galeries) : rond à contour terre cuite (le rond plein est TTB) ; fermé = pointillé gris */
 .peek-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
 .peek-pin.off { border-style: dashed; border-color: var(--muted); color: var(--muted); }
+/* Sorties : point de départ des distances (v133) — ardoise, carré à coins arrondis pour ne pas ressembler à un lieu */
+.from-pin { width: 24px; height: 24px; border-radius: var(--r); background: var(--ink); color: var(--surface); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
+/* Sorties → Autre quartier : la croix au centre de la carte */
+.area-cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 650; pointer-events: none; color: var(--ink); filter: drop-shadow(0 0 2px var(--surface)); }
+.area-cross .ico svg { width: 40px; height: 40px; stroke-width: 2.5; }
 body:has(.peek-card) #nowCard { display: none; }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 
@@ -1041,6 +1046,12 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev.feat .go-compass, .ev.feat .go-compass.go-metro { background: transparent; color: inherit; border-color: currentColor; box-shadow: none; }
 .ev.feat .ev-main:focus-visible { outline-color: currentColor; }
 
+/* Photo officielle d'une sortie (agenda de la Ville) : dans la page d'une sortie et dans la plaque du haut (v133) */
+.ev-photo { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.ev-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r); background: var(--line); }
+.ev-photo figcaption { font-size: 11.5px; color: var(--muted); }
+.ev.feat .feat-photo { grid-column: 1 / -1; margin-bottom: 4px; }
+.ev.feat .feat-photo figcaption { color: inherit; }
 .week-items.ev-list { padding: 0 0 10px; }
 
 /* ---- Nouveau lieu : fiche courte (v90) — la carte garde environ la moitié de l'écran ---- */

@@ -15,7 +15,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (132)';
+const VERSION = '17 novembre 2026 (133)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1615,14 +1615,21 @@ function openSearch(initial = '') {
           el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
+  const bigBox = el('div', { class: 'stack' }); // grands lieux (liste de l'appli, rien n'est envoyé)
   const updateDir = () => {
     const q = input.value.trim();
+    const big = findArtPlaces(q);
+    fill(bigBox, ...(big.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Grands lieux'), el('span', {}, String(big.length))),
+      el('ul', { class: 'items' }, big.map((p) => el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, named('Recherche', () => openSearch(input.value))) },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${p.address} · expos et programme`))))))] : []));
     toDirectory.hidden = q.length < 3;
     fill(toDirectory, ico('search'), ` Chercher « ${q} » dans l'annuaire`);
   };
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet([ico('search'), ' Chercher dans mes lieux'], el('div', { class: 'stack' }, input, info, list, toDirectory), { tall: true, name: 'search', again: () => openSearch(input.value) });
+  openSheet([ico('search'), ' Chercher dans mes lieux'], el('div', { class: 'stack' }, input, info, list, bigBox, toDirectory), { tall: true, name: 'search', again: () => openSearch(input.value) });
   input.focus();
 }
 
@@ -2669,7 +2676,7 @@ const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 
 const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /** Une carte de sortie. `feat` : la grande plaque en tête (la seule plaque pleine de l'écran). */
-function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '', badge = null }) {
+function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '', badge = null, photo = null }) {
   const label = GENRE_NAME[genre];
   const main = el(href ? 'a' : onclick ? 'button' : 'div', { class: 'ev-main', ...(href ? { href, target: '_blank', rel: 'noopener' } : onclick ? { type: 'button', onclick } : {}) },
     kicker ? el('span', { class: 'feat-kicker' }, kicker) : null,
@@ -2677,6 +2684,7 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
     sub.filter(Boolean).length ? el('span', { class: 'ev-sub' }, ...sub.filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [typeof x === 'string' ? x.charAt(0).toUpperCase() + x.slice(1) : x]))) : null,
     tags.filter(Boolean).length ? el('span', { class: 'ev-tags' }, ...tags.filter(Boolean)) : null);
   return el(feat ? 'div' : 'li', { class: feat ? 'ev feat' : 'ev' },
+    photo,
     el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: feat ? 26 : 22 })),
     main,
     el('div', { class: 'ev-foot' },
@@ -2701,13 +2709,54 @@ const galleryRow = (g, back) => {
 };
 
 /** Une expo ou une sortie : genre, titre, quand, où ; boussole, métro, et pour une expo « garder » (avec sa date de fin). */
+/** Photo officielle d'une sortie (agenda de la Ville), avec son crédit ; disparaît si l'image ne se charge pas. */
+function evPhoto(e, cls = '') {
+  if (!e?.cover) return null;
+  const img = el('img', { src: e.cover, alt: e.coverAlt || '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
+  const fig = el('figure', { class: `ev-photo ${cls}`.trim() }, img, e.coverCredit ? el('figcaption', {}, `© ${e.coverCredit}`) : null);
+  img.addEventListener('error', () => fig.remove(), { once: true });
+  return fig;
+}
+
+/** Quand, en une ligne : « À 20h », « Finit dimanche 22 nov. », « Dès samedi 21 nov. »… */
+function eventWhen(e, now = new Date()) {
+  if (e.start && e.start > now && e.start.toDateString() !== now.toDateString()) return weekText(e, now);
+  if (isExpo(e) && e.end) return endText(e.end, now);
+  const w = whenText(e, now);
+  return w === 'en cours aujourd\'hui' ? 'En cours aujourd\'hui' : w.replace(/^à/, 'À').replace(/^j/, 'J');
+}
+
+/** La page d'une sortie de l'agenda : photo officielle, quand, où, résumé, et les mêmes actions qu'un lieu. */
+function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
+  const expo = isExpo(e);
+  const genre = genreOf(e, { expo });
+  const d = freshHere() ? distanceM(freshHere(), e) : null;
+  const again = () => openEventPage(e, back, { label, icon });
+  openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
+    evPhoto(e),
+    el('p', { class: 'summary' }, [label || GENRE_NAME[genre], eventWhen(e), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
+    e.lead ? el('p', { class: 'help' }, e.lead) : null,
+    e.free ? el('p', {}, freeTag()) : null,
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? 1000), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
+    el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Sortie', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Ajouter')),
+    e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Voir dans « Que faire à Paris »') : null,
+    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo fournie par l\'organisateur, avec son crédit. Horaires et prix : vérifie sur la page de l\'événement.'),
+    label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'sortie', again });
+}
+
 const eventRow = (e, back, { last = false, week = false, feat = false, kicker = '' } = {}) => {
   const expo = isExpo(e);
   const keep = () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null,
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
   const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
-  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, href: e.url, sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null], feat, kicker,
+  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null], feat, kicker, photo: feat ? evPhoto(e, 'feat-photo') : null,
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
 };
@@ -2783,11 +2832,11 @@ async function openWeekExpos() {
 }
 
 /** Grands lieux d'art et de musique, toute distance : liste fixe ; leurs événements viennent de l'agenda de la semaine. */
-async function openArtPlaces(focus = '') {
+async function openArtPlaces(focus = '', from = null) {
   if (typeof focus !== 'string') focus = '';
   track('Grands lieux');
   const title = [ico('landmark'), ' Grands lieux'];
-  const back = foot(backBtn(openEvents));
+  const back = foot(from ? backBtn(from) : backBtn(openEvents)); // depuis la loupe : retour à la recherche
   if (!weekCache || weekCache.day !== new Date().toDateString()) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'grands-lieux' });
     try { await weekEvents(); } catch {
@@ -2812,7 +2861,7 @@ async function openArtPlaces(focus = '') {
     ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
     el('p', { class: 'help' }, `Liste des lieux vérifiée le ${ART_PLACES_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée). Tous les rendez-vous n'y sont pas : le programme officiel fait foi. Le Centre Pompidou est fermé jusqu'en 2030, ses expositions ont lieu au Grand Palais ; le musée Maillol rouvre le 13 janvier 2027.`),
     back,
-  ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus) });
+  ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from) });
   if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
 }
 
@@ -2830,6 +2879,7 @@ let evFrom = null; // point de départ des Sorties : ma position (Autour de moi)
 async function openEvents(start = null) {
   track('Sorties');
   if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
+  else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
   else if (start === 'near' || !evFrom) evFrom = origin;
   if (!evFrom) { openNear(); return; }
   const o = evFrom;
@@ -2886,7 +2936,7 @@ async function openEvents(start = null) {
     head('Théâtre à moitié prix, le jour même', kiosks.length),
     el('p', { class: 'help' }, 'Les Kiosques Théâtre vendent les places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Théâtre à moitié prix', label: plural(kiosks.length, 'kiosque', 'kiosques'), items: kiosks, icon: 'drama',
-      open: openKiosque, back: () => { eventsMode = 'free'; openEvents(); } }) }, ico('map'), 'Voir sur la carte'),
+      open: openKiosque, back: () => { eventsMode = 'free'; openEvents(); }, from: o })  }, ico('map'), 'Voir sur la carte'),
     list(kiosks.map((k) => kiosqueRow(k, back)))]),
     freeAll.length ? (notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`), null) : null];
 
@@ -2902,7 +2952,7 @@ async function openEvents(start = null) {
         el('button', { type: 'button', class: 'chip', 'aria-pressed': String(navigoKinds.has(g)), onclick: () => flip(g) }, g))) : null,
       el('h3', { class: 'ring-title' }, el('span', {}, within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches'), el('span', {}, String(nvNear.length))),
       nvNear.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Avantages Navigo', label: plural(nvNear.length, 'lieu partenaire', 'lieux partenaires'), items: nvNear, icon: 'ticket',
-        open: (x) => openNavigo(x), back: () => { eventsMode = 'navigo'; openEvents(); } }) }, ico('map'), 'Voir sur la carte') : null,
+        open: (x) => openNavigo(x), back: () => { eventsMode = 'navigo'; openEvents(); }, from: o })  }, ico('map'), 'Voir sur la carte') : null,
       nvNear.length ? el('ul', { class: 'items ev-list' }, nvNear.map((x) => navigoRow(x, back))) : el('p', { class: 'empty' }, 'La liste des lieux partenaires n\'a pas pu être lue.'),
     ];
     notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
@@ -2916,7 +2966,7 @@ async function openEvents(start = null) {
       fill(galBox,
         el('h3', { class: 'ring-title' }, el('span', {}, 'Galeries à moins de 1,5 km'), el('span', {}, g.length ? `${open} ouverte${open > 1 ? 's' : ''}` : '')),
         g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Galeries', label: `${plural(g.length, 'galerie', 'galeries')}, ${open} ouverte${open > 1 ? 's' : ''}`, items: g, icon: 'palette',
-          off: (x) => openState(x.hours)?.open === false, open: openGalleryCard, back: () => { eventsMode = 'art'; openEvents(); } }) }, ico('map'), 'Voir sur la carte') : null,
+          off: (x) => openState(x.hours)?.open === false, open: openGalleryCard, back: () => { eventsMode = 'art'; openEvents(); }, from: o })  }, ico('map'), 'Voir sur la carte') : null,
         g.length ? el('ul', { class: 'items ev-list' }, g.map((x) => galleryRow(x, back))) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'),
         g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openGalleryWalk(openEvents) }, ico('route'), 'Parcours galeries ouvertes') : null);
     };
@@ -2956,7 +3006,11 @@ async function openEvents(start = null) {
   }
   openSheet(title, el('div', { class: 'stack' },
     seg, // les onglets restent toujours à la même place ; les annonces viennent dessous
-    el('p', { class: 'from-line' }, ico(fromMap ? 'map' : 'locate-fixed'), fromMap ? ' Autour du centre de la carte. Pour un autre quartier : déplace la carte et rouvre Sorties.' : ' Autour de toi.'),
+    el('p', { class: 'from-line' }, ico(fromMap ? 'map' : o.kind === 'station' ? 'train-front' : 'locate-fixed'),
+      fromMap ? ' Distances depuis le centre de la carte.' : o.kind === 'station' ? ` Distances depuis la station ${o.label}.` : ' Distances depuis ta position.'),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Point de départ des distances' },
+      el('button', { type: 'button', class: 'chip', onclick: pickEventsArea }, ico('map'), ' Autre quartier'),
+      fromMap ? el('button', { type: 'button', class: 'chip', onclick: eventsFromMe }, ico('locate-fixed'), ' Ma position') : null),
     whereChips, // Tout et Gratuit seulement, sous la ligne de départ : les onglets ne bougent pas
     ...(mode === 'art' ? top : []), // Tout et Gratuit : sous la plaque
     ...body,
@@ -2986,9 +3040,33 @@ async function openEvents(start = null) {
    Rien de permanent : un bandeau en bas dit ce qui est affiché, × retire tout, un appui sur le bandeau rouvre la liste. */
 const peekLayer = L.layerGroup().addTo(map);
 let peekCard = null;
-function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; }
+function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; document.querySelector('.area-cross')?.remove(); }
+
+/** Sorties → « Autre quartier » : la page se ferme, une croix marque le centre ; on déplace la carte puis on touche le bandeau. */
+function pickEventsArea() {
+  closeSheet();
+  endPeek();
+  const box = document.getElementById('map');
+  box.append(el('span', { class: 'area-cross', 'aria-hidden': 'true' }, ico('plus')));
+  peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Choisir le quartier des sorties' },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openEvents('map'); } },
+      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, 'La croix au centre, puis touche ici : sorties autour de la croix')),
+      el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
+    el('button', { type: 'button', class: 'now-close', 'aria-label': 'Annuler', onclick: endPeek }, ico('x')));
+  document.body.append(peekCard);
+}
+
+/** Sorties → « Ma position » : la position n'est demandée qu'à cet appui (rien n'est envoyé : tout est trié sur le téléphone). */
+async function eventsFromMe() {
+  toast('Recherche de ta position…');
+  try {
+    const pos = await locate();
+    hideToast();
+    openEvents({ lat: pos.lat, lng: pos.lng, kind: 'here' });
+  } catch (e) { toast(e.message, true); }
+}
 /** items : { name, lat, lng } ; open(x) ouvre la fiche d'un lieu ; off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste. */
-function showPeek({ kicker, label, items, icon, open, off = () => false, back }) {
+function showPeek({ kicker, label, items, icon, open, off = () => false, back, from = null }) {
   closeSheet();
   endPeek();
   if (!items.length) { toast('Rien à afficher sur la carte.'); return; }
@@ -2999,13 +3077,15 @@ function showPeek({ kicker, label, items, icon, open, off = () => false, back })
       .on('click', () => open(x))
       .addTo(peekLayer);
   }
+  if (from) L.marker([from.lat, from.lng], { interactive: false, keyboard: false, zIndexOffset: 350, // point de départ des distances
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="from-pin" title="Point de départ">${svgIcon(from.kind === 'map' ? 'plus' : 'locate-fixed', { size: 14, stroke: 2.6 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(peekLayer);
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': `${kicker} sur la carte` },
     el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); back(); } },
       el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, kicker), el('span', { class: 'now-name' }, label), el('span', { class: 'now-sub' }, 'Touche ici pour revenir à la liste')),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
   document.body.append(peekCard);
-  map.fitBounds(L.latLngBounds(items.map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
+  map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
 function openGalleryCard(g) {
@@ -3335,23 +3415,10 @@ async function drawMarkets() {
       .on('click', () => openStreetEvent(e)).addTo(marketsLayer);
   }
 }
-/** Fiche d'un événement de rue (agenda de la Ville). */
+/** Fiche d'un événement de rue (agenda de la Ville) : la page d'une sortie, avec le genre « Dans la rue ». */
 function openStreetEvent(e) {
   const kind = streetKind(e) ?? 'fete';
-  const d = freshHere() ? distanceM(freshHere(), e) : null;
-  openSheet([ico(STREET_ICON[kind]), ` ${e.title}`], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, [STREET_LABEL[kind], whenText(e), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
-    e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
-    e.lead ? el('p', { class: 'help' }, e.lead) : null,
-    e.free ? el('p', {}, el('span', { class: 'tag open' }, 'Gratuit')) : null,
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
-    el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Événement', () => openStreetEvent(e))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · ') }) }, ico('plus'), 'Ajouter')),
-    e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('calendar-days'), 'Voir dans « Que faire à Paris »') : null,
-    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. « Dans la rue » est deviné d\'après le titre et le lieu : vérifie sur la page de l\'événement.'),
-  ), { name: 'street' });
+  openEventPage(e, null, { label: STREET_LABEL[kind], icon: STREET_ICON[kind] });
 }
 function openMarket(m, back = null) {
   const d = freshHere() ? distanceM(freshHere(), m) : null;
@@ -4891,6 +4958,9 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
+    '{map} Sorties : « Autre quartier » ferme la page et met une croix au centre de la carte ; déplace la carte, touche le bandeau, et les distances partent de la croix. « Ma position » les fait partir de toi (la position n\'est demandée qu\'à cet appui). Dans « Voir sur la carte », un carré noir marque le point de départ.',
+    '{search} La loupe trouve aussi les grands lieux (« orsay », « cartier »…) : un appui ouvre leurs rendez-vous et leur programme officiel.',
     '{umbrella} Sorties, onglets Tout et Gratuit : filtres « Dehors » et « À l\'abri ». C\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville ; un marché couvert compte à l\'abri, un marché découvert dehors.',
     '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
     '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
@@ -4898,9 +4968,6 @@ const HELP = [
     '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et les 3 Kiosques Théâtre : places du jour à moitié prix, avec « Voir sur la carte ».',
     '{badge-percent} Sorties → Navigo : des filtres par discipline (Cinéma, Théâtre, Musée…), pour la liste comme pour « Voir sur la carte ». Partout, chaque titre a son icône et le bouton retour est en bas de la page.',
     '{search} Ajouter → Avec un nom : les lieux sont cherchés d\'abord dans la zone que montre la carte. Zoome sur un quartier, cherche « boulangerie », et tu as celles du quartier. Moins de 5 réponses : la recherche continue dans tout Paris, dans un second bloc. Les adresses restent cherchées dans tout Paris.',
-    '{search} Ajouter → Avec un nom ou une adresse : jusqu\'à 40 lieux (avant 8 au plus) et 10 adresses (avant 5), rangés du plus proche, avec la distance. Les gares et les lieux de santé apparaissent aussi, et un même lieu n\'est plus montré deux fois.',
-    '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
-    '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4915,7 +4982,7 @@ const HELP = [
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Paris : revenir au centre de Paris.',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
-    '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
+    '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Dans la page, « Autre quartier » te laisse placer la croix ailleurs, « Ma position » compte les distances depuis toi.',
     '{alarm-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {alarm-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',

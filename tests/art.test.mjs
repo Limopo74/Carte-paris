@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith,
+  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith, findArtPlaces,
   highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
 } from '../js/art.js';
 
@@ -94,6 +94,11 @@ test('grands lieux : reconnus par le nom de l\'agenda, sans confondre Cartier et
   assert.equal(artPlaceOf({ place: 'Musée du quai Branly - Jacques Chirac' })?.name, 'Musée du quai Branly');
   assert.equal(artPlaceOf({ place: 'L\'Institut du Monde Arabe' })?.name, 'Institut du monde arabe');
   assert.equal(new Set(ART_PLACES.map((p) => p.match)).size, ART_PLACES.length, 'un match par lieu');
+  assert.deepEqual(findArtPlaces('orsay').map((p) => p.name), ['Musée d\'Orsay']);
+  assert.deepEqual(findArtPlaces('Musée Orsay').map((p) => p.name), ['Musée d\'Orsay']);
+  assert.ok(findArtPlaces('cartier').length === 2, 'Cartier et Cartier-Bresson');
+  assert.deepEqual(findArtPlaces('lo'), []);
+  assert.deepEqual(findArtPlaces('boulangerie'), []);
   const d = (s) => new Date(2026, 11, s);
   const g = artPlacesWith([{ place: 'Palais de Tokyo', title: 'B', end: d(20) }, { place: 'Palais de Tokyo', title: 'A', end: d(5) }, { place: 'Palais de Tokyo', title: 'A', end: d(5) }]);
   assert.equal(g.length, ART_PLACES.length);

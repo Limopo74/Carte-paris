@@ -218,6 +218,13 @@ const plain = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[\u
 /** Le grand lieu d'un événement de l'agenda (par le nom du lieu), ou null. */
 export const artPlaceOf = (e, places = ART_PLACES) => { const n = plain(e?.place); return n ? places.find((p) => n.includes(p.match)) ?? null : null; };
 
+/** Les grands lieux dont le nom contient tous les mots tapés (sans accents ; au moins 3 lettres en tout). */
+export function findArtPlaces(q, places = ART_PLACES) {
+  const words = plain(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+  if (plain(q).replace(/\s/g, '').length < 3 || !words.length) return [];
+  return places.filter((p) => { const hay = plain(`${p.name} ${p.match}`); return words.every((w) => hay.includes(w)); });
+}
+
 /** Chaque grand lieu avec ses événements de l'agenda, ceux qui finissent le plus tôt d'abord, sans doublon de titre. */
 export function artPlacesWith(events, places = ART_PLACES) {
   const by = new Map(places.map((p) => [p, []]));

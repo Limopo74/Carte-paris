@@ -14,7 +14,7 @@ export function eventsUrl(now = new Date()) {
 }
 
 /** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions). */
-export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor'; // sans « occurrences » : trop lourd pour la semaine
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor,cover_url,cover_credit,cover_alt'; // sans « occurrences » : trop lourd pour la semaine
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
 export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
@@ -94,6 +94,10 @@ export function parseEvents(json, now = new Date()) {
       lead: str(r.lead_text).slice(0, 200),
       tags,
       indoor: r.event_indoor === 1 ? true : r.event_indoor === 0 ? false : null, // rempli par l'organisateur
+      // Photo officielle de l'agenda (serveur d'images de la Ville seulement), avec son crédit
+      cover: /^https:\/\/cdn\.paris\.fr\/[\w./-]+\.(?:jpe?g|png|webp)$/i.test(r.cover_url ?? '') ? r.cover_url : '',
+      coverCredit: str(r.cover_credit).slice(0, 100),
+      coverAlt: str(r.cover_alt).slice(0, 150),
     });
   }
   return out;
