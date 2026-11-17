@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (134)';
+const VERSION = '17 novembre 2026 (135)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -205,13 +205,15 @@ function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
 }
 
 let toastTimer;
-function toast(msg, isError = false) {
+function toast(msg, isError = false, action = null) {
   const t = document.getElementById('toast');
   t.textContent = msg;
+  // action { label, fn } : un bouton dans le message (le geste caché devient visible), message gardé 6 s
+  if (action) t.append(' ', el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; action.fn(); } }, action.label));
   t.classList.toggle('error', isError);
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3000);
+  toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : 3000);
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
 
@@ -1754,7 +1756,8 @@ function renderNear(fit = false) {
   body.push(el('div', { class: 'near-bar' },
     origin.kind === 'station' ? el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() }) }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Autre station')
       : origin.kind === 'last' ? el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openNear }, ico('refresh-cw'), 'Réessayer ma position')
-        : el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?')));
+        : el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?'),
+    el('button', { type: 'button', class: 'btn where-btn c-disc', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris'))); // visible sans défiler (avant : tout en bas)
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -1822,7 +1825,6 @@ function renderNear(fit = false) {
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
     body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
   }
-  body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'margin-top:8px;width:100%', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
   openSheet([ico('map-pinned'), ` ${nearTitle()}`], body, { name: 'near', again: () => renderNear() });
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
@@ -2929,12 +2931,15 @@ async function openEvents(start = null) {
   if (whereChips) notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est cachée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosque Théâtre comptent à l\'abri.');
   const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => a.d - b.d);
   const soonFree = freeSoon().slice(0, 3);
+  // Sommaire d'une page longue : un bouton fait défiler jusqu'à la rubrique (marquée data-anchor)
+  const jumpRow = (pairs) => el('div', { class: pairs.length > 2 ? 'row3' : 'row' }, pairs.map(([label, anchor, onclick]) =>
+    el('button', { type: 'button', class: 'btn c-disc', onclick: onclick ?? (() => sheetBody.querySelector(`[data-anchor="${anchor}"]`)?.scrollIntoView({ block: 'start' })) }, label)));
   const freeSection = () => [
-    soonFree.length ? el('div', { class: 'stack', style: 'gap:4px' }, el('h3', { class: 'ring-title' }, el('span', {}, 'Prochains jours gratuits'), el('span', {}, '')),
+    soonFree.length ? el('div', { class: 'stack', style: 'gap:4px', 'data-anchor': 'musees' }, el('h3', { class: 'ring-title' }, el('span', {}, 'Prochains jours gratuits'), el('span', {}, '')),
       ...soonFree.map((x) => el('p', { class: 'hl-line' }, ico('calendar-days'), ` ${x.line}`))) : null,
     ...(whereOn === 'out' ? [] : [ // musées et théâtres : à l'abri, cachés par le filtre Dehors
-    head('Musées et monuments gratuits aujourd\'hui', freeAll.length), list(freeAll.map((f) => freeRow(f, back))),
-    head('Théâtre à moitié prix, le jour même', kiosks.length),
+    el('div', { 'data-anchor': 'musees' }, head('Musées et monuments gratuits aujourd\'hui', freeAll.length)), list(freeAll.map((f) => freeRow(f, back))),
+    el('div', { 'data-anchor': 'theatre' }, head('Théâtre à moitié prix, le jour même', kiosks.length)),
     el('p', { class: 'help' }, 'Le Kiosque Théâtre de la Madeleine vend les places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement (celui de Montparnasse est fermé).'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Théâtre à moitié prix', label: plural(kiosks.length, 'kiosque', 'kiosques'), items: kiosks, icon: 'drama',
       open: openKiosque, back: () => { eventsMode = 'free'; openEvents(); }, from: o })  }, ico('map'), 'Voir sur la carte'),
@@ -2959,7 +2964,7 @@ async function openEvents(start = null) {
     notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
   } else if (mode === 'art') {
     const expos = all.filter((e) => isExpo(e) && !lastIds.has(e)).slice(0, 15);
-    const galBox = el('div', { class: 'stack' });
+    const galBox = el('div', { class: 'stack', 'data-anchor': 'galeries' });
     const drawGal = () => {
       if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Chargement de la liste des galeries de Paris (une fois par mois)…')); return; }
       const g = galleriesNear(galleries, o).slice(0, 15);
@@ -2976,9 +2981,7 @@ async function openEvents(start = null) {
       .catch(() => fill(galBox, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.')));
     body = [
       // En tête : tout Paris (grands lieux, semaine) ; dessous : autour du point de départ
-      el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtPlaces() }, 'Grands lieux'), // sans icône : tient sur une ligne à 360 px
-        el('button', { type: 'button', class: 'btn c-disc', onclick: () => openWeekExpos() }, 'La semaine')),
+      jumpRow([['Grands lieux', '', () => openArtPlaces()], ['La semaine', '', () => openWeekExpos()], ['Galeries', 'galeries']]), // sans icône : tient à 360 px
       head('Dernière chance : expos qui ferment', last.length), list(last.slice(0, 8).map((e) => eventRow(e, back, { last: true }))),
       galBox,
       head('Autres expos aujourd\'hui', expos.length), list(expos.map((e) => eventRow(e, back))),
@@ -2998,6 +3001,7 @@ async function openEvents(start = null) {
     const card = (x, opts = {}) => (x.m ? marketRow(x.m, back, opts) : eventRow(x.e, back, opts));
     const nowRest = now.slice(1, 26);
     body = [
+      mode === 'free' && whereOn !== 'out' ? jumpRow([['Musées gratuits', 'musees'], ['Théâtre -50 %', 'theatre']]) : null, // ces rubriques sont en bas
       feat ? card(feat, { feat: true, kicker: 'En ce moment, au plus près' }) : null,
       ...top,
       head('Dernière chance : expos qui ferment', Math.min(3, last.length)), list(last.slice(0, 3).map((e) => eventRow(e, back, { last: true }))),
@@ -3516,7 +3520,8 @@ function drawTtb() {
 function toggleTtb() {
   if (!ttbList().length) { openTtb(); return; }
   state.showTtb = !state.showTtb; persist(); drawTtb(); refresh();
-  toast(state.showTtb ? `TTB : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte. Appui long : la liste.` : 'TTB : masqué');
+  if (state.showTtb) toast(`TTB : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte.`, false, { label: 'Voir la liste', fn: () => openTtbList() });
+  else toast('TTB : masqué');
 }
 
 /** Liste des adresses, de la plus proche à la plus loin (ma position récente, sinon le centre de la carte : pas de GPS demandé). */
@@ -4295,6 +4300,8 @@ function openSettings(section = null) {
   if (section === 'appli') {
     openSheet([ico('info'), ' Appli'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
+        dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte (si elle reste grise)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager l\'appli'), el('span', {}, '')),
       el('div', { class: 'row' },
@@ -4311,8 +4318,6 @@ function openSettings(section = null) {
         el('span', { class: 'btn c-info', style: 'min-height:0' }, 'Aide, réglages'),
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
-      el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
-        dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
@@ -4978,6 +4983,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
     '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
     '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
     '{map} Sorties : « Autre quartier » ferme la page et met une croix au centre de la carte ; déplace la carte, touche le bandeau, et les distances partent de la croix. « Ma position » les fait partir de toi (la position n\'est demandée qu\'à cet appui). Dans « Voir sur la carte », un carré noir marque le point de départ.',
@@ -4987,7 +4993,6 @@ const HELP = [
     '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
     '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
     '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et le Kiosque Théâtre de la Madeleine : places du jour à moitié prix.',
-    '{badge-percent} Sorties → Navigo : des filtres par discipline (Cinéma, Théâtre, Musée…), pour la liste comme pour « Voir sur la carte ». Partout, chaque titre a son icône et le bouton retour est en bas de la page.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

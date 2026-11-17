@@ -223,6 +223,8 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
   font-size: 16px; box-shadow: var(--float); text-align: center;
 }
 .toast.error { background: var(--danger); }
+/* Bouton dans un message (ex. TTB → « Voir la liste ») : rend visible ce qui n'était qu'un appui long */
+.toast-act { min-height: 44px; padding: 0 12px; margin-left: 4px; background: transparent; color: inherit; border: 1.5px solid currentColor; border-radius: var(--r); font: inherit; font-weight: 700; }
 
 .leaflet-control-attribution { font-size: 10px; }
 .leaflet-bottom { bottom: calc(80px + var(--safe-b)); }
