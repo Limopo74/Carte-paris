@@ -118,3 +118,29 @@ test('note d\'un passage : 1 à 5 étoiles, facultative ; un passage noté n\'es
   assert.equal(l.length, 1);
   assert.equal(dropAutoPassage(l, now).length, 1, 'noté : gardé');
 });
+
+test('le bon moment : familles heure, jour, saison ; texte ; le plus proche dont le moment est venu', async () => {
+  const { cleanMoments, momentNow, momentText, momentHere } = await import('../js/passage.js');
+  assert.deepEqual(cleanMoments(['soir', 'x', 'matin', 'soir']), ['matin', 'soir']);
+  const samMatinAvril = new Date(2027, 3, 10, 9); // samedi 10 avril 2027, 9 h
+  assert.equal(momentNow(['printemps'], samMatinAvril), true);
+  assert.equal(momentNow(['printemps', 'soir'], samMatinAvril), false, 'printemps ET soir');
+  assert.equal(momentNow(['matin', 'soir', 'weekend'], samMatinAvril), true, 'matin OU soir, et week-end');
+  assert.equal(momentNow(['ete', 'automne'], samMatinAvril), false);
+  assert.equal(momentNow(['hiver'], new Date(2027, 0, 5, 15)), true, 'janvier = hiver');
+  assert.equal(momentNow(['weekend'], new Date(2026, 10, 17, 9)), false, 'mardi');
+  assert.equal(momentNow([], samMatinAvril), false);
+  assert.equal(momentText(['matin', 'printemps']), 'au printemps, le matin');
+  assert.equal(momentText(['soir', 'matin', 'weekend']), 'le week-end, le matin ou le soir');
+  const here = { lat: 48.88, lng: 2.34 };
+  const pts = [
+    { id: 'glycine', lat: 48.8830, lng: 2.34, moments: ['printemps'] }, // ~330 m
+    { id: 'marche', lat: 48.8805, lng: 2.34, moments: ['weekend', 'matin'] }, // ~55 m
+    { id: 'terrasse', lat: 48.8801, lng: 2.34, moments: ['ete'] }, // pas en avril
+    { id: 'lea', lat: 48.8800, lng: 2.34, moments: ['printemps'], owner: 'Léa' },
+    { id: 'loin', lat: 48.8950, lng: 2.34, moments: ['printemps'] }, // ~1,7 km
+  ];
+  assert.equal(momentHere(pts, here, samMatinAvril)?.p.id, 'marche');
+  assert.equal(momentHere(pts, here, samMatinAvril, 800, (p) => p.id !== 'marche')?.p.id, 'glycine', 'fermé : le suivant');
+  assert.equal(momentHere(pts, null, samMatinAvril), null);
+});

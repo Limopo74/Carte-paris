@@ -124,3 +124,41 @@ export function memoryOf(p) {
   const last = cleanPassages(p.passages).find((x) => x.text || x.photo);
   return last ? { at: last.at, text: last.text ?? '', photo: last.photo ?? null } : { at: p.visited ?? p.created ?? null, text: p.note?.trim() ?? '', photo: p.photos?.[0] ?? null };
 }
+
+/* ---------- Le bon moment (v158) : quand un lieu vaut le détour (puces facultatives du formulaire) ---------- */
+export const MOMENTS = [['matin', 'Matin'], ['midi', 'Midi'], ['soir', 'Soir'], ['weekend', 'Week-end'], ['printemps', 'Printemps'], ['ete', 'Été'], ['automne', 'Automne'], ['hiver', 'Hiver']];
+const KEYS = MOMENTS.map(([k]) => k);
+const GROUP = { matin: 'heure', midi: 'heure', soir: 'heure', weekend: 'jour', printemps: 'saison', ete: 'saison', automne: 'saison', hiver: 'saison' };
+const SAYS = { matin: 'le matin', midi: 'à midi', soir: 'le soir', weekend: 'le week-end', printemps: 'au printemps', ete: 'en été', automne: 'en automne', hiver: 'en hiver' };
+/** Moments connus, sans doublon, dans l'ordre des puces. */
+export const cleanMoments = (a) => (Array.isArray(a) ? KEYS.filter((k) => a.includes(k)) : []);
+/** Le moment est-il venu ? Chaque famille choisie (heure, jour, saison) doit être juste ; une famille non choisie ne compte pas. */
+export function momentNow(keys, date = new Date()) {
+  const ks = cleanMoments(keys);
+  if (!ks.length) return false;
+  const h = date.getHours() + date.getMinutes() / 60;
+  const m = date.getMonth();
+  const ok = {
+    matin: h >= 7 && h < 11, midi: h >= 11.5 && h < 14.5, soir: h >= 18 && h < 23.5, // mêmes heures que « Maintenant »
+    weekend: date.getDay() === 0 || date.getDay() === 6,
+    printemps: m >= 2 && m <= 4, ete: m >= 5 && m <= 7, automne: m >= 8 && m <= 10, hiver: m === 11 || m <= 1,
+  };
+  const groups = [...new Set(ks.map((k) => GROUP[k]))];
+  return groups.every((g) => ks.some((k) => GROUP[k] === g && ok[k]));
+}
+/** « au printemps, le matin » ; « le week-end, le matin ou le soir ». */
+export function momentText(keys) {
+  const ks = cleanMoments(keys);
+  return ['saison', 'jour', 'heure'].map((g) => ks.filter((k) => GROUP[k] === g).map((k) => SAYS[k]).join(' ou ')).filter(Boolean).join(', ');
+}
+/** « C'est le moment » : le plus proche de mes lieux dont le bon moment est venu, à moins de `maxM` mètres : { p, d } ou null. */
+export function momentHere(points, pos, date = new Date(), maxM = 800, isOpen = () => true) {
+  if (!pos) return null;
+  let best = null;
+  for (const p of points) {
+    if (p.owner || !p.moments?.length || !momentNow(p.moments, date) || !isOpen(p)) continue;
+    const d = distanceM(pos, p);
+    if (d <= maxM && (!best || d < best.d)) best = { p, d };
+  }
+  return best;
+}

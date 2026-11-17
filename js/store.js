@@ -1,7 +1,7 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from './geo.js';
 import { cleanPlan, cleanPlans } from './planning.js';
-import { cleanPassages, cleanLog } from './passage.js';
+import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
 
 export const KEY = 'carte-paris.v1';
 export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#9c6644', '#c2255c', '#0c8599', '#495057'];
@@ -131,6 +131,7 @@ const clean = (p) => ({
   arr: Number.isInteger(p.arr) && p.arr >= 1 && p.arr <= 20 ? p.arr : null, // arrondissement, trouvé une fois pour toutes
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   ...(cleanPassages(p.passages).length ? { passages: cleanPassages(p.passages) } : {}), // Mes passages (v157)
+  ...(cleanMoments(p.moments).length ? { moments: cleanMoments(p.moments) } : {}), // Le bon moment (v158)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 

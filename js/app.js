@@ -21,7 +21,7 @@ import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -37,7 +37,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (157)';
+const VERSION = '17 novembre 2026 (158)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1003,6 +1003,17 @@ function updateNow(force = false) {
     card.querySelector('.now-open').onclick = () => openDetail(mem.p.id);
     return;
   }
+  // « C'est le moment » (v158) : un de mes lieux dont le bon moment est venu, à moins de 10 min, pas fermé
+  const mo = nowHidden ? null : momentHere(state.points, pos, new Date(), minutesToMeters(10), (p) => openState(hoursOf(p))?.open !== false);
+  if (mo) {
+    card.hidden = false;
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `C'est le moment · ${momentText(mo.p.moments)}`),
+      el('span', { class: 'now-name' }, mo.p.name),
+      el('span', { class: 'now-sub' }, [`${walkMinutes(mo.d)} min à pied`, mo.p.note?.trim() ? mo.p.note.trim().slice(0, 60) : null].filter(Boolean).join(' · ')));
+    card.querySelector('.now-open').onclick = () => openDetail(mo.p.id);
+    return;
+  }
   // Prochaine sortie prévue (Mon planning) : celle de demain passe avant la suggestion du moment ;
   // plus tard dans la semaine, elle ne s'affiche que s'il n'y a rien d'autre à proposer.
   const nx = nowHidden ? null : nextPlanned();
@@ -1016,6 +1027,19 @@ function updateNow(force = false) {
     card.querySelector('.now-open').onclick = () => openPlanning('map');
   };
   if (nx && daysUntil(nx.ticket.at) === 1) { showNext(); return; }
+  // « Dans la rue, à 5 min » (v158) : brocante, fête, marché éphémère ou expo en plein air, en cours ou dans la demi-heure,
+  // seulement avec un créneau connu aujourd'hui (agenda de la Ville chargé une fois par jour, sans position)
+  const street = !pos || nowHidden || eventsCache?.day !== new Date().toDateString() ? null
+    : nearbyEvents(todayOnly(eventsCache.items, new Date()).filter((e) => e.slotStart && e.slotStart.getTime() <= Date.now() + 30 * 60000 && streetKind(e)), pos, minutesToMeters(5))[0] ?? null;
+  if (street) {
+    card.hidden = false;
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `Dans la rue · ${walkMinutes(street.d)} min à pied`),
+      el('span', { class: 'now-name' }, street.title),
+      el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place].filter(Boolean).join(' · ')));
+    card.querySelector('.now-open').onclick = () => openEventPage(street);
+    return;
+  }
   // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
   // le matin cafés et boulangeries, à midi et le soir restos (et bars le soir).
   const slot = timeSlot();
@@ -1396,6 +1420,7 @@ function openForm(draft, existing = null) {
   let fav = v.fav;
   let stars = v.stars ?? 0;
   let covered = Boolean(v.covered);
+  const moments = new Set(cleanMoments(v.moments ?? draft.moments)); // Le bon moment (v158)
   const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
   let dupOk = false; // « Ajouter quand même » après l'alerte doublon
 
@@ -1412,6 +1437,11 @@ function openForm(draft, existing = null) {
   };
   newList.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); createList(); } });
   drawLists();
+  const momentChips = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Le bon moment' });
+  const drawMoments = () => fill(momentChips, MOMENTS.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(moments.has(k)), onclick: () => { if (moments.has(k)) moments.delete(k); else moments.add(k); drawMoments(); } }, label)));
+  drawMoments();
+  const momentBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Le bon moment (facultatif)'), momentChips,
+    el('p', { class: 'help' }, 'Ex. : Printemps pour une glycine, Week-end + Matin pour un marché. « Maintenant » te le rappellera quand ce sera le moment.'));
   const coveredBox = el('input', { type: 'checkbox', class: 'check', checked: covered });
   coveredBox.addEventListener('change', () => { covered = coveredBox.checked; });
 
@@ -1447,14 +1477,14 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists] };
+    const keep = { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     openCategory(null, { back: reopen, done: (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); } });
   };
   /** Ajuster la position d'un nouveau lieu sur toute la carte, sans perdre ce qui est déjà rempli. */
   const adjust = () => {
-    Object.assign(draft, { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists] });
+    Object.assign(draft, { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] });
     startDraftMove(draft);
   };
 
@@ -1479,9 +1509,11 @@ function openForm(draft, existing = null) {
     const listIds = [...lists].filter((id) => (state.lists ?? []).some((l) => l.id === id));
     if (existing) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
+      if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
       markDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
+      if (moments.size) np.moments = cleanMoments([...moments]);
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
       if (done) np.passages = addPassage([], { at: np.created }); // ajouté comme « Déjà visité » : son premier passage
       state.points.push(np);
@@ -1504,8 +1536,9 @@ function openForm(draft, existing = null) {
       el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
     el('label', { class: 'item-main check-row' }, coveredBox,
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
+    momentBox,
   ];
-  const filled = Boolean(v.note || v.done || (v.fav && !favOnly) || stars || covered || lists.size);
+  const filled = Boolean(v.note || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     el('div', { class: 'where-row' },
       el('p', { class: 'where' }, ico('map-pin'), whereText),
@@ -1578,6 +1611,7 @@ function openDetail(id, back = null) {
     p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
     // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
+    p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     el('p', { class: 'muted' }, ageLine(p)));
 
@@ -5169,7 +5203,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -5887,6 +5921,7 @@ const HELP = [
     '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, sinon le lieu ouvert le plus proche. La croix le cache.',
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher dans tes lieux.',
@@ -5983,7 +6018,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
-    '**Le formulaire** : catégorie, note, étoiles, listes et « Abrité de la pluie ».',
+    '**Le formulaire** : catégorie, note, étoiles, listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
@@ -5993,6 +6028,7 @@ const HELP = [
     '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal. Cocher « Déjà visité » note aussi le jour.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
+    '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '**En bas de la fiche** : Modifier, Partager, QR code, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
@@ -6080,6 +6116,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
     '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
@@ -6089,7 +6126,6 @@ const HELP = [
     '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
     '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
     '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
-    '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
   ]],
 ];
 
@@ -6122,6 +6158,8 @@ drawMarkets();
 if (state.showPratique) loadPratLayer();
 drawLayerNote();
 drawTtb();
+// « Dans la rue, à 5 min » (v158) : l'agenda du jour est chargé une fois par jour à l'ouverture (aucune position envoyée)
+setTimeout(() => { if (navigator.onLine) todayEvents().then(() => updateNow(true)).catch(() => {}); }, 4000);
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;

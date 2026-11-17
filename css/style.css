@@ -771,7 +771,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tool.on .tool-ico { animation: none; }
 
 /* ---- Jetons (catégories, filtres) ---- */
-.chip { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: var(--h); padding: 0 10px; font-size: var(--t14); border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
+.chip { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--h); min-width: var(--h); padding: 0 10px; font-size: var(--t14); border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
 .chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
 .chip .cat-ico { width: 24px; height: 24px; font-size: 13px; margin-left: -4px; border-radius: var(--r); }
 .icon-btn { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
