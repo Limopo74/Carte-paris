@@ -26,14 +26,14 @@ import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKi
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (124)';
+const VERSION = '17 novembre 2026 (125)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2240,37 +2240,30 @@ async function showVelib(at = null) {
 
 /* ---------- Mon Paris : les arrondissements explorés ---------- */
 
-let arrBusy = false;
-async function findArrondissements() {
-  if (arrBusy) return;
-  arrBusy = true;
-  let changed = false;
-  for (const p of state.points) {
-    if (p.arr) continue;
-    const a = arrFromText(p.address);
-    if (a) { p.arr = a; changed = true; }
-  }
-  // Les autres : demander l'adresse officielle (IGN), 20 au plus à la fois
-  const todo = state.points.filter((p) => !p.arr && p.lat > 48.81 && p.lat < 48.91 && p.lng > 2.22 && p.lng < 2.47).slice(0, 20);
-  for (const p of todo) {
-    try { const r = await reverseInfo(p.lat, p.lng); const a = arrFromCitycode(r?.citycode) ?? arrFromText(r?.label); if (a) { p.arr = a; changed = true; } } catch { break; }
-  }
-  arrBusy = false;
-  if (changed) { persist(); if (view === 'myparis') openMyParis(); }
-}
+// Contours des 20 arrondissements (data/arrondissements.json, refaits chaque mois par le robot) : l'arrondissement de
+// chaque lieu est trouvé sur le téléphone, d'après sa position, à chaque ouverture (un lieu déplacé change de case).
+let arrData = null;
+let arrUpdated = '';
+const loadArr = async () => (arrData ??= await fetch('data/arrondissements.json').then((r) => (r.ok ? r.json() : null))
+  .then((j) => { arrUpdated = typeof j?.updated === 'string' ? j.updated : ''; return j; }).catch(() => null));
+loadArr();
 
 let myParisBack = 'settings';
-function openMyParis(from = null) {
+async function openMyParis(from = null) {
   if (from) myParisBack = from;
+  await loadArr();
   const by = new Map();
-  for (const p of state.points) {
-    if (!p.arr) continue;
-    const e = by.get(p.arr) ?? { done: 0, all: 0 };
+  const mine = state.points.filter((p) => !p.owner); // les lieux d'un proche ne colorent pas mon Paris
+  let outside = 0;
+  for (const p of mine) {
+    const a = arrAt(p.lat, p.lng, arrData);
+    if (!a) { outside++; continue; }
+    const e = by.get(a) ?? { done: 0, all: 0 };
     e.all++; if (p.done) e.done++;
-    by.set(p.arr, e);
+    by.set(a, e);
   }
   const explored = [...by.values()].filter((e) => e.done).length;
-  const unknown = state.points.filter((p) => !p.arr).length;
+  const inParis = mine.length - outside;
   const ord = (n) => (n === 1 ? '1er' : `${n}e`);
   const tiles = Object.entries(ARR_GRID).map(([n, [c, r]]) => {
     const e = by.get(Number(n)) ?? { done: 0, all: 0 };
@@ -2287,13 +2280,14 @@ function openMyParis(from = null) {
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
-    el('p', { class: 'help' }, `Chaque case : lieux visités / lieux enregistrés. Plan schématique, à peu près à la place de chaque arrondissement.${unknown ? ` ${plural(unknown, 'lieu', 'lieux')} sans arrondissement connu (hors Paris ou en cours de recherche).` : ''}`),
+    el('p', { class: 'help' }, arrData
+      ? `Chaque case : lieux visités / lieux enregistrés. ${plural(inParis, 'lieu', 'lieux')} dans Paris${outside ? `, ${plural(outside, 'hors de Paris', 'hors de Paris')} (non comptés)` : ''}${state.points.length > mine.length ? `. Les lieux de tes proches ne sont pas comptés` : ''}. L'arrondissement vient de la position du lieu, calculée sur ton téléphone. Plan schématique.`
+      : 'Les contours des arrondissements n\'ont pas pu être lus : rouvre Mon Paris avec du réseau.'),
     ...myStats(),
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
-  findArrondissements();
 }
 
 /* ---------- Mon planning : les billets à venir (Mon billet), rangés par jour. Rien de nouveau n'est gardé. ---------- */
@@ -2394,8 +2388,8 @@ function myStats() {
   const days = lastDays(journal, statsDays);
   const t = totals(days);
   const from = days[0].date.getTime();
-  const ps = placesStats(state.points, from);
-  const ap = arrProgress(state.points, from);
+  const ps = placesStats(state.points.filter((p) => !p.owner), from); // mes lieux seulement
+  const ap = arrProgress(state.points.filter((p) => !p.owner).map((p) => ({ ...p, arr: arrAt(p.lat, p.lng, arrData) })), from); // même calcul que la carte de Mon Paris
   const dayName = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Période' },
     [7, 30].map((n) => el('button', { type: 'button', 'aria-pressed': String(statsDays === n), onclick: () => { statsDays = n; openMyParis(); } }, `${n} jours`)));
@@ -4816,6 +4810,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
     '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
     '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
     '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
@@ -4825,7 +4820,6 @@ const HELP = [
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
-    '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4929,7 +4923,7 @@ const HELP = [
     'Un rappel s\'affiche à l\'ouverture, au plus une fois par semaine, seulement quand une donnée est en retard.',
   ]],
   ['map', 'Mon Paris', [
-    'Les 20 arrondissements se colorent selon les lieux « Déjà visité » : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
+    'Les 20 arrondissements se colorent selon tes lieux « Déjà visité » (l\'arrondissement vient de la position du lieu, calculée sur ton téléphone ; les lieux de tes proches et ceux hors de Paris ne comptent pas) : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
     'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
     'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {calendar-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',

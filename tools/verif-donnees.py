@@ -13,6 +13,7 @@ FILES = {  # fichier : (clé de la liste, minimum absolu)
     'data/stations.json': ('stations', 280),
     'data/navigo.json': ('items', 50),
     'data/sanitaires-ratp.json': ('items', 20),
+    'data/arrondissements.json': ('arr', 20),
 }
 ok = True
 for path, (key, floor) in FILES.items():

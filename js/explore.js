@@ -214,6 +214,25 @@ export function arrFromCitycode(code) {
   return n >= 1 && n <= 20 ? n : null;
 }
 
+/** Arrondissement (1 à 20) d'une position, d'après les contours de data/arrondissements.json ({ arr: [{ n, rings }] }), ou null
+ * hors de Paris. Calculé sur le téléphone : rien n'est envoyé. */
+export function arrAt(lat, lng, data) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  for (const a of Array.isArray(data?.arr) ? data.arr : []) {
+    for (const ring of a.rings ?? []) if (inRing(lng, lat, ring)) return a.n;
+  }
+  return null;
+}
+/** Point dans un polygone (règle pair-impair), coordonnées [lng, lat]. */
+function inRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]; const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 /** Position de chaque arrondissement dans une grille schématique (colonne, rangée), proche de la carte réelle. */
 export const ARR_GRID = {
   17: [1, 0], 18: [2, 0], 19: [3, 0],

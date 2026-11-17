@@ -1,4 +1,5 @@
-# Robot de mise à jour des données figées : lignes et gares (IDFM), avantages Navigo (IDFM), toilettes RATP.
+# Robot de mise à jour des données figées : lignes et gares (IDFM), avantages Navigo (IDFM), toilettes RATP,
+# contours des arrondissements (Paris Data, pour Mon Paris).
 # Tourne seul le 1er de chaque mois, ou à la demande (« Run workflow »). Il télécharge les exports officiels,
 # relance les scripts de tools/, contrôle les données et les tests, et publie seulement si tout passe.
 # Rien ne concerne le téléphone ni la position : il ne lit que des données publiques.
@@ -31,14 +32,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
-          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json /tmp/avant/
+          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json /tmp/avant/
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
+          PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
           get() { curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -o "$1" "$2"; echo "$1 : $(wc -c < "$1") octets"; }
           get /tmp/src/traces.geojson "$IDFM/traces-du-reseau-ferre-idf/exports/geojson"
           get /tmp/src/gares.geojson "$IDFM/emplacement-des-gares-idf/exports/geojson"
           get /tmp/src/navigo.geojson "$IDFM/lieux-avantages-cultures-navigo/exports/geojson"
           get /tmp/src/sanitaires.geojson "$RATP/sanitaires-reseau-ratp/exports/geojson"
+          get /tmp/src/arrondissements.geojson "$PARIS/arrondissements/exports/geojson"
           for f in /tmp/src/*.geojson; do python3 -I -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf8')); print(sys.argv[1], len(d['features']), 'éléments')" "$f"; done
 
       - name: Refaire les données
@@ -48,6 +51,7 @@ jobs:
           python3 -I tools/maj-lignes.py /tmp/src/traces.geojson /tmp/src/gares.geojson "$TODAY"
           python3 -I tools/maj-navigo.py /tmp/src/navigo.geojson "$TODAY"
           python3 -I tools/maj-sanitaires.py /tmp/src/sanitaires.geojson "$TODAY"
+          python3 -I tools/maj-arrondissements.py /tmp/src/arrondissements.geojson "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
         run: |
@@ -59,8 +63,8 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json
+          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json
           if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
           git diff --cached --stat
-          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP (robot)"
+          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements (robot)"
           git push

@@ -195,3 +195,18 @@ test('invitation : le prénom de qui invite passe avec la date', () => {
   assert.equal(r.withName, 'Camille');
   assert.equal(r.ticketAt, at);
 });
+
+test('Mon Paris : arrondissement d\'une position, calculé sur le téléphone avec les contours gardés', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { arrAt } = await import('../js/explore.js');
+  const data = JSON.parse(readFileSync(new URL('../data/arrondissements.json', import.meta.url), 'utf8'));
+  assert.equal(data.arr.length, 20);
+  const cases = [[48.8584, 2.2945, 7], [48.8530, 2.3499, 4], [48.8867, 2.3431, 18], [48.8610, 2.3358, 1], [48.8720, 2.3316, 9],
+    [48.8656, 2.3212, 8], [48.8614, 2.3933, 20], [48.8331, 2.4128, 12], [48.8625, 2.2490, 16], [48.8462, 2.3445, 5], [48.8295, 2.3561, 13]];
+  for (const [lat, lng, n] of cases) assert.equal(arrAt(lat, lng, data), n, `${lat}, ${lng}`);
+  assert.equal(arrAt(48.9362, 2.3574, data), null, 'Saint-Denis : hors de Paris');
+  assert.equal(arrAt(48.8428, 2.4357, data), null, 'le château de Vincennes est à Vincennes');
+  assert.equal(arrAt(48.8566, 2.48, data), null);
+  assert.equal(arrAt(NaN, 2.3, data), null);
+  assert.equal(arrAt(48.86, 2.34, null), null);
+});
