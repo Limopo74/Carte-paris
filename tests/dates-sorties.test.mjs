@@ -69,3 +69,12 @@ test('la semaine : seulement ce qui a lieu dans les 8 jours, avec les dates offi
   assert.match(EVENT_FIELDS, /date_description/);
   assert.doesNotMatch(EVENT_FIELDS, /occurrences/, 'les créneaux restent hors de la semaine (trop lourds)');
 });
+
+test('v141 : une sortie posée sur le point par défaut de l\'agenda (position inconnue) est écartée', () => {
+  const ev = parseEvents([
+    { title: 'Esprit critique à la Cité des sciences', lat_lon: { lon: 2.351828, lat: 48.856578 }, address_name: 'Cité des sciences et de l\'industrie', address_zipcode: '75019' },
+    { title: 'Mentalisme', lat_lon: { lon: 2.38512997626566, lat: 48.8743659941826 }, address_name: 'Théâtre Clavel' },
+    { title: 'Presque au même point', lat_lon: { lon: 2.35184, lat: 48.85659 } },
+  ], now);
+  assert.deepEqual(ev.map((e) => e.title), ['Mentalisme']);
+});

@@ -98,13 +98,20 @@ function where(r) {
   return null;
 }
 
-/** [{ title, lat, lng, start, end, place, address, url, free, lead }] — ce qui est illisible est écarté. */
+/**
+ * Point par défaut de l'agenda quand l'organisateur n'a pas placé sa sortie (près de l'Hôtel de Ville), quelle que soit
+ * l'adresse : la Cité des sciences s'y trouvait « à 30 m » du centre de Paris. 77 sorties sur 830 le 17 nov. 2026.
+ */
+const DEFAULT_POINT = { lat: 48.856578, lng: 2.351828 };
+export const unknownPlace = (p) => Math.abs(p.lat - DEFAULT_POINT.lat) < 5e-5 && Math.abs(p.lng - DEFAULT_POINT.lng) < 5e-5;
+
+/** [{ title, lat, lng, start, end, place, address, url, free, lead }] — ce qui est illisible ou mal placé est écarté. */
 export function parseEvents(json, now = new Date()) {
   const out = [];
   for (const r of Array.isArray(json) ? json : []) {
     const p = where(r);
     const title = str(r.title);
-    if (!p || !title || !(p.lat > 48 && p.lat < 49.5)) continue;
+    if (!p || !title || !(p.lat > 48 && p.lat < 49.5) || unknownPlace(p)) continue; // sans position connue : pas de distance inventée
     const start = wallTime(r.date_start);
     const end = wallTime(r.date_end);
     const price = str(r.price_type).toLowerCase();
