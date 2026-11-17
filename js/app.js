@@ -18,7 +18,7 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent } from './planning.js';
@@ -36,7 +36,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (154)';
+const VERSION = '17 novembre 2026 (155)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -393,6 +393,8 @@ function renderMarkers() {
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
   }
+  // Une adresse TTB gardée dans mes lieux : seule ma goutte reste (v155). Au démarrage, le calque TTB n'existe pas encore.
+  try { if (state.showTtb) drawTtb(); } catch { /* calque TTB pas encore créé : il sera dessiné au démarrage */ }
 }
 
 /** Centre la carte sur une position, au milieu de la partie visible au-dessus de la feuille. */
@@ -1192,6 +1194,7 @@ function openForm(draft, existing = null) {
   const save = () => {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
+    if (!state.categories.some((c) => c.id === cat)) { err.textContent = 'Choisis une catégorie.'; catSeg.scrollIntoView({ block: 'center' }); return; }
     if (!existing && !dupOk) {
       const dup = findDuplicate(state.points, { name: n, lat: draft.lat, lng: draft.lng });
       if (dup) {
@@ -3935,7 +3938,9 @@ ttbFar();
 function drawTtb() {
   ttbLayer.clearLayers();
   if (!state.showTtb) return;
+  const mine = state.points.filter((p) => !p.owner);
   for (const x of ttbShown()) {
+    if (navigoFor(x, mine)) continue; // déjà dans mes lieux : sa goutte suffit (sa fiche a la ligne TTB)
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
       .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, TTB${x.rub ? `, ${x.rub}` : ''}`))
@@ -3981,7 +3986,8 @@ function openTtbList(back = null, limit = 30) {
 function ttbAdd(x) {
   const mine = navigoFor(x, state.points);
   if (mine) { openDetail(mine.id); toast('Déjà dans tes lieux'); return; }
-  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}` });
+  // Catégorie d'après la rubrique du guide quand une des miennes correspond ; sinon aucune : je la choisis (v155)
+  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}`, cat: ttbCategory(x.rub, state.categories) ?? '' });
 }
 
 function openTtbPlace(x, back = null) {
@@ -5725,7 +5731,10 @@ const HELP = [
     '**La liste** : Autour de moi → Liste TTB, ou {settings} → TTB → Voir la liste. La plus proche d\'abord, avec un tri par rubrique et par budget.',
     '**Chaque icône** dit la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave.',
     '**La fiche** : cuisine, budget, horaires selon le guide, station, site, Avis Google et + Ajouter.',
-    '**La fiche d\'un de tes lieux** dit s\'il est dans le guide.',
+    '{plus} **Ajouter** garde l\'adresse dans tes lieux, pour Favori, Déjà visité, étoiles, photos ou Prévoir. Sa goutte remplace alors le rond TTB.',
+    '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
+    '**Mauvaise catégorie** : touche la goutte → Modifier. **Pas voulu** : touche la goutte → Supprimer ce lieu. Le rond TTB revient.',
+    '**La fiche d\'un de tes lieux** dit s\'il est dans le guide. L\'icône du rond TTB vient du guide : elle ne se change pas.',
     '**La liste reste sur ce téléphone.** Elle n\'est pas dans ta sauvegarde. {trash-2} {settings} → TTB → Retirer la liste.',
   ]],
   ['save', 'Garder et partager', [
@@ -5785,6 +5794,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
     '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
     '{alarm-clock} Prévoir une sortie de l\'agenda : sur sa page, « Prévoir » la met dans Mon planning (à son heure quand elle est connue), sans l\'ajouter à ta carte. Elle s\'efface le lendemain.',
     '{alarm-clock} Prévoir une sortie, plus simple : « Prévoir une visite » est en haut de la fiche, sous Favori. Le jour et le moment se touchent (Demain, Samedi, Matin, Soir…) ; l\'heure précise n\'est plus obligatoire. Le lendemain, Mon planning demande « Tu y es allé ? ».',
@@ -5794,7 +5804,6 @@ const HELP = [
     '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
     '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
     '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
-    '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
   ]],
 ];
 

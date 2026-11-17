@@ -165,3 +165,20 @@ export function mhtmlDate(text) {
   const z = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
+
+/* Catégorie proposée quand on garde une adresse TTB dans ses lieux (v155) : d'après la rubrique du guide et le nom
+   de MES catégories. La première qui correspond, dans mon ordre ; aucune ne correspond : null (je choisis moi-même). */
+const RUB_WORDS = {
+  'la table': /resto|restau|table|bistro|brasser|cantine|manger|cuisine/,
+  'boui-boui': /resto|restau|bistro|cantine|manger|cuisine|boui/,
+  'street-food': /street|resto|restau|manger|snack|cantine|sandwich/,
+  'bec sucre': /sucr|patiss|boulang|gateau|dessert|chocolat|glac|gourmand/,
+  'le panier': /epicer|panier|marche|course|aliment|fromag|primeur/,
+  cave: /cave|vin|bar\b|bars\b|apero/,
+};
+const foldName = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+export function ttbCategory(rub, categories) {
+  const re = RUB_WORDS[foldName(rub)];
+  if (!re) return null;
+  return (Array.isArray(categories) ? categories : []).find((c) => re.test(foldName(c?.name)))?.id ?? null;
+}

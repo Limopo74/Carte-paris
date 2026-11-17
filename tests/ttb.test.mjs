@@ -77,3 +77,19 @@ test('ttb : filtres par rubrique et budget', () => {
   assert.ok(!ttbPass(x, new Set(), new Set([1, 2])));
   assert.equal(TTB_RUBS.length, 6);
 });
+
+test('catégorie proposée pour garder une adresse TTB : d\'après mes catégories, sinon aucune', async () => {
+  const { ttbCategory, TTB_RUBS } = await import('../js/ttb.js');
+  const base = [{ id: 'resto', name: 'Restos' }, { id: 'boutique', name: 'Boutiques' }, { id: 'culture', name: 'Culture' }];
+  assert.equal(ttbCategory('La Table', base), 'resto');
+  assert.equal(ttbCategory('Street-food', base), 'resto');
+  assert.equal(ttbCategory('Bec sucré', base), null, 'pas de catégorie sucrée : rien choisi d\'office');
+  assert.equal(ttbCategory('Cave', base), null);
+  const mine = [{ id: 'b', name: 'Boulangeries & pâtisseries' }, { id: 'v', name: 'Bars à vin' }, { id: 'e', name: 'Épiceries fines' }, { id: 'r', name: 'Restos-cafés-bars' }];
+  assert.equal(ttbCategory('Bec sucré', mine), 'b');
+  assert.equal(ttbCategory('Cave', mine), 'v', 'la première qui correspond, dans mon ordre');
+  assert.equal(ttbCategory('Le panier', mine), 'e');
+  assert.equal(ttbCategory('', mine), null);
+  assert.equal(ttbCategory('Inconnue', mine), null);
+  for (const r of TTB_RUBS) assert.ok(ttbCategory(r, [{ id: 'x', name: 'zzz' }]) === null);
+});
