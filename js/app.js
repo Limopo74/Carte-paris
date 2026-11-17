@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (129)';
+const VERSION = '17 novembre 2026 (130)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -797,7 +797,7 @@ function updateNow(force = false) {
   fill(card.querySelector('.now-text'),
     el('span', { class: 'now-kicker' }, [fits(p) ? slot.label : 'Maintenant', p.fav ? 'ton favori' : null].filter(Boolean).join(' · ')),
     el('span', { class: 'now-name' }, p.name),
-    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
+    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${hhText(st.until)}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
   card.querySelector('.now-open').onclick = () => openDetail(p.id);
 }
 
@@ -1429,14 +1429,14 @@ function closeViewer(fromHistory = false) {
 document.getElementById('viewer').addEventListener('click', () => closeViewer());
 window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); });
 
-/** « Ouvert · ferme à 22:30 », « Fermé · ouvre à 19:00 », ou null si horaires inconnus. */
+/** « Ouvert · ferme à 22h30 », « Fermé · ouvre à 9h », ou null si horaires inconnus (même écriture que les tampons). */
 function hoursLine(p) {
   const st = openState(hoursOf(p));
   if (!st) return null;
   const left = minutesLeft(hoursOf(p));
-  if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${left} min (${st.until.replace(':', 'h')})`;
-  if (st.open) return st.until ? `Ouvert · ferme à ${/^(24|00):00$/.test(st.until) ? 'minuit' : st.until.replace(':', 'h')}` : 'Ouvert toute la journée';
-  return st.opensAt ? `Fermé · ouvre à ${st.opensAt.replace(':', 'h')}` : 'Fermé pour aujourd\'hui';
+  if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${left} min (${hhText(st.until)})`;
+  if (st.open) return st.until ? `Ouvert · ferme à ${hhText(st.until)}` : 'Ouvert toute la journée';
+  return st.opensAt ? `Fermé · ouvre à ${hhText(st.opensAt)}` : 'Fermé pour aujourd\'hui';
 }
 /** Tampon d'état du jour, le même partout : Ouvert, Ferme dans 20 min, Ouvre à 14h, Fermé aujourd'hui (rien si horaires inconnus). */
 function stateTag(hours) {
@@ -4848,6 +4848,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
     '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et les 3 Kiosques Théâtre : places du jour à moitié prix, avec « Voir sur la carte ».',
     '{badge-percent} Sorties → Navigo : des filtres par discipline (Cinéma, Théâtre, Musée…), pour la liste comme pour « Voir sur la carte ». Partout, chaque titre a son icône et le bouton retour est en bas de la page.',
     '{search} Ajouter → Avec un nom : les lieux sont cherchés d\'abord dans la zone que montre la carte. Zoome sur un quartier, cherche « boulangerie », et tu as celles du quartier. Moins de 5 réponses : la recherche continue dans tout Paris, dans un second bloc. Les adresses restent cherchées dans tout Paris.',
@@ -4857,7 +4858,6 @@ const HELP = [
     '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
     '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
     '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
-    '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Appli → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. TTB : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TTB. Le nom du guide est abrégé en TTB, la source est citée dans Réglages → TTB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

@@ -87,7 +87,29 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
     const petits = await page.evaluate(() => [...document.querySelectorAll('#sheet button, #sheet a, #sheet summary, .map-btn, .chip, .big-btn')]
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width && r.height && (r.height < 44 || r.width < 44) && getComputedStyle(e).visibility !== 'hidden'; })
       .map((e) => (e.getAttribute('aria-label') || e.textContent).trim().slice(0, 25)));
-    if (axe.length || petits.length) defauts++;
+    // Débordements : la page ne doit jamais défiler de côté ; un élément ne doit pas sortir de la feuille ;
+    // les textes coupés (« … ») sont listés pour relecture, sans compter comme défaut.
+    const deborde = await page.evaluate(() => {
+      const out = [];
+      if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`page large de ${document.documentElement.scrollWidth} px`);
+      const sh = document.querySelector('#sheet:not([hidden])');
+      if (sh) {
+        const R = sh.getBoundingClientRect();
+        for (const e of sh.querySelectorAll('*')) {
+          const r = e.getBoundingClientRect();
+          if (r.width && (r.right > R.right + 1 || r.left < R.left - 1) && getComputedStyle(e).position !== 'absolute') out.push(`${e.tagName.toLowerCase()}.${[...e.classList].join('.')} sort de ${Math.round(Math.max(r.right - R.right, R.left - r.left))} px`);
+        }
+      }
+      return [...new Set(out)].slice(0, 6);
+    });
+    const coupes = await page.evaluate(() => [...document.querySelectorAll('#sheet:not([hidden]) *')]
+      .filter((e) => e.children.length === 0 && !e.closest('.sr-only') && e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 2 && getComputedStyle(e).overflow !== 'visible')
+      .map((e) => e.textContent.trim().slice(0, 30)).slice(0, 8));
+    const horsFeuille = await page.evaluate(() => [...document.querySelectorAll('button, a[href], summary')]
+      .filter((e) => !e.closest('#sheet') && !e.closest('.leaflet-control-attribution') && !e.closest('[hidden]'))
+      .filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width && r.height && cs.visibility !== 'hidden' && cs.display !== 'none' && r.bottom > 0 && r.top < innerHeight && (r.height < 44 || r.width < 44); })
+      .map((e) => (e.getAttribute('aria-label') || e.title || e.textContent).trim().slice(0, 25)));
+    if (axe.length || petits.length || deborde.length) defauts++;
     // capture : la feuille entière, défilée, si elle est ouverte ; sinon l'écran
     if (await page.locator('#sheet:not([hidden])').count()) {
       await page.setViewportSize({ width: vw, height: 2400 });
@@ -96,7 +118,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
       await page.waitForTimeout(250);
       await feuille(page).screenshot({ path: `${SORTIE}/${nom}-${vw}-${theme}.png` });
     } else await page.screenshot({ path: `${SORTIE}/${nom}-${vw}-${theme}.png` });
-    lignes.push(`${vw} ${theme} ${nom} : axe ${axe.length ? axe.join(' ; ') : 'OK'} · moins de 44 px : ${petits.length ? petits.join(', ') : 'aucun'}`);
+    lignes.push(`${vw} ${theme} ${nom} : axe ${axe.length ? axe.join(' ; ') : 'OK'} · moins de 44 px : ${petits.length ? petits.join(', ') : 'aucun'}${deborde.length ? ` · DÉBORDE : ${deborde.join(', ')}` : ''}${coupes.length ? ` · coupés : ${coupes.join(' | ')}` : ''}${horsFeuille.length ? ` · hors feuille < 44 px : ${[...new Set(horsFeuille)].join(', ')}` : ''}`);
   }
   if (erreurs.length) { lignes.push(`ERREURS JS ${vw} ${theme} : ${erreurs.join(' | ')}`); defauts++; }
   await ctx.close();
