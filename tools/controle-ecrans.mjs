@@ -28,6 +28,8 @@ const LIEUX = [
   lieu('d', 'Librairie Les Abbesses', 48.8845, 2.3380, { ticket: { at: now + 3 * 864e5 } }),
   lieu('e', 'Marché Saint-Quentin', 48.8774, 2.3567, { ticket: { at: new Date(now + 864e5).setHours(14, 0, 0, 0), part: 'aprem' } }),
 ];
+// Une sortie de l'agenda prévue (v153) : dans Mon planning, pas sur la carte
+const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng: 2.3360, place: 'Square Montholon', url: 'https://quefaire.paris.fr/', ticket: { at: new Date(now + 2 * 864e5).setHours(20, 30, 0, 0) } }];
 const iso = (t) => new Date(t).toISOString();
 // Créneau au format de l'agenda (v140) : heure de Paris écrite telle quelle, avec un faux fuseau
 const wall = (t) => { const d = new Date(t); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00+02:00`; };
@@ -71,6 +73,8 @@ const ECRANS = {
   donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
+  sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
+  sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
   prevoir: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   prevoirautre: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await feuille(p).locator('.seg button', { hasText: 'Autre jour' }).click(); await feuille(p).locator('.seg button', { hasText: 'Heure précise' }).click(); await p.waitForTimeout(300); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
@@ -112,7 +116,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
-  await page.evaluate(([pts, textSize]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, process.env.TEXTE || 'normal']);
+  await page.evaluate(([pts, plans, textSize]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal']);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

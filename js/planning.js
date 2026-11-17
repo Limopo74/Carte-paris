@@ -84,3 +84,32 @@ export function cleanPlan(t) {
     ...(isPart(t.part) ? { part: t.part } : {}),
   };
 }
+
+/**
+ * Sorties de l'agenda prévues (v153) : gardées à part de mes lieux, sans goutte sur la carte.
+ * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées dès le lendemain du jour prévu.
+ */
+export function cleanPlans(list, now = Date.now()) {
+  const d = new Date(now);
+  const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const seen = new Set();
+  return (Array.isArray(list) ? list : []).map((x) => {
+    const ticket = cleanPlan(x?.ticket);
+    const lat = Number(x?.lat);
+    const lng = Number(x?.lng);
+    const name = typeof x?.name === 'string' ? x.name.trim().slice(0, 120) : '';
+    if (!ticket || ticket.at < t0 || !name || !(lat > 48 && lat < 49.5) || !(lng > 1.4 && lng < 3.6)) return null;
+    if (typeof x.id !== 'string' || !/^[\w-]{1,64}$/.test(x.id) || seen.has(x.id)) return null;
+    seen.add(x.id);
+    return {
+      id: x.id, name, lat, lng, plan: true, ticket,
+      ...(typeof x.address === 'string' && x.address.trim() ? { address: x.address.trim().slice(0, 200) } : {}),
+      ...(typeof x.place === 'string' && x.place.trim() ? { place: x.place.trim().slice(0, 120) } : {}),
+      ...(typeof x.url === 'string' && /^https:\/\/[^\s"<>]+$/.test(x.url) ? { url: x.url.slice(0, 500) } : {}),
+    };
+  }).filter(Boolean).slice(0, 200);
+}
+
+/** La sortie de l'agenda déjà prévue pour cet événement (même titre, même endroit), ou null. */
+export const planOfEvent = (plans, e) => (plans ?? []).find((x) => x.name === String(e?.title ?? '').trim().slice(0, 120)
+  && Math.abs(x.lat - e.lat) < 1e-5 && Math.abs(x.lng - e.lng) < 1e-5) ?? null;

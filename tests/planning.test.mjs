@@ -71,3 +71,41 @@ test('invitation : le moment de la journée voyage avec le lien', () => {
   const r2 = readPlaceLink(placeLink('https://x/', { name: 'Orsay', lat: 48.86, lng: 2.33, ticket: { at } }, '', '', { invite: true }).split('#')[1]);
   assert.equal(r2.ticketPart, '');
 });
+
+test('sorties de l\'agenda prévues : gardées jusqu\'au jour prévu, puis effacées', async () => {
+  const { cleanPlans, planOfEvent } = await import('../js/planning.js');
+  const t = new Date(2026, 10, 17, 10).getTime();
+  const ok = { id: 'a1', name: ' Concert ', lat: 48.88, lng: 2.33, ticket: { at: new Date(2026, 10, 17, 20).getTime() }, place: 'Square', url: 'https://quefaire.paris.fr/x' };
+  const list = cleanPlans([
+    ok,
+    { ...ok, id: 'a1' }, // doublon
+    { ...ok, id: 'hier', ticket: { at: new Date(2026, 10, 16, 20).getTime() } },
+    { ...ok, id: 'loin', lat: 45 },
+    { ...ok, id: 'url', url: 'javascript:alert(1)' },
+    { ...ok, id: 'sans', ticket: null },
+  ], t);
+  assert.deepEqual(list.map((x) => x.id), ['a1', 'url']);
+  assert.equal(list[0].name, 'Concert');
+  assert.equal(list[0].plan, true);
+  assert.equal(list[1].url, undefined, 'lien non https écarté');
+  assert.equal(planOfEvent(list, { title: 'Concert', lat: 48.88, lng: 2.33 })?.id, 'a1');
+  assert.equal(planOfEvent(list, { title: 'Concert', lat: 48.89, lng: 2.33 }), null);
+});
+
+test('sorties de l\'agenda : rangées, sauvegardées et restaurées à part de mes lieux', async () => {
+  const { loadState, saveState, exportJSON, mergeImport } = await import('../js/store.js');
+  const mem = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) }; };
+  const at = Date.now() + 864e5;
+  const st = mem();
+  const s0 = loadState(st);
+  assert.deepEqual(s0.plans, []);
+  s0.plans = [{ id: 'p1', name: 'Concert', lat: 48.88, lng: 2.33, ticket: { at, part: 'soir' } }];
+  saveState(st, s0);
+  const s1 = loadState(st);
+  assert.equal(s1.plans.length, 1);
+  assert.equal(s1.points.length, 0, 'pas de lieu sur la carte');
+  const file = exportJSON(s1);
+  const empty = loadState(mem());
+  assert.equal(mergeImport(empty, file).state.plans.length, 1, 'ma sauvegarde rend mes sorties prévues');
+  assert.equal(mergeImport(empty, file, 'Léa').state.plans.length, 0, 'celles d\'un proche restent les siennes');
+});
