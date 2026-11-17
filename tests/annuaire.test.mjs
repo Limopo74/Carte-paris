@@ -81,13 +81,14 @@ test('recherche par nom : toutes les réponses gardées, doublons point/bâtimen
 test('recherche de lieux dans la zone que montre la carte', () => {
   // Carte zoomée sur le Marais : la zone est envoyée telle quelle, et la recherche s'y limite
   const box = viewBox({ west: 2.35, north: 48.865, east: 2.37, south: 48.85 });
-  assert.equal(box, '2.35000,48.86500,2.37000,48.85000');
+  assert.equal(box, '2.35,48.87,2.37,48.85'); // arrondie vers l'extérieur à 0,01° (environ 1 km)
+  assert.equal(viewBox({ west: 2.3517, north: 48.8650, east: 2.3527, south: 48.8637 }), '2.35,48.87,2.36,48.86');
   const u = new URL(placesUrl('boulangerie', { zone: true, box }));
   assert.equal(u.searchParams.get('viewbox'), box);
   assert.equal(u.searchParams.get('bounded'), '1');
   assert.equal(u.searchParams.get('limit'), '40');
   // Carte qui déborde de Paris et de la petite couronne : ramenée à cette zone
-  assert.equal(viewBox({ west: 2.0, north: 48.9, east: 2.4, south: 48.8 }), '2.14000,48.90000,2.40000,48.80000');
+  assert.equal(viewBox({ west: 2.0, north: 48.9, east: 2.4, south: 48.8 }), '2.14,48.90,2.40,48.80');
   // Carte qui montre déjà toute la zone, ou qui regarde ailleurs : pas de seconde recherche
   assert.equal(viewBox({ west: 1.9, north: 49.1, east: 2.8, south: 48.6 }), null);
   assert.equal(viewBox({ west: 5.3, north: 43.4, east: 5.5, south: 43.2 }), null);

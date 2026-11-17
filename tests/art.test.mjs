@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear,
+  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES,
   highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
 } from '../js/art.js';
 
@@ -60,6 +60,24 @@ test('gratuit aujourd\'hui : toujours, 1er dimanche, 1er vendredi soir hors ét�
   const near = freeNear({ lat: 48.8600, lng: 2.3266 }, new Date(2026, 11, 6));
   assert.equal(near[0].name, 'Musée d\'Orsay', 'la gratuité du jour passe devant');
   assert.ok(near.length <= 3);
+});
+
+test('gratuit : monuments de novembre à mars, Bourse de Commerce le 1er samedi', () => {
+  const dec = freeToday(new Date(2026, 11, 6)).map((p) => p.name);
+  assert.ok(dec.includes('Panthéon'));
+  assert.ok(!freeToday(new Date(2027, 3, 4)).some((p) => p.name === 'Panthéon'), 'pas en avril');
+  assert.ok(freeToday(new Date(2026, 11, 5)).some((p) => p.name === 'Bourse de Commerce'), '1er samedi');
+  assert.ok(!freeToday(new Date(2026, 11, 12)).some((p) => p.name === 'Bourse de Commerce'), '2e samedi');
+});
+
+test('prochaines gratuités : dates à venir, sans aujourd\'hui, dans l\'ordre', () => {
+  const soon = freeSoon(now);
+  assert.deepEqual(soon.map((x) => x.date.getDate()), [4, 5, 6]); // vendredi 4, samedi 5, dimanche 6 décembre
+  assert.match(soon[0].text, /Louvre/);
+  assert.match(soon[2].text, /monuments/);
+  assert.ok(!freeSoon(new Date(2026, 11, 6)).some((x) => x.date.getDate() === 6 && x.date.getMonth() === 11));
+  assert.equal(KIOSQUES.length, 3);
+  assert.ok(KIOSQUES.every((k) => Number.isFinite(k.lat) && k.hours));
 });
 
 test('temps forts : en cours ou dans la semaine', () => {

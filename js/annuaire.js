@@ -18,15 +18,17 @@ export function placesUrl(q, { zone = false, box = null } = {}) {
   return u.toString();
 }
 
-/** La zone que montre la carte, en « ouest,nord,est,sud » pour le service, ramenée à Paris et la petite couronne.
+/** La zone que montre la carte, en « ouest,nord,est,sud » pour le service, ramenée à Paris et la petite couronne, arrondie à 1 km.
  * null si la carte montre déjà toute cette zone (inutile de chercher deux fois la même chose). */
 export function viewBox({ west, north, east, south }) {
   const [W, N, E, S] = ZONE_BOX.split(',').map(Number);
   const w = Math.max(west, W), e = Math.min(east, E), n = Math.min(north, N), s = Math.max(south, S);
   if (!(w < e && s < n)) return null; // la carte regarde ailleurs
   if (w <= W && e >= E && s <= S && n >= N) return null;
-  const f = (x) => x.toFixed(5);
-  return `${f(w)},${f(n)},${f(e)},${f(s)}`;
+  // Arrondie vers l'extérieur au centième de degré (environ 1 km) : le service ne voit qu'une zone approximative, jamais le point regardé
+  const lo = (x) => (Math.floor(x * 100) / 100).toFixed(2);
+  const hi = (x) => (Math.ceil(x * 100) / 100).toFixed(2);
+  return `${lo(w)},${hi(n)},${hi(e)},${lo(s)}`;
 }
 
 /** « 19 Rue Scribe 75009 Paris » à partir du détail d'adresse renvoyé. */

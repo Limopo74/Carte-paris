@@ -1,11 +1,17 @@
 // Avantages culture Navigo : lieux partenaires (fichier fixe data/navigo.json, refait par tools/maj-navigo.py).
 // Tout est trié sur le téléphone : la position n'est envoyée à personne.
 
-export const NAVIGO_SOURCE = 'https://prim.iledefrance-mobilites.fr/fr/jeux-de-donnees/lieux-avantages-cultures-navigo';
+export const NAVIGO_SOURCE = 'https://data.iledefrance-mobilites.fr/explore/dataset/lieux-avantages-cultures-navigo/export/'; // même jeu que sur PRIM, sans la vérification Cloudflare
 
 /** Genre des cartes de Sorties pour une discipline du fichier. */
 const GENRES = { 'Cinéma': 'cine', 'Musique': 'musique', 'Théâtre': 'scene', 'Danse': 'scene', 'Cirque': 'scene', 'Musée': 'musee', "Centre d'art": 'expo', 'Patrimoine': 'balade', 'Jardin': 'balade', 'Royauté': 'balade', 'Expérience': 'atelier' };
 export const navigoGenre = (k) => GENRES[k] ?? 'scene';
+
+/** Filtres de la liste : les grandes disciplines, les toutes petites (Danse, Cirque, Expérience…) réunies dans « Autres ». */
+export const NAVIGO_GROUPS = ['Cinéma', 'Théâtre', 'Musée', 'Musique', "Centre d'art", 'Patrimoine', 'Autres'];
+export const navigoGroup = (k) => (NAVIGO_GROUPS.includes(k) && k !== 'Autres' ? k : 'Autres');
+/** Garde les lieux des disciplines choisies (aucune choisie : tout). */
+export const navigoPass = (x, groups) => !groups?.size || groups.has(navigoGroup(x.kind));
 
 /** Lit data/navigo.json ; ignore toute ligne incomplète. Le texte reste du texte brut (jamais du HTML). */
 export function parseNavigo(json) {

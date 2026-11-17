@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseNavigo, navigoNear, navigoFor, nameWords, navigoGenre, NAVIGO_SOURCE } from '../js/navigo.js';
+import { parseNavigo, navigoNear, navigoFor, nameWords, navigoGenre, navigoGroup, navigoPass, NAVIGO_SOURCE } from '../js/navigo.js';
 
 const json = JSON.parse(readFileSync(new URL('../data/navigo.json', import.meta.url), 'utf8'));
 const items = parseNavigo(json);
@@ -13,7 +13,7 @@ test('navigo : le fichier est daté, dans la zone de l\'appli, sans offre « en 
     assert.ok(x.lat > 48.72 && x.lat < 48.96 && x.lng > 2.2 && x.lng < 2.5, x.name);
     assert.ok(!/laboration/i.test(x.offer), x.name);
   }
-  assert.match(NAVIGO_SOURCE, /^https:\/\/prim\.iledefrance-mobilites\.fr\//);
+  assert.match(NAVIGO_SOURCE, /^https:\/\/data\.iledefrance-mobilites\.fr\/explore\/dataset\/lieux-avantages-cultures-navigo\//);
 });
 
 test('navigo : lecture prudente (lignes incomplètes ignorées, liens non web retirés)', () => {
@@ -40,4 +40,13 @@ test('navigo : retrouve un de mes lieux par le nom et la position', () => {
   assert.equal(navigoFor({ name: 'Mon ciné', lat: p.lat + 0.0001, lng: p.lng }, items)?.name, p.name); // ≈ 11 m
   assert.deepEqual(nameWords('Théâtre de l\'Atelier'), ['atelier']);
   assert.equal(navigoGenre('Cinéma'), 'cine');
+});
+
+test('filtres Navigo : petites disciplines dans Autres, aucun filtre = tout', () => {
+  assert.equal(navigoGroup('Cinéma'), 'Cinéma');
+  assert.equal(navigoGroup('Danse'), 'Autres');
+  assert.equal(navigoGroup(''), 'Autres');
+  assert.ok(navigoPass({ kind: 'Cirque' }, new Set()));
+  assert.ok(navigoPass({ kind: 'Cirque' }, new Set(['Autres'])));
+  assert.ok(!navigoPass({ kind: 'Musée' }, new Set(['Cinéma'])));
 });

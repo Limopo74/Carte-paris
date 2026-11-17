@@ -103,7 +103,9 @@ export const FREE_CHECKED = '16 novembre 2026';
 export const FREE_CHECKED_ON = '2026-11-16'; // même date, lisible par l'appli (rappel au bout d'un an)
 export const FREE_SOURCE = 'https://parisjetaime.com/visiter-a-paris/infos/guides/les-musees-et-monuments-gratuits-a-paris';
 // always : collections permanentes des musées de la Ville de Paris ; first-sunday : 1er dimanche du mois ;
-// first-friday-evening : 1er vendredi du mois après 18 h, sauf juillet et août (Louvre).
+// first-friday-evening : 1er vendredi du mois après 18 h, sauf juillet et août (Louvre) ;
+// first-sunday-winter : 1er dimanche du mois de novembre à mars (monuments nationaux) ;
+// first-saturday-evening : 1er samedi du mois de 17 h à 21 h, sur réservation (Bourse de Commerce).
 export const FREE_PLACES = [
   { name: 'Musée d\'Art moderne de Paris', lat: 48.8645, lng: 2.2977, rule: 'always' },
   { name: 'Petit Palais', lat: 48.8661, lng: 2.3144, rule: 'always' },
@@ -122,6 +124,12 @@ export const FREE_PLACES = [
   { name: 'Musée de Cluny', lat: 48.8505, lng: 2.3439, rule: 'first-sunday' },
   { name: 'Musée des Arts et Métiers', lat: 48.8666, lng: 2.3555, rule: 'first-sunday' },
   { name: 'Musée du Louvre', lat: 48.8606, lng: 2.3376, rule: 'first-friday-evening' },
+  { name: 'Arc de Triomphe', lat: 48.8738, lng: 2.2950, rule: 'first-sunday-winter' },
+  { name: 'Panthéon', lat: 48.8462, lng: 2.3464, rule: 'first-sunday-winter' },
+  { name: 'Sainte-Chapelle', lat: 48.8554, lng: 2.3450, rule: 'first-sunday-winter' },
+  { name: 'Conciergerie', lat: 48.8564, lng: 2.3457, rule: 'first-sunday-winter' },
+  { name: 'Hôtel de la Marine', lat: 48.8673, lng: 2.3229, rule: 'first-sunday-winter' },
+  { name: 'Bourse de Commerce', lat: 48.8628, lng: 2.3428, rule: 'first-saturday-evening' },
 ];
 
 const firstOfMonth = (date, dow) => date.getDay() === dow && date.getDate() <= 7;
@@ -133,9 +141,37 @@ export function freeToday(date = new Date()) {
     if (p.rule === 'always') out.push({ ...p, when: 'collections permanentes, tous les jours' });
     else if (p.rule === 'first-sunday' && firstOfMonth(date, 0)) out.push({ ...p, when: `1er dimanche du mois${p.note ? ` · ${p.note}` : ''}` });
     else if (p.rule === 'first-friday-evening' && firstOfMonth(date, 5) && ![6, 7].includes(date.getMonth())) out.push({ ...p, when: '1er vendredi du mois, dès 18 h' });
+    else if (p.rule === 'first-sunday-winter' && firstOfMonth(date, 0) && winter(date)) out.push({ ...p, when: '1er dimanche du mois, de novembre à mars' });
+    else if (p.rule === 'first-saturday-evening' && firstOfMonth(date, 6)) out.push({ ...p, when: '1er samedi du mois, 17 h à 21 h, sur réservation' });
   }
   return out;
 }
+
+const winter = (date) => [10, 11, 0, 1, 2].includes(date.getMonth());
+
+/** Les prochains jours de gratuité (hors aujourd'hui), dans les `days` jours : [{ date, text }], du plus proche au plus loin. */
+export function freeSoon(date = new Date(), days = 35) {
+  const out = [];
+  const today = dayStart(date);
+  for (let i = 1; i <= days; i += 1) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    const names = freeToday(d).filter((p) => p.rule !== 'always').map((p) => p.name);
+    if (!names.length) continue;
+    const text = firstOfMonth(d, 0) ? `musées nationaux${winter(d) ? ' et monuments (Arc de Triomphe, Panthéon, Sainte-Chapelle…)' : ''}`
+      : firstOfMonth(d, 5) ? 'Louvre dès 18 h' : 'Bourse de Commerce de 17 h à 21 h, sur réservation';
+    out.push({ date: d, text, line: `${shortDate(d).replace(/^./, (c) => c.toUpperCase())} : ${text}` });
+  }
+  return out;
+}
+
+/* ---------- 5 bis. Théâtre à moitié prix : les Kiosques (places du jour même) ---------- */
+
+export const KIOSQUE_SOURCE = 'http://www.kiosqueculture.com';
+export const KIOSQUES = [
+  { name: 'Kiosque Théâtre Madeleine', address: 'En face du 15, place de la Madeleine, 8e', lat: 48.8704, lng: 2.3245, hours: 'Mardi au samedi 12 h 30 – 14 h 30 et 15 h – 19 h 30, dimanche 12 h 30 – 15 h 45' },
+  { name: 'Kiosque Théâtre Ternes', address: 'Place des Ternes, 17e', lat: 48.8783, lng: 2.2986, hours: 'Mardi au samedi, horaires selon la saison' },
+  { name: 'Kiosque Théâtre Montparnasse', address: 'Parvis de la gare, place Raoul-Dautry, 15e', lat: 48.8425, lng: 2.3212, hours: 'Mardi au samedi, ouverture à vérifier' },
+];
 
 /** Les gratuités du jour les plus proches : celles du jour même (pas « tous les jours ») passent devant. */
 export function freeNear(here, date = new Date(), maxM = 3000, k = 3) {
