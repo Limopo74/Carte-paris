@@ -2,7 +2,7 @@
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace,
+import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (143)';
+const VERSION = '17 novembre 2026 (144)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -53,6 +53,9 @@ const MY_APP_KEY = 'carte-paris.mon-appli';
 if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ } }
 let state = loadState(storage);
 setWalkSpeed(paceKmh(state.pace)); // Mon pas : toutes les durées à pied de l'appli
+/** Taille du texte (v144) : le CSS multiplie l'échelle selon :root[data-text]. */
+function applyTextSize() { document.documentElement.dataset.text = cleanTextSize(state.textSize); }
+applyTextSize();
 /** Horaires de la Ville pour mes lieux qui sont des parcs sans horaires (id → horaires), recalculés quand la liste des parcs arrive. */
 const parkHoursById = new Map();
 /** Les horaires d'un lieu : les miens (ou ceux d'OpenStreetMap), sinon ceux de la Ville pour un parc. */
@@ -4221,6 +4224,26 @@ function openSettings(section = null) {
     return;
   }
 
+  if (section === 'texte') {
+    const cur = cleanTextSize(state.textSize);
+    const choose = (t) => {
+      state.textSize = t; persist(); applyTextSize(); refresh(); openSettings('texte'); toast(`Taille du texte : ${TEXT_NAME[t]}`);
+      requestAnimationFrame(() => document.querySelector(`[data-text-size="${t}"]`)?.focus());
+    };
+    openSheet([ico('a-large-small'), ' Taille du texte'], el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'Tout le texte de l\'appli grandit : listes, fiches, boutons, aide. Les noms sur le fond de carte suivent le zoom de la carte.'),
+      el('div', { class: 'seg', role: 'group', 'aria-label': 'Taille du texte' },
+        ...TEXT_SIZES.map((t) => el('button', { type: 'button', 'aria-pressed': String(cur === t), 'data-text-size': t, onclick: () => { if (cur !== t) choose(t); } }, TEXT_NAME[t]))),
+      el('p', { class: 'legend' }, 'Aperçu'),
+      el('div', { class: 'text-preview' },
+        el('p', { class: 'menu-title' }, 'Musée Carnavalet'),
+        el('p', { class: 'menu-sub' }, 'Musée · 3e · ouvert jusqu\'à 18h · 12 min à pied')),
+      backBtn,
+    ), { tall: true, name: 'settings:texte', again: () => openSettings('texte') });
+    requestAnimationFrame(() => document.querySelector(`[data-text-size="${cur}"]`)?.focus());
+    return;
+  }
+
   if (section === 'pas') {
     const pace = cleanPace(state.pace);
     const apply = (next, msg) => {
@@ -4499,6 +4522,7 @@ function openSettings(section = null) {
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     voiceSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
+    row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
     row('list-filter', 'Barre du haut', (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous les boutons affichés', () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
@@ -5034,6 +5058,8 @@ const TOOL_INFO = {
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
+/** Taille du texte (v144) : noms des trois tailles. */
+const TEXT_NAME = { normal: 'Normal', grand: 'Grand', tresgrand: 'Très grand' };
 /** Mon pas (v142) : noms des trois modes et vitesse écrite à la française (« 3,5 »). */
 const PACE_NAME = { rapide: 'Rapide', normal: 'Normal', tranquille: 'Tranquille' };
 const kmhText = (k) => String(k).replace('.', ',');
@@ -5112,7 +5138,7 @@ document.getElementById('btnParis').addEventListener('click', () => {
 
 /* ---------- Mes réglages par défaut ---------- */
 
-function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); applyTheme(); applyMapStyle(); applyToolOrder(); refresh(); }
+function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); refresh(); }
 function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
@@ -5137,6 +5163,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
     '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
     '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
     '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
@@ -5146,7 +5173,6 @@ const HELP = [
     '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
     '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
     '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
-    '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

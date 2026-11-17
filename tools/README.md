@@ -33,6 +33,7 @@ Options (variables d'environnement) :
 - `THEMES=dark` : seulement le mode sombre ;
 - `URL=http://localhost:8765/` : adresse de l'appli ;
 - `SORTIE=captures` : dossier des captures.
+- `TEXTE=grand` ou `TEXTE=tresgrand` : contrôle avec la taille du texte choisie (v144). Le contrôle signale aussi un bouton qui sort de l'écran ou dont le texte dépasse.
 - `STYLES=dossier` : relève en plus les styles calculés de chaque élément (un fichier .json par écran). Pour un nettoyage du CSS : relevé avant, relevé après, puis comparer les fichiers ; il ne doit y avoir aucune différence. Les états absents des écrans (bouton enfoncé, survol, pluie, marchés) se vérifient à part dans une petite page.
 
 Rien ne part sur Internet pendant le contrôle : les fonds de carte et les services en ligne sont coupés, et l'agenda de Sorties est simulé avec cinq sorties fictives. Les vrais services (agenda, galeries, météo, Vélib') ne sont donc **pas** vérifiés ici.

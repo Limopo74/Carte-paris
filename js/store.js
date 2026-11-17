@@ -138,7 +138,7 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, showTtb: false, hiddenChips: [], hiddenFilters: [] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), textSize: 'normal', lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, showTtb: false, hiddenChips: [], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -158,7 +158,7 @@ export function loadState(storage) {
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
     const st = { points, rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, hiddenChips: cleanChips(obj.hiddenChips), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
-      toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, pace: cleanPace(obj.pace),
+      toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
     // v124 : Paris prend la place de Fontaine et WC ; Fontaine, Vélib' et Rentrer passent dans « Plus » (une seule fois)
@@ -181,7 +181,7 @@ export function cleanSettings(o = {}) {
     rings: normalizeRings(o.rings ?? []), minuteRings: normalizeMinuteRings(o.minuteRings ?? []), ringUnit: o.ringUnit === 'min' ? 'min' : 'm',
     voice: o.voice !== false, fav: cleanFav(o.fav), chipIcons: o.chipIcons === true,
     mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(o.moreTools ?? DEFAULT_MORE, cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
-    toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, pace: cleanPace(o.pace),
+    toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, pace: cleanPace(o.pace), textSize: cleanTextSize(o.textSize),
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
 }
@@ -209,7 +209,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -357,6 +357,9 @@ export const DEFAULT_MORE = ['pratique', 'velib', 'home'];
 export function cleanMore(list, hidden = []) {
   return Array.isArray(list) ? MAP_TOOLS.filter((t) => list.includes(t) && !hidden.includes(t)) : [];
 }
+/** Taille du texte (v144) : 'normal', 'grand' (×1,15) ou 'tresgrand' (×1,3) ; CSS :root[data-text]. */
+export const TEXT_SIZES = ['normal', 'grand', 'tresgrand'];
+export const cleanTextSize = (v) => (TEXT_SIZES.includes(v) ? v : 'normal');
 /** Mon pas (v142) : trois modes, chacun avec sa vitesse réglable ; « Normal » = 5 km/h, la vitesse d'avant. */
 export const PACES = ['rapide', 'normal', 'tranquille'];
 export const DEFAULT_PACE_KMH = { rapide: 6, normal: 5, tranquille: 3.5 };

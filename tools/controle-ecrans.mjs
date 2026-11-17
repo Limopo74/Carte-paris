@@ -68,6 +68,7 @@ const ECRANS = {
   restaurer: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Restaurer ou importer' }).click(); await p.waitForTimeout(300); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
   boutons: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Boutons de la carte' }).click(); await p.waitForTimeout(300); },
+  texte: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Taille du texte' }).click(); await p.waitForTimeout(300); },
   pas: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon pas' }).click(); await p.waitForTimeout(300); },
   nombouton: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.tool-rename').nth(1).click(); await p.waitForTimeout(300); },
   nomscarte: async (p) => { // v139 : « Noms à côté des boutons » allumé, avec un nom choisi
@@ -88,7 +89,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/tile|cartocdn|openstreetmap|open-meteo|wikidata|overpass|nominatim|geopf|wikipedia|velib|smoove/, (r) => r.abort());
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
-  await page.evaluate((pts) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3, lastExport: Date.now() })), LIEUX);
+  // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
+  await page.evaluate(([pts, textSize]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, process.env.TEXTE || 'normal']);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);
@@ -114,6 +116,14 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
           const inScroll = (x) => { for (let q = x.parentElement; q && q !== sh; q = q.parentElement) if (/auto|scroll/.test(getComputedStyle(q).overflowX)) return true; return false; }; // une rangée qui défile de côté (puces) n'est pas un débordement
           if (r.width && (r.right > R.right + 1 || r.left < R.left - 1) && getComputedStyle(e).position !== 'absolute' && !inScroll(e)) out.push(`${e.tagName.toLowerCase()}.${[...e.classList].join('.')} sort de ${Math.round(Math.max(r.right - R.right, R.left - r.left))} px`);
         }
+      }
+      // v144 : hors de la feuille aussi (barre du bas, colonne) — un bouton qui sort de l'écran, ou dont le texte dépasse
+      const scrolls = (x) => { for (let q = x.parentElement; q; q = q.parentElement) if (/auto|scroll/.test(getComputedStyle(q).overflowX)) return true; return false; };
+      for (const b of document.querySelectorAll('button, a.go, a.btn')) {
+        if (b.closest('[hidden]') || b.closest('.leaflet-container') || !b.getClientRects().length || b.classList.contains('map-btn')) continue; // la pastille d'un bouton de la colonne dépasse exprès
+        const r = b.getBoundingClientRect();
+        if (!scrolls(b) && (r.right > innerWidth + 1 || r.left < -1)) out.push(`${b.tagName.toLowerCase()}#${b.id || [...b.classList].join('.')} sort de l'écran`);
+        if (b.scrollWidth > b.clientWidth + 2 && b.clientWidth > 20) out.push(`texte trop large dans ${b.tagName.toLowerCase()}${b.id ? `#${b.id}` : `.${[...b.classList].join('.')}`} « ${b.textContent.trim().slice(0, 20)} »`);
       }
       return [...new Set(out)].slice(0, 6);
     });

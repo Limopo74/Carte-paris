@@ -38,11 +38,21 @@ test('charte : un seul rayon (4 px), rond pour les pastilles', () => {
 });
 
 test('charte : tailles de texte dans l\'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26', () => {
-  const SCALE = new Set(['11.5px', '13px', '14px', '16px', '18px', '22px', '26px', 'inherit', '1em']);
+  // v144 : les jetons --t115… valent l'échelle multipliée par --ts (Taille du texte)
+  const SCALE = new Set(['11.5px', '13px', '14px', '16px', '18px', '22px', '26px', 'inherit', '1em', ...['115', '13', '14', '16', '18', '22', '26'].map((n) => `var(--t${n})`)]);
   const ICON_OR_MAP = /(pin|ico\b|-ico|chev|close(?!d)|plus\b|icon|star-pick|thumb|swatch|metro-btn|go-compass|tool-ico|line-|st-|ring-label|stats-tick|attribution|compass-(name|dist|arrow)|plan-ico|::after|arr\b|step-|metro-mini|metro-pin|pr-|paris-btn|cat-ico|stars-ro|tool-prev)/;
   const bad = [];
   for (const r of rules) for (const v of decls(r, 'font-size')) if (!ICON_OR_MAP.test(r.sel) && !SCALE.has(v)) bad.push(`${r.sel} → ${v}`);
   assert.deepEqual(bad, [], `Taille de texte hors échelle (CHARTE.md §5) :\n${bad.join('\n')}`);
+});
+
+test('charte : chaque jeton de taille vaut l\'échelle × --ts, et seuls 3 réglages existent', () => {
+  const root = rules.find((r) => r.sel === ':root').body;
+  for (const [n, px] of [['115', '11.5'], ['13', '13'], ['14', '14'], ['16', '16'], ['18', '18'], ['22', '22'], ['26', '26']]) {
+    assert.ok(new RegExp(`--t${n}:\\s*calc\\(${px.replace('.', '\\.')}px \\* var\\(--ts\\)\\)`).test(root), `--t${n}`);
+  }
+  const sizes = rules.filter((r) => /^:root\[data-text=/.test(r.sel)).map((r) => `${r.sel} ${decls(r, '--ts')[0]}`);
+  assert.deepEqual(sizes, [':root[data-text="grand"] 1.15', ':root[data-text="tresgrand"] 1.3']);
 });
 
 test('charte : icônes Lucide seulement dans les boutons (pas d\'emoji ni de symbole)', () => {

@@ -42,6 +42,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 ## 5. Texte
 - Polices : **Inter** pour le texte, **Archivo** (étroit) pour les titres et les boutons. Pas de police à empattements.
 - Échelle : **11,5 · 13 · 14 · 16 · 18 · 22 · 26 px**. 11,5 = intertitres (majuscules espacées) et tampons ; 13 = surtitre, légende, petits boutons ; 14 = aide et sous-titres ; 16 = texte et boutons ; 18 = chapô et grands boutons ; 22 = titre de la feuille ; 26 = nom d'un lieu dans sa fiche.
+- **Taille du texte** (v144, Réglages → Ce qui s'affiche) : Normal, Grand (× 1,15) ou Très grand (× 1,3). En CSS, une taille de texte s'écrit avec son jeton (`var(--t13)`… `var(--t26)`, `--t115` pour 11,5), qui vaut l'échelle × `--ts`. Restent en px fixes : les icônes, ce qui est dessiné sur la carte, la grille de Mon Paris, la barre du bas et les rangées de 3 boutons (`.row3`), dont la largeur est fixe. Avant de publier un écran : contrôle avec `TEXTE=tresgrand` (texte trop large, bouton hors de l'écran).
 - **Titraille de la fiche** : surtitre (catégorie · arrondissement) en terre cuite, nom en 26 px, chapô (ton commentaire) en 18 px, intertitres sur filet encre.
 - Noms et sous-titres : 2 lignes au plus. **Jamais d'opacité sur un texte** : un texte atténué prend `--muted` (ou `--compass-muted` dans la boussole). Un bouton inactif : texte gris et contour en tirets.
 
