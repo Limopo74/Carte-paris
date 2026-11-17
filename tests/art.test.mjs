@@ -76,7 +76,7 @@ test('prochaines gratuités : dates à venir, sans aujourd\'hui, dans l\'ordre',
   assert.match(soon[0].text, /Louvre/);
   assert.match(soon[2].text, /monuments/);
   assert.ok(!freeSoon(new Date(2026, 11, 6)).some((x) => x.date.getDate() === 6 && x.date.getMonth() === 11));
-  assert.equal(KIOSQUES.length, 3);
+  assert.deepEqual(KIOSQUES.map((k) => k.name), ['Kiosque Théâtre Madeleine'], 'Montparnasse fermé, Ternes disparu (site officiel, 17 nov. 2026)');
   assert.ok(KIOSQUES.every((k) => Number.isFinite(k.lat) && k.hours));
 });
 

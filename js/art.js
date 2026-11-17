@@ -166,11 +166,11 @@ export function freeSoon(date = new Date(), days = 35) {
 
 /* ---------- 5 bis. Théâtre à moitié prix : les Kiosques (places du jour même) ---------- */
 
-export const KIOSQUE_SOURCE = 'http://www.kiosqueculture.com';
+export const KIOSQUE_SOURCE = 'https://www.kiosqueculture.com/infos-pratiques/';
+// Vérifié sur le site officiel le 17 nov. 2026 : seul le kiosque de la Madeleine est ouvert
+// (Montparnasse : « fermeture provisoire » ; Ternes : n'existe plus).
 export const KIOSQUES = [
-  { name: 'Kiosque Théâtre Madeleine', address: 'En face du 15, place de la Madeleine, 8e', lat: 48.8704, lng: 2.3245, hours: 'Mardi au samedi 12 h 30 – 14 h 30 et 15 h – 19 h 30, dimanche 12 h 30 – 15 h 45' },
-  { name: 'Kiosque Théâtre Ternes', address: 'Place des Ternes, 17e', lat: 48.8783, lng: 2.2986, hours: 'Mardi au samedi, horaires selon la saison' },
-  { name: 'Kiosque Théâtre Montparnasse', address: 'Parvis de la gare, place Raoul-Dautry, 15e', lat: 48.8425, lng: 2.3212, hours: 'Mardi au samedi, ouverture à vérifier' },
+  { name: 'Kiosque Théâtre Madeleine', address: 'En face du 15, place de la Madeleine, 8e', lat: 48.8704, lng: 2.3245, hours: 'Mardi au samedi 12 h 30 – 14 h 30 et 15 h – 19 h 30, dimanche 12 h 30 – 15 h 45 (fériés compris, sauf 25 déc. et 1er janv.)' },
 ];
 
 /** Les gratuités du jour les plus proches : celles du jour même (pas « tous les jours ») passent devant. */

@@ -24,7 +24,7 @@ test('données des transports : les fichiers de l\'appli portent leur date, les 
 
 test('données des transports : lien des toilettes RATP et page info trafic IDFM', async () => {
   const { RATP_TOILETS_FILE, TRAFFIC_URL } = await import('../js/donnees.js');
-  assert.match(RATP_TOILETS_FILE.url, /^https:\/\/data\.ratp\.fr\/explore\/dataset\/sanitaires-reseau-ratp\/export\/$/);
+  assert.match(RATP_TOILETS_FILE.url, /^https:\/\/data\.ratp\.fr\/explore\/assets\/sanitaires-reseau-ratp\/export\/$/);
   assert.match(TRAFFIC_URL, /^https:\/\/me-deplacer\.iledefrance-mobilites\.fr\/infos-trafic\//);
   const j = JSON.parse(readFileSync(new URL('../data/sanitaires-ratp.json', import.meta.url), 'utf8'));
   assert.match(j.updated ?? '', /^\d{4}-\d{2}-\d{2}$/, 'sanitaires-ratp.json : champ « updated »');
@@ -40,7 +40,7 @@ test('data/merimee.json : monuments de Paris, date, musées', async () => {
 
 test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel ne compte que celles en retard', async () => {
   const { FIXED_DATA, dataDue, everyText } = await import('../js/donnees.js');
-  assert.deepEqual(FIXED_DATA.map((d) => d.id), ['lignes', 'navigo', 'ratp', 'merimee', 'marches', 'listes']);
+  assert.deepEqual(FIXED_DATA.map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements', 'merimee', 'marches', 'listes']);
   assert.equal(everyText(183), 'tous les 6 mois');
   assert.equal(everyText(365), 'tous les ans');
   const now = Date.parse('2027-06-01');
@@ -52,10 +52,22 @@ test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel n
 
 test('robot des données : lignes, Navigo et toilettes RATP chaque mois, rappel seulement s\'il échoue', async () => {
   const { FIXED_DATA, dataDue, everyText, ROBOT_URL } = await import('../js/donnees.js');
-  assert.deepEqual(FIXED_DATA.filter((d) => d.robot).map((d) => d.id), ['lignes', 'navigo', 'ratp']);
+  assert.deepEqual(FIXED_DATA.filter((d) => d.robot).map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements']);
   assert.equal(everyText(45), 'chaque mois');
   const now = Date.parse('2026-12-20');
   const dates = { lignes: '2026-12-01', navigo: '2026-11-10', ratp: '2026-10-01', merimee: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16' };
   assert.deepEqual(dataDue(dates, now), ['ratp']); // 80 jours : le robot a échoué deux fois
   assert.match(ROBOT_URL, /^https:\/\/github\.com\/Limopo74\/Carte-paris\/actions\/workflows\/maj-donnees\.yml$/);
+});
+
+test('arrondissements : pas de fausse alerte tant que le fichier n\'est pas lu, alerte s\'il date de plus de 45 jours', async () => {
+  const { dataDue, ARR_FILE, COVERED_SOURCE, RATP_TOILETS_FILE } = await import('../js/donnees.js');
+  const base = { lignes: '2026-12-01', navigo: '2026-12-01', ratp: '2026-12-01', merimee: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16' };
+  const now = Date.parse('2026-12-20');
+  assert.deepEqual(dataDue(base, now), [], 'date pas encore connue');
+  assert.deepEqual(dataDue({ ...base, arrondissements: '2026-12-01' }, now), []);
+  assert.deepEqual(dataDue({ ...base, arrondissements: '2026-10-01' }, now), ['arrondissements']);
+  assert.deepEqual(dataDue({ ...base, arrondissements: '' }, now), ['arrondissements'], 'fichier lu sans date');
+  for (const u of [ARR_FILE.url, COVERED_SOURCE, RATP_TOILETS_FILE.url]) assert.match(u, /^https:\/\//);
+  assert.match(RATP_TOILETS_FILE.url, /explore\/assets\/sanitaires-reseau-ratp\/export\/$/);
 });

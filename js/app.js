@@ -13,7 +13,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (133)';
+const VERSION = '17 novembre 2026 (134)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -113,7 +113,8 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+    merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
 function remindData() {
@@ -2925,7 +2926,7 @@ async function openEvents(start = null) {
   const whereChips = mode === 'all' || mode === 'free' ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Dehors ou à l\'abri' },
     [['out', 'sun', 'Dehors'], ['in', 'umbrella', 'À l\'abri']].map(([w, icon, label]) =>
       el('button', { type: 'button', class: 'chip', 'aria-pressed': String(evWhere === w), onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), ` ${label}`))) : null;
-  if (whereChips) notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est cachée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosques Théâtre comptent à l\'abri.');
+  if (whereChips) notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est cachée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosque Théâtre comptent à l\'abri.');
   const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => a.d - b.d);
   const soonFree = freeSoon().slice(0, 3);
   const freeSection = () => [
@@ -2934,7 +2935,7 @@ async function openEvents(start = null) {
     ...(whereOn === 'out' ? [] : [ // musées et théâtres : à l'abri, cachés par le filtre Dehors
     head('Musées et monuments gratuits aujourd\'hui', freeAll.length), list(freeAll.map((f) => freeRow(f, back))),
     head('Théâtre à moitié prix, le jour même', kiosks.length),
-    el('p', { class: 'help' }, 'Les Kiosques Théâtre vendent les places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'),
+    el('p', { class: 'help' }, 'Le Kiosque Théâtre de la Madeleine vend les places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement (celui de Montparnasse est fermé).'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Théâtre à moitié prix', label: plural(kiosks.length, 'kiosque', 'kiosques'), items: kiosks, icon: 'drama',
       open: openKiosque, back: () => { eventsMode = 'free'; openEvents(); }, from: o })  }, ico('map'), 'Voir sur la carte'),
     list(kiosks.map((k) => kiosqueRow(k, back)))]),
@@ -2974,11 +2975,13 @@ async function openEvents(start = null) {
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
       .catch(() => fill(galBox, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.')));
     body = [
+      // En tête : tout Paris (grands lieux, semaine) ; dessous : autour du point de départ
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtPlaces() }, 'Grands lieux'), // sans icône : tient sur une ligne à 360 px
+        el('button', { type: 'button', class: 'btn c-disc', onclick: () => openWeekExpos() }, 'La semaine')),
       head('Dernière chance : expos qui ferment', last.length), list(last.slice(0, 8).map((e) => eventRow(e, back, { last: true }))),
       galBox,
       head('Autres expos aujourd\'hui', expos.length), list(expos.map((e) => eventRow(e, back))),
-      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openWeekExpos() }, ico('calendar-days'), 'Expos de la semaine, tout Paris'),
-      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtPlaces() }, ico('landmark'), 'Grands lieux : expos, art, musique'),
       ...freeSection(),
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les expos des galeries privées n\'y sont souvent pas : regarde les galeries ci-dessus.') : null,
     ];
@@ -4195,6 +4198,7 @@ function openSettings(section = null) {
         el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
       el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('download'), 'Mettre à jour l\'appli (après le robot)'),
       el('p', { class: 'help' }, 'Ouvre la page du robot sur GitHub (connecte-toi si besoin), puis « Run workflow » → « Run workflow ». En 2 à 5 minutes, il télécharge les fichiers officiels, les vérifie et publie. Ensuite : Appli → Mettre à jour l\'appli. S\'il échoue, rien ne change dans l\'appli, et GitHub t\'envoie normalement un mail.'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'À refaire avec Claude'), el('span', {}, '')),
       el('div', { class: 'menu' }, FIXED_DATA.filter((d) => !d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
@@ -4209,11 +4213,18 @@ function openSettings(section = null) {
         autoRow('Fontaines à boire', `Chaque jour · ${when(live('fontaines'))}`, 'fontaines-a-boire'),
         autoRow('Toilettes publiques (sanisettes)', `Chaque jour · ${when(live('toilettes'))}`, 'sanisettesparis'),
         autoRow('Parcs et lieux frais (îlots de fraîcheur)', `Chaque jour · ${when(Math.max(live('fraisParcs'), live('fraisLieux')))}`, 'ilots-de-fraicheur-espaces-verts-frais'),
-        autoRow('Agenda « Que faire à Paris ? »', `Chaque jour · ${eventsCache ? 'aujourd\'hui' : 'à l\'ouverture de Sorties'}`, 'que-faire-a-paris-'),
+        autoRow('Agenda « Que faire à Paris ? » (sorties, photos, grands lieux)', `Chaque jour · ${eventsCache ? 'aujourd\'hui' : 'à l\'ouverture de Sorties'}`, 'que-faire-a-paris-'),
         autoRow('Marchés découverts', `Tous les 7 jours · ${when(marketsTime)}`, 'marches-decouverts'),
         autoRow('Vélib\'', 'En temps réel, quand tu le demandes', 'velib-disponibilite-en-temps-reel'),
         autoRow('Galeries (OpenStreetMap)', `Tous les 30 jours · ${when(galleriesTime)}`),
+        autoRow('Monuments historiques (Wikidata)', `Tous les 30 jours · ${when((() => { try { return JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null')?.t ?? 0; } catch { return 0; } })())}`),
+        autoRow('Curiosités (Wikipédia)', 'En direct, position arrondie à 100 m'),
+        autoRow('Annuaire et adresses (OpenStreetMap, IGN)', 'En direct, quand tu cherches ou ajoutes un lieu'),
         autoRow('Météo et air (Open-Meteo)', 'En temps réel, position arrondie à 1 km')),
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Importé par toi'), el('span', {}, '')),
+      el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openTtb(named('Données de l\'appli', () => openSettings('donnees'))) },
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Adresses TTB'), el('span', { class: 'menu-sub' }, ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} · page du ${ttbDateText() || 'date inconnue'} · à réimporter quand le guide change` : 'Pas encore importées')),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
       el('a', { class: 'btn c-info', href: 'https://opendata.paris.fr/', target: '_blank', rel: 'noopener' }, ico('database'), 'Toutes les données de la Ville : opendata.paris.fr'),
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Appli')),
     ), { tall: true, name: 'settings:donnees', again: () => openSettings('donnees') });
@@ -4258,10 +4269,19 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)}, ou dès qu'une gare ouvre.`),
         el('div', { class: 'menu' }, link(RATP_TOILETS_FILE)),
         say('Mets à jour les toilettes RATP', 'tools/maj-sanitaires.py')],
+      arrondissements: () => [
+        el('p', { class: 'help' }, 'Sert à Mon Paris : l\'arrondissement de chaque lieu est calculé sur ton téléphone avec ces contours officiels. Ils ne changent presque jamais.'),
+        el('div', { class: 'menu' }, link(ARR_FILE)),
+        say('Mets à jour les arrondissements', 'tools/maj-arrondissements.py')],
       marches: () => [
-        el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`)],
+        el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
+        el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
       listes: () => [
-        el('p', { class: 'help' }, 'Les grandes expos, les musées gratuits et les temps forts de l\'année sont des listes tenues par Claude. Une tâche programmée les prépare chaque 1er septembre et te demande ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».')],
+        el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), Kiosque Théâtre, grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED}), temps forts de l'année. Une tâche programmée les prépare chaque 1er septembre et te demande ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
+        el('div', { class: 'menu' },
+          el('a', { class: 'menu-row c-info', href: FREE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Musées et monuments gratuits'), el('span', { class: 'menu-sub' }, 'Paris je t\'aime, office du tourisme')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
+          el('a', { class: 'menu-row c-info', href: KIOSQUE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Kiosque Théâtre'), el('span', { class: 'menu-sub' }, 'Adresses et horaires sur le site officiel')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
+          el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openArtPlaces('', named(d.name, () => openSettings(section))) }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Grands lieux'), el('span', { class: 'menu-sub' }, 'Chaque lieu a le lien de son programme officiel')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))],
     }[id]();
     openSheet([ico('database'), ` ${d.name}`], el('div', { class: 'stack' },
       el('p', { class: late ? 'warn' : 'help' }, `${date ? `Version du ${frenchDate(date)}` : 'Date inconnue'}.${late ? ' À mettre à jour.' : ''}`),
@@ -4958,6 +4978,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
     '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
     '{map} Sorties : « Autre quartier » ferme la page et met une croix au centre de la carte ; déplace la carte, touche le bandeau, et les distances partent de la croix. « Ma position » les fait partir de toi (la position n\'est demandée qu\'à cet appui). Dans « Voir sur la carte », un carré noir marque le point de départ.',
     '{search} La loupe trouve aussi les grands lieux (« orsay », « cartier »…) : un appui ouvre leurs rendez-vous et leur programme officiel.',
@@ -4965,9 +4986,8 @@ const HELP = [
     '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
     '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
     '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
-    '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et les 3 Kiosques Théâtre : places du jour à moitié prix, avec « Voir sur la carte ».',
+    '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et le Kiosque Théâtre de la Madeleine : places du jour à moitié prix.',
     '{badge-percent} Sorties → Navigo : des filtres par discipline (Cinéma, Théâtre, Musée…), pour la liste comme pour « Voir sur la carte ». Partout, chaque titre a son icône et le bouton retour est en bas de la page.',
-    '{search} Ajouter → Avec un nom : les lieux sont cherchés d\'abord dans la zone que montre la carte. Zoome sur un quartier, cherche « boulangerie », et tu as celles du quartier. Moins de 5 réponses : la recherche continue dans tout Paris, dans un second bloc. Les adresses restent cherchées dans tout Paris.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -5047,7 +5067,8 @@ const HELP = [
   ]],
   ['palette', 'Expos et art', [
     '{calendar-days} Sorties → « Expos » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
-    '{calendar-days} « Expos de la semaine, tout Paris » (en bas de l\'onglet Expos) : toutes les expos de l\'agenda sur 7 jours, rangées par arrondissement, celles qui ferment le plus tôt d\'abord. Rien ne bouge sur la carte.',
+    '{calendar-days} « La semaine » (en haut de l\'onglet Expos) : toutes les expos de l\'agenda sur 7 jours, rangées par arrondissement, celles qui ferment le plus tôt d\'abord. Rien ne bouge sur la carte.',
+    '{landmark} « Grands lieux » (en haut de l\'onglet Expos, ou la loupe : tape « orsay », « cartier »…) : 26 musées, fondations et salles de concert, où que tu sois, avec ce que l\'agenda annonce et leur programme officiel.',
     '{calendar-days} Pour regarder un autre quartier sans ta position : déplace la carte, puis le bouton calendrier de la colonne.',
     '{info} En bas de Sorties, « Aide, sources et mise à jour » : l\'agenda se recharge seul chaque jour, les marchés tous les 7 jours, les galeries tous les 30 jours. Liens utiles : Que faire à Paris, Paris Musées, galeries (L\'Officiel des spectacles), Paris je t\'aime, Sortir à Paris.',
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
