@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (137)';
+const VERSION = '17 novembre 2026 (138)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5039,6 +5039,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
     '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
     '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
     '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
@@ -5048,7 +5049,6 @@ const HELP = [
     '{search} La loupe trouve aussi les grands lieux (« orsay », « cartier »…) : un appui ouvre leurs rendez-vous et leur programme officiel.',
     '{umbrella} Sorties, onglets Tout et Gratuit : filtres « Dehors » et « À l\'abri ». C\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville ; un marché couvert compte à l\'abri, un marché découvert dehors.',
     '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
-    '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

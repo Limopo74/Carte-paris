@@ -111,26 +111,19 @@ button { cursor: pointer; }
   padding-right: 24px;
 }
 .chips::-webkit-scrollbar { display: none; }
-.chip { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: var(--h); padding: 0 10px; font-size: 14px; }
 
-.icon-btn { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
 
 /* Barre du bas */
 .bottom {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 500;
   display: flex; gap: 8px; padding: 10px 10px calc(12px + var(--safe-b));
 }
-.big-btn { flex: 1; min-height: var(--h-l); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; padding: 0 10px; }
 #btnNear { flex: 1.5; }
-.big-btn.square { flex: none; width: 52px; padding: 0; }
 .plus { font-size: 26px; line-height: 1; font-weight: 500; }
 
 /* Feuille du bas */
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; flex-direction: column; border-radius: 18px 18px 0 0; padding-bottom: var(--safe-b); }
 .sheet.tall { max-height: 85vh; }
-.sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 18px; }
 .sheet-head h2 { flex: 1; margin: 0; font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
-.sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; }
 .sheet-body { overflow-y: auto; padding: 14px 18px 18px; overscroll-behavior: contain; }
 /* Barre collée en bas : retour et Enregistrer restent sous le pouce quand la page défile.
    Toujours au même endroit (le bas de la feuille), que la page soit courte ou longue. */
@@ -146,9 +139,6 @@ button { cursor: pointer; }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
 
-.btn { min-height: var(--h); padding: 0 16px; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; text-align: center; }
-.btn.danger { border-color: var(--danger); }
-.btn.danger.solid { background: var(--danger); }
 .btn.big { min-height: var(--h-l); font-size: 18px; justify-content: flex-start; padding: 0 18px; }
 .btn:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; cursor: default; }
 
@@ -161,7 +151,6 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .field input:focus, .field textarea:focus, .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .item-main:focus-visible {
   outline: 3px solid var(--focus); outline-offset: 2px;
 }
-.legend { margin-bottom: 6px; }
 .help { color: var(--muted); font-size: 14px; margin: 0; font-weight: 400; }
 .error { color: var(--danger); font-size: 14px; margin: 0; }
 .warn {
@@ -170,7 +159,6 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 }
 
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
-.seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .plan-note { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .plan-note .ico svg { width: 14px; height: 14px; vertical-align: -2px; }
 .plan-note.bad { color: var(--danger); font-weight: 700; }
@@ -201,8 +189,6 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .item-text { min-width: 0; display: flex; flex-direction: column; }
 .item-name { font-size: 16px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .item-sub { color: var(--muted); font-size: 14px; }
-.item .go { flex: none; display: inline-flex; }
-.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 .note { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: 16px; line-height: 1.4; }
 .empty { color: var(--muted); margin: 6px 0; }
 
@@ -249,20 +235,14 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .cat-row .cat-name { flex: 1; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
 .cat-row .cat-count { color: var(--muted); font-size: 14px; }
 .cat-row .btn { min-height: 44px; padding: 0 14px; font-size: 16px; }
-.fav-mark { color: var(--fav-icon); }
 
 /* Icônes de catégorie */
-.cat-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; line-height: 1; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
-.chip .cat-ico { width: 24px; height: 24px; font-size: 13px; margin-left: -4px; }
 .chip.star { font-size: 18px; padding: 0 12px; }
 .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
-.icon-choice { height: 44px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; }
 .icon-choice[aria-pressed="true"] { border: 3px solid var(--ink); background: var(--soft); }
 
 /* Lieux sur la carte */
 .pin-wrap { background: none; border: none; }
-.pin { position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; }
-.pin-fav { position: absolute; font-size: 13px; line-height: 1; border-radius: 50%; padding: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
 
 /* Résultats de l'annuaire */
 
@@ -329,22 +309,19 @@ ol.items { padding: 0; }
 .leaflet-bottom.leaflet-right { right: 64px; }
 
 /* Point « moi » */
-.me-dot { display: block; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent), 0 1px 4px rgba(0, 0, 0, .4); }
 .me-dot.grey { background: var(--field); box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
 
 /* Pastilles plus petites quand on dézoome */
 
 /* Outils « se déplacer » en haut d'Autour de moi */
-.tools { display: grid; gap: 6px; margin-bottom: 10px; }
 .tool {
   display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 2px; line-height: 1.15; text-align: center;
 }
 .tool-ico { font-size: 20px; line-height: 1; }
-.tool.on { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
 .tool:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 /* Liste allégée */
-.item .go { align-self: center; align-items: center; text-decoration: none; min-height: 48px; padding: 0 12px; font-size: 14px; }
+.item .go { flex: none; display: inline-flex; align-self: center; align-items: center; text-decoration: none; min-height: 48px; padding: 0 12px; font-size: 14px; }
 
 /* Bouton « métro le plus proche » */
 .metro-btn { font-weight: 800; font-size: 20px; font-family: system-ui, sans-serif; }
@@ -354,7 +331,6 @@ ol.items { padding: 0; }
   display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;
 }
 
-.go-compass { flex: none; width: 48px; min-height: 48px; align-self: center; font-size: 20px; }
 .go-compass:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 /* Fontaines et toilettes */
@@ -473,7 +449,6 @@ ol.items { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .help-item summary::after { transition: none; } }
 
 /* Violet : aide et réglages */
-.btn.c-info.solid { background: var(--info); color: var(--on-strong); border-color: var(--info); }
 
 /* Réglages : pastille d'icône teintée selon la famille */
 .menu-row .menu-ico { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; }
@@ -483,7 +458,6 @@ ol.items { padding: 0; }
 .menu-row.c-info .menu-chev { color: var(--info); }
 .menu-row.c-guide .switch.on { background: var(--guide); }
 /* Bouton Paris */
-.paris-btn { letter-spacing: .01em; }
 /* Ma note en étoiles (★ pleines, différentes de l'emoji ⭐ des favoris) */
 .star-pick { display: flex; gap: 2px; }
 .star-pick button {
@@ -522,13 +496,11 @@ ol.items { padding: 0; }
 .ico { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: none; }
 .ico svg { width: 1.2em; height: 1.2em; }
 .btn .ico svg { width: 20px; height: 20px; }
-.cat-ico { color: #fff; }
+.cat-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 14px; line-height: 1; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); color: #fff; }
 .cat-ico .ico svg { width: 62%; height: 62%; min-width: 13px; min-height: 13px; }
 .cat-ico .ico { width: 100%; height: 100%; }
-.pin { color: #fff; }
 .pin svg { display: block; }
-.pin-fav { display: inline-flex; align-items: center; justify-content: center; }
-.fav-mark { display: inline-flex; vertical-align: -2px; margin-right: 6px; }
+.fav-mark { color: var(--fav-icon); display: inline-flex; vertical-align: -2px; margin-right: 6px; }
 .fav-mark .ico svg { width: 18px; height: 18px; }
 .chip.star .ico svg { width: 20px; height: 20px; }
 .tool-ico .ico svg { width: 22px; height: 22px; }
@@ -539,7 +511,7 @@ ol.items { padding: 0; }
 .help-ico { color: var(--info); width: 36px; height: 36px; }
 .go-compass .ico svg { width: 22px; height: 22px; }
 .icon-choice .ico svg { width: 24px; height: 24px; }
-.icon-choice { color: var(--ink); }
+.icon-choice { height: 44px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; color: var(--ink); }
 #sheetTitle .ico svg { width: 22px; height: 22px; }
 #sheetTitle .ico { margin-right: 4px; vertical-align: -3px; }
 .tool-prev .ico svg { width: 20px; height: 20px; }
@@ -554,7 +526,6 @@ ol.items { padding: 0; }
 .list-chips .chip .ico svg { width: 16px; height: 16px; }
 .list-chips .chip[aria-pressed="true"] .cat-count { color: var(--on-strong); }
 
-.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; }
 .rain .ico svg { width: 22px; height: 22px; }
 .rain span:nth-child(2) { flex: 1; }
 .rain .btn { min-height: 44px; padding: 0 12px; flex: none; }
@@ -588,7 +559,6 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #map[data-style="night"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
 #map[data-style="night"] { background: #1d2230; }
 .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; font: inherit; color: var(--ink); min-height: 44px; }
 .style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: none; }
 .style-card b { font-size: 16px; }
 .style-card .menu-sub { white-space: normal; font-size: 13px; }
@@ -659,11 +629,9 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .me-cone .cone-b { stop-color: var(--cone); stop-opacity: .3; }
 .me-cone .cone-halo { fill: none; stroke: var(--cone-halo); stroke-width: 5; stroke-linejoin: round; stroke-opacity: .95; }
 .me-cone .cone-fill { stroke: var(--cone); stroke-width: 2.2; stroke-linejoin: round; }
-.me-dot { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .me-cone { transition: none; } }
 
 /* Badge météo et air, sous la barre du haut */
-.wx-badge { position: fixed; display: inline-flex; align-items: center; padding: 0 12px; color: var(--ink); font: inherit; font-size: 14px; }
 .wx-badge b { font-size: 16px; }
 /* Rappel dimanche / jour férié dans le badge : un tampon terre cuite */
 .day-tag { font-family: var(--display); font-weight: 800; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--disc);
@@ -693,7 +661,6 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .area-cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 650; pointer-events: none; color: var(--ink); filter: drop-shadow(0 0 2px var(--surface)); }
 .area-cross .ico svg { width: 40px; height: 40px; stroke-width: 2.5; }
 body:has(.peek-card) #nowCard { display: none; }
-.market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 
 /* =====================================================================
    CHARTE « Plaques & pavés » — couleur = famille d'action, forme = importance
@@ -719,22 +686,21 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 #sheetTitle { font-size: 22px; font-weight: 800; font-stretch: 85%; letter-spacing: -.005em; }
 .item-name, .menu-title { font-weight: 700; font-stretch: 92%; }
 .ring-title, .legend { font-family: var(--display); font-size: 11.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.legend { color: var(--muted); }
+.legend { margin-bottom: 6px; color: var(--muted); }
 
 /* Feuille : papier, coin franc */
-.sheet { max-height: 58vh; background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
-.sheet-head { border-bottom: 1px solid var(--line); }
-.sheet-head .icon-btn { border-radius: var(--r); border: 1.5px solid var(--ink); background: transparent; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; flex-direction: column; border-radius: 18px 18px 0 0; padding-bottom: var(--safe-b); max-height: 58vh; background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
+.sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 18px; border-bottom: 1px solid var(--line); }
+.sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 1.5px solid var(--ink); background: transparent; }
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
-.btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; }
 .btn.c-metro { color: var(--metro); border-color: var(--metro); }
 .btn.c-guide { color: var(--guide); border-color: var(--guide); }
 .btn.c-add { color: var(--add); border-color: var(--add); }
 .btn.c-fav { color: var(--fav); border-color: var(--fav); }
 .btn.c-info { color: var(--info); border-color: var(--info); }
 .btn.c-disc { color: var(--disc); border-color: var(--disc); }
-.btn.danger { color: var(--danger); border: 1.5px solid var(--danger); }
+.btn.danger { border-color: var(--danger); color: var(--danger); border: 1.5px solid var(--danger); }
 
 /* ---- Action principale = plaque pleine, à plat (charte « Papier », v99) ; la barre de la carte garde son double filet jusqu'à l'étape 5 ---- */
 .btn.primary, .btn.solid, a.go, .item .go { --pl: var(--strong); border-color: var(--pl); color: var(--on-strong); box-shadow: none; }
@@ -742,13 +708,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 
 .btn.c-metro.solid { --pl: var(--metro); }
 .btn.c-guide.solid { --pl: var(--guide); }
-.btn.c-info.solid { --pl: var(--info); }
+.btn.c-info.solid { background: var(--info); color: var(--on-strong); border-color: var(--info); --pl: var(--info); }
 .btn.c-disc.solid { --pl: var(--disc); }
 .btn.primary:active, .btn.solid:active, a.go:active { transform: translateY(1px); }
 .big-btn:active { transform: translateY(1px); }
 
 /* Barre du bas */
-.big-btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
+.big-btn { flex: 1; min-height: var(--h-l); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; padding: 0 10px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
 .big-btn.c-add { border-color: var(--add); color: var(--add); }
 
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
@@ -767,10 +733,10 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tool.on .tool-ico { animation: none; }
 
 /* ---- Jetons (catégories, filtres) ---- */
-.chip { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: var(--h); padding: 0 10px; font-size: 14px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
 .chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
-.chip .cat-ico { border-radius: var(--r); }
-.icon-btn { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
+.chip .cat-ico { width: 24px; height: 24px; font-size: 13px; margin-left: -4px; border-radius: var(--r); }
+.icon-btn { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
 
 /* ---- Tampons (états) ---- */
 .tag, .tag.open, .tag.closed {
@@ -784,13 +750,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 
 /* ---- Listes et cartes de rubrique ---- */
 .item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.style-card { text-align: left; border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: transparent; }
+.style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; font: inherit; color: var(--ink); min-height: 44px; text-align: left; border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: transparent; }
 .menu-row.c-disc .menu-ico { color: var(--disc); }
 .menu-row.c-disc .menu-chev { color: var(--disc); }
 .menu-row.c-guide .menu-ico { color: var(--guide); }
-.go-compass { border-radius: var(--r); border: 1.5px solid var(--ink); color: var(--ink); }
+.go-compass { flex: none; width: 48px; min-height: 48px; align-self: center; font-size: 20px; border-radius: var(--r); border: 1.5px solid var(--ink); color: var(--ink); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
-.seg button { border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
+.seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); background: var(--strong); }
 .switch.on { background: var(--add); }
 
@@ -808,13 +774,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .map-btn.c-disc { --fam: var(--disc); }
 .map-btn.c-disc[aria-pressed="true"] { background: var(--fam); color: var(--bg); }
 .map-btn[aria-pressed="true"], .map-btn.c-guide[aria-pressed="true"] { background: var(--fam); color: var(--on-strong); border-color: var(--fam); }
-.paris-btn { font-weight: 800; font-size: 13px; }
-.wx-badge { z-index: 499; left: 10px; top: 66px; min-height: var(--h-s); gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
+.paris-btn { letter-spacing: .01em; font-weight: 800; font-size: 13px; }
+.wx-badge { position: fixed; display: inline-flex; align-items: center; padding: 0 12px; color: var(--ink); font: inherit; font-size: 14px; z-index: 499; left: 10px; top: 66px; min-height: var(--h-s); gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
 
 /* ---- Épingles : goutte qui pointe le lieu exact ---- */
-.pin { width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg); border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); }
+.pin { position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; color: #fff; width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg); border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); }
 .pin > svg, .pin > .pin-in { transform: rotate(45deg); }
-.pin-fav { transform: rotate(45deg); top: -8px; right: -8px; }
+.pin-fav { position: absolute; font-size: 13px; line-height: 1; border-radius: 50%; padding: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); display: inline-flex; align-items: center; justify-content: center; transform: rotate(45deg); top: -8px; right: -8px; }
 /* Lieu d'un proche : son initiale dans une pastille, côté droit de la goutte (le favori est en haut) */
 .pin-who {
   position: absolute; bottom: -7px; right: -7px; transform: rotate(45deg);
@@ -829,11 +795,11 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 }
 .z-far .pin { transform: rotate(-45deg) scale(.72); }
 .pin.done { opacity: .6; }
-.market-pin { border-radius: var(--r); }
+.market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
 /* Bandeaux */
-.rain { border-radius: var(--r); border-width: 1.5px; }
-.badge { font-family: inherit; }
+.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; border-radius: var(--r); border-width: 1.5px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); font-family: inherit; }
 .pin-in { display: flex; align-items: center; justify-content: center; line-height: 1; }
 /* Notes et favori : or Opéra */
 .star-pick button.on, .stars-ro { color: var(--fav); }
@@ -882,20 +848,20 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 
 /* Boutons secondaires : contour de la couleur de la famille, sans fond (charte « Papier », v99).
    Un interrupteur allumé (Favori, Déjà visité…) prend un fond léger de sa famille. */
-.btn { background: transparent; border-color: var(--neutral-bd); }
+.btn { min-height: var(--h); padding: 0 16px; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; text-align: center; border-radius: var(--r); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; background: transparent; border-color: var(--neutral-bd); }
 .btn.primary, .btn.solid, .big-btn.solid, .big-btn.primary { background: var(--pl); }
 
 .btn.c-fav[aria-pressed="true"] { background: var(--fav-bg); font-weight: 800; }
 .btn.c-add[aria-pressed="true"] { background: var(--add-bg); font-weight: 800; }
 
 /* Barre du bas : Réglages en contour zinc */
-.big-btn.square { border-color: var(--info); color: var(--info); }
+.big-btn.square { flex: none; width: 52px; padding: 0; border-color: var(--info); color: var(--info); }
 
 /* Liens et petites actions de liste */
 a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip:not([aria-pressed="true"]) { background: var(--bg); }
-.btn.danger.solid { --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
-.tools { grid-template-columns: repeat(3, 1fr); } /* 6 outils : 2 rangées de 3 */
+.btn.danger.solid { background: var(--danger); --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
+.tools { display: grid; gap: 6px; margin-bottom: 10px; grid-template-columns: repeat(3, 1fr); } /* 6 outils : 2 rangées de 3 */
 /* Pastilles de lignes (Rentrer) */
 .lines { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
 .line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
@@ -921,7 +887,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 #map.z-name .st-name { display: inline; }
 
 /* Bleu modernisé : plus vif et plus franc que l'ancien bleu émail (contrastes ≥ 4,5:1 vérifiés) */
-.me-dot { background: #1B56E8; }
+.me-dot { display: block; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent), 0 1px 4px rgba(0, 0, 0, .4); position: relative; z-index: 1; background: #1B56E8; }
 .btn:focus-visible, .map-btn:focus-visible, .tool:focus-visible, .go-compass:focus-visible, .menu-row:focus-visible { outline-color: var(--focus); }
 /* Mode sombre : plaques principales blanc cassé au lieu du bleu lavande */
 

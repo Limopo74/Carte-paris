@@ -9,7 +9,7 @@
 // Rien ne part sur Internet : les fonds de carte et les services sont coupés, l'agenda de Sorties est simulé.
 import { chromium } from 'playwright';
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const AXE = require.resolve('axe-core/axe.min.js');
@@ -116,6 +116,14 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
       .filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width && r.height && cs.visibility !== 'hidden' && cs.display !== 'none' && r.bottom > 0 && r.top < innerHeight && (r.height < 44 || r.width < 44); })
       .map((e) => (e.getAttribute('aria-label') || e.title || e.textContent).trim().slice(0, 25)));
     if (axe.length || petits.length || deborde.length) defauts++;
+    // STYLES=dossier : relevé des styles calculés de chaque élément (vérifie qu'un nettoyage du CSS ne change rien à l'écran)
+    if (process.env.STYLES) {
+      const st = await page.evaluate(() => { const skip = /^(width|height|inline-size|block-size|min-|max-|perspective-origin|transform-origin|d$|r$|cx|cy|x$|y$)/; const out = [];
+        for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e); const o = {}; for (const k of cs) if (!skip.test(k)) o[k] = cs.getPropertyValue(k);
+          out.push([e.tagName + '.' + [...e.classList].join('.'), o]); }
+        return out; });
+      writeFileSync(`${process.env.STYLES}/${nom}-${vw}-${theme}.json`, JSON.stringify(st));
+    }
     // capture : la feuille entière, défilée, si elle est ouverte ; sinon l'écran
     if (await page.locator('#sheet:not([hidden])').count()) {
       await page.setViewportSize({ width: vw, height: 2400 });
