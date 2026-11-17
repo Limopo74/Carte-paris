@@ -1,6 +1,7 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from './geo.js';
 import { cleanPlan, cleanPlans } from './planning.js';
+import { cleanPassages, cleanLog } from './passage.js';
 
 export const KEY = 'carte-paris.v1';
 export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#9c6644', '#c2255c', '#0c8599', '#495057'];
@@ -8,6 +9,7 @@ export const ICONS = [
   '🍽️', '☕', '🍷', '🍺', '🍸', '🥐', '🍰', '🍦', '🍕', '🍜', '🍣', '🥗',
   '🛍️', '👗', '👟', '📚', '🎁', '💄', '🧀', '🍫', '🏛️', '🖼️', '🎭', '🎬',
   '🎵', '⛪', '🌳', '🌸', '🏊', '🧘', '💈', '💊', '📍', '⭐', '❤️', '🏠',
+  '📷', // Vu en passant (v157)
 ];
 export const DEFAULT_ICON = '📍';
 export const FAV_COLORS = ['#f2a900', ...PALETTE];
@@ -99,6 +101,7 @@ const defaultIcon = (id) => DEFAULT_CATEGORIES.find((d) => d.id === id)?.icon ??
 const cleanCategory = (c) => ({
   id: c.id, name: c.name.trim().slice(0, NAME_MAX), color: c.color.toLowerCase(),
   icon: ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id),
+  ...(cleanLog(c.log) ? { log: cleanLog(c.log) } : {}), // nom de l'historique (« Mes repas »…), v157
 });
 
 function cleanCategories(list) {
@@ -127,6 +130,7 @@ const clean = (p) => ({
   covered: Boolean(p.covered),
   arr: Number.isInteger(p.arr) && p.arr >= 1 && p.arr <= 20 ? p.arr : null, // arrondissement, trouvé une fois pour toutes
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
+  ...(cleanPassages(p.passages).length ? { passages: cleanPassages(p.passages) } : {}), // Mes passages (v157)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -328,12 +332,12 @@ export function mergeImport(state, text, owner = '') {
   return { state: { ...state, points, plans, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
 }
 
-function checkFields({ name, color, icon = DEFAULT_ICON }, keepColor = null) {
+function checkFields({ name, color, icon = DEFAULT_ICON, log = '' }, keepColor = null) {
   const n = String(name ?? '').trim();
   if (!n) throw new Error('Donne un nom à la catégorie.');
   if (!PALETTE.includes(color) && color !== keepColor) throw new Error('Choisis une couleur dans la liste.');
   if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
-  return { name: n.slice(0, NAME_MAX), color, icon };
+  return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}) };
 }
 
 /** Ajoute une catégorie. Renvoie un nouvel état. */
@@ -346,7 +350,9 @@ export function addCategory(state, fields) {
 export function updateCategory(state, id, fields) {
   // Une couleur déjà utilisée reste acceptée même si elle a quitté la palette.
   const f = checkFields(fields, state.categories.find((c) => c.id === id)?.color);
-  return { ...state, categories: state.categories.map((c) => (c.id === id ? { ...c, ...f } : c)) };
+  // Nom d'historique effacé (champ vide) : on revient à « Mes passages »
+  const clearLog = (c) => { const { log, ...rest } = c; return log === undefined ? c : rest; };
+  return { ...state, categories: state.categories.map((c) => (c.id === id ? ('log' in fields && !f.log ? clearLog({ ...c, ...f }) : { ...c, ...f }) : c)) };
 }
 
 /**

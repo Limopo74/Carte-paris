@@ -22,7 +22,8 @@ mkdirSync(SORTIE, { recursive: true });
 const now = Date.now();
 const lieu = (id, name, lat, lng, extra = {}) => ({ id, name, lat, lng, address: '16 rue Chaptal, 75009 Paris', hours: 'Mo-Su 09:00-23:00', created: now - 864e5 * 10, ...extra });
 const LIEUX = [
-  lieu('a', 'Musée de la Vie romantique', 48.8818, 2.3337, { fav: true, stars: 4, note: 'Le jardin et son salon de thé, au calme.', ticket: { at: now + 3 * 3600e3 } }),
+  lieu('a', 'Musée de la Vie romantique', 48.8818, 2.3337, { fav: true, stars: 4, note: 'Le jardin et son salon de thé, au calme.', ticket: { at: now + 3 * 3600e3 },
+    passages: [{ at: now - 20 * 864e5, text: 'La glycine en fleur dans la cour', stars: 5 }, { at: now - 60 * 864e5 }, { at: now - 200 * 864e5, text: 'Salon de thé fermé' }] }),
   lieu('b', 'Café des Deux Moulins', 48.8848, 2.3335, { ticket: { at: new Date(now - 864e5).setHours(9, 0, 0, 0), part: 'matin', with: 'Léa' } }), // hier : « Tu y es allé ? »
   lieu('c', 'Square d\'Anvers', 48.8829, 2.3446, { done: true, covered: true }),
   lieu('d', 'Librairie Les Abbesses', 48.8845, 2.3380, { ticket: { at: now + 3 * 864e5 } }),
@@ -76,6 +77,10 @@ const ECRANS = {
   sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   joursortie: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button', { hasText: 'Trouver une sortie' }).click(); await p.waitForTimeout(1200); },
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
+  vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: 'Vu en passant' }).click(); await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
+  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
+  fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  journal: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon Paris' }).first().click(); await p.waitForTimeout(400); await feuille(p).locator('.menu-row', { hasText: 'Mon journal' }).click(); await p.waitForTimeout(400); },
   prevoir: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   prevoirautre: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await feuille(p).locator('.seg button', { hasText: 'Autre jour' }).click(); await feuille(p).locator('.seg button', { hasText: 'Heure précise' }).click(); await p.waitForTimeout(300); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },

@@ -156,7 +156,8 @@ export const EMOJI_ICON = {
 "📍": "map-pin",
 "⭐": "star",
 "❤️": "heart",
-"🏠": "house"
+"🏠": "house",
+"📷": "camera"
 };
 
 const FILLED = new Set(['star', 'heart']);

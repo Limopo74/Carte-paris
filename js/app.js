@@ -21,6 +21,7 @@ import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -36,7 +37,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (156)';
+const VERSION = '17 novembre 2026 (157)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -363,10 +364,10 @@ let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 // Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
-const filt = { open: false, top: false, covered: false, lists: new Set() };
-const activeFilters = () => [filt.open, filt.top, filt.covered, filt.lists.size > 0, personFilter !== 'all'].filter(Boolean).length;
+const filt = { open: false, top: false, covered: false, seen: false, lists: new Set() };
+const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all'].filter(Boolean).length;
 const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
-  && (!filt.covered || p.covered) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
+  && (!filt.covered || p.covered) && (!filt.seen || p.cat === SEEN_CAT.id) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
   && (personFilter === 'all' || p.owner === personFilter);
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
@@ -382,19 +383,176 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
-    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
+    const seen = p.cat === SEEN_CAT.id && p.photos?.length; // Vu en passant (v157)
+    const html = seen
+      ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
+      : `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
-      icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 39] }),
+      icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
   }
   // Une adresse TTB gardée dans mes lieux : seule ma goutte reste (v155). Au démarrage, le calque TTB n'existe pas encore.
   try { if (state.showTtb) drawTtb(); } catch { /* calque TTB pas encore créé : il sera dessiné au démarrage */ }
+}
+
+/* Miniatures des notes « Vu en passant » : 96 px, faites une fois par session, seulement quand la carte est assez zoomée. */
+const thumbs = new Map(); // id de photo -> promesse de l'adresse locale de la miniature
+function thumbUrl(id) {
+  if (!thumbs.has(id)) thumbs.set(id, (async () => {
+    const blob = await getPhoto(id).catch(() => null);
+    if (!blob) return null;
+    try {
+      const bmp = await createImageBitmap(blob);
+      const k = 96 / Math.min(bmp.width, bmp.height);
+      const cv = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      bmp.close?.();
+      const small = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.8));
+      return small ? URL.createObjectURL(small) : null;
+    } catch { return null; }
+  })());
+  return thumbs.get(id);
+}
+function seenThumb(node) {
+  const img = node.querySelector('.seen-img');
+  if (!img || img.src || !mapEl.classList.contains('z-name')) return;
+  thumbUrl(img.dataset.photo).then((u) => { if (u) { img.src = u; img.closest('.seen-pin')?.classList.add('has-img'); } });
+}
+map.on('zoomend', () => { if (mapEl.classList.contains('z-name')) document.querySelectorAll('.seen-pin').forEach((n) => seenThumb(n.parentElement)); });
+
+/* ---------- Mes passages (v157) : dans la fiche, une page pour noter ou corriger un passage, et le journal de tous ---------- */
+const shortDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+/** Après un passage noté : si la note diffère de celle du lieu, le message propose de la reporter sur le lieu (rien d'automatique). */
+function offerStars(p, stars, msg) {
+  if (!stars || stars === (p.stars ?? 0)) { toast(msg); return; }
+  toast(msg, false, { label: `Mettre ${stars} ★ au lieu`, fn: () => { p.stars = stars; persist(); renderMarkers(); toast(`Note du lieu : ${stars} étoile${stars > 1 ? 's' : ''}`); if (view?.startsWith?.('detail:')) openDetail(p.id); } });
+}
+/** Une ligne de passage : date, texte, miniature de la photo ; un appui l'ouvre pour la corriger. */
+function passageRow(x, onclick, who = '') {
+  const img = x.photo ? el('img', { class: 'passage-img', alt: '' }) : null;
+  if (img) thumbUrl(x.photo).then((u) => { if (u) img.src = u; });
+  return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick },
+    el('span', { class: 'plan-time passage-date' }, shortDate(x.at), x.stars ? el('span', { class: 'passage-stars', role: 'img', 'aria-label': `${x.stars} étoile${x.stars > 1 ? 's' : ''} sur 5` }, '★'.repeat(x.stars)) : null),
+    el('span', { class: 'item-text' },
+      who ? el('span', { class: 'item-name' }, who) : null,
+      el('span', { class: who ? 'item-sub' : 'item-name' }, x.text || (x.photo ? 'Une photo' : 'Passé ici'))),
+    img));
+}
+/** Rubrique de la fiche : son nom vient de la catégorie (« Mes repas »…), 3 passages puis « Tous ». Rien s'il n'y en a pas. */
+function passageSection(p, back, all = false) {
+  const list = cleanPassages(p.passages);
+  if (!list.length) return [];
+  const shown = all ? list : list.slice(0, 3);
+  return [
+    el('h3', { class: 'fiche-sec' }, logName(catOf(p.cat))),
+    el('ul', { class: 'items' }, shown.map((x) => passageRow(x, () => openPassage(p, back, x.at)))),
+    list.length > shown.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => openPassages(p, back) }, `Tous (${list.length})`) : null,
+  ];
+}
+function openPassages(p, back) {
+  const again = () => openPassages(p, back);
+  openSheet([ico('footprints'), ` ${logName(catOf(p.cat))} · ${p.name}`], el('div', { class: 'stack' },
+    el('ul', { class: 'items' }, cleanPassages(p.passages).map((x) => passageRow(x, () => openPassage(p, named(logName(catOf(p.cat)), again), x.at)))),
+    foot(backBtn(back)),
+  ), { name: `passages:${p.id}`, again });
+}
+/** Noter (ou corriger, `at` donné) un passage : le jour en puces, une ligne, une photo facultative. Passer, c'est aussi « Déjà visité ». */
+function openPassage(p, back, at = null) {
+  const old = at != null ? cleanPassages(p.passages).find((x) => x.at === at) : null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = new Date(); const yday = new Date(Date.now() - 864e5);
+  const oldIso = old ? iso(new Date(old.at)) : iso(today);
+  let day = oldIso === iso(today) ? 'today' : oldIso === iso(yday) ? 'yday' : 'other';
+  const date = el('input', { type: 'date', max: iso(today), value: oldIso });
+  const dateField = el('label', { class: 'field' }, 'Date', date);
+  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : la glycine en fleur' });
+  let photo = old?.photo ?? null; let newBlob = null;
+  let stars = old?.stars ?? 0;
+  const pick = starPicker(stars, (n) => { stars = n; });
+  const preview = el('div', { class: 'stack' });
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => { const f = camera.files?.[0]; camera.value = ''; if (!f) return; try { newBlob = await compressImage(f); drawPhoto(); } catch { toast('Cette photo n\'a pas pu être lue.', true); } });
+  const drawPhoto = () => {
+    const img = el('img', { class: 'seen-preview', alt: 'Photo du passage' });
+    if (newBlob) img.src = URL.createObjectURL(newBlob); else if (photo) photoUrl(photo).then((u) => { if (u) img.src = u; });
+    fill(preview, newBlob || photo
+      ? [img, el('button', { type: 'button', class: 'btn', onclick: () => { newBlob = null; photo = null; drawPhoto(); } }, ico('x'), 'Retirer la photo')]
+      : [el('button', { type: 'button', class: 'btn c-add', onclick: () => camera.click() }, ico('camera'), 'Ajouter une photo')]);
+  };
+  drawPhoto();
+  const segBtn = (label, key) => el('button', { type: 'button', 'aria-pressed': String(day === key), onclick: () => { day = key; drawDays(); } }, label);
+  const daySeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Quel jour' });
+  const drawDays = () => { fill(daySeg, segBtn('Aujourd\'hui', 'today'), segBtn('Hier', 'yday'), segBtn('Autre jour', 'other')); dateField.hidden = day !== 'other'; };
+  drawDays();
+  const done = () => openDetail(p.id, back);
+  const save = async () => {
+    const d = day === 'today' ? today : day === 'yday' ? yday : (() => { const [y, m, dd] = date.value.split('-').map(Number); return y ? new Date(y, m - 1, dd) : null; })();
+    if (!d) { toast('Choisis la date.', true); return; }
+    // l'heure : maintenant pour aujourd'hui, midi pour un autre jour (on ne garde que le jour)
+    const when = day === 'today' ? Date.now() : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
+    let photoId = photo;
+    if (newBlob) { photoId = newPhotoId(); try { await putPhoto(photoId, newBlob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; } }
+    if (old?.photo && old.photo !== photoId) deletePhoto(old.photo).catch(() => {});
+    const rest = cleanPassages(p.passages).filter((x) => x !== old && x.at !== old?.at);
+    p.passages = cleanPassages([...rest, { at: old && day !== 'today' && iso(new Date(old.at)) === iso(d) ? old.at : when, text: text.value, photo: photoId, stars: stars || undefined }]);
+    if (!p.done) setDone(p, true, when); // passé ici : c'est aussi « Déjà visité »
+    persist(); renderMarkers();
+    done();
+    offerStars(p, stars, old ? 'Passage corrigé' : `Noté dans « ${logName(catOf(p.cat))} »`);
+  };
+  const remove = () => {
+    if (old.photo) deletePhoto(old.photo).catch(() => {});
+    p.passages = cleanPassages(p.passages).filter((x) => x.at !== old.at);
+    if (!p.passages.length) delete p.passages;
+    persist(); toast('Passage supprimé'); done();
+  };
+  openSheet([ico('footprints'), old ? ' Ce passage' : ' J\'y suis passé'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, p.name),
+    el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
+    el('label', { class: 'field' }, 'Ce que j\'ai vu (facultatif)', text),
+    el('div', { class: 'field' }, 'Ma note (facultatif)', pick),
+    preview, camera,
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: done }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Garder')),
+    old ? el('button', { type: 'button', class: 'btn danger', onclick: remove }, 'Supprimer ce passage') : null,
+    el('p', { class: 'help' }, `Tes passages restent sur ce téléphone et partent dans ta sauvegarde. Le nom « ${logName(catOf(p.cat))} » se change dans Réglages → Catégories et listes → la catégorie.`),
+  ), { name: `passage:${p.id}:${at ?? 'new'}` });
+}
+/** Mon journal : tous mes passages, toutes adresses, par mois. */
+function openJournal(back = named('Mon Paris', () => openMyParis())) {
+  const again = () => openJournal(back);
+  const all = allPassages(state.points);
+  const groups = [];
+  for (const x of all) {
+    const m = new Date(x.at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    if (groups.at(-1)?.label !== m) groups.push({ label: m, items: [] });
+    groups.at(-1).items.push(x);
+  }
+  openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
+    all.length ? null : el('p', { class: 'empty' }, 'Aucun passage noté.'),
+    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « J\'y suis passé ». Cocher « Déjà visité » note aussi le jour.'),
+    ...groups.flatMap((g) => [
+      el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
+      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => passageRow(x, () => openDetail(x.p.id, named('Mon journal', again)), x.p.name))),
+    ]),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'journal', again });
+}
+
+/** Déjà visité, avec son passage daté (v157) : coché = un passage sans texte ce jour-là ; décoché = ce passage vide part. */
+function markDone(p, done, at = Date.now()) {
+  if (done && !p.done) p.passages = addPassage(p.passages, { at });
+  if (!done && p.done) p.passages = dropAutoPassage(p.passages, at);
+  if (!p.passages?.length) delete p.passages;
+  setDone(p, done, at);
 }
 
 /** Centre la carte sur une position, au milieu de la partie visible au-dessus de la feuille. */
@@ -528,6 +686,7 @@ function openFilters() {
       !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(hoursOf(p))?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
       !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
       !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
+      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count((p) => p.cat === SEEN_CAT.id), 'note', 'notes')}`, () => { filt.seen = !filt.seen; }),
       !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
       !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
         ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
@@ -540,7 +699,7 @@ function openFilters() {
           .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
             ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
       activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
-        filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
+        filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
     keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
@@ -595,7 +754,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -755,6 +914,8 @@ function track(name) {
 }
 let marketsTime = 0; // date de cette liste
 let nowHidden = false; // carte « Maintenant » cachée par la croix
+const SEEN_SHOWN_KEY = 'carte-paris.deja-vu'; // { id: date du premier rappel } : reste sur le téléphone, hors sauvegarde
+let seenShown = (() => { try { return JSON.parse(storage.getItem(SEEN_SHOWN_KEY) ?? '{}') ?? {}; } catch { return {}; } })();
 let nowLast = 0;
 const LAST_KEY = 'carte-paris.derniere-position'; // reste sur le téléphone, jamais envoyée
 try {
@@ -826,6 +987,20 @@ function updateNow(force = false) {
         ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`
         : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`));
     card.querySelector('.now-open').onclick = () => openPlanned(tk);
+    return;
+  }
+  // « Tu es déjà passé ici » (v157) : une de mes adresses ou notes à moins de 100 m, rappelée une fois par visite, puis pas avant 7 jours
+  const mem = nowHidden ? null : memoryHere(state.points, pos, seenShown);
+  if (mem) {
+    seenShown = markShown(seenShown, mem.p.id);
+    try { storage.setItem(SEEN_SHOWN_KEY, JSON.stringify(seenShown)); } catch { /* facultatif */ }
+    const m = memoryOf(mem.p);
+    card.hidden = false;
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `Tu es déjà passé ici${m.at ? ` · ${agoText(m.at)}` : ''}`),
+      el('span', { class: 'now-name' }, mem.p.name),
+      el('span', { class: 'now-sub' }, m.text || (m.photo ? 'Ta photo' : 'Voir la fiche')));
+    card.querySelector('.now-open').onclick = () => openDetail(mem.p.id);
     return;
   }
   // Prochaine sortie prévue (Mon planning) : celle de demain passe avant la suggestion du moment ;
@@ -912,11 +1087,103 @@ const freshHere = () => (here && Date.now() - here.time < FRESH_MS ? here : null
 
 function openAddChoice() {
   openSheet([ico('plus'), ' Ajouter un lieu'], el('div', { class: 'stack' },
-    el('button', { type: 'button', class: 'btn big c-add solid', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
+    el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'),
+    el('p', { class: 'help' }, 'Une photo et une ligne, posées là où tu es. Pour les trouvailles de la rue : une cour, une vitrine, une plaque.'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, { name: 'Ajouter un lieu', fn: openAddChoice }) }, ico('search'), 'Avec un nom ou une adresse'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
     el('p', { class: 'help' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux.'),
   ), { name: 'add', again: openAddChoice });
+}
+
+/* ---------- Vu en passant (v157) : la position se cherche pendant la photo ; une ligne facultative ; Garder ---------- */
+function captureSeen() {
+  track('Vu en passant');
+  const where = locate().catch((e) => ({ error: e.message })); // tout de suite, au moment de l'appui
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const f = camera.files?.[0];
+    camera.remove();
+    if (!f) return;
+    let blob = null;
+    try { blob = await compressImage(f); } catch { blob = null; }
+    if (!blob) { toast('Cette photo n\'a pas pu être lue.', true); return; }
+    openSeenForm(blob, where);
+  });
+  document.body.append(camera);
+  camera.click();
+}
+function openSeenForm(blob, where) {
+  const url = URL.createObjectURL(blob);
+  const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine' });
+  const posLine = el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche de ta position…');
+  const choice = el('div', { class: 'field', hidden: true });
+  let stars = 0;
+  const starBox = el('div', { class: 'field', hidden: true }, 'Ma note (facultatif)', starPicker(0, (n) => { stars = n; }));
+  let target = 'new'; // id d'une de mes adresses proches, ou une nouvelle note
+  let fix = null;
+  where.then((r) => {
+    fix = r;
+    const near = !r?.error ? placeNear(state.points, r, 30) : null;
+    if (near) {
+      target = near.p.id;
+      let draw = () => fill(choice, 'Où la garder ?', el('div', { class: 'seg', role: 'group', 'aria-label': 'Où la garder' },
+        el('button', { type: 'button', 'aria-pressed': String(target === near.p.id), onclick: () => { target = near.p.id; draw(); } }, `Ajouter à : ${near.p.name}`),
+        el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouvelle note')));
+      const drawAll = draw;
+      draw = () => { drawAll(); starBox.hidden = target === 'new'; };
+      draw();
+      choice.hidden = false;
+    }
+    if (r?.error) { posLine.textContent = `${r.error} Le point sera posé au centre de la carte : tu pourras le déplacer.`; posLine.className = 'warn'; return; }
+    const m = Math.round(r.acc ?? 0);
+    posLine.textContent = m > 50 ? `Position à ${m} m près : tu pourras déplacer le point.` : m < 5 ? 'Position précise.' : `Position à ${m} m près.`;
+    if (m > 50) posLine.className = 'warn';
+  });
+  let busy = false;
+  const keep = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => save() }, ico('check'), 'Garder');
+  const save = async () => {
+    if (busy) return;
+    busy = true;
+    if (!fix) fill(keep, ico('locate'), 'Position en cours…'); // le GPS cherche encore (6 s au plus)
+    const r = fix ?? await where;
+    const c = map.getCenter();
+    const at = r?.error ? { lat: c.lat, lng: c.lng, acc: null } : r;
+    const rough = !at.acc || at.acc > 50;
+    const id = newPhotoId();
+    try { await putPhoto(id, blob); } catch { busy = false; toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
+    const place = target !== 'new' ? state.points.find((x) => x.id === target) : null;
+    if (place) { // un passage de cette adresse, avec la photo et la ligne
+      place.passages = addPassage(place.passages, { at: Date.now(), text: line.value, photo: id, stars: stars || undefined });
+      if (!place.done) setDone(place, true);
+      persist(); renderMarkers();
+      URL.revokeObjectURL(url);
+      closeSheet();
+      if (stars && stars !== (place.stars ?? 0)) offerStars(place, stars, `Ajouté à « ${place.name} »`);
+      else toast(`Ajouté à « ${place.name} »`, false, { label: 'Voir', fn: () => openDetail(place.id) });
+      return;
+    }
+    state = withSeenCat(state);
+    const np = newPoint({ name: seenName(line.value), cat: SEEN_CAT.id, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
+    np.photos = [id];
+    state.points.push(np);
+    persist(); refresh();
+    URL.revokeObjectURL(url);
+    closeSheet();
+    centerOn(at.lat, at.lng, Math.max(map.getZoom(), 17));
+    toast(rough ? 'Gardé · position approximative' : 'Gardé dans Vu en passant', false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
+    reverseAddress(at.lat, at.lng).then((label) => { if (label) { np.address = label; persist(); } }).catch(() => {});
+  };
+  openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
+    el('img', { class: 'seen-preview', src: url, alt: 'Ta photo' }),
+    el('label', { class: 'field' }, 'Une ligne (facultatif)', line),
+    posLine,
+    choice,
+    starBox,
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => { URL.revokeObjectURL(url); closeSheet(); toast('Photo non gardée'); } }, 'Annuler'),
+      keep),
+  ), { name: 'seen' });
 }
 
 /** Ouvre le formulaire à une position et cherche l'adresse en arrière-plan. */
@@ -1212,10 +1479,11 @@ function openForm(draft, existing = null) {
     const listIds = [...lists].filter((id) => (state.lists ?? []).some((l) => l.id === id));
     if (existing) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
-      setDone(existing, done);
+      markDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
+      if (done) np.passages = addPassage([], { at: np.created }); // ajouté comme « Déjà visité » : son premier passage
       state.points.push(np);
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
@@ -1284,7 +1552,7 @@ function openDetail(id, back = null) {
   // Favori et Déjà visité : deux interrupteurs à libellé fixe, l'état est dit par aria-pressed (v95).
   const toggles = el('div', { class: 'row' },
     el('button', { type: 'button', class: 'btn c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
-    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { setDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
+    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { markDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
   // Prévoir (v152) : juste sous les interrupteurs, il dit aussi quand la sortie est prévue.
   const planned = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
   const planBtn = el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(p, back) },
@@ -1325,7 +1593,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: showTidy }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
-        for (const ph of p.photos ?? []) deletePhoto(ph).catch(() => {});
+        for (const ph of photoIds(p)) deletePhoto(ph).catch(() => {});
         state.points = state.points.filter((x) => x.id !== id);
         persist(); renderMarkers();
         if (back) back(); else closeSheet();
@@ -1339,10 +1607,12 @@ function openDetail(id, back = null) {
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
     planBtn,
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'J\'y suis passé'),
     facts2,
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     photoWide(p, back),
     facts,
+    ...passageSection(p, here),
     el('h3', { class: 'fiche-sec' }, 'Sur ce lieu'),
     el('div', { class: 'fiche-toc' },
       row('pencil', 'Modifier', 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
@@ -2557,6 +2827,10 @@ async function openMyParis(from = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('alarm-clock')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon planning'), el('span', { class: 'menu-sub' }, planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue')),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
+    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openJournal() },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const n = allPassages(state.points).length; return n ? plural(n, 'passage noté', 'passages notés') : 'Tes passages, toutes adresses'; })())),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
@@ -2645,7 +2919,7 @@ function openPlanning(from = null) {
   };
   // Le lendemain (v152) : « Tu y es allé ? ». Oui = Déjà visité, à la date prévue ; Non = la sortie s'efface.
   const answer = (p, yes) => {
-    if (yes) setDone(p, true, p.ticket.at);
+    if (yes) markDone(p, true, p.ticket.at);
     delete p.ticket;
     persist(); renderMarkers(); updateNow(true);
     toast(yes ? `« ${p.name} » : déjà visité` : `« ${p.name} » retiré de Mon planning`);
@@ -4307,7 +4581,7 @@ function openCompass(p, step = null) {
   doneBtn.setAttribute('aria-label', `Marquer ${p.name} comme déjà visité`);
   doneBtn.onclick = () => {
     if (!mine) return;
-    setDone(mine, true); persist(); renderMarkers();
+    markDone(mine, true); persist(); renderMarkers();
     doneBtn.hidden = true;
     toast(`${mine.name} : noté « déjà visité »`);
   };
@@ -4992,7 +5266,7 @@ async function importPhotos(text, st) {
   let photos;
   try { photos = JSON.parse(text)?.photos; } catch { return; }
   if (!photos || typeof photos !== 'object') return;
-  const wanted = new Set(st.points.flatMap((p) => p.photos ?? []));
+  const wanted = new Set(st.points.flatMap((p) => photoIds(p)));
   for (const [id, url] of Object.entries(photos)) {
     if (!wanted.has(id)) continue;
     const blob = await dataUrlToBlob(url).catch(() => null);
@@ -5007,6 +5281,7 @@ function openCategory(id, ret = null) {
   let color = c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
   let icon = c?.icon ?? '📍';
   const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
+  const log = el('input', { type: 'text', value: c?.log ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Mes passages' });
   const err = el('p', { class: 'error', role: 'alert' });
   const swatches = picker(PALETTE, color, (v) => { color = v; }, { colors: true, names: COLOR_NAMES });
   const icons = picker(ICONS, icon, (v) => { icon = v; });
@@ -5014,7 +5289,7 @@ function openCategory(id, ret = null) {
 
   const save = () => {
     try {
-      state = id ? updateCategory(state, id, { name: name.value, color, icon }) : addCategory(state, { name: name.value, color, icon });
+      state = id ? updateCategory(state, id, { name: name.value, color, icon, log: cleanLog(log.value) }) : addCategory(state, { name: name.value, color, icon, log: cleanLog(log.value) });
     } catch (e) { err.textContent = e.message; return; }
     persist(); refresh();
     if (ret && !id) ret.done(state.categories.at(-1).id); else openSettings('categories');
@@ -5069,6 +5344,8 @@ function openCategory(id, ret = null) {
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
+    el('label', { class: 'field' }, 'Nom de l\'historique dans la fiche', log),
+    el('p', { class: 'help' }, 'Ex. : « Mes repas » pour des restos, « Mes visites » pour des musées. Vide : « Mes passages ».'),
     err, zone,
     foot(el('div', { class: 'row' },
       backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
@@ -5104,7 +5381,7 @@ async function backupText(withPhotos) {
   if (withPhotos) {
     obj.photos = {};
     for (const p of state.points) {
-      for (const id of p.photos ?? []) {
+      for (const id of photoIds(p)) {
         const b = await getPhoto(id).catch(() => null);
         if (b) obj.photos[id] = await blobToDataUrl(b);
       }
@@ -5698,6 +5975,8 @@ const HELP = [
   ]],
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse.',
+    '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
+    '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
@@ -5711,6 +5990,9 @@ const HELP = [
     '**Aujourd\'hui** : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint.',
     '{alarm-clock} **Prévoir une visite** : juste en dessous. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
+    '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
+    '**Tous tes passages** : Mon Paris → Mon journal. Cocher « Déjà visité » note aussi le jour.',
+    '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '**En bas de la fiche** : Modifier, Partager, QR code, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
@@ -5798,6 +6080,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
     '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
     '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
@@ -5807,7 +6090,6 @@ const HELP = [
     '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
     '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
     '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
-    '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
   ]],
 ];
 
