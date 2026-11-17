@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (122)';
+const VERSION = '17 novembre 2026 (123)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2821,6 +2821,8 @@ async function openEvents(start = null) {
     body = [
       el('p', { class: 'help' }, 'Réductions et services pour les abonnés Navigo (annuel, mois, imagine R, Senior, Liberté +), sur présentation du passe. Touche un lieu pour lire l\'offre.'),
       el('h3', { class: 'ring-title' }, el('span', {}, within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches'), el('span', {}, String(nvNear.length))),
+      nvNear.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Avantages Navigo', label: plural(nvNear.length, 'lieu partenaire', 'lieux partenaires'), items: nvNear, icon: 'ticket',
+        open: (x) => openNavigo(x), back: () => { eventsMode = 'navigo'; openEvents(); } }) }, ico('map'), 'Voir sur la carte') : null,
       nvNear.length ? el('ul', { class: 'items ev-list' }, nvNear.map((x) => navigoRow(x, back))) : el('p', { class: 'empty' }, 'La liste des lieux partenaires n\'a pas pu être lue.'),
     ];
     notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
@@ -2833,6 +2835,8 @@ async function openEvents(start = null) {
       const open = g.filter((x) => openState(x.hours)?.open).length;
       fill(galBox,
         el('h3', { class: 'ring-title' }, el('span', {}, 'Galeries à moins de 1,5 km'), el('span', {}, g.length ? `${open} ouverte${open > 1 ? 's' : ''}` : '')),
+        g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Galeries', label: `${plural(g.length, 'galerie', 'galeries')}, ${open} ouverte${open > 1 ? 's' : ''}`, items: g, icon: 'palette',
+          off: (x) => openState(x.hours)?.open === false, open: openGalleryCard, back: () => { eventsMode = 'art'; openEvents(); } }) }, ico('map'), 'Voir sur la carte') : null,
         g.length ? el('ul', { class: 'items ev-list' }, g.map((x) => galleryRow(x, back))) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'),
         g.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openGalleryWalk(openEvents) }, ico('route'), 'Parcours galeries ouvertes') : null);
     };
@@ -2893,6 +2897,37 @@ async function openEvents(start = null) {
   if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
   for (const e of mode === 'navigo' ? nvNear : mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+}
+
+
+/* ---------- Voir sur la carte : les lieux d'une liste (Navigo, galeries), le temps de les regarder ----------
+   Rien de permanent : un bandeau en bas dit ce qui est affiché, × retire tout, un appui sur le bandeau rouvre la liste. */
+const peekLayer = L.layerGroup().addTo(map);
+let peekCard = null;
+function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; }
+/** items : { name, lat, lng } ; open(x) ouvre la fiche d'un lieu ; off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste. */
+function showPeek({ kicker, label, items, icon, open, off = () => false, back }) {
+  closeSheet();
+  endPeek();
+  if (!items.length) { toast('Rien à afficher sur la carte.'); return; }
+  for (const x of items) {
+    L.marker([x.lat, x.lng], { keyboard: true, title: x.name, zIndexOffset: 400,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin${off(x) ? ' off' : ''}">${svgIcon(icon, { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}${off(x) ? ', fermé' : ''}`))
+      .on('click', () => open(x))
+      .addTo(peekLayer);
+  }
+  peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': `${kicker} sur la carte` },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); back(); } },
+      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, kicker), el('span', { class: 'now-name' }, label), el('span', { class: 'now-sub' }, 'Touche ici pour revenir à la liste')),
+      el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
+    el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
+  document.body.append(peekCard);
+  map.fitBounds(L.latLngBounds(items.map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
+}
+/** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
+function openGalleryCard(g) {
+  openSheet([ico('palette'), ' Galerie'], el('div', { class: 'stack' }, el('ul', { class: 'items ev-list' }, galleryRow(g, null))), { name: `galerie:${g.lat},${g.lng}` });
 }
 
 /* ---------- Parcours galeries : une boucle à pied par les galeries ouvertes à ton arrivée ---------- */
@@ -4729,6 +4764,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
     '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
     '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. TTB : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TTB. Le nom du guide est abrégé en TTB, la source est citée dans Réglages → TTB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
     '{utensils} TTB : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → TTB, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton TTB en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
@@ -4738,7 +4774,6 @@ const HELP = [
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
     '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
-    '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4789,7 +4824,7 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : quatre onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte (une sortie de « Plus tard aujourd\'hui » va aussi dans Mon planning, avec son heure). Navigo : les lieux culturels partenaires des avantages Navigo (cinémas, salles, théâtres, musées), du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
+    '{calendar-days} Sorties : quatre onglets. Tout et Gratuit commencent par la sortie en cours la plus proche (grande plaque), puis « Dernière chance », « En ce moment » et « Plus tard aujourd\'hui ». L\'icône dit le genre (musique, spectacle, cinéma, balade, en famille…) ; deviné d\'après l\'agenda, il peut se tromper, et un calendrier veut dire « genre pas sûr ». Expos : voir la rubrique « Expos et art ». Dans chaque carte : {compass} boussole, M métro, et + pour l\'ajouter à ta carte (une sortie de « Plus tard aujourd\'hui » va aussi dans Mon planning, avec son heure). Navigo : les lieux culturels partenaires des avantages Navigo (cinémas, salles, théâtres, musées), du plus proche au plus loin ; touche un lieu pour lire l\'offre. « Voir sur la carte » (onglets Navigo et Expos) les montre sur la carte, galeries comprises, jusqu\'à ce que tu touches la croix du bandeau du bas.',
     '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
     'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',

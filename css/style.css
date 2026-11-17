@@ -684,6 +684,10 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .genre.g-ttb .ttb-dot { width: 30px; height: 30px; }
 .ttb-dot .ico svg, .ttb-dot svg { display: block; }
 .chip .ttb-dot { width: 24px; height: 24px; }
+/* Voir sur la carte (Navigo, galeries) : rond à contour terre cuite (le rond plein est TTB) ; fermé = pointillé gris */
+.peek-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
+.peek-pin.off { border-style: dashed; border-color: var(--muted); color: var(--muted); }
+body:has(.peek-card) #nowCard { display: none; }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 
 /* =====================================================================
