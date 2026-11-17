@@ -60,7 +60,13 @@ export function blobToDataUrl(blob) {
   });
 }
 
+/** Photo d'un fichier de sauvegarde → Blob. Décodée ici, sans fetch() : la CSP de l'appli (connect-src) refuse les
+ * adresses data:, et les photos ne revenaient jamais à la restauration (corrigé en v121). */
 export async function dataUrlToBlob(url) {
-  if (typeof url !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(url)) return null;
-  return (await fetch(url)).blob();
+  const m = typeof url === 'string' ? /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(url) : null;
+  if (!m) return null;
+  const bin = atob(m[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: m[1] });
 }

@@ -673,15 +673,16 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .air-bon, .air-correct { --air: var(--aq-bon); } .air-moyen { --air: var(--aq-moyen); } .air-mediocre, .air-tres-mediocre, .air-extreme { --air: var(--aq-mauvais); }
 .air-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--air); }
 .air-card { padding: 12px 14px; border-radius: var(--r); border: 2px solid var(--air); font-size: 16px; }
-/* Très Très Bon : la seule épingle ronde et pleine (CHARTE.md §3), terre cuite aux couverts ; même marque en haut et dans les listes */
+/* Très Très Bon : la seule épingle ronde et pleine (CHARTE.md §3), terre cuite, icône selon la rubrique ; « TB » sur le bouton du haut */
 .ttb-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--disc); color: var(--bg); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
+.ttb-pin b, .ttb-dot b { font-family: var(--display); font-weight: 800; font-size: 11.5px; line-height: 1; letter-spacing: 0; }
 .ttb-far .ttb-pin { width: 14px; height: 14px; margin: 7px; border-width: 1.5px; }
-.ttb-far .ttb-pin .lucide, .ttb-far .ttb-pin svg { display: none; }
+.ttb-far .ttb-pin svg { display: none; }
 .ttb-dot { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--disc); color: var(--bg); }
-.ttb-dot .ico svg { width: 15px; height: 15px; display: block; }
 .chip.ttb-chip { font-weight: 700; padding-left: 8px; }
-.genre.g-ttb .ico { width: 30px; height: 30px; border-radius: 50%; background: var(--disc); color: var(--bg); display: grid; place-items: center; }
-.genre.g-ttb .ico svg { width: 17px; height: 17px; }
+.genre.g-ttb .ttb-dot { width: 30px; height: 30px; }
+.ttb-dot .ico svg, .ttb-dot svg { display: block; }
+.chip .ttb-dot { width: 24px; height: 24px; }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
 
 /* =====================================================================
@@ -809,6 +810,12 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
   position: absolute; bottom: -7px; right: -7px; transform: rotate(45deg);
   width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: #fff; color: #1f2a44; font: 800 10.5px/1 'Archivo', system-ui, sans-serif; box-shadow: 0 0 0 1.5px #1f2a44;
+}
+/* Sortie prévue dans les 7 jours : pastille agenda terre cuite, comme le bouton Mon planning, côté gauche de la goutte */
+.pin-plan {
+  position: absolute; top: -7px; left: -7px; transform: rotate(45deg);
+  width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--disc); color: var(--bg); box-shadow: 0 0 0 1.5px var(--bg);
 }
 .z-far .pin { transform: rotate(-45deg) scale(.72); }
 .pin.done { opacity: .6; }

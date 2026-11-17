@@ -13,11 +13,11 @@ import { searchPlaces } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, NAVIGO_SOURCE } from './navigo.js';
-import { TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '16 novembre 2026 (120)';
+const VERSION = '17 novembre 2026 (121)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -371,13 +371,14 @@ function renderMarkers() {
     const c = catOf(p.cat);
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
-    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}</span>`;
+    const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
+    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('calendar-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${ticketText(p.ticket.at)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -532,7 +533,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'utensils', 'Très Très Bon']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'Très Très Bon']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -541,7 +542,7 @@ function openFilterChoice(back = openFilters) {
         if (on) hid.add(key); else hid.delete(key);
         state.hiddenFilters = [...hid]; persist(); openFilterChoice(back);
       } },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, key === 'ttb' ? ttbDot() : ico(icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
@@ -1219,7 +1220,7 @@ function openDetail(id, back = null) {
 
   // Actions, version A « Sommaire » : trois rubriques nommées, tout à un appui (plus de « Plus »).
   const row = (icon, label, sub, onclick, cls = '') => el('button', { type: 'button', class: `fiche-row ${cls}`.trim(), onclick },
-    ico(icon), el('span', {}, label, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+    typeof icon === 'string' ? ico(icon) : icon, el('span', {}, label, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
   const tidy = el('div', { class: 'fiche-toc' });
   const showTidy = () => fill(tidy,
     row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
@@ -1255,7 +1256,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
-      ttbOf(p) ? row('utensils', 'Très Très Bon', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
+      ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'Très Très Bon', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
       el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -1790,7 +1791,7 @@ function renderNear(fit = false) {
     body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'Très Très Bon à moins de 15 min'), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
-        ttbDot(),
+        ttbDotFor(x.rub),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
@@ -2644,11 +2645,11 @@ function loadGalleries(force = false) {
 
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
-const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', ttb: 'utensils' };
+const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette' };
 const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'Très Très Bon' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /** Une carte de sortie. `feat` : la grande plaque en tête (la seule plaque pleine de l'écran). */
-function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '' }) {
+function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '', badge = null }) {
   const label = GENRE_NAME[genre];
   const main = el(href ? 'a' : onclick ? 'button' : 'div', { class: 'ev-main', ...(href ? { href, target: '_blank', rel: 'noopener' } : onclick ? { type: 'button', onclick } : {}) },
     kicker ? el('span', { class: 'feat-kicker' }, kicker) : null,
@@ -2656,7 +2657,7 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
     sub.filter(Boolean).length ? el('span', { class: 'ev-sub' }, ...sub.filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [typeof x === 'string' ? x.charAt(0).toUpperCase() + x.slice(1) : x]))) : null,
     tags.filter(Boolean).length ? el('span', { class: 'ev-tags' }, ...tags.filter(Boolean)) : null);
   return el(feat ? 'div' : 'li', { class: feat ? 'ev feat' : 'ev' },
-    el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, ico(GENRE_ICON[genre] ?? 'calendar-days', { size: feat ? 26 : 22 })),
+    el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: feat ? 26 : 22 })),
     main,
     el('div', { class: 'ev-foot' },
       el('span', { class: 'walk' }, d != null ? walkTxt(d) : ''),
@@ -3301,8 +3302,12 @@ function ttbList() {
 const ttbRubs = new Set(); // filtres de la liste et de la carte (le temps de la session)
 const ttbBudgets = new Set();
 const ttbShown = () => ttbList().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
-/** Le rond terre cuite aux couverts : la même marque sur la carte, en haut et dans les listes. */
-const ttbDot = (size = 15) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico('utensils', { size, stroke: 2.4 }));
+/** La marque Très Très Bon, la même sur la carte, en haut et dans les listes : un rond terre cuite marqué « TB ».
+ * Pour changer la marque, ne modifier que TTB_MARK (texte court, 2 lettres au plus pour tenir dans le rond). */
+const TTB_MARK = 'TB';
+const ttbDot = () => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, el('b', {}, TTB_MARK));
+/** Le rond d'une adresse ou d'une rubrique : l'icône de sa rubrique (couverts, bol, sandwich, croissant, panier, verre). */
+const ttbDotFor = (rub) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico(ttbIcon(rub), { size: 15, stroke: 2.4 }));
 const ttbOf = (p) => (ttbList().length ? navigoFor(p, ttbList()) : null); // l'adresse du guide qui correspond à un de mes lieux
 const ttbDateText = () => (ttbData?.date ? frenchDate(ttbData.date) : '');
 
@@ -3315,8 +3320,8 @@ function drawTtb() {
   if (!state.showTtb) return;
   for (const x of ttbShown()) {
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
-      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon('utensils', { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
-      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, Très Très Bon`))
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, Très Très Bon${x.rub ? `, ${x.rub}` : ''}`))
       .on('click', () => { if (!moving) openTtbPlace(x); })
       .addTo(ttbLayer);
   }
@@ -3336,15 +3341,15 @@ function openTtbList(back = null, limit = 30) {
   const all = ttbShown().map((x) => ({ ...x, d: distanceM(from, x) })).sort((a, b) => a.d - b.d);
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
   const flip = (set, v) => { if (set.has(v)) set.delete(v); else set.add(v); drawTtb(); openTtbList(back, 30); };
-  openSheet([ttbDot(18), ' Très Très Bon'], el('div', { class: 'stack' },
+  openSheet([ttbDot(), ' Très Très Bon'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
     el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDot()),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite aux couverts, avec ces filtres')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite, icône selon la rubrique, avec ces filtres')),
       el('span', { class: `switch${state.showTtb ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Rubriques' }, TTB_RUBS.map((r) => chip(r, ttbRubs.has(r), () => flip(ttbRubs, r)))),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Rubriques' }, TTB_RUBS.map((r) => chip([ttbDotFor(r), ` ${r}`], ttbRubs.has(r), () => flip(ttbRubs, r)))),
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Budget' }, [1, 2, 3, 4].map((b) => chip(el('span', { 'aria-label': `Budget ${b} sur 4` }, '€'.repeat(b)), ttbBudgets.has(b), () => flip(ttbBudgets, b)))),
-    all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', name: x.name, onclick: () => openTtbPlace(x, named('Très Très Bon', again)),
+    all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, named('Très Très Bon', again)),
       sub: [ttbKicker(x), ttbToday(x) ? `aujourd'hui ${ttbToday(x)}` : ''], d: x.d,
       buttons: [compassBtn(x), metroBtn(x, named('Très Très Bon', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
       : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
@@ -3404,7 +3409,7 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
   const again = () => openTtb(back, confirm);
   const input = el('input', { type: 'file', hidden: true }); // pas de filtre : Android ne reconnaît pas toujours le type .mhtml
   input.addEventListener('change', () => { const f = input.files?.[0]; input.value = ''; if (f) importTtbFile(f, back); });
-  openSheet([ttbDot(18), ' Très Très Bon'], el('div', { class: 'stack' },
+  openSheet([ttbDot(), ' Très Très Bon'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide Très Très Bon, sur ta carte.'),
     n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('Très Très Bon', again)) }, ico('list'), 'Voir la liste') : null,
     el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
@@ -3993,13 +3998,21 @@ function openSettings(section = null) {
       : el('div', { class: 'menu-row c-info' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub))));
     openSheet([ico('database'), ' Données de l\'appli'], el('div', { class: 'stack' },
       el('p', { class: due.size ? 'warn' : 'help' }, due.size ? `${plural(due.size, 'donnée à mettre à jour', 'données à mettre à jour')}.` : 'Tout est à jour.'),
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Mises à jour par le robot, chaque 1er du mois'), el('span', {}, '')),
+      el('div', { class: 'menu' }, FIXED_DATA.filter((d) => d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, d.name),
+          el('span', { class: 'menu-sub' }, `${frenchDate(dates[d.id]) || 'date inconnue'} · ${everyText(d.every)}`)),
+        el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
+      el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
+      el('p', { class: 'help' }, 'Ouvre la page du robot sur GitHub (connecte-toi si besoin), puis « Run workflow » → « Run workflow ». En 2 à 5 minutes, il télécharge les fichiers officiels, les vérifie et publie. Ensuite : Application → Mettre à jour l\'appli. S\'il échoue, rien ne change dans l\'appli, et GitHub t\'envoie normalement un mail.'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'À refaire avec Claude'), el('span', {}, '')),
-      el('div', { class: 'menu' }, FIXED_DATA.map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
+      el('div', { class: 'menu' }, FIXED_DATA.filter((d) => !d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, d.name),
           el('span', { class: 'menu-sub' }, `${frenchDate(dates[d.id]) || 'date inconnue'} · ${everyText(d.every)}`)),
         el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'À refaire' : 'À jour'),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
-      el('p', { class: 'help' }, 'Touche une ligne : quoi télécharger et quoi envoyer à Claude. Rien n\'est téléchargé tout seul. Un rappel groupé s\'affiche à l\'ouverture, au plus une fois par semaine.'),
+      el('p', { class: 'help' }, 'Touche une ligne : quoi télécharger et quoi envoyer à Claude (Mérimée n\'a pas de lien de téléchargement direct, les deux listes sont relevées à la main). Un rappel groupé s\'affiche à l\'ouverture, au plus une fois par semaine.'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'Mises à jour automatiques'), el('span', {}, '')),
       el('p', { class: 'help' }, 'Rechargées toutes seules, sans ta position. Les liens ouvrent leur page sur opendata.paris.fr, avec la date de mise à jour de la Ville.'),
       el('div', { class: 'menu' },
@@ -4026,6 +4039,12 @@ function openSettings(section = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.xlsx') ? 'Excel' : f.file.endsWith('.json') ? 'JSON' : 'GeoJSON'} · fichier « ${f.file} »`)),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+    const robot = d.robot ? [
+      el('p', { class: 'help' }, 'Refait chaque 1er du mois par le robot GitHub, qui télécharge le fichier officiel, le vérifie et publie. Pour le lancer tout de suite :'),
+      el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
+      el('p', { class: 'help' }, 'Puis « Run workflow » → « Run workflow », et 2 à 5 minutes plus tard : Application → Mettre à jour l\'appli.'),
+      el('h3', { class: 'ring-title' }, el('span', {}, late ? 'Le robot a échoué : à la main' : 'Si le robot échoue'), el('span', {}, '')),
+    ] : [];
     const say = (phrase, tool) => el('p', { class: 'help' }, `Dans le projet « Geoloc », envoie-le à Claude avec la phrase : « ${phrase} ».${tool ? ` Claude lance ${tool}, vérifie, puis publie une nouvelle version.` : ''}`);
     const body = {
       lignes: () => [
@@ -4056,6 +4075,7 @@ function openSettings(section = null) {
     }[id]();
     openSheet([ico('database'), ` ${d.name}`], el('div', { class: 'stack' },
       el('p', { class: late ? 'warn' : 'help' }, `${date ? `Version du ${frenchDate(date)}` : 'Date inconnue'}.${late ? ' À mettre à jour.' : ''}`),
+      ...robot,
       ...body,
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('donnees') }, '← Données de l\'appli')), // (backBtn est masqué dans openSettings)
     ), { tall: true, name: `settings:${section}`, again: () => openSettings(section) });
@@ -4125,7 +4145,7 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
-    row(ttbDot(18), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
+    row(ttbDot(), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
       state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
@@ -4362,6 +4382,7 @@ function importText(text, owner) {
       let at = Date.now();
       try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
       if (!state.me) state.me = fileOwner(text);
+      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
       state.backup = savedBackup(state);
     }
@@ -4710,7 +4731,8 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
-    '{utensils} Très Très Bon : les adresses du guide sur ta carte, en ronds terre cuite aux couverts. Pour les mettre : Réglages → Très Très Bon, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton Très Très Bon en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
+    '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. Très Très Bon : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
+    '{utensils} Très Très Bon : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → Très Très Bon, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton Très Très Bon en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
@@ -4719,12 +4741,11 @@ const HELP = [
     '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
     '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
     '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
-    '{triangle-alert} Un lien reçu (lieu, invitation, balade) qui s\'ouvre hors de ton appli, par exemple dans le navigateur de Messages, affiche d\'abord « Tu n\'es pas dans ton appli » avec « Ouvrir dans Chrome » : ton lieu n\'est plus enregistré dans un navigateur qui l\'oublie. Aide → Ça ne marche pas ? dit comment régler le téléphone.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TB Très Très Bon (les adresses du guide, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
@@ -4735,7 +4756,7 @@ const HELP = [
     'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
-    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure.',
+    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {calendar-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -4744,7 +4765,7 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui (ils ne cachent aucun de tes lieux).',
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, Très Très Bon (ils ne cachent aucun de tes lieux).',
     'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
@@ -4784,7 +4805,7 @@ const HELP = [
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
     'Sous ton commentaire : Favori et {check} Déjà visité (touche à nouveau pour éteindre). Puis « Aujourd\'hui » (horaires) et le métro le plus proche, côte à côte.',
-    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps ; {car-taxi-front} Uber jusqu\'ici : l\'appli Uber s\'ouvre avec la destination remplie) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
+    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, Avantage Navigo et Très Très Bon quand le lieu en fait partie, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps ; {car-taxi-front} Uber jusqu\'ici : l\'appli Uber s\'ouvre avec la destination remplie) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
@@ -4792,7 +4813,7 @@ const HELP = [
     'Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['tags', 'Catégories, listes et favoris', [
-    '{settings} → Catégories et listes : toute la barre du haut sur une page. Case cochée = bouton affiché en haut (décoché : masqué, les lieux restent sur la carte). ↑ ↓ pour l\'ordre de tes catégories, {pencil} pour le nom, l\'icône et la couleur. Tout, Filtres, Favoris, Dans la rue et Lignes restent toujours en tête.',
+    '{settings} → Catégories et listes : toute la barre du haut sur une page. Case cochée = bouton affiché en haut (décoché : masqué, les lieux restent sur la carte). ↑ ↓ pour l\'ordre de tes catégories, {pencil} pour le nom, l\'icône et la couleur. Tout, Filtres, Favoris, Dans la rue, Très Très Bon et Lignes restent toujours en tête.',
     '« Icônes seules en haut » : la barre n\'affiche que les logos.',
     'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). {settings} → Catégories et listes → « Nouvelle liste », puis coche ses lieux d\'un coup ; un appui sur une liste existante pour en ajouter ou en retirer. On peut aussi la choisir depuis Modifier, lieu par lieu.',
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
@@ -4808,6 +4829,20 @@ const HELP = [
     '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {calendar-clock} de la carte (Mon planning).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
+  ['book-open-text', 'Très Très Bon', [
+    'Les adresses du guide trestresbon.fr, à Paris : ronds terre cuite sur la carte, avec l\'icône de la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave (petits ronds sans icône quand tu vois tout Paris).',
+    'Pour les mettre : {settings} → Très Très Bon → « Ouvrir la page Adresses ». Dans Chrome, menu ⋮ → flèche Télécharger : la page est enregistrée dans Téléchargements. Reviens dans l\'appli et « Choisir le fichier ». Même chose pour mettre la liste à jour.',
+    'Le bouton TB en haut affiche ou cache les adresses. Appui long : la liste, la plus proche en tête (depuis ta position récente, sinon le centre de la carte), avec un tri par rubrique et par budget, appliqué aussi à la carte.',
+    'Fiche : rubrique, cuisine, budget, horaires selon le guide (ils peuvent avoir changé), station la plus proche, site ou Instagram du lieu, Avis Google, et + Ajouter pour en faire un de tes lieux.',
+    'Quand le calque est affiché, Autour de moi montre les 3 adresses les plus proches. Et la fiche d\'un de tes lieux dit s\'il est dans le guide.',
+    'La liste reste sur ce téléphone : rien n\'est envoyé, elle n\'est pas dans ta sauvegarde, et les textes du guide ne sont pas gardés. {trash-2} {settings} → Très Très Bon → Retirer la liste.',
+  ]],
+  ['database', 'Données de l\'appli', [
+    'Les données en direct (fontaines, toilettes, lieux frais, agenda, marchés, Vélib\', météo) se rechargent seules.',
+    'Lignes et gares, avantages Navigo et toilettes RATP : un robot GitHub les refait seul le 1er de chaque mois, à partir des fichiers officiels, et ne publie que si tout est correct. Pour le lancer tout de suite : {settings} → Application → Données de l\'appli → {rotate-cw} Lancer le robot maintenant, puis « Run workflow ». Quelques minutes plus tard : Application → Mettre à jour l\'appli.',
+    'Monuments (Mérimée), horaires des marchés couverts et listes d\'expos se refont avec Claude : touche la ligne pour savoir quoi faire.',
+    'Un rappel s\'affiche à l\'ouverture, au plus une fois par semaine, seulement quand une donnée est en retard.',
+  ]],
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon les lieux « Déjà visité » : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
     'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
@@ -4822,11 +4857,11 @@ const HELP = [
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde, écris ton prénom, Envoyer le fichier ; ton ami fait Réglages → Restaurer ou importer → Importer les lieux d\'un proche.',
     'Ensuite, {list-filter} Filtres → « Lieux de mes proches » : les tiens, les siens ou tous.',
-    'L\'appli elle-même : envoie le lien limopo74.github.io/Carte-paris/',
   ]],
   ['save', 'Sauvegarder (important)', [
     'Tes lieux ne sont que sur ce téléphone. Sauvegarde-les souvent : {settings} → Sauvegarde (en tête des Réglages, en orange s\'il y a des changements) → Sauvegarder maintenant. Un rappel s\'affiche à l\'ouverture dès 5 changements, ou au bout de 3 jours.',
     '{triangle-alert} Effacer les « données des sites » (ou « cookies et données des sites ») dans Chrome efface aussi tes lieux. Sauvegarde avant.',
+    'Le fichier contient tes lieux, leurs photos (case cochée), tes billets, catégories, listes, stations et réglages (affichage, cercles, favori). Restauré sur une appli vide, tout revient comme avant. Il ne contient pas la liste Très Très Bon (à réimporter), ta clé CARTO ni ta marche.',
     'Le fichier va dans tes Téléchargements. Envoie-le aussi de temps en temps sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
     '{upload} Pour retrouver tes lieux (nouveau téléphone, données effacées) : {settings} → Restaurer ou importer → Restaurer ma sauvegarde. Si la carte est vide à l\'ouverture, l\'appli te le propose tout de suite.',
     '{download} Importer de Google Maps : tes listes et tes lieux enregistrés (les étapes sont expliquées). Les listes .csv sont cherchées par leur nom : vérifie les lieux marqués « à vérifier ».',
@@ -4849,6 +4884,7 @@ const HELP = [
     'La voix ne parle pas : monte le volume, et vérifie {settings} → Voix.',
     'Vélib\', Curiosités, galeries ou météo muets : ces services en ligne ne répondent peut-être pas ; réessaie plus tard.',
     'Copier ne marche pas : le téléphone affiche alors le texte dans une fenêtre, à sélectionner et copier à la main.',
+    'Très Très Bon : « ce fichier ne contient pas d\'adresses » veut dire que la page n\'a pas été enregistrée en entier ou pas en mode liste. Ouvre-la depuis {settings} → Très Très Bon (le lien ouvre le mode liste), attends la fin du chargement, puis Télécharger.',
     'Boussole « indisponible » : le téléphone ne donne pas son orientation ; la flèche montre la direction, nord en haut.',
   ]],
 ];
@@ -4915,7 +4951,8 @@ if ('serviceWorker' in navigator) {
 // « Maintenant » : la croix cache la suggestion ; si la position est déjà autorisée, on la lit
 // discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
 document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
-setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); }, 5 * 60000);
+let markersDay = new Date().toDateString(); // à minuit, les pastilles agenda des épingles changent
+setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); renderMarkers(); } }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin

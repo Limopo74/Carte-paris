@@ -35,3 +35,7 @@ Options (variables d'environnement) :
 - `SORTIE=captures` : dossier des captures.
 
 Rien ne part sur Internet pendant le contrôle : les fonds de carte et les services en ligne sont coupés, et l'agenda de Sorties est simulé avec cinq sorties fictives. Les vrais services (agenda, galeries, météo, Vélib') ne sont donc **pas** vérifiés ici.
+
+## Robot de mise à jour des données (GitHub Actions)
+
+`.github/workflows/maj-donnees.yml` refait chaque 1er du mois (ou à la demande : onglet Actions → « Mise à jour des données » → Run workflow) les lignes et gares, les avantages Navigo et les toilettes RATP. Il télécharge les exports officiels (API Opendatasoft d'IDFM et de la RATP), relance `maj-lignes.py`, `maj-navigo.py` et `maj-sanitaires.py`, puis `verif-donnees.py` (aucun fichier vide, pas plus de 20 % d'éléments perdus, champs « oui » encore présents) et `npm test`. Il ne publie que si tout passe. Mérimée, marchés couverts et listes annuelles restent à faire avec Claude.

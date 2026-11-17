@@ -7,6 +7,9 @@ export const TTB_SITE = 'https://trestresbon.fr/adresses?display=list';
 export const TTB_KEY = 'carte-paris.ttb';
 /** Rubriques du guide, dans l'ordre du site. */
 export const TTB_RUBS = ['La Table', 'Boui-boui', 'Street-food', 'Bec sucré', 'Le panier', 'Cave'];
+/** L'icône (Lucide) de chaque rubrique, dans le rond terre cuite. Pour en changer une : seulement ici. */
+export const TTB_ICONS = { 'La Table': 'utensils', 'Boui-boui': 'soup', 'Street-food': 'sandwich', 'Bec sucré': 'croissant', 'Le panier': 'shopping-basket', Cave: 'wine' };
+export const ttbIcon = (rub) => TTB_ICONS[rub] ?? 'utensils';
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const MAX_ITEMS = 2000;
 

@@ -533,3 +533,31 @@ test('Mon billet : « avec qui » est gardé, coupé à 40 signes, vide = absent
   assert.equal(r.state.points.find((p) => p.id === 'a1').ticket.with, 'Léa');
   assert.equal(r.state.points.find((p) => p.id === 'b1').ticket.with, undefined);
 });
+
+test('sauvegarde : restaurer sur une appli vide garde mes lieux à moi et remet mes réglages', async () => {
+  const { loadState, exportJSON, mergeImport, readSettings, ICONS } = await import('../js/store.js');
+  const icon = ICONS.find((i) => i !== '⭐');
+  const mem = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+  let st = loadState(mem());
+  const cat = st.categories[0].id;
+  st = { ...st, me: 'Capucine', fav: { icon, color: st.fav.color }, rings: [300, 700], chipIcons: true, theme: 'dark', mapStyle: 'pastel', showLines: true, showTtb: true, hiddenChips: ['fav'],
+    points: [{ id: 'p1', name: 'Lomi', lat: 48.89, lng: 2.35, cat, note: '', done: false, fav: true, stars: 4, lists: [], created: 1, ticket: { at: Date.UTC(2026, 11, 1, 19) } },
+      { id: 'p2', name: 'Chez Léa', lat: 48.86, lng: 2.34, cat, note: '', done: false, fav: false, stars: 0, lists: [], created: 2, owner: 'Léa' }] };
+  const txt = exportJSON(st);
+  const r = mergeImport(loadState(mem()), txt, '');
+  assert.equal(r.state.points.find((p) => p.id === 'p1').owner ?? '', '', 'mon lieu ne devient pas celui de « Capucine »');
+  assert.equal(r.state.points.find((p) => p.id === 'p2').owner, 'Léa', 'le lieu d\'un proche le reste');
+  assert.ok(r.state.points.find((p) => p.id === 'p1').ticket, 'Mon billet revient');
+  assert.equal(r.settings.theme, 'dark');
+  assert.equal(r.settings.mapStyle, 'pastel');
+  assert.deepEqual(r.settings.rings, [300, 700]);
+  assert.equal(r.settings.fav.icon, icon);
+  assert.equal(r.settings.showTtb, true);
+  assert.deepEqual(r.settings.hiddenChips, ['fav']);
+  // Lieux d'un proche : pas ses réglages
+  assert.equal(mergeImport(loadState(mem()), txt, 'Capucine').settings, null);
+  // Ancien fichier (sans « settings ») : seulement le favori et les cercles qu'il contenait
+  const old = JSON.parse(txt); delete old.settings;
+  assert.deepEqual(Object.keys(readSettings(old)).sort(), ['fav', 'rings']);
+  assert.equal(readSettings({ app: 'carte-paris', points: [] }), null);
+});

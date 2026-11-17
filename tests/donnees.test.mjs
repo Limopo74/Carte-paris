@@ -45,7 +45,17 @@ test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel n
   assert.equal(everyText(365), 'tous les ans');
   const now = Date.parse('2027-06-01');
   const dates = { lignes: '2026-11-16', navigo: '2026-11-16', ratp: '2026-11-16', merimee: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16' };
-  assert.deepEqual(dataDue(dates, now), ['lignes', 'navigo'], 'au bout de 6 mois et demi : lignes et Navigo seulement');
+  assert.deepEqual(dataDue(dates, now), ['lignes', 'navigo', 'ratp'], 'au bout de 6 mois et demi : les données du robot (qui aurait donc échoué)');
   assert.deepEqual(dataDue(dates, Date.parse('2026-12-01')), []);
   assert.deepEqual(dataDue({ ...dates, ratp: '' }, Date.parse('2026-12-01')), ['ratp'], 'date inconnue : à refaire');
+});
+
+test('robot des données : lignes, Navigo et toilettes RATP chaque mois, rappel seulement s\'il échoue', async () => {
+  const { FIXED_DATA, dataDue, everyText, ROBOT_URL } = await import('../js/donnees.js');
+  assert.deepEqual(FIXED_DATA.filter((d) => d.robot).map((d) => d.id), ['lignes', 'navigo', 'ratp']);
+  assert.equal(everyText(45), 'chaque mois');
+  const now = Date.parse('2026-12-20');
+  const dates = { lignes: '2026-12-01', navigo: '2026-11-10', ratp: '2026-10-01', merimee: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16' };
+  assert.deepEqual(dataDue(dates, now), ['ratp']); // 80 jours : le robot a échoué deux fois
+  assert.match(ROBOT_URL, /^https:\/\/github\.com\/Limopo74\/Carte-paris\/actions\/workflows\/maj-donnees\.yml$/);
 });

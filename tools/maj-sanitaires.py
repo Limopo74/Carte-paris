@@ -24,7 +24,7 @@ for f in json.load(open(SRC, encoding='utf8'))['features']:
         'zone': yes(p.get('en_zone_controlee')),                    # dans la zone payante : il faut un ticket pour y entrer
         'passe': yes(p.get('acces_passe_navigo_ou_ticket_t')),      # la porte s'ouvre avec un passe Navigo ou un ticket
         'payant': str(p.get('tarif_gratuit_payant') or '').lower() == 'payant',
-        'pmr': yes(p.get('accessibilite_pmr')),
+        'pmr': yes(p.get('accessibilite_pmr', p.get('accessibilite_pmr_totale'))),  # nom du champ dans l'API : accessibilite_pmr_totale
         'ou': str(p.get('localisation') or '').strip()[:160],
     })
 items.sort(key=lambda x: (x['n'], x['l']))

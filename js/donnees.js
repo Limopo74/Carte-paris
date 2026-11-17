@@ -25,16 +25,20 @@ export const MERIMEE_FILES = [
 export const TRAFFIC_URL = 'https://me-deplacer.iledefrance-mobilites.fr/infos-trafic/metro'; // vérifié le 16 nov. 2026 (l'ancienne adresse www…/info-trafic donnait une erreur 500)
 
 /** Données figées dans l'appli : seules elles demandent un rappel (les données en direct se rechargent seules). */
+// robot : refaites le 1er de chaque mois par le robot GitHub (.github/workflows/maj-donnees.yml). Leur rappel arrive
+// après 45 jours : seulement si le robot a échoué deux fois (source coupée ou changée).
 export const FIXED_DATA = [
-  { id: 'lignes', name: 'Lignes et gares', every: 183 }, // ou dès qu'une ligne ouvre ou se prolonge
-  { id: 'navigo', name: 'Avantages culture Navigo', every: 183 }, // offres de saison, festivals
-  { id: 'ratp', name: 'Toilettes des gares RATP', every: 365 },
+  { id: 'lignes', name: 'Lignes et gares', every: 45, robot: true },
+  { id: 'navigo', name: 'Avantages culture Navigo', every: 45, robot: true },
+  { id: 'ratp', name: 'Toilettes des gares RATP', every: 45, robot: true },
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Expos, gratuités, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre
 ];
-/** « tous les 6 mois », « tous les ans »… */
-export const everyText = (days) => (days >= 360 ? 'tous les ans' : `tous les ${Math.round(days / 30.5)} mois`);
+/** « tous les 6 mois », « tous les ans »… (les données du robot : « chaque mois »). */
+export const everyText = (days) => (days >= 360 ? 'tous les ans' : days <= 45 ? 'chaque mois' : `tous les ${Math.round(days / 30.5)} mois`);
+/** Le robot de mise à jour : sa page sur GitHub (« Run workflow » pour le lancer, et ses derniers passages). */
+export const ROBOT_URL = 'https://github.com/Limopo74/Carte-paris/actions/workflows/maj-donnees.yml';
 /** Les données figées à refaire, d'après leurs dates ({ lignes: 'AAAA-MM-JJ', … }). Une date manquante compte comme à refaire. */
 export function dataDue(dates, now = Date.now()) {
   return FIXED_DATA.filter((d) => transportsDue(dates?.[d.id], now, d.every)).map((d) => d.id);

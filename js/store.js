@@ -211,6 +211,15 @@ export function saveState(storage, state) {
   }
 }
 
+/** Les réglages d'un fichier de sauvegarde, vérifiés (null s'il n'en a pas). */
+export function readSettings(obj) {
+  const o = obj?.settings && typeof obj.settings === 'object' ? obj.settings : (obj?.fav || obj?.rings ? { fav: obj.fav, rings: obj.rings } : null);
+  if (!o) return null;
+  const base = cleanSettings(o);
+  if (!obj.settings) return { fav: base.fav, rings: base.rings }; // version 2 sans réglages : seulement ce qu'elle contenait
+  return { ...base, showMarkets: o.showMarkets === true, showLines: o.showLines === true, showTtb: o.showTtb === true, hiddenChips: cleanChips(o.hiddenChips), hiddenFilters: cleanFilterKeys(o.hiddenFilters) };
+}
+
 /** Texte du fichier de sauvegarde. */
 export function exportJSON(state) {
   return JSON.stringify({
@@ -218,6 +227,8 @@ export function exportJSON(state) {
     categories: state.categories, fav: state.fav, rings: state.rings, lists: state.lists ?? [],
     mySettings: cleanMySettings(state.mySettings),
     myStations: cleanMyStations(state.myStations),
+    // Mes réglages du moment (affichage, cercles, favori…), remis tels quels quand je restaure sur une appli vide
+    settings: { ...cleanSettings(state), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) },
     // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
     points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
   }, null, 2);
@@ -265,6 +276,9 @@ export function mergeImport(state, text, owner = '') {
   const usedLists = new Set(obj.points.flatMap((p) => (Array.isArray(p?.lists) ? p.lists : [])));
   for (const l of cleanLists(obj.lists)) if (!listIds.has(l.id) && usedLists.has(l.id)) { lists.push(l); listIds.add(l.id); }
 
+  // Mon prénom : celui de l'appli, sinon (restauration sur une appli vide) celui du fichier, pour que mes lieux restent les miens
+  const fileMe = typeof obj.owner === 'string' ? obj.owner.trim().slice(0, 30) : '';
+  const me = state.me || (!owner ? fileMe : '');
   const known = new Set(state.points.map((p) => p.id));
   const points = [...state.points];
   let added = 0;
@@ -276,7 +290,7 @@ export function mergeImport(state, text, owner = '') {
     const c = clean(p);
     c.lists = c.lists.filter((x) => listIds.has(x));
     if (owner) { c.owner = c.owner || owner; delete c.ticket; } // ses billets restent à lui : on ne voit que ses lieux (une sortie à deux passe par une invitation)
-    if (state.me && c.owner === state.me) c.owner = '';
+    if (me && c.owner === me) c.owner = '';
     points.push(c);
     added++;
   }
@@ -284,7 +298,9 @@ export function mergeImport(state, text, owner = '') {
   const mine = !owner ? cleanMySettings(obj.mySettings) : null;
   // Mes stations aussi, seulement depuis ma propre sauvegarde (celles d'un ami restent les siennes)
   const myStations = !owner ? cleanMyStations([...(state.myStations ?? []), ...cleanMyStations(obj.myStations).filter((s) => !(state.myStations ?? []).some((x) => x.station === s.station))]) : state.myStations;
-  return { state: { ...state, points, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped };
+  // Réglages du fichier (seulement ma propre sauvegarde) : l'appli les remet quand elle était vide. Anciens fichiers : favori et cercles.
+  const settings = owner ? null : readSettings(obj);
+  return { state: { ...state, points, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
 }
 
 function checkFields({ name, color, icon = DEFAULT_ICON }, keepColor = null) {
