@@ -160,13 +160,34 @@ export function freeSoon(date = new Date(), days = 35) {
   const today = dayStart(date);
   for (let i = 1; i <= days; i += 1) {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-    const names = freeToday(d).filter((p) => p.rule !== 'always').map((p) => p.name);
-    if (!names.length) continue;
-    const text = firstOfMonth(d, 0) ? `musées nationaux${winter(d) ? ' et monuments (Arc de Triomphe, Panthéon, Sainte-Chapelle…)' : ''}`
-      : firstOfMonth(d, 5) ? 'Louvre dès 18 h' : 'Bourse de Commerce de 17 h à 21 h, sur réservation';
+    const text = freeDayText(d);
+    if (!text) continue;
     out.push({ date: d, text, line: `${shortDate(d).replace(/^./, (c) => c.toUpperCase())} : ${text}` });
   }
   return out;
+}
+
+/** Ce qui est gratuit ce jour-là en plus des musées de la Ville (« musées nationaux », « Louvre dès 18 h »…), ou ''. */
+function freeDayText(d) {
+  if (!freeToday(d).some((p) => p.rule !== 'always')) return '';
+  return firstOfMonth(d, 0) ? `musées nationaux${winter(d) ? ' et monuments (Arc de Triomphe, Panthéon, Sainte-Chapelle…)' : ''}`
+    : firstOfMonth(d, 5) ? 'Louvre dès 18 h' : 'Bourse de Commerce de 17 h à 21 h, sur réservation';
+}
+
+/**
+ * Bandeau « Maintenant » (v158) : le prochain jour gratuit, aujourd'hui, demain ou après-demain : { k, when, text } ou null.
+ * Aujourd'hui : seulement si au moins un de ces lieux n'a pas déjà fermé (rien d'annoncé pour une soirée finie).
+ */
+export function freeBanner(date = new Date()) {
+  for (let k = 0; k <= 2; k += 1) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + k);
+    const text = freeDayText(d);
+    if (!text) continue;
+    if (k === 0 && !freeToday(date).some((p) => p.rule !== 'always' && spotRank(p, date) !== 2)) continue;
+    const when = k === 0 ? 'aujourd\'hui' : k === 1 ? 'demain' : d.toLocaleDateString('fr-FR', { weekday: 'long' });
+    return { k, when, text: text.replace(/^./, (c) => c.toUpperCase()) };
+  }
+  return null;
 }
 
 /* ---------- 5 bis. Théâtre à moitié prix : les Kiosques (places du jour même) ---------- */
@@ -202,30 +223,33 @@ export const ART_PLACES_CHECKED = '17 novembre 2026';
 // kind : art (art contemporain et photo), expo (musées aux grandes expositions temporaires), musique.
 // Musée Maillol écarté : fermé pour travaux jusqu'au 13 janvier 2027. Centre Pompidou : fermé jusqu'en 2030 (ses expos sont au Grand Palais).
 // match : morceau du nom du lieu tel que l'agenda « Que faire à Paris ? » l'écrit (sans accents ni majuscules).
+// late (v158) : nocturnes habituelles, vérifiées le 17 nov. 2026 sur le site de chaque lieu (ou paris.fr) ; d = jours (0 dimanche),
+// to = fermeture, first = seulement le 1er de ces jours du mois. Lieu sans nocturne sûre : pas de `late` (Fondation Louis Vuitton :
+// 21 h ou 23 h selon les sources ; Picasso : aucune ; Cartier, Galliera, Arts décoratifs, Jacquemart-André : non vérifiées).
 export const ART_PLACES = [
-  { name: 'Bourse de Commerce', kind: 'art', address: '2 rue de Viarmes, 1er', lat: 48.8628, lng: 2.3428, site: 'https://www.pinaultcollection.com/fr/boursedecommerce', match: 'bourse de commerce' },
+  { name: 'Bourse de Commerce', kind: 'art', address: '2 rue de Viarmes, 1er', lat: 48.8628, lng: 2.3428, site: 'https://www.pinaultcollection.com/fr/boursedecommerce', match: 'bourse de commerce', late: [{ d: [5], to: '21:00' }, { d: [6], to: '21:00', first: true, note: 'gratuit, sur réservation' }] },
   { name: 'Fondation Cartier', kind: 'art', address: '2 place du Palais-Royal, 1er', lat: 48.8627, lng: 2.3368, site: 'https://www.fondationcartier.com', match: 'fondation cartier pour' },
   { name: 'Fondation Louis Vuitton', kind: 'art', address: '8 avenue du Mahatma-Gandhi, 16e', lat: 48.8766, lng: 2.2633, site: 'https://www.fondationlouisvuitton.fr/fr', match: 'louis vuitton' },
-  { name: 'Palais de Tokyo', kind: 'art', address: '13 avenue du Président-Wilson, 16e', lat: 48.8641, lng: 2.2966, site: 'https://palaisdetokyo.com', match: 'palais de tokyo' },
-  { name: 'Musée d\'Art moderne de Paris', kind: 'art', address: '11 avenue du Président-Wilson, 16e', lat: 48.8645, lng: 2.2977, site: 'https://www.mam.paris.fr', match: 'musee d\'art moderne de paris' },
+  { name: 'Palais de Tokyo', kind: 'art', address: '13 avenue du Président-Wilson, 16e', lat: 48.8641, lng: 2.2966, site: 'https://palaisdetokyo.com', match: 'palais de tokyo', late: [{ d: [1, 3, 5, 6, 0], to: '22:00' }, { d: [4], to: '24:00' }], lateNote: 'ouvert seulement pendant les expositions' },
+  { name: 'Musée d\'Art moderne de Paris', kind: 'art', address: '11 avenue du Président-Wilson, 16e', lat: 48.8645, lng: 2.2977, site: 'https://www.mam.paris.fr', match: 'musee d\'art moderne de paris', late: [{ d: [4], to: '21:30', note: 'expositions temporaires seulement' }] },
   { name: 'Jeu de Paume', kind: 'art', address: 'Jardin des Tuileries, 1 place de la Concorde, 8e', lat: 48.8656, lng: 2.3243, site: 'https://jeudepaume.org', match: 'jeu de paume' },
   { name: 'Lafayette Anticipations', kind: 'art', address: '9 rue du Plâtre, 4e', lat: 48.8597, lng: 2.3546, site: 'https://www.lafayetteanticipations.com', match: 'lafayette anticipations' },
-  { name: 'Maison européenne de la photographie', kind: 'art', address: '5-7 rue de Fourcy, 4e', lat: 48.8551, lng: 2.3592, site: 'https://www.mep-fr.org', match: 'maison europeenne de la photographie' },
+  { name: 'Maison européenne de la photographie', kind: 'art', address: '5-7 rue de Fourcy, 4e', lat: 48.8551, lng: 2.3592, site: 'https://www.mep-fr.org', match: 'maison europeenne de la photographie', late: [{ d: [4], to: '22:00' }] },
   { name: 'Fondation Henri Cartier-Bresson', kind: 'art', address: '79 rue des Archives, 3e', lat: 48.8627, lng: 2.3612, site: 'https://www.henricartierbresson.org', match: 'cartier-bresson' },
   { name: 'Fondation Pernod Ricard', kind: 'art', address: '1 cours Paul-Ricard, 8e', lat: 48.8768, lng: 2.3216, site: 'https://www.fondation-pernod-ricard.com', match: 'pernod ricard' },
-  { name: 'Grand Palais', kind: 'expo', address: 'Avenue Winston-Churchill, 8e (entrée Clemenceau)', lat: 48.8660, lng: 2.3126, site: 'https://www.grandpalais.fr/fr', match: 'grand palais' },
-  { name: 'Musée du Louvre', kind: 'expo', address: 'Rue de Rivoli, 1er', lat: 48.8606, lng: 2.3376, site: 'https://www.louvre.fr', match: 'musee du louvre' },
-  { name: 'Musée d\'Orsay', kind: 'expo', address: 'Esplanade Valéry-Giscard-d\'Estaing, 7e', lat: 48.8600, lng: 2.3266, site: 'https://www.musee-orsay.fr', match: 'musee d\'orsay' },
+  { name: 'Grand Palais', kind: 'expo', address: 'Avenue Winston-Churchill, 8e (entrée Clemenceau)', lat: 48.8660, lng: 2.3126, site: 'https://www.grandpalais.fr/fr', match: 'grand palais', late: [{ d: [5], to: '22:00', note: 'expositions' }] },
+  { name: 'Musée du Louvre', kind: 'expo', address: 'Rue de Rivoli, 1er', lat: 48.8606, lng: 2.3376, site: 'https://www.louvre.fr', match: 'musee du louvre', late: [{ d: [3, 5], to: '21:00' }] },
+  { name: 'Musée d\'Orsay', kind: 'expo', address: 'Esplanade Valéry-Giscard-d\'Estaing, 7e', lat: 48.8600, lng: 2.3266, site: 'https://www.musee-orsay.fr', match: 'musee d\'orsay', late: [{ d: [4], to: '21:45' }] },
   { name: 'Musée de l\'Orangerie', kind: 'expo', address: 'Jardin des Tuileries, 1er', lat: 48.8638, lng: 2.3227, site: 'https://www.musee-orangerie.fr', match: 'orangerie' },
-  { name: 'Musée du Luxembourg', kind: 'expo', address: '19 rue de Vaugirard, 6e', lat: 48.8489, lng: 2.3341, site: 'https://museeduluxembourg.fr', match: 'musee du luxembourg' },
+  { name: 'Musée du Luxembourg', kind: 'expo', address: '19 rue de Vaugirard, 6e', lat: 48.8489, lng: 2.3341, site: 'https://museeduluxembourg.fr', match: 'musee du luxembourg', late: [{ d: [1], to: '22:00' }], lateNote: 'ouvert seulement pendant les expositions' },
   { name: 'Petit Palais', kind: 'expo', address: 'Avenue Winston-Churchill, 8e', lat: 48.8661, lng: 2.3144, site: 'https://www.petitpalais.paris.fr', match: 'petit palais' },
   { name: 'Musée des Arts décoratifs', kind: 'expo', address: '107 rue de Rivoli, 1er', lat: 48.8631, lng: 2.3333, site: 'https://madparis.fr', match: 'arts decoratifs' },
-  { name: 'Musée du quai Branly', kind: 'expo', address: '37 quai Branly, 7e', lat: 48.8609, lng: 2.2977, site: 'https://www.quaibranly.fr', match: 'quai branly' },
+  { name: 'Musée du quai Branly', kind: 'expo', address: '37 quai Branly, 7e', lat: 48.8609, lng: 2.2977, site: 'https://www.quaibranly.fr', match: 'quai branly', late: [{ d: [4], to: '22:00' }] },
   { name: 'Institut du monde arabe', kind: 'expo', address: '1 rue des Fossés-Saint-Bernard, 5e', lat: 48.8490, lng: 2.3572, site: 'https://www.imarabe.org', match: 'monde arabe' },
   { name: 'Musée Jacquemart-André', kind: 'expo', address: '158 boulevard Haussmann, 8e', lat: 48.8755, lng: 2.3106, site: 'https://www.musee-jacquemart-andre.com/fr', match: 'jacquemart' },
-  { name: 'Musée Marmottan Monet', kind: 'expo', address: '2 rue Louis-Boilly, 16e', lat: 48.8592, lng: 2.2672, site: 'https://www.marmottan.fr', match: 'marmottan' },
+  { name: 'Musée Marmottan Monet', kind: 'expo', address: '2 rue Louis-Boilly, 16e', lat: 48.8592, lng: 2.2672, site: 'https://www.marmottan.fr', match: 'marmottan', late: [{ d: [4], to: '21:00' }] },
   { name: 'Musée Picasso', kind: 'expo', address: '5 rue de Thorigny, 3e', lat: 48.8598, lng: 2.3624, site: 'https://www.museepicassoparis.fr', match: 'picasso' },
-  { name: 'Cité de l\'architecture', kind: 'expo', address: '1 place du Trocadéro, 16e', lat: 48.8625, lng: 2.2880, site: 'https://www.citedelarchitecture.fr/fr', match: 'cite de l\'architecture' },
+  { name: 'Cité de l\'architecture', kind: 'expo', address: '1 place du Trocadéro, 16e', lat: 48.8625, lng: 2.2880, site: 'https://www.citedelarchitecture.fr/fr', match: 'cite de l\'architecture', late: [{ d: [4], to: '21:00' }] },
   { name: 'Palais Galliera', kind: 'expo', address: '10 avenue Pierre-Ier-de-Serbie, 16e', lat: 48.8660, lng: 2.2967, site: 'https://www.palaisgalliera.paris.fr', match: 'galliera' },
   { name: 'Maison de la Radio et de la Musique', kind: 'musique', address: '116 avenue du Président-Kennedy, 16e', lat: 48.8524, lng: 2.2785, site: 'https://www.maisondelaradioetdelamusique.fr/agenda', match: 'maison de la radio' },
   { name: 'Philharmonie de Paris', kind: 'musique', address: '221 avenue Jean-Jaurès, 19e', lat: 48.8919, lng: 2.3940, site: 'https://philharmoniedeparis.fr', match: 'philharmonie de paris' },
@@ -329,4 +353,118 @@ export const leaveAt = (at, travelMin, margin = 5) => new Date(at - (travelMin +
 export function ticketToday(points, now = new Date()) {
   return points.filter((p) => Number.isFinite(p.ticket?.at) && dayStart(new Date(p.ticket.at)).getTime() === dayStart(now).getTime() && planEnd(p.ticket) > now)
     .sort((a, b) => a.ticket.at - b.ticket.at)[0] ?? null;
+}
+
+/* ---------- 14. Mes artistes (v158) : les noms que je suis, cherchés tels quels dans l'agenda de la Ville ---------- */
+
+/** Liste de noms nettoyée : sans doublon (accents et majuscules ignorés), 2 lettres au moins, 60 signes au plus. Pas de limite de nombre. */
+export function cleanArtists(list) {
+  const seen = new Set();
+  const out = [];
+  for (const s of Array.isArray(list) ? list : []) {
+    if (typeof s !== 'string') continue;
+    const name = s.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const key = plain(name).replace(/[^a-z0-9]+/g, ' ').trim();
+    if (key.replace(/ /g, '').length < 2 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/** Le nom figure-t-il, mot pour mot, dans la sortie (titre, lieu, mots-clés, chapô) ? Accents, majuscules et ponctuation ignorés. */
+export function mentions(e, name) {
+  const words = (t) => ` ${plain(t).replace(/[^a-z0-9]+/g, ' ').trim()} `;
+  const needle = words(name);
+  return needle.trim().length >= 2 && words(`${e?.title ?? ''} ${e?.place ?? ''} ${e?.tags ?? ''} ${e?.lead ?? ''}`).includes(needle);
+}
+
+/** Les sorties qui citent au moins un de mes artistes : [{ e, who }], celles qui ferment le plus tôt d'abord, sans doublon. */
+export function artistEvents(events, names) {
+  const list = cleanArtists(names);
+  if (!list.length) return [];
+  const seen = new Set();
+  const out = [];
+  for (const e of events ?? []) {
+    const who = list.filter((n) => mentions(e, n));
+    if (!who.length) continue;
+    const k = `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ e, who });
+  }
+  const far = 864e13;
+  return out.sort((a, b) => (a.e.end?.getTime() ?? far) - (b.e.end?.getTime() ?? far) || a.e.title.localeCompare(b.e.title, 'fr'));
+}
+
+/* ---------- 15. Ouvert tard (v158) : les nocturnes habituelles des grands lieux ---------- */
+
+export const LATE_CHECKED = '17 novembre 2026';
+/** « 21 h 45 », « 21 h », « minuit ». */
+export const lateHour = (to) => (to === '24:00' ? 'minuit' : to.replace(/^0?(\d+):(\d\d)$/, (_, h, m) => (m === '00' ? `${h} h` : `${h} h ${m}`)));
+const toMin = (to) => { const [h, m] = to.split(':').map(Number); return h * 60 + m; };
+
+/** Les nocturnes de ce jour-là : [{ ...lieu, to, note }], de celle qui ferme le plus tard à la plus tôt. Rien un jour férié (horaires changés). */
+export function lateOn(date = new Date(), places = ART_PLACES, holiday = null) {
+  if (holiday) return [];
+  const out = [];
+  for (const p of places) {
+    for (const r of p.late ?? []) {
+      if (!r.d.includes(date.getDay()) || (r.first && date.getDate() > 7)) continue;
+      out.push({ ...p, to: r.to, note: [r.note, p.lateNote].filter(Boolean).join(' · ') });
+      break;
+    }
+  }
+  return out.sort((a, b) => toMin(b.to) - toMin(a.to) || a.name.localeCompare(b.name, 'fr'));
+}
+
+/** Ce soir : les nocturnes du jour pas encore finies (une demi-heure de marge avant la fermeture : dernière entrée). */
+export function lateTonight(date = new Date(), places = ART_PLACES, holiday = null) {
+  const now = date.getHours() * 60 + date.getMinutes();
+  return lateOn(date, places, holiday).filter((p) => now < toMin(p.to) - 30);
+}
+
+/* ---------- 16. Art dans la rue (v158) : statues, sculptures, installations (OpenStreetMap), liste de tout Paris ---------- */
+// Seulement des œuvres durables et nommées : les fresques, graffitis et mosaïques (Invader…) disparaissent trop souvent
+// pour être annoncées sans erreur. Liste téléchargée une fois par mois, la même pour tout le monde (aucune position envoyée).
+export const STREET_ART_TYPES = { statue: 'Statue', sculpture: 'Sculpture', bust: 'Buste', installation: 'Installation', relief: 'Bas-relief', fountain: 'Fontaine sculptée', stone: 'Pierre sculptée' };
+export const STREET_ART_QUERY = `[out:json][timeout:60];nwr["tourism"="artwork"]["name"]["artwork_type"~"^(${Object.keys(STREET_ART_TYPES).join('|')})$"](${BBOX});out center tags;`;
+export const streetArtUrl = () => `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(STREET_ART_QUERY)}`;
+
+/** [{ id, name, lat, lng, type, artist, year, wiki }] ; sans nom, sans position ou d'un autre type : écarté. */
+export function parseStreetArt(json) {
+  const out = [];
+  const seen = new Set();
+  for (const e of Array.isArray(json?.elements) ? json.elements : []) {
+    const t = e.tags ?? {};
+    const lat = Number.isFinite(e.lat) ? e.lat : e.center?.lat;
+    const lng = Number.isFinite(e.lon) ? e.lon : e.center?.lon;
+    const name = typeof t.name === 'string' ? t.name.trim().slice(0, 120) : '';
+    const type = STREET_ART_TYPES[t.artwork_type];
+    if (!name || !type || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const key = `${name.toLowerCase()}|${lat.toFixed(4)}|${lng.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const year = /^(\d{4})/.exec(String(t.start_date ?? ''))?.[1] ?? '';
+    const wiki = /^fr:(.+)$/.exec(String(t.wikipedia ?? ''))?.[1] ?? '';
+    out.push({ id: `${e.type ?? 'n'}/${e.id ?? key}`, name, lat, lng, type,
+      artist: typeof t.artist_name === 'string' ? t.artist_name.trim().slice(0, 100) : '',
+      year, wiki: wiki ? `https://fr.wikipedia.org/wiki/${encodeURIComponent(wiki.replace(/ /g, '_'))}` : '' });
+  }
+  return out;
+}
+
+/** Les œuvres à moins de `maxM`, de la plus proche à la plus loin ; mes artistes d'abord s'ils signent une œuvre proche. */
+export function streetArtNear(list, here, maxM = 1000, mine = []) {
+  const names = cleanArtists(mine);
+  return (list ?? []).map((a) => ({ ...a, d: distanceM(here, a), mine: names.some((n) => mentions({ title: a.artist }, n)) }))
+    .filter((a) => a.d <= maxM).sort((a, b) => (b.mine - a.mine) || a.d - b.d);
+}
+
+/** Recherche de la loupe (v158) : tous les mots tapés (2 lettres au moins, 3 en tout) se trouvent dans l'un des champs. */
+export function textMatch(q, ...fields) {
+  const words = plain(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+  if (plain(q).replace(/[^a-z0-9]/g, '').length < 3 || !words.length) return false;
+  const hay = plain(fields.filter(Boolean).join(' '));
+  return words.every((w) => hay.includes(w));
 }

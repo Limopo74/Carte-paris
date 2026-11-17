@@ -194,7 +194,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left;
   min-height: 56px; padding: 8px 0;
 }
-.item-text { min-width: 0; display: flex; flex-direction: column; }
+.item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .item-name { font-size: var(--t16); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .item-sub { color: var(--muted); font-size: var(--t14); }
 .note { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: var(--t16); line-height: 1.4; }

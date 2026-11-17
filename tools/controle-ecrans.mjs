@@ -30,7 +30,17 @@ const LIEUX = [
   lieu('e', 'Marché Saint-Quentin', 48.8774, 2.3567, { ticket: { at: new Date(now + 864e5).setHours(14, 0, 0, 0), part: 'aprem' } }),
 ];
 // Une sortie de l'agenda prévue (v153) : dans Mon planning, pas sur la carte
-const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng: 2.3360, place: 'Square Montholon', url: 'https://quefaire.paris.fr/', ticket: { at: new Date(now + 2 * 864e5).setHours(20, 30, 0, 0) } }];
+const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng: 2.3360, place: 'Square Montholon', url: 'https://quefaire.paris.fr/', ticket: { at: new Date(now + 2 * 864e5).setHours(20, 30, 0, 0) } },
+  // v158 : une expo de l'agenda prévue hier, pour « Tu y es allé ? »
+  { id: 'ev2', name: 'Exposition photo : Paris la nuit', lat: 48.8810, lng: 2.3290, place: 'Galerie du 9e', ticket: { at: new Date(now - 864e5).setHours(15, 0, 0, 0), part: 'aprem' } }];
+// v158 : mon carnet de sorties (Mon journal) et mes artistes
+const OUTINGS = [{ id: 'o1', at: now - 10 * 864e5, name: 'Hockney 25', lat: 48.8766, lng: 2.2633, place: 'Fondation Louis Vuitton', text: 'Les arbres en grand format, salle 5', stars: 5 }];
+const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle'];
+// v158 : œuvres dans la rue (OpenStreetMap simulé)
+const ART_RUE = { elements: [
+  { type: 'node', id: 1, lat: 48.8818, lon: 2.3370, tags: { tourism: 'artwork', artwork_type: 'statue', name: 'Statue de test', artist_name: 'Niki de Saint Phalle', start_date: '1983' } },
+  { type: 'node', id: 2, lat: 48.8803, lon: 2.3349, tags: { tourism: 'artwork', artwork_type: 'sculpture', name: 'Sculpture de test au long nom pour vérifier les retours à la ligne', artist_name: 'Artiste inconnu' } },
+] };
 const iso = (t) => new Date(t).toISOString();
 // Créneau au format de l'agenda (v140) : heure de Paris écrite telle quelle, avec un faux fuseau
 const wall = (t) => { const d = new Date(t); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00+02:00`; };
@@ -74,6 +84,12 @@ const ECRANS = {
   donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
+  ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
+  artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
+  artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },
+  oeuvre: async (p) => { await ECRANS.artrue(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
+  sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney' }).click(); await p.waitForTimeout(400); },
+  chercherpartout: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('test'); await p.waitForTimeout(1500); await feuille(p).locator('button', { hasText: 'agenda de la semaine' }).click(); await p.waitForTimeout(1200); },
   sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   joursortie: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button', { hasText: 'Trouver une sortie' }).click(); await p.waitForTimeout(1200); },
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
@@ -124,10 +140,11 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/velib-disponibilite/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(VELIB) }));
   await page.route(/fontaines-a-boire/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FONTAINES) }));
   await page.route(/sanisettesparis/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SANISETTES) }));
+  await page.route(/overpass/, (r) => (decodeURIComponent(r.request().url()).includes('artwork') ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ART_RUE) }) : r.abort()));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
-  await page.evaluate(([pts, plans, textSize]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal']);
+  await page.evaluate(([pts, plans, textSize, outings, artists]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS]);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

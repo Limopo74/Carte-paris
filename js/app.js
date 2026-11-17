@@ -17,13 +17,13 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere } from './passage.js';
-import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent } from './planning.js';
+import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere } from './events.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (159)';
+const VERSION = '17 novembre 2026 (160)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -528,9 +528,12 @@ function openPassage(p, back, at = null) {
   ), { name: `passage:${p.id}:${at ?? 'new'}` });
 }
 /** Mon journal : tous mes passages, toutes adresses, par mois. */
+/** Mon journal : mes passages et mon carnet de sorties de l'agenda (v158), du plus récent au plus ancien. */
+const journalItems = () => [...allPassages(state.points), ...cleanOutings(state.outings).map((o) => ({ o, at: o.at, text: o.text || o.place || '', photo: o.photo, stars: o.stars }))]
+  .sort((a, b) => b.at - a.at);
 function openJournal(back = named('Mon Paris', () => openMyParis())) {
   const again = () => openJournal(back);
-  const all = allPassages(state.points);
+  const all = journalItems();
   const groups = [];
   for (const x of all) {
     const m = new Date(x.at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -539,13 +542,64 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucun passage noté.'),
-    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « J\'y suis passé ». Cocher « Déjà visité » note aussi le jour.'),
+    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « J\'y suis passé ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allé ? ».'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
-      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => passageRow(x, () => openDetail(x.p.id, named('Mon journal', again)), x.p.name))),
+      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
+        : passageRow(x, () => openDetail(x.p.id, named('Mon journal', again)), x.p.name)))),
     ]),
     foot(backBtn(back)),
   ), { tall: true, name: 'journal', again });
+}
+
+/**
+ * Une sortie de mon carnet (v158) : ce que j'en retiens, une note, une photo (le cartel d'une œuvre, par exemple).
+ * Le carnet reste sur ce téléphone et part dans la sauvegarde ; rien n'est envoyé.
+ */
+function openOuting(id, back) {
+  const o = cleanOutings(state.outings).find((x) => x.id === id);
+  if (!o) { back(); return; }
+  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: o.text ?? '', placeholder: 'Ex. : l\'autoportrait de la dernière salle' });
+  let photo = o.photo ?? null; let newBlob = null;
+  let stars = o.stars ?? 0;
+  const pick = starPicker(stars, (n) => { stars = n; });
+  const preview = el('div', { class: 'stack' });
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => { const f = camera.files?.[0]; camera.value = ''; if (!f) return; try { newBlob = await compressImage(f); drawPhoto(); } catch { toast('Cette photo n\'a pas pu être lue.', true); } });
+  const drawPhoto = () => {
+    const img = el('img', { class: 'seen-preview', alt: 'Photo de la sortie' });
+    if (newBlob) img.src = URL.createObjectURL(newBlob); else if (photo) photoUrl(photo).then((u) => { if (u) img.src = u; });
+    fill(preview, newBlob || photo
+      ? [img, el('button', { type: 'button', class: 'btn', onclick: () => { newBlob = null; photo = null; drawPhoto(); } }, ico('x'), 'Retirer la photo')]
+      : [el('button', { type: 'button', class: 'btn c-add', onclick: () => camera.click() }, ico('camera'), 'Ajouter une photo')]);
+  };
+  drawPhoto();
+  const save = async () => {
+    let photoId = photo;
+    if (newBlob) { photoId = newPhotoId(); try { await putPhoto(photoId, newBlob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; } }
+    if (o.photo && o.photo !== photoId) deletePhoto(o.photo).catch(() => {});
+    state.outings = cleanOutings(cleanOutings(state.outings).map((x) => (x.id === id ? { ...x, text: text.value, stars: stars || undefined, photo: photoId ?? undefined } : x)));
+    persist(); toast('Noté dans Mon journal'); back();
+  };
+  const remove = () => {
+    if (!confirm(`Retirer « ${o.name} » de Mon journal ?`)) return;
+    if (o.photo) deletePhoto(o.photo).catch(() => {});
+    state.outings = cleanOutings(state.outings).filter((x) => x.id !== id);
+    persist(); toast('Sortie retirée de Mon journal'); back();
+  };
+  openSheet([ico('book-open-text'), ' Ma sortie'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, o.name),
+    el('p', { class: 'help' }, [new Date(o.at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase()), o.place].filter(Boolean).join(' · ')),
+    el('label', { class: 'field' }, 'Ce que je retiens (facultatif)', text),
+    el('div', { class: 'field' }, 'Ma note (facultatif)', pick),
+    preview, camera,
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Garder')),
+    o.url ? el('a', { class: 'btn c-disc', href: o.url, target: '_blank', rel: 'noopener noreferrer' }, ico('external-link'), 'Page de l\'agenda') : null,
+    el('button', { type: 'button', class: 'btn danger', onclick: remove }, 'Retirer de Mon journal'),
+    el('p', { class: 'help' }, 'Ton carnet reste sur ce téléphone et part dans ta sauvegarde.'),
+  ), { name: `sortie-faite:${id}` });
 }
 
 /** Déjà visité, avec son passage daté (v157) : coché = un passage sans texte ce jour-là ; décoché = ce passage vide part. */
@@ -915,6 +969,7 @@ function track(name) {
 }
 let marketsTime = 0; // date de cette liste
 let nowHidden = false; // carte « Maintenant » cachée par la croix
+const FREE_SEEN_KEY = 'carte-paris.gratuit-vu'; // jour où « Gratuit … » a été caché par la croix (sur le téléphone, hors sauvegarde)
 const SEEN_SHOWN_KEY = 'carte-paris.deja-vu'; // { id: date du premier rappel } : reste sur le téléphone, hors sauvegarde
 let seenShown = (() => { try { return JSON.parse(storage.getItem(SEEN_SHOWN_KEY) ?? '{}') ?? {}; } catch { return {}; } })();
 let nowLast = 0;
@@ -974,6 +1029,7 @@ function updateNow(force = false) {
   if (!force && Date.now() - nowLast < 20000) return;
   nowLast = Date.now();
   const pos = freshHere();
+  card.dataset.kind = '';
   // La sortie prévue du jour passe avant tout : à quelle heure partir (à pied, ou en métro si c'est loin ; pas d'heure pour un moment)
   const tk = nowHidden ? null : ticketToday([...state.points, ...(state.plans ?? [])]);
   if (tk) {
@@ -1039,6 +1095,18 @@ function updateNow(force = false) {
       el('span', { class: 'now-name' }, street.title),
       el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place].filter(Boolean).join(' · ')));
     card.querySelector('.now-open').onclick = () => openEventPage(street);
+    return;
+  }
+  // Bientôt gratuit (v158) : aujourd'hui, demain ou après-demain ; la croix le cache pour la journée, la suggestion revient
+  const fb = nowHidden || storage.getItem(FREE_SEEN_KEY) === new Date().toDateString() ? null : freeBanner();
+  if (fb) {
+    card.hidden = false;
+    card.dataset.kind = 'free';
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, `Gratuit ${fb.when}`),
+      el('span', { class: 'now-name' }, fb.text),
+      el('span', { class: 'now-sub' }, 'Voir Sorties → Gratuit'));
+    card.querySelector('.now-open').onclick = () => { eventsMode = 'free'; openEvents('map'); };
     return;
   }
   // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
@@ -1927,7 +1995,7 @@ function planEvent(e, again) {
 function openPlanSpot(x, back = null) {
   const again = () => openPlanSpot(x, back);
   openSpot({ icon: 'calendar-days', title: x.name, kicker: `Prévu ${planText(x.ticket)}${x.ticket.with ? ` avec ${x.ticket.with}` : ''}`,
-    lines: [[x.place, x.address].filter(Boolean).join(' · '), 'Sortie de l\'agenda « Que faire à Paris ? ». Elle s\'effacera de Mon planning le lendemain. « Ajouter » la garde dans tes lieux.'],
+    lines: [[x.place, x.address].filter(Boolean).join(' · '), 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allé. « Ajouter » la garde dans tes lieux.'],
     place: x, link: x.url ? [x.url, 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
     add: { note: [x.place, x.url].filter(Boolean).join(' · ') },
     extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(x, named(x.name, again), { done: again }) }, ico('alarm-clock'), 'Changer le jour ou retirer') });
@@ -2027,7 +2095,7 @@ function confirmMove(p, back) {
 /* ---------- Chercher dans mes lieux ---------- */
 
 function openSearch(initial = '') {
-  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Nom, note, adresse, catégorie…', value: initial, 'aria-label': 'Chercher' });
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Un nom, une adresse, un artiste…', value: initial, 'aria-label': 'Chercher' });
   const list = el('ul', { class: 'items' });
   const info = el('p', { class: 'help' });
 
@@ -2036,7 +2104,7 @@ function openSearch(initial = '') {
     const res = searchPoints(visible(), state.categories, input.value, pos);
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
-      : res.length ? `${plural(res.length, 'lieu', 'lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun lieu ne correspond.';
+      : res.length ? `${plural(res.length, 'de tes lieux', 'de tes lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun de tes lieux ne correspond.';
     fill(list, ...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Recherche', () => openSearch(input.value))) },
         catDot(p.cat),
@@ -2056,11 +2124,51 @@ function openSearch(initial = '') {
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${p.address} · expos et programme`))))))] : []));
     toDirectory.hidden = q.length < 3;
     fill(toDirectory, ico('search'), ` Chercher « ${q} » dans l'annuaire`);
+    updateMore();
   };
+  /* v158 : la loupe cherche aussi dans les listes gardées sur le téléphone (TTB, Navigo, galeries, art dans la rue),
+     et dans l'agenda de la semaine sur demande. Rien n'est envoyé : chaque liste est la même pour tout le monde. */
+  const moreBox = el('div', { class: 'stack' });
+  const agendaBox = el('div', { class: 'stack' });
+  const toAgenda = el('button', { type: 'button', class: 'btn c-disc', onclick: () => searchAgenda() });
+  const back = named('Recherche', () => openSearch(input.value));
+  const from = () => freshHere() ?? map.getCenter();
+  const near = (xs) => xs.map((x) => ({ ...x, d: distanceM(from(), x) })).sort((a, b) => a.d - b.d);
+  const block = (label, rows) => (rows.length ? [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(rows.length))), el('ul', { class: 'items ev-list' }, rows.slice(0, 8))] : []);
+  function updateMore() {
+    const q = input.value.trim();
+    const hit = (xs, ...keys) => near((xs ?? []).filter((x) => textMatch(q, ...keys.map((k) => x[k]))));
+    fill(moreBox,
+      ...block('TTB', hit(ttbList(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
+      ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
+      ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
+      ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))));
+    toAgenda.hidden = q.replace(/\s/g, '').length < 3;
+    fill(toAgenda, ico('calendar-days'), ` Chercher « ${q} » dans l'agenda de la semaine`);
+    fill(agendaBox);
+  }
+  async function searchAgenda() {
+    const q = input.value.trim();
+    fill(agendaBox, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, 7 jours)…'));
+    try { await weekEvents(); } catch { fill(agendaBox, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.')); return; }
+    if (input.value.trim() !== q) return;
+    const far = 864e13;
+    const seen = new Set();
+    const found = (weekCache?.items ?? []).filter((e) => textMatch(q, e.title, e.place, e.tags))
+      .filter((e) => { const k = `${e.title}|${e.place}`; if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a, b) => (a.end?.getTime() ?? far) - (b.end?.getTime() ?? far));
+    fill(agendaBox, ...(found.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Agenda de la semaine'), el('span', {}, String(found.length))),
+      el('ul', { class: 'items ev-list' }, found.slice(0, 30).map((e) => eventRow({ ...e, d: distanceM(from(), e) }, () => openSearch(q), { week: true })))]
+      : [el('p', { class: 'empty' }, `Rien dans l'agenda de la semaine pour « ${q} ».`)]));
+  }
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet([ico('search'), ' Chercher dans mes lieux'], el('div', { class: 'stack' }, input, info, list, bigBox, toDirectory), { tall: true, name: 'search', again: () => openSearch(input.value) });
+  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, info, list, bigBox, moreBox, toAgenda, agendaBox, toDirectory,
+    el('p', { class: 'help' }, 'Cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
+  { tall: true, name: 'search', again: () => openSearch(input.value) });
   input.focus();
+  // Listes pas encore lues : chargées une fois (Navigo dans l'appli ; galeries et œuvres une fois par mois), puis la recherche se refait
+  Promise.allSettled([loadNavigo(), loadGalleries(), loadStreetArt()]).then(() => { if (view === 'search') updateMore(); });
 }
 
 /* ---------- Autour de moi (ou autour d'une station) ---------- */
@@ -2867,7 +2975,7 @@ async function openMyParis(from = null) {
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openJournal() },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const n = allPassages(state.points).length; return n ? plural(n, 'passage noté', 'passages notés') : 'Tes passages, toutes adresses'; })())),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const n = journalItems().length; return n ? plural(n, 'passage noté', 'passages notés') : 'Tes passages et tes sorties'; })())),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
@@ -2947,7 +3055,7 @@ function openPlanning(from = null) {
   track('Mon planning');
   loadForecast();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  state.plans = cleanPlans(state.plans); // une sortie de l'agenda s'efface le lendemain
+  state.plans = cleanPlans(state.plans); // une sortie de l'agenda s'efface 30 jours après (Tu y es allé ? avant)
   const items = plannedPoints().sort((a, b) => a.ticket.at - b.ticket.at);
   const back = named('Mon planning', () => openPlanning());
   const dayLabel = (d) => {
@@ -2956,14 +3064,23 @@ function openPlanning(from = null) {
     return days === 0 ? `Aujourd'hui · ${date}` : days === 1 ? `Demain · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
   };
   // Le lendemain (v152) : « Tu y es allé ? ». Oui = Déjà visité, à la date prévue ; Non = la sortie s'efface.
+  // v158 : aussi pour une sortie de l'agenda (Oui = une ligne dans Mon journal) ; le message propose d'écrire un mot.
   const answer = (p, yes) => {
-    if (yes) markDone(p, true, p.ticket.at);
-    delete p.ticket;
+    const at = p.ticket.at;
+    if (p.plan) {
+      state.plans = (state.plans ?? []).filter((x) => x.id !== p.id);
+      if (yes) state.outings = cleanOutings([outingOf(p), ...(state.outings ?? [])].filter(Boolean));
+    } else {
+      if (yes) markDone(p, true, at);
+      delete p.ticket;
+    }
     persist(); renderMarkers(); updateNow(true);
-    toast(yes ? `« ${p.name} » : déjà visité` : `« ${p.name} » retiré de Mon planning`);
     openPlanning();
+    if (!yes) { toast(`« ${p.name} » retiré de Mon planning`); return; }
+    toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : déjà visité`, false, { label: 'Écrire un mot',
+      fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
-  const past = pastPlans(state.points);
+  const past = pastPlans([...state.points, ...(state.plans ?? [])]);
   const pastBlock = past.length ? [
     el('h3', { class: 'ring-title' }, el('span', {}, 'Tu y es allé ?'), el('span', {}, String(past.length))),
     el('ul', { class: 'items' }, past.map((p) => el('li', { class: 'item past-plan' },
@@ -3311,8 +3428,8 @@ function loadGalleries(force = false) {
 
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
-const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette' };
-const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB' };
+const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes' };
+const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /**
  * Une ligne de sortie (v136) : icône du genre, nom, quand et où, et le temps à pied à droite. Aucun bouton dans la ligne :
@@ -3516,6 +3633,7 @@ async function openArtPlaces(focus = '', from = null) {
     el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
       el('span', { class: 'week-arr-sub' }, [p.address, p.events.length ? plural(p.events.length, 'rendez-vous dans l\'agenda', 'rendez-vous dans l\'agenda') : 'rien dans l\'agenda cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
     el('div', { class: 'stack' },
+      lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
       el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
       p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
   const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
@@ -3529,6 +3647,83 @@ async function openArtPlaces(focus = '', from = null) {
     back,
   ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from) });
   if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
+}
+
+const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+/** « Nocturne : mercredi et vendredi jusqu'à 21 h » pour la page d'un grand lieu ('' sans nocturne connue). */
+function lateLine(p) {
+  const parts = (p.late ?? []).map((r) => `${r.first ? '1er ' : ''}${r.d.length === 5 ? 'tous les jours d\'ouverture' : r.d.map((d) => DAY_NAMES[d]).join(' et ')}${r.first ? ' du mois' : ''} jusqu'à ${lateHour(r.to)}${r.note ? ` (${r.note})` : ''}`);
+  return parts.length ? `Ouvert tard : ${parts.join(' ; ')}${p.lateNote ? ` — ${p.lateNote}` : ''}.` : '';
+}
+/**
+ * Ouvert tard (v158) : les nocturnes habituelles des grands lieux, ce soir puis toute la semaine.
+ * Liste fixe vérifiée sur le site de chaque lieu ; un jour férié, rien n'est annoncé (horaires changés).
+ */
+function openLate() {
+  track('Ouvert tard');
+  const o = evFrom;
+  const now = new Date();
+  const holiday = holidayOn(now);
+  const tonight = lateTonight(now, ART_PLACES, holiday);
+  const row = (p, back) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, back) },
+    el('span', { class: 'plan-time' }, lateHour(p.to)),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
+      el('span', { class: 'item-sub' }, [p.note, o ? fmtDist(distanceM(o, p)) : ''].filter(Boolean).join(' · ')))));
+  const back = named('Ouvert tard', () => openLate());
+  const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, list: lateOn(d) }; });
+  openSheet([ico('moon'), ' Ouvert tard'], el('div', { class: 'stack' },
+    holiday ? el('p', { class: 'warn' }, `Jour férié (${holiday}) : les horaires changent. Vérifie sur le site du lieu.`) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Ce soir'), el('span', {}, String(tonight.length))),
+    tonight.length ? el('ul', { class: 'items' }, tonight.map((p) => row(p, back))) : el('p', { class: 'empty' }, holiday ? 'Rien d\'annoncé aujourd\'hui.' : lateOn(now).length ? 'Plus de nocturne ce soir parmi les grands lieux.' : `Pas de nocturne le ${DAY_NAMES[now.getDay()]} parmi les grands lieux.`),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Chaque semaine'), el('span', {}, '')),
+    el('div', { class: 'help-list' }, week.filter((w) => w.list.length).map((w) => el('details', { class: 'help-item week-arr' },
+      el('summary', {}, el('span', { class: 'week-arr-name' }, DAY_NAMES[w.k].charAt(0).toUpperCase() + DAY_NAMES[w.k].slice(1)),
+        el('span', { class: 'week-arr-sub' }, w.list.map((p) => p.name).join(', '))),
+      el('ul', { class: 'items' }, w.list.map((p) => row(p, back)))))),
+    el('p', { class: 'help' }, `Horaires habituels, vérifiés le ${LATE_CHECKED} sur le site de chaque lieu. Dernière entrée souvent 45 min avant la fermeture : un lieu disparaît de « Ce soir » 30 min avant. Fermetures exceptionnelles et 1er samedi : vérifie sur le site. Liste remise à jour avec les listes annuelles.`),
+    foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); }))),
+  ), { tall: true, name: 'ouvert-tard', again: openLate });
+}
+
+/**
+ * Mes artistes (v158) : les noms que je suis, cherchés mot pour mot dans l'agenda de la Ville (tout Paris, 7 jours).
+ * Rien n'est envoyé : l'agenda est téléchargé en entier, la recherche se fait sur le téléphone.
+ */
+async function openArtists() {
+  track('Mes artistes');
+  const title = [ico('user'), ' Mes artistes'];
+  const back = foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); })));
+  const names = cleanArtists(state.artists);
+  let failed = false;
+  if (names.length && (!weekCache || weekCache.day !== new Date().toDateString())) {
+    openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'artistes' });
+    try { await weekEvents(); } catch { failed = true; }
+  }
+  const o = evFrom;
+  const found = names.length && !failed ? artistEvents(weekCache?.items ?? [], names) : [];
+  const input = el('input', { type: 'text', maxlength: '60', autocomplete: 'off', placeholder: 'Ex. : David Hockney', 'aria-label': 'Nom d\'un artiste' });
+  const add = () => {
+    const before = cleanArtists(state.artists).length;
+    state.artists = cleanArtists([...cleanArtists(state.artists), input.value]);
+    if (state.artists.length === before) { toast(input.value.trim() ? 'Ce nom est déjà dans ta liste.' : 'Écris un nom.', true); return; }
+    persist(); openArtists();
+  };
+  input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') add(); });
+  const removeName = (n) => { state.artists = cleanArtists(state.artists).filter((x) => x !== n); persist(); openArtists(); };
+  openSheet(title, el('div', { class: 'stack' },
+    names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
+      : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} avec tes artistes cette semaine, tout Paris.` : 'Aucun de tes artistes dans l\'agenda de la Ville cette semaine.') : null,
+    found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtists, { week: true }))) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Les artistes que je suis'), el('span', {}, String(names.length))),
+    names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
+        found.length ? el('span', { class: 'item-sub' }, plural(found.filter((x) => x.who.includes(n)).length, 'rendez-vous', 'rendez-vous')) : null),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Retirer ${n} de mes artistes` }, ico('x'))))) : null,
+    el('label', { class: 'field' }, 'Ajouter un artiste', input),
+    el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
+    el('p', { class: 'help' }, 'L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le titre, le lieu et les mots-clés des sorties de l\'agenda « Que faire à Paris ? » de la Ville, sur 7 jours. Les galeries privées n\'y sont souvent pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    back,
+  ), { tall: true, name: 'artistes', again: openArtists });
 }
 
 /** Sites utiles pour aller plus loin (ouverts dans le navigateur ; rien de l'appli n'est envoyé). Vérifiés le 16 novembre 2026. */
@@ -3658,7 +3853,10 @@ async function openEvents(start = null) {
       el('h3', { class: 'ring-title' }, el('span', {}, 'Tout Paris'), el('span', {}, '')),
       el('div', { class: 'menu' },
         entry('landmark', 'Grands lieux', `${ART_PLACES.length} musées, fondations, salles de concert`, () => openArtPlaces()),
-        entry('calendar-days', 'Expos de la semaine', 'Par arrondissement, celles qui ferment d\'abord', () => openWeekExpos())),
+        entry('calendar-days', 'Expos de la semaine', 'Par arrondissement, celles qui ferment d\'abord', () => openWeekExpos()),
+        entry('moon', 'Ouvert tard', (() => { const t = lateTonight(new Date(), ART_PLACES, holidayOn()); return t.length ? `Ce soir : ${t.slice(0, 3).map((p) => p.name.replace(/^Musée (du |de l'|d')?/, '')).join(', ')}${t.length > 3 ? '…' : ''}` : 'Les nocturnes des musées et fondations'; })(), () => openLate()),
+        entry('shapes', 'Art dans la rue', 'Statues et sculptures à moins de 1 km', () => openStreetArt()),
+        entry('user', 'Mes artistes', cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda', () => openArtists())),
       ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'Toutes les expos qui ferment'),
       ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'Toutes les expos'),
       galBox,
@@ -3789,6 +3987,60 @@ function showPeek({ kicker, label, items, icon, open, off = () => false, back, f
   map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
+/* Art dans la rue (v158) : statues, sculptures, installations nommées (OpenStreetMap), liste de tout Paris gardée un mois. */
+const ART_KEY = 'carte-paris.art-rue';
+let streetArt = null;
+let streetArtTime = 0;
+let streetArtLoading = null;
+function loadStreetArt(force = false) {
+  if (streetArt && !force) return Promise.resolve(streetArt);
+  const cached = () => { try { const c = JSON.parse(storage.getItem(ART_KEY) ?? 'null'); return c?.items?.length ? c : null; } catch { return null; } };
+  const c0 = force ? null : cached();
+  if (c0 && Date.now() - c0.time < 30 * 864e5) { streetArt = c0.items; streetArtTime = c0.time; return Promise.resolve(streetArt); }
+  streetArtLoading ??= net(streetArtUrl()).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+    .then((json) => {
+      const items = parseStreetArt(json);
+      if (!items.length) throw new Error('vide');
+      streetArt = items; streetArtTime = Date.now();
+      try { storage.setItem(ART_KEY, JSON.stringify({ time: streetArtTime, items })); } catch { /* trop gros */ }
+      return streetArt;
+    })
+    .catch((e) => { const c = cached(); if (c) { streetArt = c.items; streetArtTime = c.time; return streetArt; } throw e; })
+    .finally(() => { streetArtLoading = null; });
+  return streetArtLoading;
+}
+/** Une œuvre : ce qu'on sait (type, artiste, année), Y aller, Boussole, Métro ; l'article Wikipédia s'il existe. */
+function openStreetArtCard(a, back = null) {
+  openSpot({ icon: 'shapes', title: a.name, kicker: a.type, lines: [[a.artist, a.year].filter(Boolean).join(', ') || 'Artiste non indiqué.', 'Dans la rue : visible à toute heure, sauf travaux.'],
+    place: a, link: a.wiki ? [a.wiki, 'Article Wikipédia'] : null, back: typeof back === 'function' ? back : null, key: `oeuvre:${a.lat},${a.lng}` });
+}
+/** Art dans la rue autour du point de départ de Sorties : les 30 œuvres les plus proches, mes artistes d'abord. */
+async function openStreetArt() {
+  track('Art dans la rue');
+  const title = [ico('shapes'), ' Art dans la rue'];
+  const backExpos = foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); })));
+  const o = evFrom ?? origin;
+  if (!o) { openNear(); return; }
+  if (!streetArt) {
+    openSheet(title, el('p', { class: 'help' }, 'Chargement de la liste des œuvres de Paris (une fois par mois)…'), { name: 'art-rue' });
+    try { await loadStreetArt(); } catch {
+      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'La liste des œuvres (OpenStreetMap) ne répond pas. Réessaie plus tard.'), backExpos), { name: 'art-rue' });
+      return;
+    }
+  }
+  const near = streetArtNear(streetArt, o, 1000, state.artists).slice(0, 30);
+  const back = named('Art dans la rue', () => openStreetArt());
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, near.length ? `${plural(near.length, 'œuvre', 'œuvres')} à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.` : `Aucune œuvre connue à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.`),
+    near.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Art dans la rue', label: plural(near.length, 'œuvre', 'œuvres'), items: near, icon: 'shapes',
+      open: (x) => openStreetArtCard(x, back), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
+    near.length ? el('ul', { class: 'items ev-list' }, near.map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d,
+      tags: [a.mine ? el('span', { class: 'tag open' }, 'Tes artistes') : null] }))) : null,
+    el('p', { class: 'help' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris${streetArtTime ? ` du ${new Date(streetArtTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}, ta position n'est pas envoyée). Les fresques, graffitis et mosaïques ne sont pas montrés : ils disparaissent trop souvent. La liste n'est pas complète.`),
+    backExpos,
+  ), { tall: true, name: 'art-rue', again: openStreetArt });
+}
+
 function openGalleryCard(g, back = null) {
   const st = openState(g.hours);
   openSpot({ icon: 'palette', title: g.name, kicker: g.kind || 'Galerie', lines: [g.address, !st ? 'Horaires inconnus : vérifie avant d\'y aller.' : st.open ? `Ouverte${st.until ? ` jusqu'à ${hhText(st.until)}` : ''}.` : 'Fermée en ce moment.', closedDaysText(g.hours)],
@@ -5339,7 +5591,7 @@ async function importPhotos(text, st) {
   let photos;
   try { photos = JSON.parse(text)?.photos; } catch { return; }
   if (!photos || typeof photos !== 'object') return;
-  const wanted = new Set(st.points.flatMap((p) => photoIds(p)));
+  const wanted = new Set([...st.points.flatMap((p) => photoIds(p)), ...cleanOutings(st.outings).map((o) => o.photo).filter(Boolean)]);
   for (const [id, url] of Object.entries(photos)) {
     if (!wanted.has(id)) continue;
     const blob = await dataUrlToBlob(url).catch(() => null);
@@ -5453,11 +5705,9 @@ async function backupText(withPhotos) {
   const obj = JSON.parse(exportJSON(state));
   if (withPhotos) {
     obj.photos = {};
-    for (const p of state.points) {
-      for (const id of photoIds(p)) {
-        const b = await getPhoto(id).catch(() => null);
-        if (b) obj.photos[id] = await blobToDataUrl(b);
-      }
+    for (const id of [...state.points.flatMap((p) => photoIds(p)), ...cleanOutings(state.outings).map((o) => o.photo).filter(Boolean)]) {
+      const b = await getPhoto(id).catch(() => null);
+      if (b) obj.photos[id] = await blobToDataUrl(b);
     }
   }
   return JSON.stringify(obj);
@@ -5963,7 +6213,8 @@ const HELP = [
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, sinon le lieu ouvert le plus proche. La croix le cache.',
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
-    '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher dans tes lieux.',
+    '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
+    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes. La rubrique Filtres explique tout.',
@@ -6005,20 +6256,24 @@ const HELP = [
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
     '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
     '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
+    '**Bientôt gratuit** : 2 jours avant (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte le dit. Touche-le pour Gratuit ; la croix le cache pour la journée.',
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
-    '**Expos** : en tête, Grands lieux et Expos de la semaine. Puis Dernière chance, Expos en cours et galeries.',
+    '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
+    '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. Horaires habituels, vérifiés sur leurs sites ; rien un jour férié.',
+    '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris.',
+    '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap). Pas de fresques : elles disparaissent trop vite.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
     '**Dernière chance** : les expos qui ferment dans moins de 7 jours.',
     '{route} **Parcours galeries** : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée.',
     '**Navigo** : les lieux partenaires des avantages Navigo. Touche-en un pour lire l\'offre.',
-    '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte et s\'efface le lendemain.',
+    '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
-    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité. Non : la sortie s\'efface.',
+    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire un mot » : ce que tu retiens, une note, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : dans Mon planning, copie le lien et colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
@@ -6065,7 +6320,7 @@ const HELP = [
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint.',
     '{alarm-clock} **Prévoir une visite** : juste en dessous. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
-    '**Tous tes passages** : Mon Paris → Mon journal. Cocher « Déjà visité » note aussi le jour.',
+    '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
@@ -6155,16 +6410,16 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
+    '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
+    '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
+    '{landmark} Bientôt gratuit : 2 jours avant un jour gratuit (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte te prévient. La croix le cache pour la journée.',
     '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
     '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
     '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
     '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
-    '{alarm-clock} Prévoir une sortie de l\'agenda : sur sa page, « Prévoir » la met dans Mon planning (à son heure quand elle est connue), sans l\'ajouter à ta carte. Elle s\'efface le lendemain.',
-    '{alarm-clock} Prévoir une sortie, plus simple : « Prévoir une visite » est en haut de la fiche, sous Favori. Le jour et le moment se touchent (Demain, Samedi, Matin, Soir…) ; l\'heure précise n\'est plus obligatoire. Le lendemain, Mon planning demande « Tu y es allé ? ».',
-    '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
-    '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
   ]],
 ];
 
@@ -6241,7 +6496,11 @@ if ('serviceWorker' in navigator) {
 
 // « Maintenant » : la croix cache la suggestion ; si la position est déjà autorisée, on la lit
 // discrètement au lancement (rien n'est envoyé), puis la suggestion est revue toutes les 5 minutes.
-document.querySelector('#nowCard .now-close').addEventListener('click', () => { nowHidden = true; updateNow(true); });
+document.querySelector('#nowCard .now-close').addEventListener('click', () => {
+  // « Gratuit … » : caché pour la journée seulement, la suggestion habituelle reprend sa place
+  if (document.getElementById('nowCard').dataset.kind === 'free') { try { storage.setItem(FREE_SEEN_KEY, new Date().toDateString()); } catch { /* facultatif */ } } else nowHidden = true;
+  updateNow(true);
+});
 let markersDay = new Date().toDateString(); // à minuit, les pastilles agenda des épingles changent
 setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); renderMarkers(); } }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });

@@ -72,7 +72,7 @@ test('invitation : le moment de la journée voyage avec le lien', () => {
   assert.equal(r2.ticketPart, '');
 });
 
-test('sorties de l\'agenda prévues : gardées jusqu\'au jour prévu, puis effacées', async () => {
+test('sorties de l\'agenda prévues : gardées 30 jours après le jour prévu (Tu y es allé ?), puis effacées', async () => {
   const { cleanPlans, planOfEvent } = await import('../js/planning.js');
   const t = new Date(2026, 10, 17, 10).getTime();
   const ok = { id: 'a1', name: ' Concert ', lat: 48.88, lng: 2.33, ticket: { at: new Date(2026, 10, 17, 20).getTime() }, place: 'Square', url: 'https://quefaire.paris.fr/x' };
@@ -80,15 +80,17 @@ test('sorties de l\'agenda prévues : gardées jusqu\'au jour prévu, puis effac
     ok,
     { ...ok, id: 'a1' }, // doublon
     { ...ok, id: 'hier', ticket: { at: new Date(2026, 10, 16, 20).getTime() } },
+    { ...ok, id: 'vieux', ticket: { at: new Date(2026, 9, 10, 20).getTime() } }, // plus de 30 jours
     { ...ok, id: 'loin', lat: 45 },
     { ...ok, id: 'url', url: 'javascript:alert(1)' },
     { ...ok, id: 'sans', ticket: null },
   ], t);
-  assert.deepEqual(list.map((x) => x.id), ['a1', 'url']);
+  assert.deepEqual(list.map((x) => x.id), ['a1', 'hier', 'url']);
   assert.equal(list[0].name, 'Concert');
   assert.equal(list[0].plan, true);
-  assert.equal(list[1].url, undefined, 'lien non https écarté');
-  assert.equal(planOfEvent(list, { title: 'Concert', lat: 48.88, lng: 2.33 })?.id, 'a1');
+  assert.equal(list[2].url, undefined, 'lien non https écarté');
+  assert.equal(planOfEvent(list, { title: 'Concert', lat: 48.88, lng: 2.33 }, new Date(t))?.id, 'a1');
+  assert.equal(planOfEvent([list[1]], { title: 'Concert', lat: 48.88, lng: 2.33 }, new Date(t)), null, 'une sortie passée ne dit plus « Prévu »');
   assert.equal(planOfEvent(list, { title: 'Concert', lat: 48.89, lng: 2.33 }), null);
 });
 
@@ -108,4 +110,30 @@ test('sorties de l\'agenda : rangées, sauvegardées et restaurées à part de m
   const empty = loadState(mem());
   assert.equal(mergeImport(empty, file).state.plans.length, 1, 'ma sauvegarde rend mes sorties prévues');
   assert.equal(mergeImport(empty, file, 'Léa').state.plans.length, 0, 'celles d\'un proche restent les siennes');
+});
+
+test('carnet de sorties (v158) : une sortie de l\'agenda où je suis allé, gardée et sauvegardée', async () => {
+  const { cleanOutings, outingOf } = await import('../js/planning.js');
+  const { loadState, saveState, exportJSON, mergeImport } = await import('../js/store.js');
+  const plan = { id: 'p1', name: 'Hockney 25', lat: 48.87, lng: 2.26, plan: true, ticket: { at: new Date(2026, 10, 16, 15).getTime(), part: 'aprem', with: 'Léa' }, place: 'Fondation Louis Vuitton', url: 'https://quefaire.paris.fr/x' };
+  const o = outingOf(plan);
+  assert.deepEqual(o, { id: 'p1', at: plan.ticket.at, name: 'Hockney 25', lat: 48.87, lng: 2.26, place: 'Fondation Louis Vuitton', url: 'https://quefaire.paris.fr/x' });
+  const list = cleanOutings([{ ...o, text: ' Les arbres en grand ', stars: 5, photo: 'ph-1' }, { ...o }, { ...o, id: 'x', stars: 9, photo: '../x', lat: 45 }]);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].text, 'Les arbres en grand');
+  const mem = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) }; };
+  const st = mem();
+  const s0 = loadState(st);
+  assert.deepEqual([s0.outings, s0.artists], [[], []]);
+  s0.outings = list; s0.artists = ['Hockney', 'hockney', 'JR'];
+  saveState(st, s0);
+  const s1 = loadState(st);
+  assert.deepEqual(s1.artists, ['Hockney', 'JR']);
+  assert.equal(s1.outings[0].stars, 5);
+  const file = exportJSON(s1);
+  const back = mergeImport(loadState(mem()), file).state;
+  assert.deepEqual([back.outings.length, back.artists.length], [1, 2], 'ma sauvegarde rend mon carnet et mes artistes');
+  const friend = mergeImport(loadState(mem()), file, 'Léa').state;
+  assert.deepEqual([friend.outings.length, friend.artists.length], [0, 0], 'ceux d\'un proche restent les siens');
+  assert.ok(!('outings' in JSON.parse(exportJSON(loadState(mem())))), 'rien d\'écrit quand le carnet est vide');
 });

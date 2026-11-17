@@ -214,3 +214,82 @@ test('musées gratuits et Kiosque : horaires connus, fermés à la fin, jamais �
   assert.equal(spotRank(k, new Date(2026, 10, 16, 15)), 2, 'Kiosque lundi : fermé');
   assert.equal(spotRank(k, new Date(2026, 11, 25, 13)), 2, 'Kiosque 25 décembre : fermé');
 });
+
+test('freeBanner : jour gratuit aujourd\'hui, demain ou après-demain, jamais une soirée finie', async () => {
+  const { freeBanner } = await import('../js/art.js');
+  assert.equal(freeBanner(new Date(2026, 10, 17, 11)), null); // mardi 17 nov. : rien avant le 4 déc.
+  assert.deepEqual(freeBanner(new Date(2026, 11, 3, 10)), { k: 1, when: 'demain', text: 'Louvre dès 18 h' });
+  const late = freeBanner(new Date(2026, 11, 4, 22)); // Louvre fini à 21 h : on annonce la Bourse de demain
+  assert.equal(late.k, 1);
+  assert.match(late.text, /^Bourse de Commerce/);
+  const sun = freeBanner(new Date(2026, 11, 4, 12)); // vendredi midi : le Louvre ce soir
+  assert.deepEqual([sun.k, sun.when], [0, 'aujourd\'hui']);
+  const two = freeBanner(new Date(2026, 11, 2, 10)); // mercredi 2 déc. : vendredi dans 2 jours
+  assert.deepEqual([two.k, two.when], [2, 'vendredi']);
+  assert.match(freeBanner(new Date(2026, 11, 6, 9)).text, /^Musées nationaux et monuments/);
+});
+
+test('Mes artistes : noms nettoyés sans limite, cités mot pour mot', async () => {
+  const { cleanArtists, mentions, artistEvents } = await import('../js/art.js');
+  assert.deepEqual(cleanArtists([' David  Hockney ', 'david hockney', 'JR', 'X', 12, 'Niki de Saint Phalle']), ['David Hockney', 'JR', 'Niki de Saint Phalle']);
+  assert.equal(cleanArtists(Array.from({ length: 300 }, (_, i) => `Artiste ${i}`)).length, 300);
+  assert.ok(mentions({ title: 'Exposition « Niki de Saint-Phalle » au Grand Palais' }, 'Niki de Saint Phalle'));
+  assert.ok(mentions({ title: 'Matisse et la couleur' }, 'matisse'));
+  assert.ok(!mentions({ title: 'Les Matissiens' }, 'Matisse')); // pas un morceau de mot
+  assert.ok(mentions({ title: 'Rétrospective', lead: 'Les photos de JR sur les toits' }, 'JR'));
+  const ev = [
+    { title: 'Hockney 25', lat: 48.87, lng: 2.26, end: new Date(2027, 2, 1) },
+    { title: 'Matisse, l\'atelier', lat: 48.86, lng: 2.33, end: new Date(2026, 11, 1) },
+    { title: 'Matisse, l\'atelier', lat: 48.86, lng: 2.33, end: new Date(2026, 11, 1) },
+    { title: 'Brocante', lat: 48.85, lng: 2.35, end: null },
+  ];
+  const r = artistEvents(ev, ['Matisse', 'Hockney']);
+  assert.deepEqual(r.map((x) => x.e.title), ['Matisse, l\'atelier', 'Hockney 25']);
+  assert.deepEqual(r[0].who, ['Matisse']);
+  assert.deepEqual(artistEvents(ev, []), []);
+});
+
+test('Ouvert tard : nocturnes du jour, jamais finies, rien un jour férié', async () => {
+  const { lateOn, lateTonight, lateHour, ART_PLACES } = await import('../js/art.js');
+  assert.equal(lateHour('21:45'), '21 h 45');
+  assert.equal(lateHour('21:00'), '21 h');
+  assert.equal(lateHour('24:00'), 'minuit');
+  const thu = new Date(2026, 10, 19, 18); // jeudi 19 nov.
+  const names = lateOn(thu).map((p) => p.name);
+  assert.equal(names[0], 'Palais de Tokyo'); // minuit
+  assert.ok(names.includes('Musée d\'Orsay') && names.includes('Musée du quai Branly') && !names.includes('Musée du Louvre'));
+  const at21 = lateTonight(new Date(2026, 10, 19, 21, 20)).map((p) => p.name);
+  assert.ok(at21.includes('Palais de Tokyo') && !at21.includes('Musée d\'Orsay')); // Orsay ferme à 21 h 45 : dernière demi-heure
+  assert.deepEqual(lateOn(new Date(2026, 11, 25, 12), ART_PLACES, 'Noël'), []);
+  const sat1 = lateOn(new Date(2026, 11, 5, 12)).map((p) => p.name); // 1er samedi
+  const sat2 = lateOn(new Date(2026, 11, 12, 12)).map((p) => p.name);
+  assert.ok(sat1.includes('Bourse de Commerce') && !sat2.includes('Bourse de Commerce'));
+  assert.match(lateOn(thu).find((p) => p.name === 'Musée d\'Art moderne de Paris').note, /expositions temporaires/);
+});
+
+test('Art dans la rue : statues et sculptures nommées, jamais les fresques', async () => {
+  const { parseStreetArt, streetArtNear, STREET_ART_QUERY } = await import('../js/art.js');
+  assert.match(STREET_ART_QUERY, /statue\|sculpture/);
+  assert.doesNotMatch(STREET_ART_QUERY, /mural|graffiti|mosaic/);
+  const list = parseStreetArt({ elements: [
+    { type: 'node', id: 1, lat: 48.8486, lon: 2.3965, tags: { tourism: 'artwork', artwork_type: 'statue', name: 'Le Triomphe de la République', artist_name: 'Jules Dalou', start_date: '1899', wikipedia: 'fr:Le Triomphe de la République' } },
+    { type: 'way', id: 2, center: { lat: 48.86, lon: 2.35 }, tags: { tourism: 'artwork', artwork_type: 'mural', name: 'Fresque' } },
+    { type: 'node', id: 3, lat: 48.85, lon: 2.35, tags: { tourism: 'artwork', artwork_type: 'sculpture' } },
+    { type: 'node', id: 4, lat: 48.8487, lon: 2.3966, tags: { tourism: 'artwork', artwork_type: 'sculpture', name: 'Stravinsky', artist_name: 'Niki de Saint Phalle' } },
+  ] });
+  assert.deepEqual(list.map((a) => a.name), ['Le Triomphe de la République', 'Stravinsky']);
+  assert.equal(list[0].type, 'Statue');
+  assert.equal(list[0].year, '1899');
+  assert.match(list[0].wiki, /^https:\/\/fr\.wikipedia\.org\/wiki\/Le_Triomphe/);
+  const near = streetArtNear(list, { lat: 48.8486, lng: 2.3965 }, 1000, ['Niki de Saint Phalle']);
+  assert.equal(near[0].name, 'Stravinsky'); // mes artistes d'abord
+  assert.equal(streetArtNear(list, { lat: 48.9, lng: 2.3 }).length, 0);
+});
+
+test('textMatch : tous les mots, sans accents ni majuscules', async () => {
+  const { textMatch } = await import('../js/art.js');
+  assert.ok(textMatch('chez georges', 'Chez Georges', 'bistrot'));
+  assert.ok(textMatch('orsay musée', 'Musée d\'Orsay'));
+  assert.ok(!textMatch('ab', 'abc'));
+  assert.ok(!textMatch('chez paul', 'Chez Georges'));
+});

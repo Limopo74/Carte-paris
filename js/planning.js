@@ -87,11 +87,13 @@ export function cleanPlan(t) {
 
 /**
  * Sorties de l'agenda prévues (v153) : gardées à part de mes lieux, sans goutte sur la carte.
- * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées dès le lendemain du jour prévu.
+ * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées 30 jours après le jour prévu
+ * (avant la v158 : dès le lendemain) ; « Tu y es allé ? » les retire avant.
  */
 export function cleanPlans(list, now = Date.now()) {
   const d = new Date(now);
-  const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  // v158 : gardées 30 jours après le jour prévu, le temps de répondre à « Tu y es allé ? » (comme mes lieux)
+  const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 30).getTime();
   const seen = new Set();
   return (Array.isArray(list) ? list : []).map((x) => {
     const ticket = cleanPlan(x?.ticket);
@@ -111,5 +113,32 @@ export function cleanPlans(list, now = Date.now()) {
 }
 
 /** La sortie de l'agenda déjà prévue pour cet événement (même titre, même endroit), ou null. */
-export const planOfEvent = (plans, e) => (plans ?? []).find((x) => x.name === String(e?.title ?? '').trim().slice(0, 120)
-  && Math.abs(x.lat - e.lat) < 1e-5 && Math.abs(x.lng - e.lng) < 1e-5) ?? null;
+export const planOfEvent = (plans, e, now = new Date()) => (plans ?? []).find((x) => x.name === String(e?.title ?? '').trim().slice(0, 120)
+  && Math.abs(x.lat - e.lat) < 1e-5 && Math.abs(x.lng - e.lng) < 1e-5 && x.ticket?.at >= dayStart(now).getTime()) ?? null;
+
+/**
+ * Mon carnet de sorties (v158) : les sorties de l'agenda où je suis allé (« Tu y es allé ? » → Oui), avec ce que j'en retiens.
+ * Forme : { id, at, name, lat, lng, place?, url?, text?, stars?, photo? }, la plus récente d'abord ; 500 au plus.
+ */
+export function cleanOutings(list) {
+  const seen = new Set();
+  return (Array.isArray(list) ? list : []).map((x) => {
+    const lat = Number(x?.lat);
+    const lng = Number(x?.lng);
+    const name = typeof x?.name === 'string' ? x.name.trim().slice(0, 120) : '';
+    if (!Number.isFinite(x?.at) || !name || !(lat > 48 && lat < 49.5) || !(lng > 1.4 && lng < 3.6)) return null;
+    if (typeof x.id !== 'string' || !/^[\w-]{1,64}$/.test(x.id) || seen.has(x.id)) return null;
+    seen.add(x.id);
+    return {
+      id: x.id, at: x.at, name, lat, lng,
+      ...(typeof x.place === 'string' && x.place.trim() ? { place: x.place.trim().slice(0, 120) } : {}),
+      ...(typeof x.url === 'string' && /^https:\/\/[^\s"<>]+$/.test(x.url) ? { url: x.url.slice(0, 500) } : {}),
+      ...(typeof x.text === 'string' && x.text.trim() ? { text: x.text.trim().slice(0, 200) } : {}),
+      ...(Number.isInteger(x.stars) && x.stars >= 1 && x.stars <= 5 ? { stars: x.stars } : {}),
+      ...(typeof x.photo === 'string' && /^[\w-]{1,64}$/.test(x.photo) ? { photo: x.photo } : {}),
+    };
+  }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 500);
+}
+
+/** Une sortie de l'agenda prévue devient une ligne du carnet (le jour prévu, sans le moment ni la compagnie). */
+export const outingOf = (plan) => cleanOutings([{ id: plan.id, at: plan.ticket.at, name: plan.name, lat: plan.lat, lng: plan.lng, place: plan.place, url: plan.url }])[0] ?? null;
