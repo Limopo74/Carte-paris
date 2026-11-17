@@ -1,8 +1,8 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX,
+import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
+import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (141)';
+const VERSION = '17 novembre 2026 (142)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -52,6 +52,7 @@ const STANDALONE = (() => { try { return matchMedia('(display-mode: standalone)'
 const MY_APP_KEY = 'carte-paris.mon-appli';
 if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ } }
 let state = loadState(storage);
+setWalkSpeed(paceKmh(state.pace)); // Mon pas : toutes les durées à pied de l'appli
 /** Horaires de la Ville pour mes lieux qui sont des parcs sans horaires (id → horaires), recalculés quand la liste des parcs arrive. */
 const parkHoursById = new Map();
 /** Les horaires d'un lieu : les miens (ou ceux d'OpenStreetMap), sinon ceux de la Ville pour un parc. */
@@ -4220,6 +4221,38 @@ function openSettings(section = null) {
     return;
   }
 
+  if (section === 'pas') {
+    const pace = cleanPace(state.pace);
+    const apply = (next, msg) => {
+      state.pace = cleanPace(next); setWalkSpeed(paceKmh(state.pace)); persist(); refresh(); openSettings('pas'); toast(msg);
+    };
+    const choose = (m) => apply({ ...pace, mode: m }, `Mon pas : ${PACE_NAME[m]}, ${kmhText(pace.kmh[m])} km/h`);
+    const step = (m, d) => {
+      const k = Math.min(7, Math.max(2, pace.kmh[m] + d));
+      if (k === pace.kmh[m]) { toast(d > 0 ? 'Au plus : 7 km/h' : 'Au moins : 2 km/h'); return; }
+      apply({ ...pace, kmh: { ...pace.kmh, [m]: k } }, `${PACE_NAME[m]} : ${kmhText(k)} km/h`);
+      requestAnimationFrame(() => document.querySelector(`[data-step="${m}:${d}"]`)?.focus());
+    };
+    const perKm = (k) => Math.round(60 / k);
+    openSheet([ico('footprints'), ' Mon pas'], el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'Toutes les durées à pied de l\'appli suivent ton pas : listes, fiches, cercles en minutes, balade, Rentrer.'),
+      el('p', { class: 'legend' }, 'Mon pas'),
+      el('div', { class: 'seg', role: 'group', 'aria-label': 'Mon pas' },
+        ...PACES.map((m) => el('button', { type: 'button', 'aria-pressed': String(pace.mode === m), 'data-pace': m, onclick: () => { if (pace.mode !== m) choose(m); } }, PACE_NAME[m]))),
+      el('p', { class: 'legend' }, 'Vitesse de chaque mode'),
+      ...PACES.map((m) => el('div', { class: 'cat-row pace-row' },
+        el('span', { class: 'pace-text' }, el('span', { class: 'cat-name' }, PACE_NAME[m]),
+          el('span', { class: 'menu-sub' }, `${kmhText(pace.kmh[m])} km/h · ${perKm(pace.kmh[m])} min par km`)),
+        el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:-0.5`, 'aria-label': `${PACE_NAME[m]} : moins vite`, onclick: () => step(m, -0.5) }, ico('minus')),
+        el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:0.5`, 'aria-label': `${PACE_NAME[m]} : plus vite`, onclick: () => step(m, 0.5) }, ico('plus')))),
+      el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied (les rues font environ 1,3 fois la ligne droite). De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.`),
+      el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'),
+      backBtn,
+    ), { tall: true, name: 'settings:pas', again: () => openSettings('pas') });
+    requestAnimationFrame(() => document.querySelector(`[data-pace="${pace.mode}"]`)?.focus());
+    return;
+  }
+
   if (typeof section === 'string' && section.startsWith('nom:')) {
     const t = section.slice(4);
     const info = TOOL_INFO[t];
@@ -4265,7 +4298,7 @@ function openSettings(section = null) {
         if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
       } }, 'Enregistrer les mètres'),
       el('label', { class: 'field' }, 'En minutes à pied', minRings),
-      el('p', { class: 'help' }, 'De 1 à 60 minutes. Exemple : 5, 10, 15, 20. Estimation : 12 min par km, détours compris.'),
+      el('p', { class: 'help' }, `De 1 à 60 minutes. Exemple : 5, 10, 15, 20. Estimation à ton pas (${kmhText(paceKmh(state.pace))} km/h, réglable dans Mon pas), détours compris.`),
       el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
         state.minuteRings = normalizeMinuteRings(minRings.value);
         minRings.value = state.minuteRings.join(', ');
@@ -4454,6 +4487,7 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
@@ -5000,6 +5034,9 @@ const TOOL_INFO = {
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
+/** Mon pas (v142) : noms des trois modes et vitesse écrite à la française (« 3,5 »). */
+const PACE_NAME = { rapide: 'Rapide', normal: 'Normal', tranquille: 'Tranquille' };
+const kmhText = (k) => String(k).replace('.', ',');
 /** Nom d'un bouton de la carte : celui que j'ai choisi (Réglages → Boutons de la carte), sinon le nom d'origine. */
 const toolName = (t) => state.toolNames?.[t] || TOOL_INFO[t].short;
 /* « Plus » (⋯) : les boutons rangés là par Réglages → Boutons de la carte, avec leur nom, à un appui. Rien ne bouge tout seul. */
@@ -5075,7 +5112,7 @@ document.getElementById('btnParis').addEventListener('click', () => {
 
 /* ---------- Mes réglages par défaut ---------- */
 
-function applyAllSettings() { applyTheme(); applyMapStyle(); applyToolOrder(); refresh(); }
+function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); applyTheme(); applyMapStyle(); applyToolOrder(); refresh(); }
 function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
@@ -5100,6 +5137,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
     '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
     '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
     '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
@@ -5109,7 +5147,6 @@ const HELP = [
     '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
     '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
     '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
-    '{map} Sorties : « Autre quartier » ferme la page et met une croix au centre de la carte ; déplace la carte, touche le bandeau, et les distances partent de la croix. « Ma position » les fait partir de toi (la position n\'est demandée qu\'à cet appui). Dans « Voir sur la carte », un carré noir marque le point de départ.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -5162,7 +5199,7 @@ const HELP = [
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
     '{calendar-days} Sorties : quatre onglets soulignés (Tout, Gratuit, Expos, Navigo). Juste dessous, le point de départ des distances : « Centre de la carte », « Autour de toi » ou une station ; touche-le pour le changer. {map} Carte montre les sorties de l\'onglet sur la carte, avec un carré noir au point de départ. Chaque rubrique montre ses 3 plus proches ; « Tous les… (N) » déroule la suite. Une ligne = une sortie : l\'icône dit le genre (deviné d\'après l\'agenda ; un calendrier veut dire « genre pas sûr »), à droite les minutes à pied. Touche-la pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Ajouter (une sortie de plus tard va aussi dans Mon planning, avec son heure). Navigo : les lieux partenaires des avantages Navigo, du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
     '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
-    'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles.',
+    'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles. Les minutes à pied suivent ton pas : {settings} Réglages → {footprints} Mon pas (Rapide, Normal, Tranquille, chacun réglable de 2 à 7 km/h).',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
     'En bas : {map} Mon Paris.',
   ]],

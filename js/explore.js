@@ -1,6 +1,6 @@
 // Fonctions sans interface pour : partage d'un lieu par lien, temps libre (boucle), import Google Maps,
 // doublons, Wikipédia, arrondissements, Vélib' et météo. Tout est testé dans tests/explore.test.mjs.
-import { distanceM } from './geo.js';
+import { distanceM, walkMinPerM } from './geo.js';
 import { fold } from './search.js';
 
 /* ---------- 1. Partager un lieu par lien (dans le #, jamais envoyé au serveur) ---------- */
@@ -47,8 +47,7 @@ export function readPlaceLink(hash) {
 
 /* ---------- 2. J'ai du temps libre : une boucle qui revient au départ ---------- */
 
-const MIN_PER_M = (12 / 1000) * 1.3; // 12 min/km, rues 1,3 fois plus longues que la ligne droite
-const walkMin = (a, b) => distanceM(a, b) * MIN_PER_M;
+const walkMin = (a, b) => distanceM(a, b) * walkMinPerM(); // mon pas (geo.js), rues 1,3 fois plus longues que la ligne droite
 const loopWalk = (start, route) => {
   let t = 0; let prev = start;
   for (const p of route) { t += walkMin(prev, p); prev = p; }

@@ -3,7 +3,17 @@
 export const DEFAULT_RINGS = [100, 300, 500, 1000];
 export const MIN_RING = 100;
 const EARTH_R = 6371008.8; // rayon moyen de la Terre, en mètres
-const MIN_PER_KM = 12; // environ 5 km/h
+/** Vitesse de marche réglable (Réglages → Mon pas, v142) : 2 à 7 km/h, 5 km/h au départ (12 min/km). */
+export const WALK_KMH_MIN = 2;
+export const WALK_KMH_MAX = 7;
+let minPerKm = 12;
+/** Règle la vitesse de marche de toute l'appli (km/h, bornée de 2 à 7 ; illisible : 5). */
+export function setWalkSpeed(kmh) {
+  const k = Number(kmh);
+  minPerKm = 60 / (Number.isFinite(k) && k > 0 ? Math.min(WALK_KMH_MAX, Math.max(WALK_KMH_MIN, k)) : 5);
+}
+/** Minutes de marche par mètre à vol d'oiseau, détours compris (pour les calculs de balade). */
+export const walkMinPerM = () => (minPerKm / 1000) * DETOUR;
 // À Paris, le trajet à pied réel est en moyenne 1,2 à 1,4 fois plus long que la ligne droite.
 const DETOUR = 1.3;
 const WALK_LIMIT_M = 1000;
@@ -20,7 +30,7 @@ export function distanceM(a, b) {
 
 /** Minutes de marche estimées depuis une distance à vol d'oiseau, détours compris. 1 minute au minimum. */
 export function walkMinutes(m) {
-  return Math.max(1, Math.ceil((m * DETOUR / 1000) * MIN_PER_KM - 1e-9));
+  return Math.max(1, Math.ceil((m * DETOUR / 1000) * minPerKm - 1e-9));
 }
 
 /**
@@ -76,13 +86,12 @@ export function uberUrl(p) {
   return `https://m.uber.com/ul/?${q.join('&')}`;
 }
 
-// Cercles en minutes à pied : même règle que walkMinutes (12 min/km, trajet 1,3 fois la ligne droite).
+// Cercles en minutes à pied : même règle que walkMinutes (mon pas, trajet 1,3 fois la ligne droite).
 export const DEFAULT_MINUTE_RINGS = [5, 10, 15, 20];
-const M_PER_MIN = 1000 / (MIN_PER_KM * DETOUR); // ≈ 64 m à vol d'oiseau par minute de marche
 
 /** Rayon à vol d'oiseau (m) correspondant à `min` minutes de marche. */
 export function minutesToMeters(min) {
-  return Math.floor(min * M_PER_MIN); // arrondi vers le bas : le cercle « 5 min » reste à 5 min ou moins
+  return Math.floor(min * 1000 / (minPerKm * DETOUR)); // ≈ 64 m par minute à 5 km/h ; arrondi vers le bas : le cercle « 5 min » reste à 5 min ou moins
 }
 
 /** Cercles en minutes saisis librement : entiers de 1 à 60, triés, sans doublon. */

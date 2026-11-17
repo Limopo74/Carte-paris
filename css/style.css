@@ -1081,6 +1081,10 @@ a.menu-row .menu-chev { font-size: 20px; }
 .tool-row .tool-prev { margin-top: 2px; }
 .tool-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .seg.tool-where { gap: 4px; flex-wrap: nowrap; }
+/* v142 : Mon pas, une ligne par mode avec − et + */
+.pace-row { display: flex; align-items: center; gap: 8px; }
+.pace-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pace-step { flex: none; width: var(--h); min-width: var(--h); padding: 0; }
 /* v140 : dates officielles de l'agenda sur la page d'une sortie */
 .ev-dates { display: flex; flex-direction: column; gap: 2px; }
 .ev-dates p { margin: 0; font-size: 14px; color: var(--ink); }
