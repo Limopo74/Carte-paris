@@ -14,7 +14,7 @@ export function eventsUrl(now = new Date()) {
 }
 
 /** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions). */
-export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url'; // sans « occurrences » : trop lourd pour la semaine
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor'; // sans « occurrences » : trop lourd pour la semaine
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
 export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
@@ -93,6 +93,7 @@ export function parseEvents(json, now = new Date()) {
       free: price.startsWith('gratuit'),
       lead: str(r.lead_text).slice(0, 200),
       tags,
+      indoor: r.event_indoor === 1 ? true : r.event_indoor === 0 ? false : null, // rempli par l'organisateur
     });
   }
   return out;
@@ -182,3 +183,10 @@ export function genreOf(e, { expo = false } = {}) {
 
 /** Commence plus tard dans la journée (sinon : en ce moment). */
 export const startsLater = (e, now = new Date()) => { const s = e.slotStart ?? e.start; return Boolean(s && s > now); };
+
+/**
+ * Filtre Dehors / À l'abri : where = « out » (dehors), « in » (à l'abri) ou '' (tout).
+ * inside : true à l'abri, false dehors, null inconnu (écarté dès qu'un filtre est choisi).
+ * Événement : e.indoor (champ « event_indoor » de l'agenda) ; marché : m.covered (couvert ou découvert).
+ */
+export const passWhere = (inside, where) => !where || (inside != null && (where === 'in') === inside);

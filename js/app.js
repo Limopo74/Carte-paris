@@ -22,7 +22,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (131)';
+const VERSION = '17 novembre 2026 (132)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2629,6 +2629,7 @@ async function openWhereAmI() {
 
 let eventsCache = null; // { day, items }
 let eventsMode = 'all'; // 'all' | 'free' | 'art'
+let evWhere = ''; // Tout et Gratuit : 'out' dehors, 'in' à l'abri, '' tout (le temps de la session)
 
 /** Bouton « M » : quel métro prendre jusqu'à ce point, calculé dans l'appli. */
 // Un lieu a un « name », une sortie de l'agenda un « title » : on prend celui qui existe (sinon « undefined » s'affichait).
@@ -2850,7 +2851,8 @@ async function openEvents(start = null) {
   }
   const mode = eventsMode;
   const back = openEvents;
-  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? []), o, 3000); // seulement les créneaux d'aujourd'hui
+  const whereOn = (mode === 'all' || mode === 'free') ? evWhere : '';
+  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? []), o, 3000).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -2870,17 +2872,22 @@ async function openEvents(start = null) {
   const seg = el('div', { class: 'seg tabs4', role: 'group', 'aria-label': 'Sorties à afficher' },
     [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].map(([m, label]) =>
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
+  const whereChips = mode === 'all' || mode === 'free' ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Dehors ou à l\'abri' },
+    [['out', 'sun', 'Dehors'], ['in', 'umbrella', 'À l\'abri']].map(([w, icon, label]) =>
+      el('button', { type: 'button', class: 'chip', 'aria-pressed': String(evWhere === w), onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), ` ${label}`))) : null;
+  if (whereChips) notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est cachée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosques Théâtre comptent à l\'abri.');
   const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => a.d - b.d);
   const soonFree = freeSoon().slice(0, 3);
   const freeSection = () => [
     soonFree.length ? el('div', { class: 'stack', style: 'gap:4px' }, el('h3', { class: 'ring-title' }, el('span', {}, 'Prochains jours gratuits'), el('span', {}, '')),
       ...soonFree.map((x) => el('p', { class: 'hl-line' }, ico('calendar-days'), ` ${x.line}`))) : null,
+    ...(whereOn === 'out' ? [] : [ // musées et théâtres : à l'abri, cachés par le filtre Dehors
     head('Musées et monuments gratuits aujourd\'hui', freeAll.length), list(freeAll.map((f) => freeRow(f, back))),
     head('Théâtre à moitié prix, le jour même', kiosks.length),
     el('p', { class: 'help' }, 'Les Kiosques Théâtre vendent les places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Théâtre à moitié prix', label: plural(kiosks.length, 'kiosque', 'kiosques'), items: kiosks, icon: 'drama',
       open: openKiosque, back: () => { eventsMode = 'free'; openEvents(); } }) }, ico('map'), 'Voir sur la carte'),
-    list(kiosks.map((k) => kiosqueRow(k, back))),
+    list(kiosks.map((k) => kiosqueRow(k, back)))]),
     freeAll.length ? (notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`), null) : null];
 
   let body;
@@ -2926,7 +2933,7 @@ async function openEvents(start = null) {
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les expos des galeries privées n\'y sont souvent pas : regarde les galeries ci-dessus.') : null,
     ];
   } else {
-    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= 2500);
+    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= 2500 && passWhere(Boolean(m.covered), whereOn));
     // En ce moment / plus tard aujourd'hui, chacun du plus proche au plus loin ; un marché déjà fini n'apparaît plus.
     const items = [
       ...mkAll.map((m) => ({ m, d: m.d, when: marketWhen(m).when })),
@@ -2944,12 +2951,13 @@ async function openEvents(start = null) {
       head('En ce moment', nowRest.length), list(nowRest.map((x) => card(x))),
       head('Plus tard aujourd\'hui', later.length), list(later.map((x) => card(x))),
       ...(mode === 'free' ? freeSection() : []),
-      !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${mode === 'free' ? ' gratuite' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
+      !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${mode === 'free' ? ' gratuite' : ''}${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
     ];
   }
   openSheet(title, el('div', { class: 'stack' },
     seg, // les onglets restent toujours à la même place ; les annonces viennent dessous
     el('p', { class: 'from-line' }, ico(fromMap ? 'map' : 'locate-fixed'), fromMap ? ' Autour du centre de la carte. Pour un autre quartier : déplace la carte et rouvre Sorties.' : ' Autour de toi.'),
+    whereChips, // Tout et Gratuit seulement, sous la ligne de départ : les onglets ne bougent pas
     ...(mode === 'art' ? top : []), // Tout et Gratuit : sous la plaque
     ...body,
     el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Aide, sources et mise à jour'),
@@ -4883,6 +4891,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{umbrella} Sorties, onglets Tout et Gratuit : filtres « Dehors » et « À l\'abri ». C\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville ; un marché couvert compte à l\'abri, un marché découvert dehors.',
     '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
     '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
     '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
@@ -4892,7 +4901,6 @@ const HELP = [
     '{search} Ajouter → Avec un nom ou une adresse : jusqu\'à 40 lieux (avant 8 au plus) et 10 adresses (avant 5), rangés du plus proche, avec la distance. Les gares et les lieux de santé apparaissent aussi, et un même lieu n\'est plus montré deux fois.',
     '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
     '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
-    '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',

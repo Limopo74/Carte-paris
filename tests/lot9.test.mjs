@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from '../js/explore.js';
-import { eventsUrl, parseEvents, nearbyEvents, whenText } from '../js/events.js';
+import { eventsUrl, parseEvents, nearbyEvents, whenText, passWhere } from '../js/events.js';
 import { exportUrl, parseRecords } from '../js/pratique.js';
 
 const START = { lat: 48.8606, lng: 2.3376 };
@@ -120,4 +120,14 @@ test('agenda : heure de Paris malgré le faux fuseau, et seulement les créneaux
   assert.equal(whenText(today[0], now), 'à 20h');
   assert.equal(startsLater(today[0], now), true);
   assert.equal(today[1].end.getDate(), 20, 'l\'expo garde sa date de fin (dernière chance)');
+});
+
+test('Dehors / À l\'abri : champ event_indoor lu, inconnu écarté seulement quand un filtre est choisi', () => {
+  const base = { title: 'X', lat_lon: { lat: 48.86, lon: 2.35 }, date_start: '2026-11-17T10:00:00+00:00', date_end: '2026-11-17T18:00:00+00:00' };
+  const [a, b, c] = parseEvents([{ ...base, event_indoor: 1 }, { ...base, event_indoor: 0 }, { ...base }]);
+  assert.equal(a.indoor, true); assert.equal(b.indoor, false); assert.equal(c.indoor, null);
+  assert.ok(passWhere(a.indoor, 'in') && !passWhere(a.indoor, 'out'));
+  assert.ok(passWhere(b.indoor, 'out') && !passWhere(b.indoor, 'in'));
+  assert.ok(passWhere(c.indoor, '') && !passWhere(c.indoor, 'in') && !passWhere(c.indoor, 'out'));
+  assert.ok(passWhere(true, 'in') && passWhere(false, 'out'), 'marché couvert / découvert');
 });
