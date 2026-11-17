@@ -175,8 +175,6 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 .plan-note .ico svg { width: 14px; height: 14px; vertical-align: -2px; }
 .plan-note.bad { color: var(--danger); font-weight: 700; }
 .plan-time { flex: none; min-width: 52px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.seg.tabs4 { gap: 6px; }
-.seg.tabs4 button { flex-basis: 20%; padding: 6px 4px; }
 
 .where { display: flex; gap: 8px; align-items: flex-start; font-size: 16px; color: var(--muted); margin: 0; }
 
@@ -995,9 +993,6 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip.lines[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
 
 /* Sorties : d'où partent les distances (ma position ou le centre de la carte) */
-.from-line { margin: 0; font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: flex-start; }
-.from-line .ico { color: var(--disc); flex: none; margin-top: 1px; }
-.from-line .ico svg { width: 16px; height: 16px; }
 /* Expos de la semaine : un pli par arrondissement */
 .week-arr summary { flex-wrap: wrap; row-gap: 0; }
 .week-arr-name { font-family: var(--display); font-weight: 800; min-width: 3.2em; }
@@ -1007,53 +1002,78 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 a.menu-row { text-decoration: none; }
 a.menu-row .menu-chev { font-size: 20px; }
 
-/* ---- Sorties : cartes à icône de genre (v88) ----
-   Charte « Papier » (v96) : l'icône de genre est dessinée en terre cuite (découvrir), sans fond ; les lignes sont séparées par un filet.
-   La sortie la plus proche en ce moment est la seule plaque pleine de l'écran (terre cuite = découvrir). */
+/* ---- Sorties : lignes à icône de genre (v88, simplifiées en v136) ----
+   Charte « Papier » : l'icône de genre est dessinée en terre cuite (découvrir), sans fond ; les lignes sont séparées par un filet.
+   v136 : aucun bouton dans une ligne. Toute la ligne s'ouvre sur la page de la sortie (Y aller, Boussole, Métro, Ajouter) ;
+   le temps à pied est à droite. La sortie la plus proche en ce moment est la seule plaque pleine de l'écran (terre cuite). */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .ev-list { gap: 0; }
-.ev {
-  list-style: none; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 12px; padding: 12px 0;
-}
-.genre { width: 44px; height: 44px; display: grid; place-items: center; color: var(--disc); }
+.ev { list-style: none; }
+.genre { width: 36px; height: 44px; display: grid; place-items: center; color: var(--disc); }
 .genre .ico svg { width: 22px; height: 22px; display: block; }
 .ev-main {
-  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
-  padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none;
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; min-height: 64px; box-sizing: border-box;
+  padding: 10px 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer;
 }
 .ev-main:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: var(--r); }
+.ev-text { display: flex; flex-direction: column; min-width: 0; }
 .ev-name {
   font-family: var(--display); font-weight: 700; font-size: 16px; font-stretch: 92%; line-height: 1.25; color: var(--ink);
   overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere;
 }
 .ev-sub { color: var(--muted); font-size: 14px; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .ev-sub b { color: var(--ink); font-weight: 700; }
-.ev-foot { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
 .ev-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .ev-tags .tag { margin-left: 0; white-space: nowrap; }
-.walk { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; color: var(--ink); }
-.ev-foot .go-compass { width: 48px; }
-
-.ev.feat {
-  --pl: var(--disc); grid-template-columns: 52px minmax(0, 1fr); padding: 14px 14px 12px; border: 0; border-radius: var(--r);
-  background: var(--pl); color: var(--on-strong); box-shadow: none; margin-bottom: 8px;
+.ev-dist { text-align: right; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; }
+.ev-dist small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+/* « Les N … » : déplie une rubrique, sous ses 3 premières lignes */
+.ev-more {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: var(--h); padding: 0; border: 0; background: none;
+  font-family: var(--display); font-weight: 700; font-size: 16px; color: var(--disc); text-align: left; cursor: pointer;
 }
-.ev.feat .genre { width: 52px; height: 52px; border-radius: 50%; background: transparent; color: inherit; border: 1.5px solid currentColor; }
+.ev-more .ico svg { width: 18px; height: 18px; }
+
+.ev.feat { --pl: var(--disc); border: 0; border-radius: var(--r); background: var(--pl); color: var(--on-strong); margin-bottom: 8px; overflow: hidden; }
+.ev.feat .ev-main { grid-template-columns: 52px minmax(0, 1fr) auto; padding: 14px; align-items: end; }
+.ev.feat .genre { width: 52px; height: 52px; border-radius: 50%; color: inherit; border: 1.5px solid currentColor; align-self: center; }
 .ev.feat .genre .ico svg { width: 26px; height: 26px; }
 .ev.feat .ev-name { color: inherit; font-weight: 800; font-size: 22px; font-stretch: 88%; line-height: 1.15; margin-top: 2px; }
-.ev.feat .ev-sub, .ev.feat .ev-sub b, .ev.feat .walk { color: inherit; }
+.ev.feat .ev-sub, .ev.feat .ev-sub b, .ev.feat .ev-dist, .ev.feat .ev-dist small { color: inherit; }
 .ev.feat .ev-sub { font-size: 14px; margin-top: 4px; }
 .feat-kicker { font-size: 14px; font-weight: 600; }
 .ev.feat .tag { color: inherit; }
-.ev.feat .go-compass, .ev.feat .go-compass.go-metro { background: transparent; color: inherit; border-color: currentColor; box-shadow: none; }
-.ev.feat .ev-main:focus-visible { outline-color: currentColor; }
+.ev.feat .ev-main:focus-visible { outline-color: currentColor; outline-offset: -4px; }
 
 /* Photo officielle d'une sortie (agenda de la Ville) : dans la page d'une sortie et dans la plaque du haut (v133) */
 .ev-photo { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .ev-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r); background: var(--line); }
 .ev-photo figcaption { font-size: 11.5px; color: var(--muted); }
-.ev.feat .feat-photo { grid-column: 1 / -1; margin-bottom: 4px; }
-.ev.feat .feat-photo figcaption { color: inherit; }
+.ev.feat .feat-photo { grid-column: 1 / -1; margin: -14px -14px 4px; }
+.ev.feat .feat-photo img { border-radius: 0; }
+.ev.feat .feat-photo figcaption { color: inherit; padding: 0 14px; }
+
+/* En-tête de Sorties (v136) : onglets soulignés, un seul contrôle de départ et « Carte », une rangée de puces qui défile */
+.tabs-line { display: flex; border-bottom: 1.5px solid var(--ink); margin: -4px 0 0; }
+.tabs-line button {
+  flex: 1; min-height: var(--h); border: 0; border-bottom: 3px solid transparent; margin-bottom: -1.5px; background: none;
+  font-family: var(--display); font-stretch: 92%; font-weight: 700; font-size: 16px; color: var(--muted); cursor: pointer;
+}
+.tabs-line button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.ev-ctx { display: flex; gap: 8px; }
+.ev-from {
+  flex: 1; min-width: 0; min-height: var(--h-s); display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: var(--btn); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.ev-from > .ico:first-child { color: var(--disc); }
+.ev-from .ico svg { width: 18px; height: 18px; }
+.ev-from-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.ev-from-text b { color: var(--ink); }
+.ev-mapbtn { flex: none; min-height: var(--h-s); padding: 0 14px; }
+.chips-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.chips-scroll::-webkit-scrollbar { display: none; }
+.chips-scroll .chip { flex: none; }
+.soon-line { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
 .week-items.ev-list { padding: 0 0 10px; }
 
 /* ---- Nouveau lieu : fiche courte (v90) — la carte garde environ la moitié de l'écran ---- */

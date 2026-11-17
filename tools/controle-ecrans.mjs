@@ -50,13 +50,13 @@ const ECRANS = {
   nouveau: async (p) => { await p.locator('#btnAdd').click(); },
   reglages: async (p) => { await p.locator('#btnSettings').click(); },
   application: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); },
-  navigo: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); },
-  expos: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Expos' }).click(); await p.waitForTimeout(800); },
-  grandslieux: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Expos' }).click(); await p.waitForTimeout(600); await feuille(p).locator('button', { hasText: /^\s*Grands lieux$/ }).click(); await p.waitForTimeout(1500); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
+  navigo: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); },
+  expos: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Expos' }).click(); await p.waitForTimeout(800); },
+  grandslieux: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Expos' }).click(); await p.waitForTimeout(600); await feuille(p).locator('.menu-row', { hasText: 'Grands lieux' }).click(); await p.waitForTimeout(1500); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
   sortie: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(800); },
   dehors: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.chip', { hasText: 'Dehors' }).click(); await p.waitForTimeout(800); },
-  gratuit: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Gratuit' }).click(); await p.waitForTimeout(800); },
-  navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.seg button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
+  gratuit: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Gratuit' }).click(); await p.waitForTimeout(800); },
+  navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   donnees: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await p.waitForTimeout(400); },
   donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
@@ -102,7 +102,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
         const R = sh.getBoundingClientRect();
         for (const e of sh.querySelectorAll('*')) {
           const r = e.getBoundingClientRect();
-          if (r.width && (r.right > R.right + 1 || r.left < R.left - 1) && getComputedStyle(e).position !== 'absolute') out.push(`${e.tagName.toLowerCase()}.${[...e.classList].join('.')} sort de ${Math.round(Math.max(r.right - R.right, R.left - r.left))} px`);
+          const inScroll = (x) => { for (let q = x.parentElement; q && q !== sh; q = q.parentElement) if (/auto|scroll/.test(getComputedStyle(q).overflowX)) return true; return false; }; // une rangée qui défile de côté (puces) n'est pas un débordement
+          if (r.width && (r.right > R.right + 1 || r.left < R.left - 1) && getComputedStyle(e).position !== 'absolute' && !inScroll(e)) out.push(`${e.tagName.toLowerCase()}.${[...e.classList].join('.')} sort de ${Math.round(Math.max(r.right - R.right, R.left - r.left))} px`);
         }
       }
       return [...new Set(out)].slice(0, 6);

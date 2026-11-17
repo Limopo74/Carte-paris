@@ -47,7 +47,9 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 6. Listes et informations
 - Une liste = des lignes séparées par un filet fin `--line`, sans cadre ni ombre, sous un intertitre souligné d'un filet encre (`.ring-title`, `.fiche-sec`). Pas de filet fin juste avant un intertitre.
-- Les boutons d'une ligne (boussole, M, Y aller, +) restent dans la ligne, toujours au même endroit, en simple contour. Quand une ligne n'a pas de +, sa place reste réservée (vide) pour que la boussole et le M ne bougent pas (Sorties, v118).
+- Une ligne de liste n'a pas de boutons (v136) : toute la ligne s'ouvre sur une page qui porte les actions (Y aller, Boussole, Métro, Ajouter), toujours dans cet ordre et au même endroit. La distance (minutes à pied, puis mètres) est toujours à droite.
+- Une rubrique longue montre ses 3 premières lignes puis un lien « Tous les … (N) » qui déroule la suite (`.ev-more`), pas plus d'une rangée de filtres par écran (`.chips-scroll`, qui défile de côté).
+- Onglets d'un écran : texte souligné (`.tabs-line`), pas de boutons en plaque.
 
 ## 7. Icônes
 - **Dessins Lucide uniquement** dans l'interface (`ico('nom')`, fichier `js/icons.js` ; pour en ajouter : copier depuis lucide-static).
