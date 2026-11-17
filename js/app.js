@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (142)';
+const VERSION = '17 novembre 2026 (143)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -487,7 +487,7 @@ function openFilters() {
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
     keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
-    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
@@ -5137,6 +5137,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
     '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
     '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
     '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
@@ -5146,17 +5147,16 @@ const HELP = [
     '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
     '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
     '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
-    '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
     'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TTB (les adresses d\'un guide de bonnes tables, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
-    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
+    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). La modifier : {settings} Réglages → Catégories et listes → {pencil} (raccourci : appui long sur la catégorie).',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite, au départ : Paris, M, Sorties, Mon planning, {ellipsis} Plus et Ma position. {ellipsis} Plus ouvre, avec leur nom, les boutons rangés là (au départ Fontaine et WC, Vélib\' et Rentrer) ; un appui lance la fonction. Pour chaque bouton, choisis « Carte », « Plus » ou « Caché », et l\'ordre : {settings} → Ce qui s\'affiche → Boutons de la carte. Si Mon planning est dans Plus, son chiffre passe sur {ellipsis}. Dans la même page, touche le nom d\'un bouton ({pencil}) pour le changer, et allume « Noms à côté des boutons » pour les lire sur la carte.',
     '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches ; chacun dit s\'il est ouvert, et un lieu fermé passe en dernier. Eau pétillante et brumisateurs sont signalés.',
-    'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
+    'M la station de métro la plus proche. Le bouton {lines} Lignes, en haut, affiche ou cache les lignes de métro et RER (raccourci : appui long sur M) ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom. Tracés d\'Île-de-France Mobilités, mis à jour chaque mois par le robot (prolongements des lignes 11 et 14 compris).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
     'Paris : revenir au centre de Paris.',
@@ -5239,7 +5239,7 @@ const HELP = [
   ['book-open-text', 'TTB', [
     'Les adresses d\'un guide de bonnes tables (la source est citée dans {settings} → TTB), à Paris : ronds terre cuite sur la carte, avec l\'icône de la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave (petits ronds sans icône quand tu vois tout Paris).',
     'Pour les mettre : {settings} → TTB → « Ouvrir la page Adresses ». Dans Chrome, menu ⋮ → flèche Télécharger : la page est enregistrée dans Téléchargements. Reviens dans l\'appli et « Choisir le fichier ». Même chose pour mettre la liste à jour.',
-    'Le bouton TTB en haut affiche ou cache les adresses. Appui long : la liste, la plus proche en tête (depuis ta position récente, sinon le centre de la carte), avec un tri par rubrique et par budget, appliqué aussi à la carte.',
+    'Le bouton TTB en haut affiche ou cache les adresses. La liste : {map-pinned} Autour de moi → Liste TTB, ou {settings} Réglages → TTB → Voir la liste (raccourci : appui long sur TTB) ; la plus proche en tête (depuis ta position récente, sinon le centre de la carte), avec un tri par rubrique et par budget, appliqué aussi à la carte.',
     'Fiche : rubrique, cuisine, budget, horaires selon le guide (ils peuvent avoir changé), station la plus proche, site ou Instagram du lieu, Avis Google, et + Ajouter pour en faire un de tes lieux.',
     'Quand le calque est affiché, Autour de moi montre les 3 adresses les plus proches. Et la fiche d\'un de tes lieux dit s\'il est dans le guide.',
     'La liste reste sur ce téléphone : rien n\'est envoyé, elle n\'est pas dans ta sauvegarde, et les textes du guide ne sont pas gardés. {trash-2} {settings} → TTB → Retirer la liste.',
