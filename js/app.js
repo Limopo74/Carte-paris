@@ -1,10 +1,11 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
+import { busKey, busHome, searchBusStops, busPlace, busLines } from './bus.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -13,7 +14,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -33,7 +34,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (147)';
+const VERSION = '17 novembre 2026 (148)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -117,7 +118,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -2277,6 +2278,10 @@ async function showVelib(at = null) {
 // chaque lieu est trouvé sur le téléphone, d'après sa position, à chaque ouverture (un lieu déplacé change de case).
 let arrData = null;
 let arrUpdated = '';
+/** Arrêts de bus et leurs lignes (data/bus.json, v148) : lus seulement pour Rentrer et Mes stations (fichier de plusieurs centaines de Ko). */
+let busData = null;
+const loadBus = async () => (busData ??= await fetch('data/bus.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
+const busReady = () => Boolean(busData?.stops?.length);
 const loadArr = async () => (arrData ??= await fetch('data/arrondissements.json').then((r) => (r.ok ? r.json() : null))
   .then((j) => { arrUpdated = typeof j?.updated === 'string' ? j.updated : ''; return j; }).catch(() => null));
 loadArr();
@@ -3287,6 +3292,22 @@ async function openHomePlan(home) {
   const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
   const best = opts.reduce((a, o) => (!a || o.plan.minutes < a.plan.minutes ? o : a), null);
   const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
+  // Bus (v148) : les lignes qui vont jusqu'à mon arrêt maison, depuis un arrêt à moins de 8 min à pied
+  if (home.bus) await loadBus();
+  const busOpts = home.bus && busReady() ? busHome(busData, from, `${home.bus.n}|${home.bus.c}`, minutesToMeters(8)) : null;
+  const busBlock = !home.bus ? [el('p', { class: 'help' }, 'Pour rentrer aussi en bus : choisis ton arrêt dans Mes stations.')] : [
+    el('h3', { class: 'ring-title' }, el('span', {}, `En bus jusqu'à ${home.bus.n}`), el('span', {}, busOpts?.length ? String(busOpts.length) : '')),
+    !busReady() ? el('p', { class: 'empty' }, 'Les arrêts de bus ne sont pas encore chargés : le robot les ajoute à son prochain passage.')
+      : busOpts === null ? el('p', { class: 'empty' }, 'Ton arrêt de bus n\'existe plus dans la liste : choisis-le à nouveau dans Mes stations.')
+        : busOpts.length ? el('ul', { class: 'items' }, busOpts.map((o) => el('li', { class: 'item' },
+          el('button', { type: 'button', class: 'item-main', onclick: () => openCompass({ name: `Arrêt ${o.stop[2]}`, lat: o.stop[0], lng: o.stop[1] }), 'aria-label': `Boussole vers l'arrêt ${o.stop[2]}, lignes ${o.lines.join(', ')}` },
+            el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bus', { size: 18 })),
+            el('span', { class: 'item-text' },
+              el('span', { class: 'item-name' }, o.stop[2]),
+              el('span', { class: 'lines' }, o.lines.map((l) => el('span', { class: 'bus-line' }, l))),
+              el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop)].filter(Boolean).join(' · ')))))))
+          : el('p', { class: 'empty' }, `Aucun bus vers ${home.bus.n} à moins de 8 min à pied.`),
+  ];
   openSheet([ico('house'), ` Rentrer · ${home.label}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
     opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
@@ -3299,7 +3320,8 @@ async function openHomePlan(home) {
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
     best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
-    el('p', { class: 'help' }, 'Métro et RER (là où le RER croise le métro). Estimation sans horaires ; pour le bus, ouvre le trajet puis Google Maps.'),
+    ...busBlock,
+    el('p', { class: 'help' }, `Métro et RER (là où le RER croise le métro) : estimation sans horaires.${home.bus ? ' Bus : les lignes qui vont jusqu\'à ton arrêt, sans horaires ni sens ; vérifie le sens à l\'arrêt. Touche un arrêt pour la boussole.' : ''}`),
     trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
@@ -3319,14 +3341,45 @@ function pickMyStation(thenGo = false) {
   }, thenGo ? null : { name: 'Mes stations', fn: openMyStations });
   toast('Choisis ta station (Maison, Travail…)');
 }
+/** Choisir l'arrêt de bus « maison » d'une de mes stations (v148) : d'abord les plus proches de la station, ou par son nom. */
+async function pickBusStop(s, query = '') {
+  await Promise.all([loadBus(), stationsReady]);
+  if (!busReady()) { toast('Les arrêts de bus ne sont pas encore chargés : le robot les ajoute à son prochain passage.', true); return; }
+  const st = stationByName(s.station);
+  const results = el('ul', { class: 'items' });
+  const input = el('input', { type: 'search', value: query, placeholder: 'Nom de l\'arrêt (ex. Gare du Nord)', 'aria-label': 'Chercher un arrêt de bus', enterkeyhint: 'search', autocomplete: 'off' });
+  const draw = () => {
+    const found = searchBusStops(busData, input.value, st ?? null, 12);
+    fill(results, ...(found.length ? found.map(({ stop, d }) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => {
+        state = setMyStationBus(state, s.id, { n: stop[2], c: stop[3] }); persist(); toast(`${s.label} : arrêt ${stop[2]}`); openMyStations();
+      } },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bus', { size: 18 })),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, stop[2]),
+          el('span', { class: 'lines' }, busLines(busData, stop).slice(0, 8).map((l) => el('span', { class: 'bus-line' }, l))),
+          el('span', { class: 'item-sub' }, [busPlace(busData, stop), st && !input.value.trim() ? `${fmtDist(d)} de ${st.n}` : ''].filter(Boolean).join(' · '))))))
+      : [el('li', { class: 'empty' }, 'Aucun arrêt de ce nom à Paris et en petite couronne.')]));
+  };
+  input.addEventListener('input', draw);
+  draw();
+  openSheet([ico('bus'), ` Arrêt de bus · ${s.label}`], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, st ? `Les arrêts les plus proches de ${st.n}, ou cherche par le nom. Rentrer te dira quelles lignes y vont.` : 'Cherche ton arrêt par son nom.'),
+    el('label', { class: 'field' }, 'Arrêt', input),
+    results,
+    s.bus ? el('button', { type: 'button', class: 'btn danger', onclick: () => { state = setMyStationBus(state, s.id, null); persist(); toast('Arrêt de bus retiré'); openMyStations(); } }, ico('trash-2'), `Retirer l'arrêt ${s.bus.n}`) : null,
+    foot(el('button', { type: 'button', class: 'btn', onclick: openMyStations }, '← Mes stations')),
+  ), { tall: true, name: `busstop:${s.id}`, again: () => pickBusStop(s, input.value) });
+}
 function openMyStations() {
   const mine = state.myStations ?? [];
   openSheet([ico('house'), ' Mes stations'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Tes stations à toi (Maison, Travail…). Le bouton Maison sur la carte te dit quel métro prendre pour y aller. Elles partent dans ta sauvegarde, pas dans les lieux partagés.'),
-    mine.length ? el('div', {}, mine.map((s) => el('div', { class: 'cat-row' },
+    el('p', { class: 'help' }, 'Tes stations à toi (Maison, Travail…). Rentrer te dit quel métro prendre pour y aller, et quel bus si tu choisis ton arrêt. Elles partent dans ta sauvegarde, pas dans les lieux partagés.'),
+    mine.length ? el('div', {}, mine.map((s) => el('div', { class: 'cat-row mystation-row' },
       el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('house', { size: 18 })),
       el('span', { class: 'cat-name' }, s.label, el('br'), el('span', { class: 'cat-count' }, `Ⓜ ${s.station}`)),
-      el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer ${s.label}`, onclick: () => { state = removeMyStation(state, s.id); persist(); openMyStations(); } }, ico('x'))))) : null,
+      el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer ${s.label}`, onclick: () => { state = removeMyStation(state, s.id); persist(); openMyStations(); } }, ico('x')),
+      el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s) }, ico('bus'), s.bus ? `Arrêt de bus : ${s.bus.n}` : 'Choisir mon arrêt de bus')))) : null,
     el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false) }, ico('plus'), 'Ajouter une station'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'mystations', again: openMyStations });
@@ -4461,6 +4514,11 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, 'Sert à Mon Paris : l\'arrondissement de chaque lieu est calculé sur ton téléphone avec ces contours officiels. Ils ne changent presque jamais.'),
         el('div', { class: 'menu' }, link(ARR_FILE)),
         say('Mets à jour les arrondissements', 'tools/maj-arrondissements.py')],
+      bus: () => [
+        el('p', { class: 'help' }, 'Sert à Rentrer en bus : les arrêts de Paris et de la petite couronne, avec les lignes qui s\'y arrêtent. Calcul sur ton téléphone ; ni horaires ni sens.'),
+        el('div', { class: 'menu' }, link(BUS_FILE)),
+        el('p', { class: 'help' }, 'Sur le portail : filtre « mode » = Bus, puis Export → JSON.'),
+        say('Mets à jour les arrêts de bus', 'tools/maj-bus.py')],
       marches: () => [
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
@@ -5229,6 +5287,8 @@ const HELP = [
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le lieu frais les plus proches. Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations.',
+    '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus. Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min.',
+    '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Caché, et l\'ordre.',
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
     '{check} **L\'essentiel** : même page, « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
@@ -5353,7 +5413,7 @@ const HELP = [
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
     '{database} **Données de l\'appli** : {settings} → Appli. Chaque donnée a sa date.',
     '**En direct** : fontaines, toilettes, agenda, marchés, Vélib\' et météo se rechargent seuls.',
-    '**Lignes, gares, Navigo, toilettes RATP et arrondissements** : un robot les refait le 1er de chaque mois. Il ne publie que si tout est correct.',
+    '**Lignes, gares, Navigo, toilettes RATP, arrondissements et arrêts de bus** : un robot les refait le 1er de chaque mois. Il ne publie que si tout est correct.',
     '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : Appli → Mettre à jour l\'appli.',
     '**Monuments, marchés couverts et listes d\'expos** se refont avec Claude. Touche la ligne pour savoir quoi faire.',
     '**Un rappel** s\'affiche, une fois par semaine au plus, quand une donnée est en retard.',
@@ -5380,6 +5440,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
     '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
     '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
     '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
@@ -5389,7 +5450,6 @@ const HELP = [
     '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
     '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
     '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
-    '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
   ]],
 ];
 

@@ -188,7 +188,18 @@ export function cleanSettings(o = {}) {
 }
 /** Mes stations (personnelles, comme mes lieux) : { id, station, label }, 10 au plus. */
 export const cleanMyStations = (a) => (Array.isArray(a) ? a.filter((s) => s && typeof s.station === 'string' && s.station.trim() && typeof s.id === 'string' && /^[\w-]{1,64}$/.test(s.id))
-  .map((s) => ({ id: s.id, station: s.station.trim().slice(0, 60), label: String(s.label ?? '').trim().slice(0, 20) || 'Ma station' })).slice(0, 10) : []);
+  .map((s) => ({ id: s.id, station: s.station.trim().slice(0, 60), label: String(s.label ?? '').trim().slice(0, 20) || 'Ma station', ...(cleanBusRef(s.bus) ? { bus: cleanBusRef(s.bus) } : {}) })).slice(0, 10) : []);
+/** Arrêt de bus « maison » d'une de mes stations (v148) : { n: nom, c: code INSEE }, ou null. */
+export function cleanBusRef(b) {
+  if (!b || typeof b !== 'object' || typeof b.n !== 'string' || !b.n.trim() || !/^\d{5}$/.test(String(b.c ?? ''))) return null;
+  return { n: b.n.trim().slice(0, 60), c: String(b.c) };
+}
+/** Choisit (ou retire, avec null) l'arrêt de bus d'une de mes stations. */
+export const setMyStationBus = (state, id, bus) => ({ ...state, myStations: cleanMyStations(cleanMyStations(state.myStations).map((s) => {
+  if (s.id !== id) return s;
+  const { bus: _old, ...rest } = s;
+  return cleanBusRef(bus) ? { ...rest, bus: cleanBusRef(bus) } : rest;
+})) });
 
 export function addMyStation(state, station, label) {
   const list = cleanMyStations(state.myStations);

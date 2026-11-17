@@ -21,6 +21,8 @@ export const MERIMEE_FILES = [
   { name: 'Liste des musées franciliens', file: 'liste_des_musees_franciliens.geojson', url: 'https://www.data.gouv.fr/datasets/liste-des-musees-franciliens-idf' },
 ];
 
+/** Arrêts de bus et leurs lignes, Paris et petite couronne (data/bus.json, refait par le robot avec tools/maj-bus.py, v148). */
+export const BUS_FILE = { name: 'Arrêts et lignes associées', file: 'arrets-lignes.json', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/arrets-lignes/export/' };
 /** Contours des arrondissements (data/arrondissements.json, refait par le robot avec tools/maj-arrondissements.py). */
 export const ARR_FILE = { name: 'Arrondissements', file: 'arrondissements.geojson', url: 'https://opendata.paris.fr/explore/dataset/arrondissements/export/' };
 /** Horaires des 9 marchés couverts : page de la Ville, relevée à la main. */
@@ -37,6 +39,7 @@ export const FIXED_DATA = [
   { id: 'navigo', name: 'Avantages culture Navigo', every: 45, robot: true },
   { id: 'ratp', name: 'Toilettes des gares RATP', every: 45, robot: true },
   { id: 'arrondissements', name: 'Contours des arrondissements (Mon Paris)', every: 45, robot: true, lazy: true }, // date connue une fois le fichier lu
+  { id: 'bus', name: 'Arrêts de bus et leurs lignes (Rentrer)', every: 45, robot: true, lazy: true }, // v148 ; date connue une fois le fichier lu
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre

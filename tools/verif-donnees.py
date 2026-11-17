@@ -14,6 +14,7 @@ FILES = {  # fichier : (clé de la liste, minimum absolu)
     'data/navigo.json': ('items', 50),
     'data/sanitaires-ratp.json': ('items', 20),
     'data/arrondissements.json': ('arr', 20),
+    'data/bus.json': ('stops', 1500),          # v148 : Paris et petite couronne (plusieurs milliers attendus)
 }
 ok = True
 for path, (key, floor) in FILES.items():
@@ -39,6 +40,15 @@ try:
     for field in ('pmr', 'passe'):
         if ratp and not any(x.get(field) for x in ratp):
             print(f'ÉCHEC data/sanitaires-ratp.json : plus aucun « {field} » (champ renommé à la source ?)'); ok = False
+except Exception:  # noqa: BLE001
+    pass
+# Arrêts de bus : des lignes, et des arrêts à Paris comme en petite couronne (un filtre changé à la source viderait l'un des deux).
+try:
+    bus = json.load(open('data/bus.json', encoding='utf8'))
+    if bus['stops']:
+        paris = sum(1 for x in bus['stops'] if x[3].startswith('75'))
+        if not bus['lines'] or paris < 500 or len(bus['stops']) - paris < 500:
+            print(f"ÉCHEC data/bus.json : {len(bus['lines'])} lignes, {paris} arrêts à Paris, {len(bus['stops']) - paris} en petite couronne"); ok = False
 except Exception:  # noqa: BLE001
     pass
 sys.exit(0 if ok else 1)
