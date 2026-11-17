@@ -70,6 +70,7 @@ const ECRANS = {
   boutons: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Boutons de la carte' }).click(); await p.waitForTimeout(300); },
   texte: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Taille du texte' }).click(); await p.waitForTimeout(300); },
   pas: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon pas' }).click(); await p.waitForTimeout(300); },
+  essentiel: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.menu-row', { hasText: 'Choisir l\'essentiel' }).click(); await p.waitForTimeout(300); },
   nombouton: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.tool-rename').nth(1).click(); await p.waitForTimeout(300); },
   nomscarte: async (p) => { // v139 : « Noms à côté des boutons » allumé, avec un nom choisi
     await p.evaluate(() => { const k = 'carte-paris.v1'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.toolLabels = true; o.toolNames = { home: 'Chez moi', pratique: 'Eau et toilettes' }; o.moreTools = ['velib']; localStorage.setItem(k, JSON.stringify(o)); });

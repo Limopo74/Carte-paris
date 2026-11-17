@@ -2,7 +2,7 @@
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
+import { cleanMore, DEFAULT_MORE, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (146)';
+const VERSION = '17 novembre 2026 (147)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4190,6 +4190,15 @@ function openSettings(section = null) {
       } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('tags')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Noms à côté des boutons'), el('span', { class: 'menu-sub' }, 'Écrits sur la carte, à côté de chaque bouton de la colonne')),
         el('span', { class: `switch${state.toolLabels === true ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+      el('p', { class: 'legend' }, 'L\'essentiel'),
+      el('p', { class: 'help' }, `Un appui garde sur la carte : ${cleanEssentials(state.essentials).map(toolName).join(', ')}. Les autres passent dans ⋯ Plus ; rien n'est caché.`),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: applyEssential }, ico('check'), 'Ne garder que l\'essentiel'),
+      state.layoutBefore ? el('button', { type: 'button', class: 'btn', onclick: restoreLayout }, ico('rotate-ccw'), 'Remettre mes boutons d\'avant') : null,
+      el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('essentiel') },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('pencil')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Choisir l\'essentiel'), el('span', { class: 'menu-sub' }, 'Les boutons à garder sur la carte')),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
+      el('p', { class: 'legend' }, 'Chaque bouton'),
       el('p', { class: 'summary' }, (() => { const h = cleanHidden(state.hiddenTools); const m = moreList(); const n = list.filter((t) => !h.includes(t) && !m.includes(t)).length; return `Sur la carte : ${plural(n, 'bouton', 'boutons')}${m.length ? ` + ⋯ (${m.length} dans Plus)` : ''}`; })()),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
@@ -4221,6 +4230,30 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris'); } }, 'Tout remettre comme au début'),
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
+    return;
+  }
+
+  if (section === 'essentiel') {
+    const ess = cleanEssentials(state.essentials);
+    const flip = (t, box) => {
+      const on = ess.includes(t);
+      if (on && ess.length === 1) { box.checked = true; toast('Garde au moins un bouton', true); return; }
+      state.essentials = on ? ess.filter((x) => x !== t) : [...ess, t]; persist(); openSettings('essentiel');
+      requestAnimationFrame(() => document.querySelector(`[data-ess="${t}"]`)?.focus());
+    };
+    openSheet([ico('pencil'), ' Choisir l\'essentiel'], el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'Coche les boutons à garder sur la carte. « Ne garder que l\'essentiel » range les autres dans ⋯ Plus.'),
+      el('ul', { class: 'items' }, normalizeTools(state.mapTools).map((t) => {
+        const info = TOOL_INFO[t];
+        const box = el('input', { type: 'checkbox', class: 'check', checked: ess.includes(t), 'data-ess': t });
+        box.addEventListener('change', () => flip(t, box));
+        return el('li', { class: 'item' }, el('label', { class: 'item-main check-row' }, box,
+          el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, toolName(t)))));
+      })),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: applyEssential }, ico('check'), 'Ne garder que l\'essentiel'),
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('outils') }, '← Boutons de la carte')),
+    ), { tall: true, name: 'settings:essentiel', again: () => openSettings('essentiel') });
     return;
   }
 
@@ -5058,6 +5091,19 @@ const TOOL_INFO = {
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
+/** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
+function applyEssential() {
+  const r = essentialLayout(state);
+  state.layoutBefore = r.layoutBefore; state.hiddenTools = r.hiddenTools; state.moreTools = r.moreTools;
+  persist(); applyToolOrder(); setLocateBtn(); openSettings('outils');
+  toast('L\'essentiel est sur la carte, le reste dans Plus', false, { label: 'Annuler', fn: restoreLayout });
+}
+function restoreLayout() {
+  const b = cleanLayout(state.layoutBefore);
+  if (!b) return;
+  state.mapTools = b.mapTools; state.hiddenTools = b.hiddenTools; state.moreTools = b.moreTools; state.layoutBefore = null;
+  persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Tes boutons d\'avant sont remis');
+}
 /** Taille du texte (v144) : noms des trois tailles. */
 const TEXT_NAME = { normal: 'Normal', grand: 'Grand', tresgrand: 'Très grand' };
 /** Mon pas (v142) : noms des trois modes et vitesse écrite à la française (« 3,5 »). */
@@ -5185,6 +5231,8 @@ const HELP = [
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Caché, et l\'ordre.',
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
+    '{check} **L\'essentiel** : même page, « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
+    '**Choisir l\'essentiel** : même page. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant » annule.',
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
     '{palette} **Allure de la carte** : {settings} → Style de la carte. Le style Épuré demande une clé CARTO gratuite, à coller une fois.',
@@ -5332,6 +5380,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
     '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
     '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
     '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
@@ -5341,7 +5390,6 @@ const HELP = [
     '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
     '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
     '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
-    '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
   ]],
 ];
 
