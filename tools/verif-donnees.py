@@ -15,6 +15,7 @@ FILES = {  # fichier : (clé de la liste, minimum absolu)
     'data/sanitaires-ratp.json': ('items', 20),
     'data/arrondissements.json': ('arr', 20),
     'data/bus.json': ('stops', 1500),          # v148 : Paris et petite couronne (plusieurs milliers attendus)
+    'data/plaques.json': ('items', 2000),      # v159 : plaques commémoratives de la Ville (2 619 en novembre 2026)
 }
 ok = True
 for path, (key, floor) in FILES.items():
@@ -49,6 +50,14 @@ try:
         paris = sum(1 for x in bus['stops'] if x[3].startswith('75'))
         if not bus['lines'] or paris < 500 or len(bus['stops']) - paris < 500:
             print(f"ÉCHEC data/bus.json : {len(bus['lines'])} lignes, {paris} arrêts à Paris, {len(bus['stops']) - paris} en petite couronne"); ok = False
+except Exception:  # noqa: BLE001
+    pass
+# Plaques : l'endroit sur l'immeuble et l'adresse doivent rester remplis pour une bonne partie (champ renommé à la source ?).
+try:
+    pl = json.load(open('data/plaques.json', encoding='utf8'))['items']
+    for field, part in (('o', 0.5), ('a', 0.9)):
+        if pl and sum(1 for x in pl if x.get(field)) < len(pl) * part:
+            print(f'ÉCHEC data/plaques.json : « {field} » vide sur trop de plaques (champ renommé à la source ?)'); ok = False
 except Exception:  # noqa: BLE001
     pass
 sys.exit(0 if ok else 1)

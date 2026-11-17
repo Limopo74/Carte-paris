@@ -1,6 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busKey, busHome, searchBusStops, busPlace, busLines } from './bus.js';
+import { plaquesOf, plaquesNear, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -14,7 +15,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -37,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (158)';
+const VERSION = '17 novembre 2026 (159)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -121,7 +122,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -2825,6 +2826,9 @@ setInterval(() => {
 let arrData = null;
 let arrUpdated = '';
 /** Arrêts de bus et leurs lignes (data/bus.json, v148) : lus seulement pour Rentrer et Mes stations (fichier de plusieurs centaines de Ko). */
+/** Plaques commémoratives (data/plaques.json, v159) : lues seulement à l'ouverture de Curiosités (fichier de plusieurs centaines de Ko). */
+let plaquesData = null;
+const loadPlaques = async () => (plaquesData ??= await fetch('data/plaques.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 let busData = null;
 const loadBus = async () => (busData ??= await fetch('data/bus.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 const busReady = () => Boolean(busData?.stops?.length);
@@ -3344,7 +3348,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
   const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
-    ...lines.filter(Boolean).map((t) => el('p', { class: 'help' }, t)),
+    ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? 1000), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
@@ -4468,40 +4472,68 @@ function surprise() {
 /* ---------- Curiosités : articles Wikipédia autour (position arrondie à 100 m environ) ---------- */
 
 const wikiCache = new Map();
+const PLAQUE_COLOR = '#2b8a3e';
+/** La page d'une plaque : son texte gravé en entier, où la regarder sur l'immeuble, puis les actions d'un lieu. */
+function openPlaque(p, back = null) {
+  openSpot({ icon: 'scroll-text', title: p.t, kicker: 'Plaque commémorative', place: { lat: p.lat, lng: p.lng, address: p.a },
+    lines: [el('blockquote', { class: 'plaque-text' }, p.x),
+      p.o ? el('p', { class: 'where' }, ico('eye'), `Où regarder : ${p.o.charAt(0).toLowerCase()}${p.o.slice(1)}`) : null,
+      p.a ? el('p', { class: 'where' }, ico('map-pin'), p.a) : null,
+      el('p', { class: 'help' }, 'Texte relevé par la Ville de Paris (Direction des Affaires Culturelles, licence ODbL). Une plaque peut avoir été déplacée ou retirée.')],
+    add: { note: p.x }, back, key: `plaque:${p.lat},${p.lng}` });
+}
+const plaqueRow = (x, back) => el('li', { class: 'item' },
+  el('button', { type: 'button', class: 'item-main', onclick: () => openPlaque(x.plaque, back) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('scroll-text', { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.plaque.t), el('span', { class: 'item-sub' }, `${walkMinutes(x.d)}\u00a0min · ${plaqueStart(x.plaque, 60)}`))));
+
+/** Toutes les plaques à moins de 5 min, de la plus proche. */
+function openAllPlaques(near) {
+  openSheet([ico('scroll-text'), ' Plaques à moins de 5 min'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${plural(near.length, 'plaque', 'plaques')}, de la plus proche. Touche une plaque pour lire son texte.`),
+    el('ul', { class: 'items' }, near.map((x) => plaqueRow(x, named('Plaques', () => openAllPlaques(near))))),
+    foot(backBtn(named('Curiosités', openCuriosities))),
+  ), { tall: true, name: 'plaques', again: () => openAllPlaques(near) });
+}
+
 async function openCuriosities() {
   track('Curiosités');
   if (!origin) { openNear(); return; }
-  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}`;
+  const here = origin;
+  const key = `${here.lat.toFixed(3)},${here.lng.toFixed(3)}`;
   let list = wikiCache.get(key);
-  if (!list) {
-    openSheet([ico('book-open-text'), ' Curiosités'], el('p', { class: 'help' }, 'Recherche dans Wikipédia…'), { name: 'wiki' });
-    try {
-      const r = await net(wikiUrl(origin.lat, origin.lng, 1000));
-      list = parseWiki(await r.json());
-      wikiCache.set(key, list);
-    } catch {
-      openSheet([ico('book-open-text'), ' Curiosités'], el('div', { class: 'stack' },
-        el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.'),
-        foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'))), { name: 'wiki' });
-      return;
-    }
-  }
-  const items = list.map((w) => ({ ...w, d: distanceM(origin, w) })).sort((a, b) => a.d - b.d);
+  if (!list || !plaquesData) openSheet([ico('book-open-text'), ' Curiosités'], el('p', { class: 'help' }, 'Recherche des plaques et des articles…'), { name: 'wiki' });
+  // Les plaques sont dans l'appli : elles s'affichent même si Wikipédia ne répond pas.
+  const [, wiki] = await Promise.all([loadPlaques(),
+    list ? Promise.resolve(list) : net(wikiUrl(here.lat, here.lng, 1000)).then((r) => r.json()).then(parseWiki).catch(() => null)]);
+  if (wiki && !list) { list = wiki; wikiCache.set(key, list); }
+  if (origin !== here) return; // la position a changé pendant la recherche : la nouvelle ouverture s'en charge
+  const near = plaquesNear(plaquesOf(plaquesData), here, minutesToMeters(5), Infinity);
+  const items = (list ?? []).map((w) => ({ ...w, d: distanceM(here, w) })).sort((a, b) => a.d - b.d);
   const have = (w) => findDuplicate(state.points, { name: w.title, lat: w.lat, lng: w.lng });
+  const back = named('Curiosités', openCuriosities);
   openSheet([ico('book-open-text'), ' Curiosités'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, `${plural(items.length, 'article', 'articles')} Wikipédia à moins de 1 km : monuments, rues, histoire. « + » pour en faire un lieu.`),
-    el('ul', { class: 'items' }, items.map((w) => el('li', { class: 'item' },
+    el('h3', { class: 'ring-title' }, 'Plaques à moins de 5 min'),
+    !plaquesData ? el('p', { class: 'warn' }, 'Les plaques n\'ont pas pu être lues. Réessaie plus tard.')
+      : near.length ? el('ul', { class: 'items' }, near.slice(0, 3).map((x) => plaqueRow(x, back)))
+        : el('p', { class: 'help' }, 'Aucune plaque commémorative à moins de 5 min à pied.'),
+    near.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openAllPlaques(near) }, `Toutes les plaques (${near.length})`) : null,
+    el('h3', { class: 'ring-title' }, 'Wikipédia à moins de 1 km'),
+    !list ? el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.')
+      : el('p', { class: 'help' }, `${plural(items.length, 'article', 'articles')} : monuments, rues, histoire. « + » pour en faire un lieu.`),
+    list ? el('ul', { class: 'items' }, items.map((w) => el('li', { class: 'item' },
       el('a', { class: 'item-main', href: wikiPage(w.title), target: '_blank', rel: 'noopener' },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('book-open-text', { size: 18 })),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, w.title), el('span', { class: 'item-sub' }, `${fmtDist(w.d)} · ${walkMinutes(w.d)} min · lire l'article`))),
       have(w) ? el('span', { class: 'tag' }, 'Déjà là')
-        : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))),
-    el('p', { class: 'help' }, 'Source : Wikipédia (CC BY-SA). Seule une position arrondie à 100 m est envoyée.'),
+        : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))) : null,
+    el('p', { class: 'help' }, 'Plaques : Ville de Paris (licence ODbL), triées sur ton téléphone. Wikipédia (CC BY-SA) : seule une position arrondie à 100 m est envoyée.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
-  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) meMarker(here.lat, here.lng).addTo(nearLayer);
   for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  for (const x of near) L.circleMarker([x.plaque.lat, x.plaque.lng], { radius: 5, color: PLAQUE_COLOR, weight: 2, fillColor: PLAQUE_COLOR, fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
 /* ---------- Itinéraire : un seul outil pour les trois façons de tracer un trajet ---------- */
@@ -5102,7 +5134,7 @@ function openSettings(section = null) {
         autoRow('Vélib\'', 'En temps réel, quand tu le demandes', 'velib-disponibilite-en-temps-reel'),
         autoRow('Galeries (OpenStreetMap)', `Tous les 30 jours · ${when(galleriesTime)}`),
         autoRow('Monuments historiques (Wikidata)', `Tous les 30 jours · ${when((() => { try { return JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null')?.t ?? 0; } catch { return 0; } })())}`),
-        autoRow('Curiosités (Wikipédia)', 'En direct, position arrondie à 100 m'),
+        autoRow('Curiosités (Wikipédia)', 'En direct, position arrondie à 100 m ; les plaques sont dans l\'appli'),
         autoRow('Annuaire et adresses (OpenStreetMap, IGN)', 'En direct, quand tu cherches ou ajoutes un lieu'),
         autoRow('Météo et air (Open-Meteo)', 'En temps réel, position arrondie à 1 km')),
       el('h3', { class: 'ring-title' }, el('span', {}, 'Importé par toi'), el('span', {}, '')),
@@ -5118,6 +5150,9 @@ function openSettings(section = null) {
     const id = section.slice(7);
     const d = FIXED_DATA.find((x) => x.id === id);
     if (!d) { openSettings('donnees'); return; }
+    // Fichiers lus à part : on les lit pour connaître leur date, puis la page se rouvre
+    if (id === 'plaques' && !plaquesData) { loadPlaques().then(() => openSettings(section)); return; }
+    if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
     const date = dataDates()[id];
     const late = dataDue({ [id]: date }).includes(id);
     const link = (f) => el('a', { class: 'menu-row c-metro', href: f.url, target: '_blank', rel: 'noopener' },
@@ -5162,6 +5197,10 @@ function openSettings(section = null) {
         el('div', { class: 'menu' }, link(BUS_FILE)),
         el('p', { class: 'help' }, 'Sur le portail : filtre « mode » = Bus, puis Export → JSON.'),
         say('Mets à jour les arrêts de bus', 'tools/maj-bus.py')],
+      plaques: () => [
+        el('p', { class: 'help' }, 'Sert à Curiosités : les plaques commémoratives posées par la Ville de Paris, avec leur texte gravé. Tri sur ton téléphone. Direction des Affaires Culturelles, licence ODbL.'),
+        el('div', { class: 'menu' }, link(PLAQUES_FILE)),
+        say('Mets à jour les plaques commémoratives', 'tools/maj-plaques.py')],
       marches: () => [
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
@@ -5998,7 +6037,7 @@ const HELP = [
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
-    '{book-open-text} **Curiosités** : les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
+    '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
     '{landmark} **Monuments** : les monuments protégés à moins de 1 km, avec leur site, la fiche du ministère et Wikipédia.',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
@@ -6105,7 +6144,7 @@ const HELP = [
     '**Dans Messages ou WhatsApp**, désactive « Ouvrir les liens dans l\'appli » s\'il existe. Les noms varient selon les téléphones.',
     '**Style Épuré vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
     '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Voix.',
-    '**Vélib\', Curiosités, galeries ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard.',
+    '**Vélib\', Curiosités, galeries ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, elles, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
     '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
@@ -6116,6 +6155,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
     '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
@@ -6125,7 +6165,6 @@ const HELP = [
     '{alarm-clock} Prévoir une sortie, plus simple : « Prévoir une visite » est en haut de la fiche, sous Favori. Le jour et le moment se touchent (Demain, Samedi, Matin, Soir…) ; l\'heure précise n\'est plus obligatoire. Le lendemain, Mon planning demande « Tu y es allé ? ».',
     '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
     '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
-    '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
   ]],
 ];
 

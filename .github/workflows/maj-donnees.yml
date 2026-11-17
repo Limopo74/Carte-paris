@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
-          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json /tmp/avant/
+          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json /tmp/avant/
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
           PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
@@ -42,6 +42,7 @@ jobs:
           get /tmp/src/navigo.geojson "$IDFM/lieux-avantages-cultures-navigo/exports/geojson"
           get /tmp/src/sanitaires.geojson "$RATP/sanitaires-reseau-ratp/exports/geojson"
           get /tmp/src/arrondissements.geojson "$PARIS/arrondissements/exports/geojson"
+          get /tmp/src/plaques.geojson "$PARIS/plaques_commemoratives/exports/geojson"
           # Arrêts de bus de Paris et de la petite couronne, avec leurs lignes (environ 21 000 couples arrêt-ligne)
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/bus.json "$IDFM/arrets-lignes/exports/json" \
             --data-urlencode 'where=mode="Bus" AND (code_insee like "75*" OR code_insee like "92*" OR code_insee like "93*" OR code_insee like "94*")' \
@@ -59,6 +60,7 @@ jobs:
           python3 -I tools/maj-sanitaires.py /tmp/src/sanitaires.geojson "$TODAY"
           python3 -I tools/maj-arrondissements.py /tmp/src/arrondissements.geojson "$TODAY"
           python3 -I tools/maj-bus.py /tmp/src/bus.json "$TODAY"
+          python3 -I tools/maj-plaques.py /tmp/src/plaques.geojson "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
         run: |
@@ -70,8 +72,8 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json
+          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json
           if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
           git diff --cached --stat
-          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus (robot)"
+          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques (robot)"
           git push

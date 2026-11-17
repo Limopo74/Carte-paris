@@ -1153,3 +1153,5 @@ a.menu-row .menu-chev { font-size: 20px; }
 body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { display: none; }
 .map-btn[aria-pressed="true"] .map-label { background: var(--bg); color: var(--ink); }
 .seg.tool-where button { flex: 1 1 0; min-height: 44px; padding: 0 4px; font-size: var(--t14); }
+/* Plaque commémorative (v159) : le texte gravé, avec ses retours à la ligne, comme sur la pierre */
+.plaque-text { margin: 0; padding: 12px 14px; border-left: 3px solid var(--ink); font-size: var(--t18); line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
