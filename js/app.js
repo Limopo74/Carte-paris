@@ -3,7 +3,7 @@ import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busKey, busHome, searchBusStops, busPlace, busLines } from './bus.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import { cleanMore, DEFAULT_MORE, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
+import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -35,7 +35,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (150)';
+const VERSION = '17 novembre 2026 (151)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -409,6 +409,67 @@ function showDraft(lat, lng) {
 
 /* ---------- Barre de filtres ---------- */
 
+/** Où va chaque bouton du haut : 'bar', 'more' (sous ⋯ Plus) ou 'hidden'. */
+function chipPlace() {
+  const hidden = new Set(cleanChips(state.hiddenChips));
+  const more = new Set(cleanMoreChips(state.moreChips ?? [], [...hidden]));
+  return (key) => (hidden.has(key) ? 'hidden' : more.has(key) ? 'more' : 'bar');
+}
+/** Les boutons du haut, dans l'ordre : { key, name, icon, active, make } (make : le bouton de la barre). */
+function chipItems(chip = null, catChip = null) {
+  const toggleStreet = () => {
+    state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
+    toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
+  };
+  const toggleVelib = () => { setVelibLayer(!velibOn); refresh(); toast(velibOn ? 'Vélib\' : les stations sur la carte (en zoomant)' : 'Vélib\' : masqué'); };
+  const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
+  const fixed = [
+    { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: () => { filterCats.clear(); favOnly = false; refresh(); },
+      make: () => chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) },
+    { key: 'filters', name: 'Filtres', icon: ico('list-filter'), active: activeFilters() > 0, act: openFilters,
+      make: () => chip([ico('list-filter'), activeFilters() ? ` ${activeFilters()}` : ''], activeFilters() > 0, openFilters, { class: 'filters', aria: activeFilters() ? `Filtres : ${activeFilters()} actifs` : 'Filtres' }) },
+    { key: 'fav', name: 'Favoris', icon: glyph(state.fav.icon, { filled: true }), active: favOnly, act: () => { favOnly = !favOnly; refresh(); emptyHint(); },
+      make: () => chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); emptyHint(); }, { class: 'star', aria: 'Seulement les favoris' }) },
+    { key: 'street', name: 'Dans la rue aujourd\'hui', icon: ico('tent'), active: Boolean(state.showMarkets), act: toggleStreet,
+      make: () => chip(ico('tent'), Boolean(state.showMarkets), toggleStreet, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) },
+    { key: 'ttb', name: 'TTB', icon: ttbDotFor(''), active: Boolean(state.showTtb), act: toggleTtb,
+      make: () => {
+        const b = chip(ttbDot(), Boolean(state.showTtb), toggleTtb, { class: 'ttb-chip icon-only', aria: 'TTB : adresses du guide (appui long : la liste)' });
+        b.addEventListener('contextmenu', (e) => { e.preventDefault(); openTtbList(); }); // appui long : la liste
+        return b;
+      } },
+    { key: 'lines', name: 'Lignes de métro et RER', icon: ico('lines'), active: Boolean(state.showLines), act: toggleLines,
+      make: () => chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) },
+    { key: 'velib', name: 'Vélib\'', icon: ico('bike'), active: velibOn, act: toggleVelib,
+      make: () => chip(ico('bike'), velibOn, toggleVelib, { class: 'velib', aria: 'Vélib\' : les stations sur la carte' }) },
+    { key: 'pratique', name: 'Fontaines et toilettes', icon: ico('droplets'), active: Boolean(state.showPratique), act: togglePrat,
+      make: () => chip(ico('droplets'), Boolean(state.showPratique), togglePrat, { class: 'pratique', aria: 'Fontaines et toilettes sur la carte' }) },
+  ];
+  return [...fixed, ...state.categories.map((c) => ({ key: `cat:${c.id}`, name: c.name, icon: catDot(c.id), cat: c.id, active: filterCats.has(c.id), act: () => toggleCat(c.id), make: () => catChip(c) }))];
+}
+
+/** ⋯ Plus de la barre du haut (v151) : les boutons qu'on y a rangés, chacun s'allume ou s'éteint d'un appui. */
+function openChipsMore() {
+  const where = chipPlace();
+  const list = chipItems().filter((x) => where(x.key) === 'more');
+  const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant' }[x.key] ?? '');
+  openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
+    el('p', { class: 'help' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
+    list.map((x) => {
+      const opens = x.key === 'filters' || x.key === 'all';
+      return el('button', { type: 'button', class: 'menu-row c-guide', ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
+        x.act();
+        if (!opens) openChipsMore();
+      } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, x.icon),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, sub(x))),
+      opens ? el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›') : el('span', { class: `switch${x.active ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+    }),
+    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openSettings('categories') }, ico('settings'), 'Choisir ce qui va dans Plus'),
+  ), { name: 'chips-more', again: openChipsMore, tall: true });
+}
+
 function renderChips() {
   for (const id of filterCats) if (!state.categories.some((c) => c.id === id)) filterCats.delete(id);
   const chip = (label, pressed, onclick, extra = {}) =>
@@ -422,27 +483,15 @@ function renderChips() {
     return b;
   };
   const box = document.getElementById('chips');
-  // Boutons masqués dans les réglages ; un bouton reste visible tant que son filtre est actif, pour pouvoir l'enlever
-  const hidden = new Set(state.hiddenChips ?? []);
-  const show = (key, active) => !hidden.has(key) || active;
-  fill(box, ...[
-    // « Tout » = toutes les catégories et pas seulement les favoris : un appui enlève les deux
-    show('all', false) ? chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) : null,
-    show('filters', activeFilters() > 0) ? chip([ico('list-filter'), activeFilters() ? ` ${activeFilters()}` : ''], activeFilters() > 0, openFilters,
-      { class: 'filters', aria: activeFilters() ? `Filtres : ${activeFilters()} actifs` : 'Filtres' }) : null,
-    show('fav', favOnly) ? chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); emptyHint(); }, { class: 'star', aria: 'Seulement les favoris' }) : null,
-    show('street', Boolean(state.showMarkets)) ? chip(ico('tent'), Boolean(state.showMarkets), () => {
-      state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
-      toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
-    }, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) : null,
-    show('ttb', Boolean(state.showTtb)) ? (() => {
-      const b = chip(ttbDot(), Boolean(state.showTtb), toggleTtb, { class: 'ttb-chip icon-only', aria: 'TTB : adresses du guide (appui long : la liste)' });
-      b.addEventListener('contextmenu', (e) => { e.preventDefault(); openTtbList(); }); // appui long : la liste
-      return b;
-    })() : null,
-    show('lines', Boolean(state.showLines)) ? chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) : null,
-    ...state.categories.filter((c) => show(`cat:${c.id}`, filterCats.has(c.id))).map(catChip),
-  ].filter(Boolean));
+  // Chaque bouton : dans la barre, sous ⋯ Plus, ou caché (Réglages → Catégories et listes). Un bouton actif reste visible
+  // dans la barre, même rangé ou caché, pour pouvoir l'enlever (v151).
+  const items = chipItems(chip, catChip);
+  const where = chipPlace();
+  const bar = items.filter((x) => where(x.key) === 'bar');
+  const kept = items.filter((x) => where(x.key) !== 'bar' && x.active);
+  const inMore = items.filter((x) => where(x.key) === 'more').length;
+  fill(box, ...[...bar, ...kept].map((x) => x.make()),
+    inMore ? chip(ico('ellipsis'), false, openChipsMore, { class: 'more-chip icon-only', aria: `Plus : ${plural(inMore, 'autre bouton', 'autres boutons')}` }) : null);
   const star = box.querySelector('.star');
   if (!star) { /* favoris masqués */ } else if (favOnly) { star.style.background = state.fav.color; star.style.borderColor = state.fav.color; star.style.color = '#fff'; } else star.style.color = state.fav.color;
   // La catégorie choisie reste visible dans la barre
@@ -4287,21 +4336,29 @@ function openSettings(section = null) {
   }
 
   if (section === 'categories') {
-    const hiddenTop = new Set(state.hiddenChips ?? []);
-    const topBox = (key, name) => {
-      const box = el('input', { type: 'checkbox', class: 'check', checked: !hiddenTop.has(key), 'aria-label': `Afficher ${name} dans la barre du haut` });
-      box.addEventListener('change', () => {
-        if (box.checked) hiddenTop.delete(key); else hiddenTop.add(key);
-        state.hiddenChips = [...hiddenTop]; persist(); refresh(); openSettings('categories');
-        requestAnimationFrame(() => document.querySelector(`[data-top="${key}"]`)?.focus());
-        toast(box.checked ? `${name} : affiché en haut` : `${name} : masqué en haut (rien n'est supprimé)`);
-      });
-      box.dataset.top = key;
-      return box;
+    // Chaque bouton du haut : Barre, Plus (sous ⋯) ou Caché, comme les boutons de la carte (v151)
+    const placeOf = chipPlace();
+    const putTop = (key, name, to) => {
+      const h = new Set(cleanChips(state.hiddenChips));
+      const m = new Set(cleanMoreChips(state.moreChips ?? [], [...h]));
+      h.delete(key); m.delete(key);
+      if (to === 'hidden') h.add(key);
+      if (to === 'more') m.add(key);
+      state.hiddenChips = [...h]; state.moreChips = [...m]; persist(); refresh(); openSettings('categories');
+      requestAnimationFrame(() => document.querySelector(`[data-top="${key}:${to}"]`)?.focus());
+      toast(`${name} : ${to === 'bar' ? 'dans la barre' : to === 'more' ? 'dans ⋯ Plus' : 'caché (rien n\'est supprimé)'}`);
     };
-    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['ttb', ttbDotFor(''), 'TTB'], ['lines', ico('lines'), 'Lignes de métro et RER']];
+    const topSeg = (key, name) => el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place de ${name} en haut` },
+      [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Caché']].map(([k, label]) =>
+        el('button', { type: 'button', 'aria-pressed': String(placeOf(key) === k), 'data-top': `${key}:${k}`, onclick: () => { if (placeOf(key) !== k) putTop(key, name, k); } }, label)));
+    const fixed = chipItems().filter((x) => !x.cat);
+    const nTop = { bar: 0, more: 0, hidden: 0 };
+    for (const x of chipItems()) nTop[placeOf(x.key)] += 1;
+    const moreNow = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips));
+    const asStart = !cleanChips(state.hiddenChips).length && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
-      el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Coche pour afficher, décoche pour masquer : les lieux restent sur la carte. Flèches pour ranger tes catégories, crayon pour le nom, l\'icône et la couleur.'),
+      el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Pour chaque bouton : « Barre » le garde en haut, « Plus » le range sous le bouton ⋯ (à un appui), « Caché » l\'enlève. Les lieux restent toujours sur la carte. Flèches pour ranger tes catégories, nom pour les modifier.'),
+      el('p', { class: 'summary' }, `En haut : ${plural(nTop.bar, 'bouton', 'boutons')}${nTop.more ? ` + ⋯ (${nTop.more} dans Plus)` : ''}${nTop.hidden ? ` · ${nTop.hidden} caché${nTop.hidden > 1 ? 's' : ''}` : ''}`),
       // Réglage de toute la barre : en tête de page, sans faire défiler
       el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
         state.chipIcons = !state.chipIcons; persist(); refresh(); openSettings('categories');
@@ -4310,9 +4367,10 @@ function openSettings(section = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, state.categories[0] ? catDot(state.categories[0].id) : '🏷️'),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
       el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-      el('div', { class: 'legend' }, 'Toujours en tête'),
-      el('div', {}, fixed.map(([key, icon, name]) => el('div', { class: `cat-row${hiddenTop.has(key) ? ' off' : ''}` },
-        el('label', { class: 'tool-check' }, topBox(key, name), el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, icon), el('span', { class: 'cat-name' }, name))))),
+      el('div', { class: 'legend' }, 'Les boutons de l\'appli'),
+      el('div', {}, fixed.map((x) => el('div', { class: `cat-row tool-row${placeOf(x.key) === 'hidden' ? ' off' : ''}` },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, x.icon),
+        el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, x.name), topSeg(x.key, x.name))))),
       el('div', { class: 'legend' }, 'Mes catégories, dans cet ordre'),
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
@@ -4320,16 +4378,18 @@ function openSettings(section = null) {
           requestAnimationFrame(() => document.querySelector(`[data-move="${c.id}:${delta}"]`)?.focus()); };
         const last = state.categories.length - 1;
         const key = `cat:${c.id}`;
-        return el('div', { class: `cat-row${hiddenTop.has(key) ? ' off' : ''}` },
-          el('label', { class: 'tool-check' }, topBox(key, c.name), catDot(c.id),
-            el('span', { class: 'cat-name' }, c.name, el('br'),
-              el('span', { class: 'cat-count' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu'))),
+        return el('div', { class: `cat-row tool-row${placeOf(key) === 'hidden' ? ' off' : ''}` },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, catDot(c.id)),
+          el('div', { class: 'tool-main' },
+            el('button', { type: 'button', class: 'tool-rename', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` },
+              el('span', { class: 'cat-name' }, c.name), ico('pencil'),
+              el('span', { class: 'menu-sub' }, k.total ? `${plural(k.total, 'lieu', 'lieux')} · ${k.todo} à faire` : 'aucun lieu')),
+            topSeg(key, c.name)),
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${c.id}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${c.name}` }, '↑'),
-          el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'),
-          el('button', { type: 'button', class: 'btn move', onclick: () => openCategory(c.id), 'aria-label': `Modifier ${c.name}` }, ico('pencil')));
+          el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, ico('plus'), 'Nouvelle catégorie'),
-      hiddenTop.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; persist(); refresh(); openSettings('categories'); toast('Tous les boutons sont de nouveau en haut'); } }, `Tout réafficher en haut (${hiddenTop.size} masqué${hiddenTop.size > 1 ? 's' : ''})`) : null,
+      asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; persist(); refresh(); openSettings('categories'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
       el('p', { class: 'help' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => el('div', { class: 'cat-row' },
@@ -4752,7 +4812,7 @@ function openSettings(section = null) {
     voiceSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
-    row('list-filter', 'Barre du haut', (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous les boutons affichés', () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton caché', 'boutons cachés') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
@@ -5422,7 +5482,8 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
-    '**Masquer un bouton du haut** : {settings} → Ce qui s\'affiche → Barre du haut.',
+    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\' et Fontaines et toilettes. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
+    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Caché. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\' et Rentrer.',
@@ -5591,6 +5652,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
     '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
     '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
     '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
@@ -5600,7 +5662,6 @@ const HELP = [
     '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
     '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
     '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
-    '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
   ]],
 ];
 

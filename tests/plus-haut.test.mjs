@@ -1,0 +1,47 @@
+// ⋯ Plus dans la barre du haut (v151) : chaque bouton dans la barre, sous ⋯ Plus, ou caché.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { loadState, saveState, exportJSON, readSettings, KEY, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS } from '../js/store.js';
+
+const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
+
+test('Plus du haut : au départ Vélib\' et Fontaines et toilettes, rien d\'autre ne bouge', () => {
+  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'pratique']);
+  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'pratique']);
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav'] })); // appli d'avant la v151
+  const s = loadState(st);
+  assert.deepEqual(s.moreChips, ['velib', 'pratique']);
+  assert.deepEqual(s.hiddenChips, ['fav']);
+});
+
+test('Plus du haut : nettoyé, gardé, jamais en même temps caché', () => {
+  assert.deepEqual(cleanChips(['velib', 'pratique', 'cat:resto', '<b>', 'cat:resto']), ['velib', 'pratique', 'cat:resto']);
+  assert.deepEqual(cleanMoreChips(['cat:resto', 'fav', 'x'], ['fav']), ['cat:resto']);
+  assert.deepEqual(cleanMoreChips([], []), []); // tout remis dans la barre : pas de retour au réglage de départ
+  const st = memStorage();
+  const s = loadState(st);
+  saveState(st, { ...s, moreChips: ['cat:boutique', 'cat:resto', 'lines'], hiddenChips: ['lines'] });
+  const r = loadState(st);
+  assert.deepEqual(r.moreChips, ['cat:boutique', 'cat:resto']);
+  assert.deepEqual(r.hiddenChips, ['lines']);
+  saveState(st, { ...r, moreChips: [] });
+  assert.deepEqual(loadState(st).moreChips, []);
+});
+
+test('Plus du haut : dans la sauvegarde et la restauration des réglages', () => {
+  const s = { ...loadState(memStorage()), moreChips: ['cat:resto'], hiddenChips: ['ttb'] };
+  const back = readSettings(JSON.parse(exportJSON(s)));
+  assert.deepEqual(back.moreChips, ['cat:resto']);
+  assert.deepEqual(back.hiddenChips, ['ttb']);
+});
+
+test('Plus du haut : le bouton ⋯ et sa page existent, le réglage a ses trois choix', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /function openChipsMore\(/);
+  assert.match(app, /class: 'more-chip icon-only'/);
+  assert.match(app, /\[\['bar', 'Barre'\], \['more', 'Plus'\], \['hidden', 'Caché'\]\]/);
+  // un bouton rangé ou caché reste visible dans la barre tant qu'il est actif
+  assert.match(app, /where\(x\.key\) !== 'bar' && x\.active/);
+});

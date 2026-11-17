@@ -981,9 +981,11 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }
 .chip.street .ico svg { width: 20px; height: 20px; }
 .chip.street[aria-pressed="true"] { background: var(--disc); border-color: var(--disc); color: var(--bg); }
-.chip.lines { color: var(--metro); min-width: 44px; justify-content: center; padding: 0 12px; }
-.chip.lines .ico svg { width: 20px; height: 20px; }
-.chip.lines[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
+.chip.lines, .chip.velib { color: var(--metro); min-width: 44px; justify-content: center; padding: 0 12px; }
+.chip.lines .ico svg, .chip.velib .ico svg, .chip.pratique .ico svg, .chip.more-chip .ico svg { width: 20px; height: 20px; }
+.chip.lines[aria-pressed="true"], .chip.velib[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
+/* Fontaines et toilettes, ⋯ Plus (v151) : encre, comme les boutons « Aller » */
+.chip.pratique, .chip.more-chip { min-width: 44px; justify-content: center; padding: 0 12px; }
 
 /* Sorties : d'où partent les distances (ma position ou le centre de la carte) */
 /* Expos de la semaine : un pli par arrondissement */
