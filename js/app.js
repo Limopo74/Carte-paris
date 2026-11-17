@@ -16,7 +16,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -36,7 +36,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (155)';
+const VERSION = '17 novembre 2026 (156)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1508,10 +1508,10 @@ document.getElementById('viewer').addEventListener('click', () => closeViewer())
 window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); });
 
 /** « Ouvert · ferme à 22h30 », « Fermé · ouvre à 9h », ou null si horaires inconnus (même écriture que les tampons). */
-function hoursLine(p) {
-  const st = openState(hoursOf(p));
+function hoursLine(p, h = hoursOf(p)) {
+  const st = openState(h);
   if (!st) return null;
-  const left = minutesLeft(hoursOf(p));
+  const left = minutesLeft(h);
   if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${left} min (${hhText(st.until)})`;
   if (st.open) return st.until ? `Ouvert · ferme à ${hhText(st.until)}` : 'Ouvert toute la journée';
   return st.opensAt ? `Fermé · ouvre à ${hhText(st.opensAt)}` : 'Fermé pour aujourd\'hui';
@@ -3025,9 +3025,9 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
 /** Boussole et M toujours au même endroit : la place du + reste réservée quand une ligne n'en a pas. */
 const slots = (btns, n) => [...btns, ...Array.from({ length: Math.max(0, n - btns.length) }, () => el('span', { class: 'go-compass slot', 'aria-hidden': 'true' }))];
 const freeTag = () => el('span', { class: 'tag open' }, 'Gratuit');
-const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d });
+const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d, tags: [stateTag(spotHours(k))] });
 function openKiosque(k, back = null) {
-  openSpot({ icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
+  openSpot({ icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [hoursLine(k, spotHours(k)), k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
     place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}` });
 }
 /** La page d'un lieu de Sorties qui n'a pas de fiche (musée gratuit, kiosque, galerie) : ce qu'on sait, puis les mêmes actions qu'une sortie. */
@@ -3113,7 +3113,10 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
 };
 
 /** Un musée gratuit aujourd'hui. */
-const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui', lines: [`Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}` }), sub: [f.when], d: f.d });
+/** Page d'un musée gratuit : quand c'est gratuit, et s'il est ouvert en ce moment (v156 ; rien si l'horaire n'est pas sûr). */
+const openFreeSpot = (f, back = null) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
+  lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}` });
+const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeSpot(f, back), sub: [f.when], d: f.d, tags: [stateTag(spotHours(f))] });
 
 /** Un marché du jour : en ce moment, plus tard, ou déjà fini. */
 /** Ouvert, plus tard ou fini, pour un marché découvert comme pour un marché couvert qui ferme à midi. */
@@ -3287,7 +3290,7 @@ async function openEvents(start = null) {
   // Temps forts de la semaine et gratuité exceptionnelle du jour : sous la plaque (Tout)
   const soon = highlightsSoon();
   const freeAll = freeNear(o, new Date(), 3000, 12);
-  const freeSpecial = freeAll.filter((f) => f.rule !== 'always');
+  const freeSpecial = freeAll.filter((f) => f.rule !== 'always' && spotRank(f) !== 2); // déjà fermé ce soir : plus annoncé
   const top = [
     ...soon.map((h) => el('p', { class: 'hl-line' }, ico('sparkles'), ` ${highlightText(h)} — ${h.what}`)),
     mode === 'all' && freeSpecial.length ? el('p', { class: 'hl-line' }, ico('landmark'), ` Gratuit aujourd'hui : ${freeSpecial.map((f) => `${f.name} (${f.when})`).join(', ')}`) : null,
@@ -3297,7 +3300,7 @@ async function openEvents(start = null) {
   const seg = el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
     [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].map(([m, label]) =>
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
-  const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => a.d - b.d);
+  const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => spotRank(a) - spotRank(b) || a.d - b.d); // fermé à la fin
   const soonFree = freeSoon().slice(0, 3);
   let filters = null; // une seule rangée de puces sous le point de départ
   if (mode === 'all' || mode === 'free') {
@@ -3364,10 +3367,10 @@ async function openEvents(start = null) {
     if (mode === 'free') {
       const freeItems = [...now, ...later];
       const freePlaces = whereOn === 'out' ? [] : freeAll; // musées et théâtre : à l'abri
-      onMap(freePlaces, (f) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui', lines: [`Gratuit : ${f.when}.`], place: f, key: `gratuit:${f.lat},${f.lng}` }));
+      onMap(freePlaces, (f) => openFreeSpot(f));
       body = [
         ...section('sorties', 'Sorties gratuites', freeItems.map((x) => card(x)), 'Toutes les sorties gratuites'),
-        ...section('musees', 'Musées gratuits aujourd\'hui', freePlaces.map((f) => freeRow(f, back)), 'Tous les musées gratuits'),
+        ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'Tous les musées gratuits'),
         ...(whereOn === 'out' ? [] : section('theatre', 'Théâtre à moitié prix', kiosks.map((k) => kiosqueRow(k, back)), 'Tous les kiosques')),
         soonFree.length ? head('Bientôt gratuit', soonFree.length) : null,
         soonFree.length ? el('div', { class: 'stack', style: 'gap:0' }, ...soonFree.map((x) => el('p', { class: 'hl-line soon-line' }, ico('calendar-days'), ` ${x.line}`))) : null,
@@ -5650,7 +5653,8 @@ const HELP = [
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
     '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
-    '**Gratuit** : sorties gratuites, musées gratuits aujourd\'hui, théâtre à moitié prix, et les prochains jours gratuits.',
+    '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
+    '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux et Expos de la semaine. Puis Dernière chance, Expos en cours et galeries.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -5794,6 +5798,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
     '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
     '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
     '{alarm-clock} Prévoir une sortie de l\'agenda : sur sa page, « Prévoir » la met dans Mon planning (à son heure quand elle est connue), sans l\'ajouter à ta carte. Elle s\'efface le lendemain.',
@@ -5803,7 +5808,6 @@ const HELP = [
     '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
     '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
     '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
-    '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
   ]],
 ];
 

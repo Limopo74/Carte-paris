@@ -100,37 +100,41 @@ export function galleriesNear(list, here, date = new Date(), maxM = 1500) {
 
 /* ---------- 5. Gratuit aujourd'hui (liste fixe, vérifiée à la date ci-dessous) ---------- */
 
-export const FREE_CHECKED = '16 novembre 2026';
-export const FREE_CHECKED_ON = '2026-11-16'; // même date, lisible par l'appli (rappel au bout d'un an)
+export const FREE_CHECKED = '17 novembre 2026';
+export const FREE_CHECKED_ON = '2026-11-17'; // même date, lisible par l'appli (rappel au bout d'un an)
 export const FREE_SOURCE = 'https://parisjetaime.com/visiter-a-paris/infos/guides/les-musees-et-monuments-gratuits-a-paris';
 // always : collections permanentes des musées de la Ville de Paris ; first-sunday : 1er dimanche du mois ;
 // first-friday-evening : 1er vendredi du mois après 18 h, sauf juillet et août (Louvre) ;
 // first-sunday-winter : 1er dimanche du mois de novembre à mars (monuments nationaux) ;
 // first-saturday-evening : 1er samedi du mois de 17 h à 21 h, sur réservation (Bourse de Commerce).
+// Horaires (format OpenStreetMap), vérifiés le 17 nov. 2026 : ceux du jour de gratuité seulement.
+// Musées de la Ville : mardi-dimanche 10 h-18 h, fermés le lundi, le 1er janvier, le 1er mai et le 25 décembre
+// (nocturnes réservées aux expositions payantes : non comptées). Sans horaire sûr (Hôtel de la Marine) : pas d'horaire, donc pas d'état affiché.
+const PM = { hours: 'Tu-Su 10:00-18:00', closed: ['01-01', '05-01', '12-25'] };
 export const FREE_PLACES = [
-  { name: 'Musée d\'Art moderne de Paris', lat: 48.8645, lng: 2.2977, rule: 'always' },
-  { name: 'Petit Palais', lat: 48.8661, lng: 2.3144, rule: 'always' },
-  { name: 'Musée Carnavalet', lat: 48.8575, lng: 2.3625, rule: 'always' },
-  { name: 'Musée Cognacq-Jay', lat: 48.8592, lng: 2.3618, rule: 'always' },
-  { name: 'Musée Cernuschi', lat: 48.8792, lng: 2.3115, rule: 'always' },
-  { name: 'Musée Bourdelle', lat: 48.8432, lng: 2.3188, rule: 'always' },
-  { name: 'Musée Zadkine', lat: 48.8432, lng: 2.3341, rule: 'always' },
-  { name: 'Musée de la Vie romantique', lat: 48.8813, lng: 2.3335, rule: 'always' },
-  { name: 'Maison de Victor Hugo', lat: 48.8547, lng: 2.3664, rule: 'always' },
-  { name: 'Maison de Balzac', lat: 48.8553, lng: 2.2803, rule: 'always' },
-  { name: 'Musée d\'Orsay', lat: 48.8600, lng: 2.3266, rule: 'first-sunday', note: 'réservation obligatoire' },
-  { name: 'Musée de l\'Orangerie', lat: 48.8638, lng: 2.3227, rule: 'first-sunday' },
-  { name: 'Musée Picasso', lat: 48.8598, lng: 2.3624, rule: 'first-sunday' },
-  { name: 'Musée du quai Branly', lat: 48.8609, lng: 2.2977, rule: 'first-sunday' },
-  { name: 'Musée de Cluny', lat: 48.8505, lng: 2.3439, rule: 'first-sunday' },
-  { name: 'Musée des Arts et Métiers', lat: 48.8666, lng: 2.3555, rule: 'first-sunday' },
-  { name: 'Musée du Louvre', lat: 48.8606, lng: 2.3376, rule: 'first-friday-evening' },
-  { name: 'Arc de Triomphe', lat: 48.8738, lng: 2.2950, rule: 'first-sunday-winter' },
-  { name: 'Panthéon', lat: 48.8462, lng: 2.3464, rule: 'first-sunday-winter' },
-  { name: 'Sainte-Chapelle', lat: 48.8554, lng: 2.3450, rule: 'first-sunday-winter' },
-  { name: 'Conciergerie', lat: 48.8564, lng: 2.3457, rule: 'first-sunday-winter' },
+  { name: 'Musée d\'Art moderne de Paris', lat: 48.8645, lng: 2.2977, rule: 'always', ...PM },
+  { name: 'Petit Palais', lat: 48.8661, lng: 2.3144, rule: 'always', ...PM },
+  { name: 'Musée Carnavalet', lat: 48.8575, lng: 2.3625, rule: 'always', ...PM },
+  { name: 'Musée Cognacq-Jay', lat: 48.8592, lng: 2.3618, rule: 'always', ...PM },
+  { name: 'Musée Cernuschi', lat: 48.8792, lng: 2.3115, rule: 'always', ...PM },
+  { name: 'Musée Bourdelle', lat: 48.8432, lng: 2.3188, rule: 'always', ...PM },
+  { name: 'Musée Zadkine', lat: 48.8432, lng: 2.3341, rule: 'always', ...PM },
+  { name: 'Musée de la Vie romantique', lat: 48.8813, lng: 2.3335, rule: 'always', ...PM },
+  { name: 'Maison de Victor Hugo', lat: 48.8547, lng: 2.3664, rule: 'always', ...PM },
+  { name: 'Maison de Balzac', lat: 48.8553, lng: 2.2803, rule: 'always', ...PM },
+  { name: 'Musée d\'Orsay', lat: 48.8600, lng: 2.3266, rule: 'first-sunday', note: 'réservation obligatoire', hours: 'Su 09:30-18:00' },
+  { name: 'Musée de l\'Orangerie', lat: 48.8638, lng: 2.3227, rule: 'first-sunday', hours: 'Su 09:00-18:00' },
+  { name: 'Musée Picasso', lat: 48.8598, lng: 2.3624, rule: 'first-sunday', hours: 'Su 09:30-18:00' },
+  { name: 'Musée du quai Branly', lat: 48.8609, lng: 2.2977, rule: 'first-sunday', hours: 'Su 10:30-19:00' },
+  { name: 'Musée de Cluny', lat: 48.8505, lng: 2.3439, rule: 'first-sunday', hours: 'Su 09:30-18:15' },
+  { name: 'Musée des Arts et Métiers', lat: 48.8666, lng: 2.3555, rule: 'first-sunday', hours: 'Su 10:00-18:00' },
+  { name: 'Musée du Louvre', lat: 48.8606, lng: 2.3376, rule: 'first-friday-evening', hours: 'Fr 18:00-21:00' },
+  { name: 'Arc de Triomphe', lat: 48.8738, lng: 2.2950, rule: 'first-sunday-winter', hours: 'Su 10:00-22:30' },
+  { name: 'Panthéon', lat: 48.8462, lng: 2.3464, rule: 'first-sunday-winter', hours: 'Su 10:00-18:00' },
+  { name: 'Sainte-Chapelle', lat: 48.8554, lng: 2.3450, rule: 'first-sunday-winter', hours: 'Su 09:00-17:00' },
+  { name: 'Conciergerie', lat: 48.8564, lng: 2.3457, rule: 'first-sunday-winter', hours: 'Su 09:30-18:00' },
   { name: 'Hôtel de la Marine', lat: 48.8673, lng: 2.3229, rule: 'first-sunday-winter' },
-  { name: 'Bourse de Commerce', lat: 48.8628, lng: 2.3428, rule: 'first-saturday-evening' },
+  { name: 'Bourse de Commerce', lat: 48.8628, lng: 2.3428, rule: 'first-saturday-evening', hours: 'Sa 17:00-21:00' },
 ];
 
 const firstOfMonth = (date, dow) => date.getDay() === dow && date.getDate() <= 7;
@@ -139,7 +143,7 @@ const firstOfMonth = (date, dow) => date.getDay() === dow && date.getDate() <= 7
 export function freeToday(date = new Date()) {
   const out = [];
   for (const p of FREE_PLACES) {
-    if (p.rule === 'always') out.push({ ...p, when: 'collections permanentes, tous les jours' });
+    if (p.rule === 'always') out.push({ ...p, when: 'collections permanentes, du mardi au dimanche, 10 h – 18 h' });
     else if (p.rule === 'first-sunday' && firstOfMonth(date, 0)) out.push({ ...p, when: `1er dimanche du mois${p.note ? ` · ${p.note}` : ''}` });
     else if (p.rule === 'first-friday-evening' && firstOfMonth(date, 5) && ![6, 7].includes(date.getMonth())) out.push({ ...p, when: '1er vendredi du mois, dès 18 h' });
     else if (p.rule === 'first-sunday-winter' && firstOfMonth(date, 0) && winter(date)) out.push({ ...p, when: '1er dimanche du mois, de novembre à mars' });
@@ -171,13 +175,25 @@ export const KIOSQUE_SOURCE = 'https://www.kiosqueculture.com/infos-pratiques/';
 // Vérifié sur le site officiel le 17 nov. 2026 : seul le kiosque de la Madeleine est ouvert
 // (Montparnasse : « fermeture provisoire » ; Ternes : n'existe plus).
 export const KIOSQUES = [
-  { name: 'Kiosque Théâtre Madeleine', address: 'En face du 15, place de la Madeleine, 8e', lat: 48.8704, lng: 2.3245, hours: 'Mardi au samedi 12 h 30 – 14 h 30 et 15 h – 19 h 30, dimanche 12 h 30 – 15 h 45 (fériés compris, sauf 25 déc. et 1er janv.)' },
+  { name: 'Kiosque Théâtre Madeleine', address: 'En face du 15, place de la Madeleine, 8e', lat: 48.8704, lng: 2.3245, hours: 'Mardi au samedi 12 h 30 – 14 h 30 et 15 h – 19 h 30, dimanche 12 h 30 – 15 h 45 (fériés compris, sauf 25 déc. et 1er janv.)',
+    oh: 'Tu-Sa 12:30-14:30,15:00-19:30; Su 12:30-15:45', closed: ['12-25', '01-01'] },
 ];
 
-/** Les gratuités du jour les plus proches : celles du jour même (pas « tous les jours ») passent devant. */
+/** Horaires d'un lieu de la liste à cette date (format OpenStreetMap) : '' s'ils ne sont pas connus, « fermé » un jour de fermeture annuelle. */
+export function spotHours(p, date = new Date()) {
+  const md = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  if ((p?.closed ?? []).includes(md)) return 'Mo-Su off';
+  return p?.oh ?? p?.hours ?? '';
+}
+/** 0 : ouvert ou ouvre plus tard aujourd'hui ; 1 : horaires inconnus ; 2 : fermé pour la journée. */
+export function spotRank(p, date = new Date()) {
+  const st = openState(spotHours(p, date), date);
+  return !st ? 1 : st.open || st.opensAt ? 0 : 2;
+}
+/** Les gratuités du jour les plus proches : ouvertes d'abord (fermées à la fin), puis celles du jour même (pas « du mardi au dimanche »). */
 export function freeNear(here, date = new Date(), maxM = 3000, k = 3) {
-  return freeToday(date).map((p) => ({ ...p, d: distanceM(here, p) })).filter((p) => p.d <= maxM)
-    .sort((a, b) => (a.rule === 'always') - (b.rule === 'always') || a.d - b.d).slice(0, k);
+  return freeToday(date).map((p) => ({ ...p, d: distanceM(here, p), r: spotRank(p, date) })).filter((p) => p.d <= maxM)
+    .sort((a, b) => a.r - b.r || (a.rule === 'always') - (b.rule === 'always') || a.d - b.d).slice(0, k);
 }
 
 /* ---------- 5 ter. Grands lieux : liste fixe, leurs événements tirés de l'agenda de la Ville (toute distance) ---------- */

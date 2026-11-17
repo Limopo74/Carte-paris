@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith, findArtPlaces,
-  highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
+  highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS, spotHours, spotRank, FREE_PLACES,
 } from '../js/art.js';
 
 const now = new Date(2026, 10, 17, 11, 0); // mardi 17 novembre 2026
@@ -192,4 +192,25 @@ test('weekEventsUrl : sans position, une semaine, champs utiles seulement', () =
   assert.match(u.searchParams.get('where'), /date_end >= "2026-11-16T14:00:00.000Z" AND date_start <= "2026-11-2/);
   assert.doesNotMatch(u.toString(), /within_distance|geofilter/);
   assert.equal(new URL(weekEventsUrl(new Date(), 7, false)).searchParams.get('select'), null, 'version de secours sans select');
+});
+
+test('musées gratuits et Kiosque : horaires connus, fermés à la fin, jamais « tous les jours » (v156)', async () => {
+  const { openState } = await import('../js/hours.js');
+  const pp = FREE_PLACES.find((p) => p.name === 'Petit Palais');
+  assert.equal(openState(spotHours(pp, new Date(2026, 10, 17, 15)), new Date(2026, 10, 17, 15)).open, true, 'mardi 15 h : ouvert');
+  assert.equal(spotRank(pp, new Date(2026, 10, 17, 21)), 2, 'mardi 21 h : fermé pour la journée');
+  assert.equal(spotRank(pp, new Date(2026, 10, 17, 8)), 0, 'mardi 8 h : ouvre plus tard');
+  assert.equal(spotRank(pp, new Date(2026, 10, 16, 12)), 2, 'lundi : fermé');
+  assert.equal(spotRank(pp, new Date(2026, 11, 25, 12)), 2, '25 décembre : fermé');
+  assert.equal(spotRank(FREE_PLACES.find((p) => p.name === 'Hôtel de la Marine'), new Date(2026, 11, 6, 12)), 1, 'horaire pas sûr : inconnu');
+  assert.ok(!freeToday(now).some((p) => /tous les jours/.test(p.when)));
+  // un mardi à 21 h : les musées de la Ville sont fermés ; le soir d'un 1er vendredi, le Louvre (18 h-21 h) passe devant
+  const fri = freeNear({ lat: 48.8606, lng: 2.3376 }, new Date(2026, 11, 4, 19), 3000, 12);
+  assert.equal(fri[0].name, 'Musée du Louvre');
+  assert.ok(fri.slice(1).every((p) => p.r === 2), 'les autres, fermés à 19 h, après');
+  const k = KIOSQUES[0];
+  assert.equal(spotRank(k, new Date(2026, 10, 17, 20)), 2, 'Kiosque mardi 20 h : fermé');
+  assert.equal(openState(spotHours(k, new Date(2026, 10, 17, 14, 45)), new Date(2026, 10, 17, 14, 45)).opensAt, '15:00', 'pause de 14 h 30 à 15 h');
+  assert.equal(spotRank(k, new Date(2026, 10, 16, 15)), 2, 'Kiosque lundi : fermé');
+  assert.equal(spotRank(k, new Date(2026, 11, 25, 13)), 2, 'Kiosque 25 décembre : fermé');
 });
