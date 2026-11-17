@@ -34,11 +34,12 @@ jobs:
           cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json /tmp/avant/
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
-          get() { curl -fsSL --retry 3 --retry-delay 20 --max-time 300 -o "$1" "$2"; echo "$1 : $(wc -c < "$1") octets"; }
+          get() { curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -o "$1" "$2"; echo "$1 : $(wc -c < "$1") octets"; }
           get /tmp/src/traces.geojson "$IDFM/traces-du-reseau-ferre-idf/exports/geojson"
           get /tmp/src/gares.geojson "$IDFM/emplacement-des-gares-idf/exports/geojson"
           get /tmp/src/navigo.geojson "$IDFM/lieux-avantages-cultures-navigo/exports/geojson"
           get /tmp/src/sanitaires.geojson "$RATP/sanitaires-reseau-ratp/exports/geojson"
+          for f in /tmp/src/*.geojson; do python3 -I -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf8')); print(sys.argv[1], len(d['features']), 'éléments')" "$f"; done
 
       - name: Refaire les données
         run: |
