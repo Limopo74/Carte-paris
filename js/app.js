@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (125)';
+const VERSION = '17 novembre 2026 (126)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -295,7 +295,7 @@ function openCartoKey(back = () => openSettings('style')) {
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (state.mapStyle === 'clean') state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
     el('p', { class: 'help' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte')),
-  ), { name: 'carto-key' });
+  ), { tall: true, name: 'carto-key' });
 }
 applyMapStyle();
 
@@ -547,7 +547,7 @@ function openFilterChoice(back = openFilters) {
     })),
     hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); } }, 'Tout réafficher') : null,
     foot(backBtn(back)),
-  ), { name: 'filter-choice', again: () => openFilterChoice(back) });
+  ), { tall: true, name: 'filter-choice', again: () => openFilterChoice(back) });
 }
 
 /** Ajoute ou retire une catégorie du filtre du haut. */
@@ -1660,7 +1660,7 @@ function openStationPicker(onPick = (st) => { origin = { lat: st.lat, lng: st.ln
     if (q.length >= 2 && !res.length) fill(list, el('li', { class: 'empty' }, stations.length ? 'Aucune station de ce nom.' : 'Liste des stations pas encore chargée : réessaie dans un instant.'));
   };
   input.addEventListener('input', run);
-  openSheet('Choisir une station', el('div', { class: 'stack' }, input, list, back ? foot(el('button', { type: 'button', class: 'btn', onclick: back.fn }, `← ${back.name}`)) : null),
+  openSheet([ico('train-front'), ' Choisir une station'], el('div', { class: 'stack' }, input, list, back ? foot(el('button', { type: 'button', class: 'btn', onclick: back.fn }, `← ${back.name}`)) : null),
     { tall: true, name: 'station', again: () => openStationPicker(onPick, back) });
   input.focus();
 }
@@ -4169,7 +4169,7 @@ function openSettings(section = null) {
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
   el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
-  openSheet('Réglages', el('div', { class: 'menu' },
+  openSheet([ico('settings'), ' Réglages'], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
     el('h3', { class: 'ring-title menu-group' }, 'Mes données'),
@@ -4221,12 +4221,12 @@ function openFavStyle() {
   const preview = el('div', { class: 'where' });
   const drawPreview = () => fill(preview, favBadge(icon, color), ' Aperçu sur la carte');
   drawPreview();
-  openSheet('Favoris', el('div', { class: 'stack' },
+  openSheet([glyph(state.fav.icon, { filled: true }), ' Favoris'], el('div', { class: 'stack' },
     preview,
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(ICONS, icon, (v) => { icon = v; drawPreview(); })),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
     foot(el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, 'Annuler'),
+      backBtn(named('Réglages', () => openSettings())),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
         state = setFavStyle(state, { icon, color });
         persist(); refresh(); openSettings();
@@ -4278,9 +4278,6 @@ function openCategory(id, ret = null) {
     toast('Catégorie supprimée');
   };
   const showButtons = () => fill(zone, 
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => (ret ? ret.back() : openSettings('categories')) }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer')),
     id && others.length ? el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer cette catégorie') : null,
     id && !others.length ? el('p', { class: 'help' }, 'C\'est ta seule catégorie : elle ne peut pas être supprimée.') : null,
   );
@@ -4316,12 +4313,15 @@ function openCategory(id, ret = null) {
     })),
     el('div', { class: 'legend', style: 'margin-top:14px' }, 'Ou sur mesure')) : null;
 
-  openSheet(id ? 'Modifier la catégorie' : 'Nouvelle catégorie', el('div', { class: 'stack' },
+  openSheet([ico('tags'), id ? ' Modifier la catégorie' : ' Nouvelle catégorie'], el('div', { class: 'stack' },
     presetBox,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
     err, zone,
+    foot(el('div', { class: 'row' },
+      backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
   ), { tall: true, name: `category:${id ?? 'new'}`, again: () => openCategory(id, ret) });
 }
 
@@ -4810,6 +4810,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
     '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
     '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
     '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
@@ -4819,7 +4820,6 @@ const HELP = [
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
-    '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4969,7 +4969,7 @@ const HELP = [
 ];
 
 function openHelp() {
-  openSheet('Aide', el('div', { class: 'stack' },
+  openSheet([ico('circle-help'), ' Aide'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
