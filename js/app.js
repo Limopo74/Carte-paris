@@ -27,14 +27,15 @@ import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKi
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
-import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
+import { placeLink, readPlaceLink, planLoop, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay, MAX_DETOUR_M,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (149)';
+const VERSION = '17 novembre 2026 (150)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -490,10 +491,12 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
+    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
+    !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\'', 'Les stations visibles en zoomant, avec leurs vélos (ou leurs places). S\'éteint quand tu fermes l\'appli', () => { setVelibLayer(!velibOn); }),
+    !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et toilettes', 'Celles de la zone, visibles en zoomant', () => { setPratLayer(!state.showPratique); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
@@ -540,7 +543,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -593,6 +596,7 @@ let quietId = null; // suivi discret de la position, seulement sur Autour de moi
 // Pile des écrans ouverts, pour que le retour d'Android revienne à l'écran précédent.
 // Chaque écran a un nom et, s'il peut être rouvert, une fonction « again ».
 let navStack = [];
+let shownKey = null; // nom de l'écran affiché dans la feuille
 
 let sheetOpener = null; // bouton qui a ouvert la feuille : il retrouve le focus à la fermeture
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
@@ -602,16 +606,25 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   const prevClose = onSheetClose;
   if (prevClose && name !== view) { onSheetClose = null; prevClose(); }
   const key = name ?? `anon-${navStack.length}`;
+  // Hauteur de lecture (v150) : l'écran qu'on quitte la garde ; en revenant (← Réglages…) ou en le redessinant (un interrupteur),
+  // on retrouve la même hauteur au lieu de remonter en haut. Un nouvel écran s'ouvre en haut.
+  const cur = navStack.find((e) => e.name === shownKey); // l'écran affiché (déjà retiré de la pile par le bouton retour du téléphone : rien à garder)
+  if (cur && !sheet.hidden) {
+    const max = sheetBody.scrollHeight - sheetBody.clientHeight;
+    cur.scroll = cur.want && max < cur.want ? cur.want : sheetBody.scrollTop; // écran encore en chargement (trop court) : on garde la hauteur voulue
+  }
   const at = navStack.findIndex((e) => e.name === key);
+  const scroll = at >= 0 ? (navStack[at].scroll ?? 0) : 0;
   if (at >= 0) navStack = navStack.slice(0, at); // on revient à un écran déjà ouvert : on oublie ceux d'après
-  navStack.push({ name: key, again });
+  navStack.push({ name: key, again, want: scroll });
+  shownKey = key;
   if (name !== 'near') stopQuietNear(); // la position n'est suivie que sur l'écran Autour de moi
   view = name;
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
   sheet.classList.toggle('tall', tall);
   sheet.hidden = false;
-  sheetBody.scrollTop = 0;
+  sheetBody.scrollTop = scroll;
   onSheetClose = onClose;
   if (!historyPushed) {
     history.pushState({ sheet: true }, '');
@@ -658,9 +671,8 @@ window.addEventListener('popstate', () => {
   navStack.pop();
   while (navStack.length && !navStack.at(-1).again) navStack.pop();
   if (navStack.length) {
-    const prev = navStack.pop();
     history.pushState({ sheet: true }, '');
-    prev.again();
+    navStack.at(-1).again(); // il reste dans la pile : openSheet y retrouve sa hauteur de lecture
   } else {
     historyPushed = false;
     closeSheet(true);
@@ -2251,6 +2263,7 @@ async function showVelib(at = null) {
   let stations;
   try { stations = await velibStations(); } catch { toast('Les données Vélib\' ne répondent pas. Réessaie dans un moment.', true); return; }
   hideToast();
+  keepVelib(stations);
   const list = nearestVelib(stations, from, velibNeed, 3);
   const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Je cherche' },
     el('button', { type: 'button', 'aria-pressed': String(velibNeed === 'bike'), onclick: () => { velibNeed = 'bike'; showVelib(from); } }, ico('bike'), ' Un vélo'),
@@ -2264,13 +2277,137 @@ async function showVelib(at = null) {
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(s, s.d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${s.name}` }, 'Y aller'))))
       : el('p', { class: 'empty' }, 'Aucune station disponible trouvée.'),
-    el('p', { class: 'help' }, 'Données Vélib\' Métropole en temps réel, à quelques minutes près.'),
+    el('button', { type: 'button', class: 'btn c-metro', onclick: () => {
+      setVelibLayer(!velibOn);
+      if (velibOn) { nearLayer.clearLayers(); closeSheet(); } else showVelib(from);
+    } }, ico('map'), velibOn ? 'Cacher les stations de la carte' : 'Toutes les stations sur la carte'),
+    el('p', { class: 'help' }, `Données Vélib' Métropole en temps réel, reçues à ${hourText(velibAt)}. Une station qui n'a rien envoyé depuis plus d'une heure n'est pas proposée : ses nombres seraient sans doute faux.`),
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
+
+/* ---------- Calques Vélib' et Fontaines et WC (v150) : tout ce qui est dans la zone de la carte ----------
+   Vu d'assez près seulement (LAYER_ZOOM), redessinés quand la carte s'arrête de bouger. Ni GPS demandé, ni carte déplacée.
+   Vélib' : le temps de la session seulement (des nombres en temps réel ne doivent pas revenir seuls, périmés, à la prochaine
+   ouverture) ; heure des données affichée ; au-delà de 10 min les nombres disparaissent ; pas de rechargement automatique. */
+const velibLayer = L.layerGroup().addTo(map);
+const pratLayer = L.layerGroup().addTo(map);
+const layerNoteBtn = document.getElementById('layerNote');
+let velibOn = false;
+let velibAll = null;
+let velibAt = 0;
+let velibBusy = false;
+let velibWasOld = false;
+let pratAll = null;
+
+function keepVelib(list) { velibAll = list; velibAt = Date.now(); velibWasOld = false; drawVelibLayer(); drawLayerNote(); }
+function boxNow() { const b = map.getBounds().pad(0.2); return { s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast() }; }
+
+async function loadVelibLayer() {
+  if (velibBusy) return;
+  velibBusy = true; drawLayerNote();
+  let list = null;
+  try { list = await velibStations(); } catch { toast('Les données Vélib\' ne répondent pas. Réessaie dans un moment.', true); }
+  velibBusy = false;
+  if (list) keepVelib(list); else drawLayerNote();
+}
+
+function setVelibLayer(on) {
+  velibOn = on;
+  if (!on) { velibLayer.clearLayers(); drawLayerNote(); return; }
+  if (!velibAll || Date.now() - velibAt > VELIB_RECHECK_MS) loadVelibLayer(); else { drawVelibLayer(); drawLayerNote(); }
+}
+
+function drawVelibLayer() {
+  velibLayer.clearLayers();
+  if (!velibOn || !velibAll || map.getZoom() < LAYER_ZOOM) return;
+  const now = Date.now();
+  const old = velibOld(velibAt, now);
+  const dock = velibNeed === 'dock';
+  for (const s of inBox(velibAll, boxNow())) {
+    const n = old ? null : velibCount(s, velibNeed, now);
+    const cls = n == null ? ' unknown' : n ? '' : ' zero';
+    const label = n == null ? `Vélib' ${s.name} : nombre inconnu` : `Vélib' ${s.name} : ${dock ? plural(n, 'place libre', 'places libres') : plural(n, 'vélo', 'vélos')}`;
+    L.marker([s.lat, s.lng], { keyboard: true, title: label, alt: label, zIndexOffset: -60,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="vb-pin${dock ? ' dock' : ''}${cls}">${n == null ? svgIcon('bike', { size: 14, stroke: 2.2 }) : n}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] }) }) // zone d'appui de 40 px autour d'un dessin de 30
+      .on('click', () => openVelibStation(s.id)).addTo(velibLayer);
+  }
+}
+
+/** Une station touchée sur la carte : on recharge d'abord si les données ont plus de 2 minutes. */
+async function openVelibStation(id) {
+  if (Date.now() - velibAt > VELIB_RECHECK_MS) { toast('Mise à jour des Vélib\'…'); await loadVelibLayer(); hideToast(); }
+  const s = velibAll?.find((x) => x.id === id);
+  if (!s) return;
+  const now = Date.now();
+  const st = velibState(s, now);
+  const lines = velibOld(velibAt, now) ? ['Données trop anciennes : touche « Mettre à jour » pour voir les vélos et les places.']
+    : st === 'silent' ? ['Cette station n\'a rien envoyé depuis plus d\'une heure. Ses nombres seraient sans doute faux : l\'appli ne les montre pas.']
+      : [
+        s.open ? `${plural(s.bikes, 'vélo', 'vélos')} : ${s.mech} mécanique${s.mech > 1 ? 's' : ''}, ${s.ebike} électrique${s.ebike > 1 ? 's' : ''}.` : 'Prêt fermé : pas de vélo à prendre ici.',
+        s.ret === false ? 'Retour fermé : pas de vélo à rendre ici.' : `${plural(s.docks, 'place libre', 'places libres')} pour rendre un vélo.`,
+      ];
+  lines.push(velibAt ? `Données Vélib' Métropole reçues à ${hourText(velibAt)}.` : '');
+  openSpot({ icon: 'bike', title: s.name, kicker: 'Station Vélib\'', lines, place: s, key: `velib:${s.id}`,
+    extra: el('button', { type: 'button', class: 'btn c-metro', onclick: async () => { await loadVelibLayer(); openVelibStation(id); } }, ico('refresh-cw'), 'Mettre à jour') });
+}
+
+async function loadPratLayer() {
+  const [f, tv, tr] = await Promise.all([loadPratique('fontaines'), loadPratique('toilettes'), loadRatpToilets()]);
+  pratAll = [...f.map((x) => ({ ...x, kind: 'eau' })), ...tv.map((x) => ({ ...x, kind: 'wc' })), ...tr.map((x) => ({ ...x, kind: 'wc' }))].filter((x) => x.ok !== false); // hors service : écartés, comme dans Fontaine et WC
+  if (!pratAll.length && state.showPratique) toast('Les données de la Ville de Paris ne répondent pas. Vérifie ta connexion et réessaie.', true);
+  drawPratLayer(); drawLayerNote();
+}
+
+function setPratLayer(on) {
+  state.showPratique = on; persist();
+  if (!on) { pratLayer.clearLayers(); drawLayerNote(); return; }
+  if (pratAll) { drawPratLayer(); drawLayerNote(); } else loadPratLayer();
+}
+
+function drawPratLayer() {
+  pratLayer.clearLayers();
+  if (!state.showPratique || !pratAll || map.getZoom() < LAYER_ZOOM) return;
+  for (const x of inBox(pratAll, boxNow())) {
+    const shut = x.hours ? openState(x.hours)?.open === false : false; // fermé en ce moment, d'après les horaires publiés
+    const icon = x.kind === 'wc' ? 'toilet' : 'glass-water';
+    const label = `${x.kind === 'wc' ? 'Toilettes' : 'Fontaine'} : ${x.label}${shut ? ' (fermé en ce moment)' : ''}`;
+    L.marker([x.lat, x.lng], { keyboard: true, title: label, alt: label, zIndexOffset: -70,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin lite${shut ? ' shut' : ''}">${svgIcon(icon, { size: 14 })}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] }) })
+      .on('click', () => openPratSpot(x)).addTo(pratLayer);
+  }
+}
+
+function openPratSpot(x) {
+  const wc = x.kind === 'wc';
+  openSpot({ icon: wc ? 'toilet' : 'glass-water', title: x.label, kicker: wc ? 'Toilettes publiques' : 'Fontaine à boire',
+    lines: [x.hours ? stateTag(x.hours) : null, x.detail, x.extra], place: x, key: `prat:${x.kind}:${x.lat},${x.lng}` });
+}
+
+/** L'étiquette sous la barre du haut : « Zoome pour voir… », ou l'heure des Vélib' et « Mettre à jour ». */
+function drawLayerNote() {
+  const n = layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed });
+  layerNoteBtn.hidden = !n;
+  if (!n) return;
+  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : 'bike'), n.text);
+  layerNoteBtn.disabled = !n.act;
+}
+layerNoteBtn.addEventListener('click', () => {
+  const n = layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed });
+  if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
+  else if (n?.act === 'refresh') loadVelibLayer();
+});
+map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
+// Chaque minute, tant que le calque Vélib' est allumé : l'heure reste juste, et après 10 min les nombres s'effacent.
+setInterval(() => {
+  if (!velibOn) return;
+  const old = velibOld(velibAt);
+  if (old !== velibWasOld) { velibWasOld = old; drawVelibLayer(); }
+  drawLayerNote();
+}, 60e3);
 
 /* ---------- Mon Paris : les arrondissements explorés ---------- */
 
@@ -2717,9 +2854,9 @@ function openKiosque(k, back = null) {
     place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}` });
 }
 /** La page d'un lieu de Sorties qui n'a pas de fiche (musée gratuit, kiosque, galerie) : ce qu'on sait, puis les mêmes actions qu'une sortie. */
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {} }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null }) {
   const d = freshHere() ? distanceM(freshHere(), place) : null;
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => el('p', { class: 'help' }, t)),
@@ -2728,6 +2865,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: title, lat: place.lat, lng: place.lng, id: `spot:${place.lat},${place.lng}` }, named(title, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', acc: null, ...add }) }, ico('plus'), 'Ajouter')),
+    extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again });
@@ -4845,7 +4983,7 @@ function importText(text, owner) {
       let at = Date.now();
       try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
       if (!state.me) state.me = fileOwner(text);
-      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); } // affichage, cercles, favori… comme avant l'effacement
+      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
       state.backup = savedBackup(state);
     }
@@ -5113,6 +5251,10 @@ function showPratique(from, fs, ts, cs = []) {
     ...block('Fontaine à boire', 'glass-water', fs),
     ...block('Toilettes publiques', 'toilet', ts),
     ...(cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', 'trees', cs) : []),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+      setPratLayer(!state.showPratique);
+      if (state.showPratique) { nearLayer.clearLayers(); closeSheet(); } else showPratique(from, fs, ts, cs);
+    } }, ico('map'), state.showPratique ? 'Cacher fontaines et toilettes de la carte' : 'Toutes les fontaines et toilettes sur la carte'),
     el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées. Ouvert ou fermé : d\'après les horaires publiés (ceux du parc pour les toilettes d\'un parc) ; un lieu fermé en ce moment passe en dernier. Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
   ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
   nearLayer.clearLayers();
@@ -5285,7 +5427,10 @@ const HELP = [
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\' et Rentrer.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le lieu frais les plus proches. Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
+    '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
+    '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
+    '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations.',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus. Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
@@ -5375,6 +5520,7 @@ const HELP = [
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis.',
+    '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Ajouter sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
   ]],
   ['book-open-text', 'TTB', [
     '**TTB** : les adresses d\'un guide de bonnes tables, en ronds terre cuite sur la carte. La source est citée dans {settings} → TTB.',
@@ -5435,6 +5581,8 @@ const HELP = [
     '**Style Épuré vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
     '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Voix.',
     '**Vélib\', Curiosités, galeries ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard.',
+    '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
+    '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
@@ -5443,6 +5591,8 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
+    '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
     '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
     '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
     '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
@@ -5451,8 +5601,6 @@ const HELP = [
     '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
     '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
     '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
-    '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
-    '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
   ]],
 ];
 
@@ -5482,6 +5630,8 @@ document.getElementById('btnNear').addEventListener('click', openNear);
 document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 drawMarkets();
+if (state.showPratique) loadPratLayer();
+drawLayerNote();
 drawTtb();
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {

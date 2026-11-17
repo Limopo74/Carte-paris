@@ -42,7 +42,15 @@ const AGENDA = [
 const WIKIDATA = { results: { bindings: [
   ['Q1', 'Hôtel Scheffer-Renan', 'Point(2.3337 48.8818)', 'PA00088936'], ['Q2', 'Immeuble', 'Point(2.3350 48.8805)', 'PA00085808'],
 ].map(([id, label, coord, ref]) => ({ item: { value: `http://www.wikidata.org/entity/${id}` }, itemLabel: { value: label }, coord: { value: coord }, merimee: { value: ref } })) } };
+// Vélib' (v150) : 6 stations autour du point de test, dont une à 0 vélo et une muette depuis 3 h
+// (+ 120 stations loin, côté Bastille : l'appli n'accepte la liste de Paris Data qu'au-delà de 100 stations)
+const VELIB = [[48.8815, 2.3365, 7, 12, 0], [48.8822, 2.3348, 0, 20, 0], [48.8806, 2.3378, 15, 3, 0], [48.8830, 2.3372, 3, 9, 3 * 3600e3], [48.8800, 2.3340, 22, 1, 0], [48.8839, 2.3355, 5, 30, 0], ...Array.from({ length: 120 }, (_, i) => [48.85 + (i % 12) * 0.001, 2.37 + Math.floor(i / 12) * 0.001, 4, 4, 0])]
+  .map(([lat, lon, b, d, late], i) => ({ stationcode: String(9000 + i), name: `Station de test ${i + 1}`, numbikesavailable: b, mechanical: Math.ceil(b / 2), ebike: Math.floor(b / 2), numdocksavailable: d, is_renting: 'OUI', is_returning: 'OUI', duedate: iso(now - 60e3 - late), coordonnees_geo: { lat, lon } }));
+const FONTAINES = [[48.8816, 2.3352, 'BORNE_FONTAINE', 'Wallace'], [48.8826, 2.3375, 'BORNE_FONTAINE', 'Arceau']].map(([lat, lon, type_objet, modele]) => ({ geo_point_2d: { lat, lon }, type_objet, modele, voie: 'RUE DES MARTYRS', commune: 'PARIS 9EME ARRDT', dispo: 'OUI' }));
+const SANISETTES = [[48.8809, 2.3358, '24 h / 24'], [48.8834, 2.3341, '06 h - 22 h']].map(([lat, lon, horaire]) => ({ geo_point_2d: { lat, lon }, type: 'SANISETTE', adresse: 'rue de Douai', horaire, acces_pmr: 'Oui', statut: 'Ouvert' }));
 const feuille = (p) => p.locator('#sheet');
+// Dézoomer la carte à la molette, au centre de l'écran (aucun crochet de test dans l'appli)
+const dezoome = async (p, fois) => { const v = p.viewportSize(); await p.mouse.move(v.width / 2, v.height / 3); for (let i = 0; i < fois; i++) { await p.mouse.wheel(0, 240); await p.waitForTimeout(350); } await p.waitForTimeout(400); };
 const ECRANS = {
   carte: async () => {},
   fiche: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); },
@@ -76,6 +84,12 @@ const ECRANS = {
     await p.evaluate(() => { const k = 'carte-paris.v1'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.toolLabels = true; o.toolNames = { home: 'Chez moi', pratique: 'Eau et toilettes' }; o.moreTools = ['velib']; localStorage.setItem(k, JSON.stringify(o)); });
     await p.goto(URL_APPLI); await p.waitForTimeout(700);
   },
+  velibcarte: async (p) => { await p.evaluate(() => document.getElementById('btnVelib').click()); /* le bouton peut être rangé dans ⋯ Plus */ await p.waitForSelector('#sheet .items'); await feuille(p).locator('button', { hasText: 'Toutes les stations sur la carte' }).click(); await p.waitForTimeout(600); },
+  velibloin: async (p) => { await ECRANS.velibcarte(p); await dezoome(p, 4); },
+  velibstation: async (p) => { await ECRANS.velibcarte(p); await p.locator('.vb-pin').first().click(); await p.waitForSelector('#sheet .go-bar'); },
+  pratcarte: async (p) => { await p.evaluate(() => document.getElementById('btnPratique').click()); await p.waitForSelector('#sheet .items'); const allumer = feuille(p).locator('button', { hasText: 'Toutes les fontaines' }); if (await allumer.count()) await allumer.click(); else await p.locator('#sheetClose').click(); /* calque gardé allumé par l'écran d'avant */ await p.waitForTimeout(600); if (await p.locator('#layerNote:not([hidden])').count()) await p.locator('#layerNote').click(); await p.waitForTimeout(700); },
+  pratlieu: async (p) => { await ECRANS.pratcarte(p); await p.locator('.pr-pin.lite').first().dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); },
+  filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Ajouter sur la carte' }).scrollIntoViewIfNeeded(); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');
@@ -88,6 +102,9 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/opendata\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AGENDA) }));
   await page.route(/cdn\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'image/png', path: 'icons/icon-512.png' })); // photo de sortie simulée
   await page.route(/tile|cartocdn|openstreetmap|open-meteo|wikidata|overpass|nominatim|geopf|wikipedia|velib|smoove/, (r) => r.abort());
+  await page.route(/velib-disponibilite/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(VELIB) }));
+  await page.route(/fontaines-a-boire/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FONTAINES) }));
+  await page.route(/sanisettesparis/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SANISETTES) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie

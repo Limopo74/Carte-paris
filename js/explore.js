@@ -258,6 +258,8 @@ export function mergeVelib(info, status) {
       id: String(s.station_id), name: String(s.name ?? ''), lat: Number(s.lat), lng: Number(s.lon),
       bikes: Number(x.num_bikes_available ?? x.numBikesAvailable ?? 0), mech: pick('mechanical'), ebike: pick('ebike'),
       docks: Number(x.num_docks_available ?? x.numDocksAvailable ?? 0), open: x.is_renting === 1 || x.is_renting === true || x.is_renting === undefined,
+      ret: x.is_returning === 1 || x.is_returning === true || x.is_returning === undefined,
+      seen: Number(x.last_reported) > 0 ? Number(x.last_reported) * 1000 : null,
     };
   }).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 }
@@ -265,7 +267,7 @@ export function mergeVelib(info, status) {
 /* Vélib' via Paris Data (opendata.paris.fr) : mis à jour chaque minute et lisible depuis un navigateur,
    contrairement au flux Smovengo qui refuse les appels venant d'un site web. Aucune position n'est envoyée. */
 export const VELIB_PARIS = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/exports/json'
-  + '?select=stationcode,name,numbikesavailable,mechanical,ebike,numdocksavailable,is_renting,coordonnees_geo';
+  + '?select=stationcode,name,numbikesavailable,mechanical,ebike,numdocksavailable,is_renting,is_returning,duedate,coordonnees_geo';
 
 const yes = (v) => v === true || v === 1 || v === '1' || String(v).toUpperCase() === 'OUI';
 
@@ -276,12 +278,29 @@ export function parseVelibParis(rows) {
     lat: Number(r?.coordonnees_geo?.lat), lng: Number(r?.coordonnees_geo?.lon),
     bikes: Number(r?.numbikesavailable) || 0, mech: Number(r?.mechanical) || 0, ebike: Number(r?.ebike) || 0,
     docks: Number(r?.numdocksavailable) || 0, open: r?.is_renting == null ? true : yes(r.is_renting),
+    ret: r?.is_returning == null ? true : yes(r.is_returning), seen: Date.parse(r?.duedate) || null,
   })).filter((s) => s.name && Number.isFinite(s.lat) && Number.isFinite(s.lng));
 }
 
+/* Une station qui n'a rien envoyé depuis plus d'une heure garde ses anciens nombres : ils sont sans doute faux
+   (le 17 nov. 2026 vers 19 h, 3 stations « ouvertes » n'avaient rien envoyé depuis 6 à 12 h). On ne les montre pas. */
+export const VELIB_SILENT_MS = 3600e3;
+/** 'ok', 'silent' (nombres trop anciens) ou 'closed' (ni prêt ni retour). */
+export function velibState(s, now = Date.now()) {
+  if (!s.open && s.ret === false) return 'closed';
+  if (s.seen && now - s.seen > VELIB_SILENT_MS) return 'silent';
+  return 'ok';
+}
+/** Vélos (need='bike') ou places (need='dock') disponibles, ou null quand on ne peut pas le dire. Station fermée au prêt (ou au retour) : 0. */
+export function velibCount(s, need = 'bike', now = Date.now()) {
+  if (velibState(s, now) === 'silent') return null;
+  if (need === 'dock') return s.ret === false ? 0 : s.docks;
+  return s.open ? s.bikes : 0;
+}
+
 /** Les stations les plus proches qui ont des vélos (need='bike') ou des places (need='dock'). */
-export function nearestVelib(stations, here, need = 'bike', k = 3) {
-  return stations.filter((s) => s.open && (need === 'dock' ? s.docks > 0 : s.bikes > 0))
+export function nearestVelib(stations, here, need = 'bike', k = 3, now = Date.now()) {
+  return stations.filter((s) => velibCount(s, need, now) > 0)
     .map((s) => ({ ...s, d: distanceM(here, s) })).sort((a, b) => a.d - b.d).slice(0, k);
 }
 

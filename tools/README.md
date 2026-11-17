@@ -24,7 +24,7 @@ Dans un second, à la racine du dépôt :
 node tools/controle-ecrans.mjs
 ```
 
-Le script ouvre la carte, la fiche d'un lieu, Autour de moi, Sorties, Chercher, Nouveau lieu, Réglages, Application, Données des transports, la station la plus proche, l'onglet Navigo de Sorties, la fiche d'un lieu Navigo, Mon planning et l'Aide, à 360 et 412 px, en clair et en sombre. Pour chaque écran : contrôle axe (contraste compris), boutons de moins de 44 px, erreurs JavaScript. Il range une capture par écran dans `captures/` (non versionné) et se termine en erreur s'il trouve un défaut.
+Le script ouvre la carte, la fiche d'un lieu, Autour de moi, Sorties, Chercher, Nouveau lieu, Réglages, Application, Données des transports, la station la plus proche, l'onglet Navigo de Sorties, la fiche d'un lieu Navigo, Mon planning, l'Aide, les calques Vélib' et Fontaines et WC (de près, de loin, une station, une toilette ; données simulées, dont une station muette depuis 3 h) et Filtres, à 360 et 412 px, en clair et en sombre. Pour chaque écran : contrôle axe (contraste compris), boutons de moins de 44 px, erreurs JavaScript. Il range une capture par écran dans `captures/` (non versionné) et se termine en erreur s'il trouve un défaut.
 
 Options (variables d'environnement) :
 

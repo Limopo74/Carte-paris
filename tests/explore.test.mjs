@@ -126,7 +126,7 @@ test('Vélib via Paris Data : OUI/NON, coordonnées, champs manquants', async ()
     { stationcode: '2', name: 'Sans coordonnées', numbikesavailable: 4 },
   ]);
   assert.equal(list.length, 2);
-  assert.deepEqual(list[0], { id: '16107', name: 'Benjamin Godard', lat: 48.8659, lng: 2.2757, bikes: 5, mech: 3, ebike: 2, docks: 29, open: true });
+  assert.deepEqual(list[0], { id: '16107', name: 'Benjamin Godard', lat: 48.8659, lng: 2.2757, bikes: 5, mech: 3, ebike: 2, docks: 29, open: true, ret: true, seen: null });
   assert.equal(list[1].open, false);
   assert.deepEqual(nearestVelib(list, { lat: 48.866, lng: 2.276 }).map((s) => s.id), ['16107']);
   assert.deepEqual(parseVelibParis(null), []);

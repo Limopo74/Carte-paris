@@ -64,6 +64,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Placer un point : **Valider ici**. Supprimer : toujours confirmé, bouton brique.
 - Interrupteurs (Favori, Déjà visité) : libellé fixe, état dit par `aria-pressed` et un fond léger quand c'est allumé.
 - Les boutons ne changent jamais de place d'un écran à l'autre.
+- **Retour à la même hauteur** (v150) : revenir à un écran (« ← Nom », bouton retour du téléphone) ou le redessiner le rouvre là où on l'avait laissé ; un écran ouvert pour la première fois commence en haut (`openSheet`, pile `navStack`).
 
 ## 9. Contrôle après chaque changement
 `npm test` (dont ce test de charte), puis `node tools/controle-ecrans.mjs` (voir `tools/README.md`) : 14 écrans à 360 et 412 px, en clair et en sombre, boutons d'au moins 44 px, contraste d'au moins 4,5:1, contrôle axe sans erreur.
