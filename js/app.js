@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (144)';
+const VERSION = '17 novembre 2026 (145)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5162,55 +5162,59 @@ function mySettingsBlock() {
 /* ---------- Aide ---------- */
 
 const HELP = [
-  ['sparkles', 'Nouveautés', [
-    '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
-    '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
-    '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
-    '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
-    '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
-    '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
-    '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
-    '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
-    '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
-    '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
+  ['map', 'Se repérer', [
+    '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche.',
+    '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
+    '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
+    '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
+    '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
+    '**M** : la station de métro la plus proche.',
+    '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher dans tes lieux.',
+    '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
+    '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
+    '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes. La rubrique Filtres explique tout.',
+    '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air.',
+    '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
+    '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
+    '**Masquer un bouton du haut** : {settings} → Ce qui s\'affiche → Barre du haut.',
+    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
+    '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
+    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\' et Rentrer.',
+    '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le lieu frais les plus proches. Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
+    '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
+    '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations.',
+    '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Caché, et l\'ordre.',
+    '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
+    '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
+    '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
+    '{palette} **Allure de la carte** : {settings} → Style de la carte. Le style Épuré demande une clé CARTO gratuite, à coller une fois.',
+    '{moon} **Fond sombre** : {settings} → Mode sombre. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages par défaut », en bas des Réglages, permet d\'y revenir d\'un appui.',
   ]],
-  ['map', 'Les boutons de la carte', [
-    'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
-    'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TTB (les adresses d\'un guide de bonnes tables, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
-    'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). La modifier : {settings} Réglages → Catégories et listes → {pencil} (raccourci : appui long sur la catégorie).',
-    '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
-    'À droite, au départ : Paris, M, Sorties, Mon planning, {ellipsis} Plus et Ma position. {ellipsis} Plus ouvre, avec leur nom, les boutons rangés là (au départ Fontaine et WC, Vélib\' et Rentrer) ; un appui lance la fonction. Pour chaque bouton, choisis « Carte », « Plus » ou « Caché », et l\'ordre : {settings} → Ce qui s\'affiche → Boutons de la carte. Si Mon planning est dans Plus, son chiffre passe sur {ellipsis}. Dans la même page, touche le nom d\'un bouton ({pencil}) pour le changer, et allume « Noms à côté des boutons » pour les lire sur la carte.',
-    '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches ; chacun dit s\'il est ouvert, et un lieu fermé passe en dernier. Eau pétillante et brumisateurs sont signalés.',
-    'M la station de métro la plus proche. Le bouton {lines} Lignes, en haut, affiche ou cache les lignes de métro et RER (raccourci : appui long sur M) ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom. Tracés d\'Île-de-France Mobilités, mis à jour chaque mois par le robot (prolongements des lignes 11 et 14 compris).',
-    '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
-    'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
-    'Paris : revenir au centre de Paris.',
-    '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
-    '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Dans la page, « Autre quartier » te laisse placer la croix ailleurs, « Ma position » compte les distances depuis toi.',
-    '{alarm-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {alarm-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
-    '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
-    'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
-    'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
-    'Sans réseau (métro) : les quartiers que tu as déjà regardés restent affichés, en style Classique, Épuré, Pastel ou Nuit (environ 3 000 morceaux de carte gardés, les plus anciens s\'effacent).',
-    'Fond sombre pour toute l\'appli : {settings} → {moon} Mode sombre. Boutons à gauche : {settings} → Boutons de la carte → À gauche.',
-    'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
-  ]],
-  ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, TTB (ils ne cachent aucun de tes lieux).',
-    'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
-    'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
-    'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
-    'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
-    '{tent} Dans la rue aujourd\'hui : sur la carte, les marchés du jour (découverts, et les 9 marchés couverts, à l\'abri de la pluie, fermés le lundi) et ce que l\'agenda de la Ville annonce sur la voie publique (brocantes, fêtes, expos en plein air, marchés éphémères). « Dans la rue » est deviné d\'après le titre et le lieu : il peut y avoir des oublis.',
-  ]],
-  ['plus', 'Ajouter un lieu', [
-    'Laisse le doigt appuyé sur la carte, là où tu veux.',
-    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »). Les lieux sont cherchés d\'abord dans la zone que montre la carte (zoome sur le quartier avant de chercher) ; s\'il y en a moins de 5, la recherche continue dans tout Paris. 40 au plus, rangés du plus proche. Les adresses sont toujours cherchées dans tout Paris. L\'annuaire (OpenStreetMap) ne connaît pas tous les commerces : pour un nom courant (« boulangerie »), ajoute la rue ou le quartier.',
-    'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
-    '{image} Depuis une photo de ta galerie : l\'appli place le lieu là où la photo a été prise, et l\'ajoute à sa fiche.',
-    'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
-    'Dans le formulaire : catégorie, note, état, {star} étoiles, {list} listes et « Abrité de la pluie ».',
+  ['calendar-days', 'Trouver une sortie', [
+    '{calendar-days} **Sorties**, dans la colonne de droite : ce qui se passe aujourd\'hui autour du centre de la carte. La carte ne bouge pas.',
+    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo.',
+    '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
+    '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
+    '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ.',
+    '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
+    '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
+    '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Ajouter.',
+    '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
+    '**Gratuit** : sorties gratuites, musées gratuits aujourd\'hui, théâtre à moitié prix, et les prochains jours gratuits.',
+    '**Expos** : en tête, Grands lieux et Expos de la semaine. Puis Dernière chance, Expos en cours et galeries.',
+    '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
+    '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
+    '**Dernière chance** : les expos qui ferment dans moins de 7 jours.',
+    '{route} **Parcours galeries** : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée.',
+    '**Navigo** : les lieux partenaires des avantages Navigo. Touche-en un pour lire l\'offre.',
+    '{plus} **Ajouter** met le lieu sur ta carte. Une expo garde sa date de fin dans la note.',
+    '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour. Une sortie ajoutée pour plus tard y va avec son heure.',
+    '{ticket} **Mon billet**, dans la fiche d\'un lieu (Pratique) : note le jour, l\'heure et avec qui. Le jour même, « Maintenant » dit quand partir.',
+    '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
+    '{copy} **Inviter quelqu\'un** : dans Mon planning, copie le lien et colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
+    '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
+    '**Gratuités et temps forts** sont des listes vérifiées le 16 novembre 2026. Vérifie aussi sur le site du lieu.',
   ]],
   ['map-pinned', 'Autour de moi', [
     'Tes lieux rangés par cercles, du plus proche au plus loin.',
@@ -5223,11 +5227,18 @@ const HELP = [
     '{book-open-text} Curiosités : articles Wikipédia autour de toi ; + pour en faire un lieu.',
     'M Station : ce qu\'il y a autour d\'une station, sans GPS (pratique dans le métro).',
     '{cloud-rain} S\'il pleut, un bandeau propose de n\'afficher que tes lieux abrités.',
-    '{calendar-days} Sorties : quatre onglets soulignés (Tout, Gratuit, Expos, Navigo). Juste dessous, le point de départ des distances : « Centre de la carte », « Autour de toi » ou une station ; touche-le pour le changer. {map} Carte montre les sorties de l\'onglet sur la carte, avec un carré noir au point de départ. Chaque rubrique montre ses 3 plus proches ; « Tous les… (N) » déroule la suite. Une ligne = une sortie : l\'icône dit le genre (deviné d\'après l\'agenda ; un calendrier veut dire « genre pas sûr »), à droite les minutes à pied. Touche-la pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Ajouter (une sortie de plus tard va aussi dans Mon planning, avec son heure). Navigo : les lieux partenaires des avantages Navigo, du plus proche au plus loin ; touche un lieu pour lire l\'offre.',
     '{locate} Où suis-je ? : ton adresse et tes coordonnées GPS (à copier d\'un appui {copy}), l\'arrondissement, la station la plus proche, « Envoyer ma position » à quelqu\'un, et le quartier en 3 lignes (Wikipédia).',
     'La liste se met à jour toute seule quand tu as marché 50 m. Cercles en mètres ou en minutes : {settings} Réglages → Cercles. Les minutes à pied suivent ton pas : {settings} Réglages → {footprints} Mon pas (Rapide, Normal, Tranquille, chacun réglable de 2 à 7 km/h).',
     '{thermometer-sun} S\'il fait chaud, un bandeau propose les lieux frais.',
-    'En bas : {map} Mon Paris.',
+    'En haut, à côté de « Où suis-je ? » : {map} Mon Paris.',
+  ]],
+  ['plus', 'Ajouter un lieu', [
+    'Laisse le doigt appuyé sur la carte, là où tu veux.',
+    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »). Les lieux sont cherchés d\'abord dans la zone que montre la carte (zoome sur le quartier avant de chercher) ; s\'il y en a moins de 5, la recherche continue dans tout Paris. 40 au plus, rangés du plus proche. Les adresses sont toujours cherchées dans tout Paris. L\'annuaire (OpenStreetMap) ne connaît pas tous les commerces : pour un nom courant (« boulangerie »), ajoute la rue ou le quartier.',
+    'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
+    '{image} Depuis une photo de ta galerie : l\'appli place le lieu là où la photo a été prise, et l\'ajoute à sa fiche.',
+    'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
+    'Dans le formulaire : catégorie, note, état, {star} étoiles, {list} listes et « Abrité de la pluie ».',
   ]],
   ['compass', 'La fiche d\'un lieu', [
     'Touche un lieu sur la carte pour ouvrir sa fiche.',
@@ -5250,17 +5261,13 @@ const HELP = [
     'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). {settings} → Catégories et listes → « Nouvelle liste », puis coche ses lieux d\'un coup ; un appui sur une liste existante pour en ajouter ou en retirer. On peut aussi la choisir depuis Modifier, lieu par lieu.',
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
   ]],
-  ['palette', 'Expos et art', [
-    '{calendar-days} Sorties → « Expos » : Dernière chance (expos de l\'agenda de la Ville qui ferment dans moins de 7 jours), galeries à moins de 1,5 km (OpenStreetMap, ouvertes d\'abord), autres expos du jour et musées gratuits aujourd\'hui.',
-    '{calendar-days} « Expos de la semaine » (en haut de l\'onglet Expos, rubrique Tout Paris) : toutes les expos de l\'agenda sur 7 jours, rangées par arrondissement, celles qui ferment le plus tôt d\'abord. Rien ne bouge sur la carte.',
-    '{landmark} « Grands lieux » (en haut de l\'onglet Expos, rubrique Tout Paris, ou la loupe : tape « orsay », « cartier »…) : 26 musées, fondations et salles de concert, où que tu sois, avec ce que l\'agenda annonce et leur programme officiel.',
-    '{map-pin} Pour regarder un autre quartier : en haut de Sorties, touche le point de départ → « Un autre quartier », déplace la carte, puis touche le bandeau.',
-    '{info} En bas de Sorties, « Aide, sources et mise à jour » : l\'agenda se recharge seul chaque jour, les marchés tous les 7 jours, les galeries tous les 30 jours. Liens utiles : Que faire à Paris, Paris Musées, galeries (L\'Officiel des spectacles), Paris je t\'aime, Sortir à Paris.',
-    '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
-    '{plus} Touche une expo ou une galerie, puis « Ajouter » : elle va sur ta carte, avec la date de fin de l\'expo dans la note.',
-    '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
-    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {alarm-clock} de la carte (Mon planning).',
-    'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
+  ['list-filter', 'Filtres', [
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, TTB (ils ne cachent aucun de tes lieux).',
+    'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
+    'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
+    'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
+    'Ouvert maintenant ne garde que les lieux dont on connaît les horaires.',
+    '{tent} Dans la rue aujourd\'hui : sur la carte, les marchés du jour (découverts, et les 9 marchés couverts, à l\'abri de la pluie, fermés le lundi) et ce que l\'agenda de la Ville annonce sur la voie publique (brocantes, fêtes, expos en plein air, marchés éphémères). « Dans la rue » est deviné d\'après le titre et le lieu : il peut y avoir des oublis.',
   ]],
   ['book-open-text', 'TTB', [
     'Les adresses d\'un guide de bonnes tables (la source est citée dans {settings} → TTB), à Paris : ronds terre cuite sur la carte, avec l\'icône de la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave (petits ronds sans icône quand tu vois tout Paris).',
@@ -5270,16 +5277,10 @@ const HELP = [
     'Quand le calque est affiché, Autour de moi montre les 3 adresses les plus proches. Et la fiche d\'un de tes lieux dit s\'il est dans le guide.',
     'La liste reste sur ce téléphone : rien n\'est envoyé, elle n\'est pas dans ta sauvegarde, et les textes du guide ne sont pas gardés. {trash-2} {settings} → TTB → Retirer la liste.',
   ]],
-  ['database', 'Données de l\'appli', [
-    'Les données en direct (fontaines, toilettes, lieux frais, agenda, marchés, Vélib\', météo) se rechargent seules.',
-    'Lignes et gares, avantages Navigo et toilettes RATP : un robot GitHub les refait seul le 1er de chaque mois, à partir des fichiers officiels, et ne publie que si tout est correct. Pour le lancer tout de suite : {settings} → Appli → Données de l\'appli → {rotate-cw} Lancer le robot maintenant, puis « Run workflow ». Quelques minutes plus tard : Appli → Mettre à jour l\'appli.',
-    'Monuments (Mérimée), horaires des marchés couverts et listes d\'expos se refont avec Claude : touche la ligne pour savoir quoi faire.',
-    'Un rappel s\'affiche à l\'ouverture, au plus une fois par semaine, seulement quand une donnée est en retard.',
-  ]],
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon tes lieux « Déjà visité » (l\'arrondissement vient de la position du lieu, calculée sur ton téléphone ; les lieux de tes proches et ceux hors de Paris ne comptent pas) : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
     'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
-    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {alarm-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
+    'Accès : en haut d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {alarm-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
   ['users', 'Partager avec un ami', [
@@ -5298,6 +5299,14 @@ const HELP = [
     'Le fichier va dans tes Téléchargements. Envoie-le aussi de temps en temps sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
     '{upload} Pour retrouver tes lieux (nouveau téléphone, données effacées) : {settings} → Restaurer ou importer → Restaurer ma sauvegarde. Si la carte est vide à l\'ouverture, l\'appli te le propose tout de suite.',
     '{download} Importer de Google Maps : tes listes et tes lieux enregistrés (les étapes sont expliquées). Les listes .csv sont cherchées par leur nom : vérifie les lieux marqués « à vérifier ».',
+  ]],
+  ['database', 'Données de l\'appli', [
+    'Les données en direct (fontaines, toilettes, lieux frais, agenda, marchés, Vélib\', météo) se rechargent seules.',
+    'Lignes et gares, avantages Navigo et toilettes RATP : un robot GitHub les refait seul le 1er de chaque mois, à partir des fichiers officiels, et ne publie que si tout est correct. Pour le lancer tout de suite : {settings} → Appli → Données de l\'appli → {rotate-cw} Lancer le robot maintenant, puis « Run workflow ». Quelques minutes plus tard : Appli → Mettre à jour l\'appli.',
+    'Monuments (Mérimée), horaires des marchés couverts et listes d\'expos se refont avec Claude : touche la ligne pour savoir quoi faire.',
+    'Un rappel s\'affiche à l\'ouverture, au plus une fois par semaine, seulement quand une donnée est en retard.',
+    '{info} Sorties → « Aide, sources et mise à jour », tout en bas : l\'agenda se recharge seul chaque jour, les marchés tous les 7 jours, les galeries tous les 30 jours. Liens utiles : Que faire à Paris, Paris Musées, L\'Officiel des spectacles, Paris je t\'aime, Sortir à Paris.',
+    'Les listes de gratuités et de temps forts sont fixes. Sorties prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['zap', 'Raccourcis sur l\'icône', [
     'Appui long sur l\'icône de l\'appli : Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
@@ -5320,14 +5329,34 @@ const HELP = [
     'TTB : « ce fichier ne contient pas d\'adresses » veut dire que la page n\'a pas été enregistrée en entier ou pas en mode liste. Ouvre-la depuis {settings} → TTB (le lien ouvre le mode liste), attends la fin du chargement, puis Télécharger.',
     'Boussole « indisponible » : le téléphone ne donne pas son orientation ; la flèche montre la direction, nord en haut.',
   ]],
+  ['sparkles', 'Nouveautés', [
+    '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
+    '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
+    '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
+    '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
+    '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
+    '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
+    '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
+    '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
+    '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
+    '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
+  ]],
 ];
 
+/** Une ligne d'aide : {icône} devient une icône Lucide, **mots** du gras (v145). Texte toujours en texte brut. */
+function helpLine(l) {
+  return l.split(/(\*\*[^*]+\*\*|\{[a-z0-9-]+\})/).filter(Boolean).map((part) => {
+    if (/^\{[a-z0-9-]+\}$/.test(part)) { const n = part.slice(1, -1); return ICON_NAMES.has(n) ? ico(n, { size: 17 }) : ''; }
+    if (/^\*\*[^*]+\*\*$/.test(part)) return el('strong', {}, ...helpLine(part.slice(2, -2)));
+    return part;
+  });
+}
 function openHelp() {
   openSheet([ico('circle-help'), ' Aide'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
-      el('ul', {}, lines.map((l) => el('li', {}, ...l.split(/\{([a-z0-9-]+)\}/).map((part, i) => (i % 2 ? (ICON_NAMES.has(part) ? ico(part, { size: 17 }) : '') : part)))))))),
+      el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l))))))),
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { name: 'help', again: openHelp, tall: true });
