@@ -56,7 +56,7 @@ test('recherche par nom : Paris et départements limitrophes seulement', async (
   const u = new URL(placesUrl('fnac', { zone: true }));
   assert.equal(u.searchParams.get('bounded'), '1');
   assert.equal(u.searchParams.get('viewbox'), '2.14,48.99,2.62,48.68');
-  assert.equal(u.searchParams.get('limit'), '15');
+  assert.equal(u.searchParams.get('limit'), '40');
   assert.equal(deptOf({ 'ISO3166-2-lvl6': 'FR-92', postcode: '75001' }), '92');
   assert.equal(deptOf({ postcode: '93100' }), '93');
   assert.equal(deptOf({}), '');
@@ -66,4 +66,14 @@ test('recherche par nom : Paris et départements limitrophes seulement', async (
     r('Créteil', { postcode: '94000' }), r('Boulogne', { postcode: '92100' }), r('Sans adresse', {}), r('Argenteuil', { postcode: '95100' })];
   assert.deepEqual(parsePlaces(json, { zone: true }).map((p) => p.name), ['Paris', 'Montreuil', 'Créteil', 'Boulogne', 'Sans adresse']);
   assert.equal(parsePlaces(json).length, 7); // sans zone (import de listes) : rien n'est écarté
+});
+
+test('recherche par nom : toutes les réponses gardées, doublons point/bâtiment retirés, gares et lieux de santé reconnus', () => {
+  const r = (name, category, type, lat = '48.85', lon = '2.35') => ({ name, lat, lon, category, type, address: { postcode: '75001' } });
+  const many = Array.from({ length: 30 }, (_, i) => r(`Uniqlo ${i}`, 'shop', 'clothes', String(48.80 + i * 0.003)));
+  assert.equal(parsePlaces(many, { zone: true }).length, 30, 'plus de limite à 8');
+  const dup = [r('Uniqlo', 'shop', 'clothes'), r('Uniqlo', 'building', 'retail', '48.8501', '2.3501'), r('Uniqlo', 'shop', 'clothes', '48.86')];
+  assert.equal(parsePlaces(dup, { zone: true }).length, 2);
+  const kinds = parsePlaces([r('Gare de Lyon', 'railway', 'station'), r('Centre de santé', 'healthcare', 'centre'), r('Rue de Rivoli', 'highway', 'primary'), r('Immeuble', 'building', 'yes'), r('Paris', 'boundary', 'administrative')], { zone: true });
+  assert.deepEqual(kinds.map((p) => `${p.name}:${p.kind}`), ['Gare de Lyon:Gare', 'Centre de santé:Santé']);
 });

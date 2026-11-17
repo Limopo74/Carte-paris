@@ -12,7 +12,7 @@ const GAP_MS = 1100;
 export function placesUrl(q, { zone = false } = {}) {
   const u = new URL(BASE);
   u.search = new URLSearchParams({
-    q, format: 'jsonv2', limit: zone ? '15' : '8', countrycodes: 'fr', addressdetails: '1',
+    q, format: 'jsonv2', limit: zone ? '40' : '8', /* 40 : le maximum du service */ countrycodes: 'fr', addressdetails: '1',
     'accept-language': 'fr', viewbox: zone ? ZONE_BOX : PARIS_BOX, bounded: zone ? '1' : '0', extratags: '1',
   });
   return u.toString();
@@ -48,10 +48,14 @@ const KINDS = {
   leisure: { park: 'Parc', garden: 'Jardin', sports_centre: 'Centre sportif', swimming_pool: 'Piscine' },
   historic: { monument: 'Monument', memorial: 'Mémorial', castle: 'Château', church: 'Église' },
 };
-const FALLBACK = { shop: 'Magasin', amenity: 'Lieu', tourism: 'À voir', leisure: 'Loisirs', historic: 'Patrimoine', craft: 'Artisan', office: 'Bureau' };
+const FALLBACK = { shop: 'Magasin', amenity: 'Lieu', tourism: 'À voir', leisure: 'Loisirs', historic: 'Patrimoine', craft: 'Artisan', office: 'Bureau',
+  building: 'Bâtiment', railway: 'Gare', healthcare: 'Santé', club: 'Association', man_made: 'Lieu', emergency: 'Secours', aeroway: 'Aéroport' };
+const RAILWAY = { station: 'Gare', halt: 'Gare', subway_entrance: 'Entrée de métro', tram_stop: 'Arrêt de tram' };
 
-/** Type de lieu en français, ou chaîne vide pour une rue, une ville, etc. */
+/** Type de lieu en français, ou chaîne vide pour une rue, une ville, une limite… (elles viennent de la recherche d'adresses). */
 export function kindLabel(category, type) {
+  if (category === 'railway') return RAILWAY[type] ?? '';
+  if (category === 'building' && ['yes', 'house', 'residential', 'apartments', 'garage', 'shed', 'roof'].includes(type)) return ''; // un immeuble quelconque : l'adresse suffit
   return KINDS[category]?.[type] ?? FALLBACK[category] ?? '';
 }
 
@@ -73,9 +77,11 @@ export function parsePlaces(json, { zone = false } = {}) {
     const kind = kindLabel(r?.category, r?.type);
     if (!name || !kind || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const oh = r?.extratags?.opening_hours;
+    // Le même lieu peut revenir deux fois (le point et le contour du bâtiment) : un seul gardé
+    if (out.some((o) => o.name.toLowerCase() === name.toLowerCase() && Math.abs(o.lat - lat) < 0.0004 && Math.abs(o.lng - lng) < 0.0006)) continue;
     out.push({ name, kind, address: shortAddress(r.address), lat, lng, hours: typeof oh === 'string' ? oh.slice(0, 300) : '' });
   }
-  return zone ? out.slice(0, 8) : out;
+  return out;
 }
 
 /** Temps d'attente (ms) avant la prochaine requête pour rester à une par seconde. */

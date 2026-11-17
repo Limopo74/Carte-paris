@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (126)';
+const VERSION = '17 novembre 2026 (127)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -899,11 +899,13 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
     fill(out, );
     const [places, addrs] = await Promise.allSettled([searchPlaces(q, ctrl.signal, { zone: true }), searchAddress(q, ctrl.signal, { zone: true })]);
     if (ctrl.signal.aborted) return;
-    const P = places.status === 'fulfilled' ? places.value : [];
+    // Du plus proche au plus loin : de ma position récente, sinon du centre de la carte (pas de GPS demandé)
+    const ref = freshHere() ?? map.getCenter();
+    const P = (places.status === 'fulfilled' ? places.value : []).map((r) => ({ ...r, d: distanceM(ref, r) })).sort((a, b) => a.d - b.d);
     const A = addrs.status === 'fulfilled' ? addrs.value : [];
     if (P.length) {
-      out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Lieux'), el('span', {}, String(P.length))),
-        el('ul', { class: 'results' }, P.map((r) => row(r.name, [r.kind, r.address].filter(Boolean).join(' · '),
+      out.append(el('h3', { class: 'ring-title' }, el('span', {}, freshHere() ? 'Lieux, du plus proche de toi' : 'Lieux, du plus proche du centre de la carte'), el('span', {}, String(P.length))),
+        el('ul', { class: 'results' }, P.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
           () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours })))));
     }
     if (A.length) {
@@ -919,7 +921,7 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
         ? 'La recherche ne répond pas. Vérifie ta connexion internet, puis réessaie.'
         : 'Rien trouvé dans Paris et les départements voisins (92, 93, 94). Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
     }
-    if (P.length) out.append(el('p', { class: 'help' }, 'Lieux : données © OpenStreetMap. Un petit commerce récent peut manquer.'));
+    if (P.length) out.append(el('p', { class: 'help' }, `Lieux : données © OpenStreetMap, ${P.length >= 30 ? 'les 40 premières réponses du service au plus' : 'toutes les réponses du service'}. OpenStreetMap ne connaît pas tous les commerces (surtout les récents), et un nom générique (« boulangerie ») ne donne qu'une partie des lieux : ajoute la rue ou le quartier.`));
   };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
 
@@ -4810,6 +4812,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{search} Ajouter → Avec un nom ou une adresse : jusqu\'à 40 lieux (avant 8 au plus) et 10 adresses (avant 5), rangés du plus proche, avec la distance. Les gares et les lieux de santé apparaissent aussi, et un même lieu n\'est plus montré deux fois.',
     '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
     '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
     '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
@@ -4819,7 +4822,6 @@ const HELP = [
     '{utensils} TTB : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → TTB, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton TTB en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
-    '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4853,7 +4855,7 @@ const HELP = [
   ]],
   ['plus', 'Ajouter un lieu', [
     'Laisse le doigt appuyé sur la carte à l\'endroit voulu.',
-    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »).',
+    'Ou + Ajouter → À ma position, ou → Avec un nom ou une adresse (ex. « Uniqlo Opéra »). Les lieux trouvés (40 au plus) sont rangés du plus proche de toi, ou du centre de la carte. L\'annuaire (OpenStreetMap) ne connaît pas tous les commerces : pour un nom courant (« boulangerie »), ajoute la rue ou le quartier.',
     'Depuis Google Maps ou un site : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} Depuis une photo de ta galerie : l\'appli place le lieu là où la photo a été prise, et l\'ajoute à sa fiche.',
     'Si le lieu existe déjà tout près, l\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',

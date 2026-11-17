@@ -47,7 +47,7 @@ export const inZone = (r) => ['75', '92', '93', '94'].includes(String(r.citycode
 export async function searchAddress(q, signal, { zone = false } = {}) {
   if (q.trim().length < 3) return [];
   const all = parseFeatures(await getJSON(searchUrl(q.trim(), { zone }), signal));
-  return zone ? all.filter(inZone).slice(0, 5) : all;
+  return zone ? all.filter(inZone).slice(0, 10) : all;
 }
 
 /** Adresse la plus proche d'une position, ou null si introuvable ou sans réseau. */
