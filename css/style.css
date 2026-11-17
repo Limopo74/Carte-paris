@@ -149,7 +149,7 @@ button { cursor: pointer; }
 .btn.big { min-height: var(--h-l); font-size: var(--t18); justify-content: flex-start; padding: 0 18px; }
 .btn:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; cursor: default; }
 
-label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: var(--t16); }
+label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: var(--t16); }
 .field input, .field textarea {
   width: 100%; min-height: 48px; padding: 10px 12px; font-weight: 400; font-size: var(--t16);
   border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface);
@@ -189,6 +189,7 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600;
 /* pas de filet fin juste avant un intertitre (son trait noir suffit) ni en fin de liste */
 :is(.items > li, .results > li, .help-list > *, .menu > .menu-row):is(:last-child, :has(+ .ring-title)) { border-bottom: 0; }
 .item { display: flex; align-items: stretch; gap: 6px; }
+.item.past-plan { flex-direction: column; gap: 8px; padding: 10px 0; }
 .item-main {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left;
   min-height: 56px; padding: 8px 0;

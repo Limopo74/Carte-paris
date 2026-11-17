@@ -13,6 +13,7 @@ const r5 = (x) => Math.round(x * 1e5) / 1e5;
 export function placeLink(base, p, catName = '', catIcon = '', { invite = false } = {}) {
   const o = { v: 1, n: p.name, y: r5(p.lat), x: r5(p.lng) };
   if (invite && Number.isFinite(p.ticket?.at)) o.t = Math.round(p.ticket.at / 60000); // invitation : jour et heure, à la minute
+  if (invite && Number.isFinite(p.ticket?.at) && p.ticket.part) o.m = p.ticket.part; // invitation : moment de la journée (matin, soir…) au lieu d'une heure précise
   if (invite && typeof invite === 'string') o.w = invite.slice(0, 30); // invitation : le prénom de qui invite
   if (p.address) o.a = p.address;
   if (catName) o.c = catName;
@@ -37,8 +38,9 @@ export function readPlaceLink(hash) {
     const at = Number.isInteger(o.t) ? o.t * 60000 : NaN; // invitation : gardée seulement si elle n'est pas déjà passée (ni absurde)
     const ticketAt = at > Date.now() - 864e5 && at < Date.now() + 400 * 864e5 ? at : null;
     const withName = ticketAt && typeof o.w === 'string' ? o.w.trim().slice(0, 30) : '';
+    const ticketPart = ticketAt && ['matin', 'midi', 'aprem', 'soir'].includes(o.m) ? o.m : '';
     return {
-      name, lat, lng, stars, ticketAt, withName,
+      name, lat, lng, stars, ticketAt, withName, ticketPart,
       address: String(o.a ?? '').slice(0, 200), catName: String(o.c ?? '').slice(0, 30), catIcon: String(o.i ?? ''),
       note: String(o.o ?? '').slice(0, 300), hours: String(o.h ?? '').slice(0, 300),
     };

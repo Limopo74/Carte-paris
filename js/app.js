@@ -21,6 +21,7 @@ import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
+import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere } from './events.js';
@@ -35,7 +36,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (151)';
+const VERSION = '17 novembre 2026 (152)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -387,7 +388,7 @@ function renderMarkers() {
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${ticketText(p.ticket.at)}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -809,18 +810,19 @@ function updateNow(force = false) {
   if (!force && Date.now() - nowLast < 20000) return;
   nowLast = Date.now();
   const pos = freshHere();
-  // Mon billet du jour passe avant tout : à quelle heure partir (à pied, ou en métro si c'est loin)
+  // La sortie prévue du jour passe avant tout : à quelle heure partir (à pied, ou en métro si c'est loin ; pas d'heure pour un moment)
   const tk = nowHidden ? null : ticketToday(state.points);
   if (tk) {
     const at = tk.ticket.at;
-    const { leave, travel, how } = departureFor(tk, pos);
+    // Un moment de la journée (matin, soir…) n'a pas d'heure : pas de « Pars à », qui serait faux.
+    const { leave, travel, how } = isPart(tk.ticket.part) ? {} : departureFor(tk, pos);
     card.hidden = false;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, `Ton billet · ${hmText(new Date(at))}`),
+      el('span', { class: 'now-kicker' }, isPart(tk.ticket.part) ? `Prévu ${planText(tk.ticket)}` : `Prévu · ${hmText(new Date(at))}`),
       el('span', { class: 'now-name' }, tk.name),
       el('span', { class: 'now-sub' }, leave
         ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`
-        : `Créneau à ${hmText(new Date(at))}`));
+        : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`));
     card.querySelector('.now-open').onclick = () => openDetail(tk.id);
     return;
   }
@@ -831,7 +833,7 @@ function updateNow(force = false) {
     card.hidden = false;
     const n = plannedPoints().length;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, `Prévu ${ticketText(nx.ticket.at)}`),
+      el('span', { class: 'now-kicker' }, `Prévu ${planText(nx.ticket)}`),
       el('span', { class: 'now-name' }, nx.name),
       el('span', { class: 'now-sub' }, n > 1 ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Voir Mon planning'));
     card.querySelector('.now-open').onclick = () => openPlanning('map');
@@ -1197,7 +1199,7 @@ function openForm(draft, existing = null) {
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
           el('div', { class: 'row', style: 'margin-top:8px' },
             Number.isFinite(draft.ticketAt)
-              ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = { at: draft.ticketAt, ...(draft.ticketWith ? { with: draft.ticketWith } : {}) }; persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${ticketText(draft.ticketAt)}`); } }, 'Noter sur ce lieu')
+              ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = draftPlan(draft); persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${planText(dup.point.ticket)}`); } }, 'Noter sur ce lieu')
               : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
             el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
         err.scrollIntoView({ block: 'nearest' });
@@ -1210,14 +1212,14 @@ function openForm(draft, existing = null) {
       setDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
-      if (Number.isFinite(draft.ticketAt)) np.ticket = { at: draft.ticketAt, ...(draft.ticketWith ? { with: draft.ticketWith } : {}) }; // sortie datée (Sorties, invitation) : elle va dans Mon planning
+      if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
       state.points.push(np);
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
     const ok = persist();
     renderMarkers();
     if (existing) openDetail(existing.id); else closeSheet();
-    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${ticketText(draft.ticketAt)}` : ''}`);
+    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${planText(draftPlan(draft))}` : ''}`);
     if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
     if (ok && !existing) refreshParkHours().catch(() => {});
   };
@@ -1238,7 +1240,7 @@ function openForm(draft, existing = null) {
       el('p', { class: 'where' }, ico('map-pin'), whereText),
       existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
     accWarn,
-    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Sortie ${ticketText(draft.ticketAt)}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
+    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Sortie ${planText(draftPlan(draft))}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
@@ -1280,6 +1282,10 @@ function openDetail(id, back = null) {
   const toggles = el('div', { class: 'row' },
     el('button', { type: 'button', class: 'btn c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
     el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { setDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
+  // Prévoir (v152) : juste sous les interrupteurs, il dit aussi quand la sortie est prévue.
+  const planned = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
+  const planBtn = el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(p, back) },
+    ico('alarm-clock'), planned ? `Prévu ${planText(p.ticket)}${p.ticket.with ? ` avec ${p.ticket.with}` : ''}` : 'Prévoir une visite');
 
   // Deux colonnes de faits : aujourd'hui (horaires) et métro le plus proche.
   const st = openState(hoursOf(p));
@@ -1299,7 +1305,7 @@ function openDetail(id, back = null) {
   const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
   const facts = el('div', { class: 'fiche-lines' },
     p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
-    // Le billet n'est écrit qu'une fois : dans Pratique → Mon billet.
+    // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     el('p', { class: 'muted' }, ageLine(p)));
@@ -1329,6 +1335,7 @@ function openDetail(id, back = null) {
     goBox,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
+    planBtn,
     facts2,
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     photoWide(p, back),
@@ -1340,7 +1347,6 @@ function openDetail(id, back = null) {
       row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back))),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
-      row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
@@ -1529,47 +1535,68 @@ async function copyText(text, done) {
 /** Petit bouton « copier » ; getText est lu au moment de l'appui. */
 const copyBtn = (getText, what, done) => el('button', { type: 'button', class: 'go-compass copy-btn', 'aria-label': `Copier ${what}`, title: `Copier ${what}`, onclick: () => copyText(getText(), typeof done === 'function' ? done() : done) }, ico('copy'));
 
-/* ---------- Mon billet : un créneau réservé (Orsay à 15 h…), rappelé dans « Maintenant » le jour J ---------- */
+/* ---------- Heures écrites en clair ; Prévoir : une sortie prévue, rappelée dans « Maintenant » le jour J ---------- */
 
 /** « 19:00 » → « 19h », « 15:30 » → « 15h30 », « 00:00 » → « minuit ». */
 function hhText(t) { return /^(24|00):00$/.test(t) ? 'minuit' : t.replace(/^0(\d)/, '$1').replace(':00', 'h').replace(':', 'h'); }
 function hmText(d) { return `${d.getHours()}h${d.getMinutes() ? String(d.getMinutes()).padStart(2, '0') : ''}`; }
-/** « aujourd'hui à 15h », « demain à 10h30 », « mardi 24 nov. à 15h ». */
-function ticketText(at) {
-  const d = new Date(at);
-  const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(new Date().setHours(0, 0, 0, 0))) / 864e5);
-  const day = days === 0 ? 'aujourd\'hui' : days === 1 ? 'demain' : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
-  return `${day} à ${hmText(d)}`;
+/** La sortie prévue d'un brouillon (sortie de l'agenda, invitation reçue). */
+function draftPlan(draft) {
+  return { at: draft.ticketAt, ...(draft.ticketWith ? { with: draft.ticketWith } : {}), ...(isPart(draft.ticketPart) ? { part: draft.ticketPart } : {}) };
 }
-function openTicket(p, back = null) {
+
+/* ---------- Prévoir (v152) : le jour et le moment en puces, l'heure précise seulement si on veut ---------- */
+function openPlan(p, back = null) {
   const pad = (n) => String(n).padStart(2, '0');
-  const d = p.ticket ? new Date(p.ticket.at) : null;
-  const today = new Date();
-  const date = el('input', { type: 'date', value: d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` : `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}` });
-  const time = el('input', { type: 'time', value: d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : '' });
-  const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: p.ticket?.with ?? '' });
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const now = new Date();
+  const old = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 ? p.ticket : null; // une sortie passée ne remplit rien
+  const days = dayChoices(now);
+  const oldDay = old ? days.find((d) => iso(d.date) === iso(new Date(old.at))) : null;
+  let day = old ? (oldDay?.key ?? 'other') : null;
+  let part = old ? (isPart(old.part) ? old.part : 'time') : null;
+  const date = el('input', { type: 'date', min: iso(now), value: old ? iso(new Date(old.at)) : '' });
+  const time = el('input', { type: 'time', value: old && !isPart(old.part) ? `${pad(new Date(old.at).getHours())}:${pad(new Date(old.at).getMinutes())}` : '' });
+  const dateField = el('label', { class: 'field' }, 'Date', date);
+  const timeField = el('label', { class: 'field' }, 'Heure', time);
+  const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: old?.with ?? '' });
   const err = el('div', { class: 'error', role: 'alert' });
   const done = () => (back ? openDetail(p.id, back) : openDetail(p.id));
+  const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
+  const daySeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Quel jour' });
+  const partSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'À quel moment' });
+  const draw = () => {
+    fill(daySeg, ...days.map((d) => segBtn(d.label, day === d.key, () => { day = d.key; err.textContent = ''; draw(); })),
+      segBtn('Autre jour', day === 'other', () => { day = 'other'; err.textContent = ''; draw(); date.focus(); }));
+    fill(partSeg, ...Object.entries(PARTS).map(([k, v]) => segBtn(v.label, part === k, () => { part = k; err.textContent = ''; draw(); })),
+      segBtn('Heure précise', part === 'time', () => { part = 'time'; err.textContent = ''; draw(); time.focus(); }));
+    dateField.hidden = day !== 'other';
+    timeField.hidden = part !== 'time';
+  };
+  draw();
   const save = () => {
-    const [y, mo, da] = date.value.split('-').map(Number);
+    let d = days.find((x) => x.key === day)?.date ?? null;
+    if (day === 'other') { const [y, mo, da] = date.value.split('-').map(Number); d = y ? new Date(y, mo - 1, da, 12) : null; }
+    if (!d) { err.textContent = 'Choisis le jour.'; return; }
+    if (!part) { err.textContent = 'Choisis le moment.'; return; }
     const [h, mi] = time.value.split(':').map(Number);
-    if (!y || !Number.isFinite(h)) { err.textContent = 'Choisis le jour et l\'heure du billet.'; return; }
-    p.ticket = { at: new Date(y, mo - 1, da, h, mi || 0).getTime(), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}) };
-    persist(); updateNow(true);
-    toast(`Billet noté : ${ticketText(p.ticket.at)}`);
+    if (part === 'time' && !Number.isFinite(h)) { err.textContent = 'Choisis l\'heure.'; return; }
+    p.ticket = { at: planAt(d, part === 'time' ? null : part, h, mi || 0), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}), ...(part !== 'time' ? { part } : {}) };
+    persist(); updateNow(true); renderMarkers();
+    toast(`Prévu ${planText(p.ticket)}`);
     done();
   };
-  openSheet([ico('ticket'), ` Mon billet · ${p.name}`], el('div', { class: 'stack' },
-    el('label', { class: 'field' }, 'Jour', date),
-    el('label', { class: 'field' }, 'Heure du créneau', time),
+  openSheet([ico('alarm-clock'), ` Prévoir · ${p.name}`], el('div', { class: 'stack' },
+    el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
+    el('div', { class: 'field' }, 'À quel moment ?', partSeg), timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
     err,
-    el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('ticket'), 'Enregistrer le billet'),
-    p.ticket ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p) }, ico('copy'), 'Copier le lien d\'invitation') : null,
-    p.ticket ? el('button', { type: 'button', class: 'btn danger', onclick: () => { delete p.ticket; persist(); updateNow(true); toast('Billet retiré'); done(); } }, 'Retirer le billet') : null,
-    el('p', { class: 'help' }, 'Le jour même, « Maintenant » sur la carte te dit à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Pour garder le billet lui-même, prends-le en photo avec le bouton Photo de la fiche. Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et l\'heure.'),
+    el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('alarm-clock'), 'Enregistrer'),
+    old ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p) }, ico('copy'), 'Copier le lien d\'invitation') : null,
+    old ? el('button', { type: 'button', class: 'btn danger', onclick: () => { delete p.ticket; persist(); updateNow(true); renderMarkers(); toast('Sortie retirée de Mon planning'); done(); } }, 'Retirer de Mon planning') : null,
+    el('p', { class: 'help' }, 'Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ. Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche. Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: done }, '← Fiche')),
-  ), { name: `ticket:${p.id}` });
+  ), { name: `plan:${p.id}` });
 }
 
 /** Chercher dans OpenStreetMap les horaires d'un lieu déjà enregistré (même nom, à moins de 150 m). */
@@ -2189,14 +2216,14 @@ async function invitePlace(p) {
   const c = catOf(p.cat);
   const url = placeLink(location.href, p, c.name, c.icon, { invite: (state.me ?? '').trim() || true });
   // Seulement le lien (ton proche voit le lieu, le jour et l'heure en l'ouvrant) : à coller dans un SMS ou un message
-  try { await navigator.clipboard.writeText(url); toast(`Lien de l'invitation copié (${ticketText(p.ticket.at)}) : colle-le dans ton message.`); } catch { prompt('Copie ce lien :', url); }
+  try { await navigator.clipboard.writeText(url); toast(`Lien de l'invitation copié (${planText(p.ticket)}) : colle-le dans ton message.`); } catch { prompt('Copie ce lien :', url); }
 }
 
 /** Un lien reçu : on montre le lieu et on propose de l'ajouter (catégorie du même nom si elle existe). */
 function receivePlace(r) {
   const cat = state.categories.find((c) => fold(c.name) === fold(r.catName))?.id;
-  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null, ticketAt: r.ticketAt ?? undefined, ticketWith: r.withName || undefined });
-  toast(r.ticketAt ? `Invitation : ${ticketText(r.ticketAt)}. Enregistre pour l'avoir dans Mon planning.` : 'Lieu reçu par un lien : vérifie et enregistre.');
+  openForm({ name: r.name, lat: r.lat, lng: r.lng, address: r.address, hours: r.hours, note: r.note, stars: r.stars, cat, acc: null, ticketAt: r.ticketAt ?? undefined, ticketPart: r.ticketPart || undefined, ticketWith: r.withName || undefined });
+  toast(r.ticketAt ? `Invitation : ${planText({ at: r.ticketAt, part: r.ticketPart })}. Enregistre pour l'avoir dans Mon planning.` : 'Lieu reçu par un lien : vérifie et enregistre.');
 }
 
 /* ---------- Import des lieux Google Maps (Google Takeout) ---------- */
@@ -2514,9 +2541,9 @@ async function openMyParis(from = null) {
   ), { tall: true, name: 'myparis', again: openMyParis });
 }
 
-/* ---------- Mon planning : les billets à venir (Mon billet), rangés par jour. Rien de nouveau n'est gardé. ---------- */
+/* ---------- Mon planning : les sorties prévues (Prévoir), rangées par jour ; la veille et avant : « Tu y es allé ? ». ---------- */
 
-/** Sorties prévues à partir d'aujourd'hui (billets). */
+/** Sorties prévues à partir d'aujourd'hui. */
 function plannedPoints() { const t = new Date().setHours(0, 0, 0, 0); return state.points.filter((p) => Number.isFinite(p.ticket?.at) && p.ticket.at >= t); }
 /** Nombre de jours entre aujourd'hui et la date (0 = aujourd'hui, 1 = demain). */
 function daysUntil(at) { const d = new Date(at); return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date().setHours(0, 0, 0, 0)) / 864e5); }
@@ -2544,9 +2571,15 @@ function updatePlanningCount() {
 function planInfo(p) {
   const at = new Date(p.ticket.at);
   const out = [];
-  const st = hoursOf(p) ? openState(hoursOf(p), at) : null;
-  if (st && !st.open) out.push(el('span', { class: 'plan-note bad' }, ico('clock'), ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
-  if (daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
+  // Heure précise : fermé à cette heure-là. Moment de la journée : fermé seulement s'il l'est à chaque demi-heure du moment.
+  const sts = hoursOf(p) ? planTimes(p.ticket).map((t) => openState(hoursOf(p), t)) : [];
+  if (sts.length && sts.every((st) => st && !st.open)) {
+    const st = sts[0];
+    out.push(el('span', { class: 'plan-note bad' }, ico('clock'), isPart(p.ticket.part)
+      ? ` Fermé ${PARTS[p.ticket.part].when} ce jour-là`
+      : ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
+  }
+  if (!isPart(p.ticket.part) && daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
     const { leave, travel, how } = departureFor(p, freshHere());
     if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`));
   }
@@ -2578,6 +2611,25 @@ function openPlanning(from = null) {
     const date = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return days === 0 ? `Aujourd'hui · ${date}` : days === 1 ? `Demain · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
   };
+  // Le lendemain (v152) : « Tu y es allé ? ». Oui = Déjà visité, à la date prévue ; Non = la sortie s'efface.
+  const answer = (p, yes) => {
+    if (yes) setDone(p, true, p.ticket.at);
+    delete p.ticket;
+    persist(); renderMarkers(); updateNow(true);
+    toast(yes ? `« ${p.name} » : déjà visité` : `« ${p.name} » retiré de Mon planning`);
+    openPlanning();
+  };
+  const past = pastPlans(state.points);
+  const pastBlock = past.length ? [
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Tu y es allé ?'), el('span', {}, String(past.length))),
+    el('ul', { class: 'items' }, past.map((p) => el('li', { class: 'item past-plan' },
+      el('span', { class: 'item-text' },
+        el('span', { class: 'item-name' }, p.name),
+        el('span', { class: 'item-sub' }, [planText(p.ticket).replace(/^./, (c) => c.toUpperCase()), p.ticket.with ? `avec ${p.ticket.with}` : ''].filter(Boolean).join(' · '))),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => answer(p, true), 'aria-label': `Oui, je suis allé à ${p.name}` }, ico('check'), 'Oui'),
+        el('button', { type: 'button', class: 'btn', onclick: () => answer(p, false), 'aria-label': `Non, pas allé à ${p.name}` }, 'Non'))))),
+  ] : [];
   const groups = [];
   for (const p of items) {
     const label = dayLabel(new Date(p.ticket.at));
@@ -2585,13 +2637,14 @@ function openPlanning(from = null) {
     groups.at(-1).items.push(p);
   }
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
+    ...pastBlock,
     groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue.'),
-    groups.length ? null : el('p', { class: 'help' }, 'Pour prévoir une sortie : fiche d\'un lieu → Mon billet.'),
+    groups.length ? null : el('p', { class: 'help' }, 'Pour prévoir une sortie : touche un lieu sur la carte, puis Prévoir une visite.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.map((p) => el('li', { class: 'item' },
         el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, back) },
-          el('span', { class: 'plan-time' }, hmText(new Date(p.ticket.at))),
+          el('span', { class: 'plan-time' }, planClock(p.ticket)),
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
             el('span', { class: 'item-sub' }, [p.ticket.with ? `avec ${p.ticket.with}` : '', catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
@@ -5525,7 +5578,9 @@ const HELP = [
     '**Navigo** : les lieux partenaires des avantages Navigo. Touche-en un pour lire l\'offre.',
     '{plus} **Ajouter** met le lieu sur ta carte. Une expo garde sa date de fin dans la note.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour. Une sortie ajoutée pour plus tard y va avec son heure.',
-    '{ticket} **Mon billet**, dans la fiche d\'un lieu (Pratique) : note le jour, l\'heure et avec qui. Le jour même, « Maintenant » dit quand partir.',
+    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif.',
+    '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
+    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité. Non : la sortie s\'efface.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : dans Mon planning, copie le lien et colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
@@ -5568,9 +5623,10 @@ const HELP = [
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
     '**Aujourd\'hui** : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint.',
+    '{alarm-clock} **Prévoir une visite** : juste en dessous. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
-    '**En bas de la fiche** : Modifier, Partager, QR code, Mon billet, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
+    '**En bas de la fiche** : Modifier, Partager, QR code, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône et la couleur.',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
@@ -5600,7 +5656,7 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours.',
     '**Le fichier** va dans Téléchargements. Envoie-le aussi sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux, photos, billets, catégories, listes, stations et réglages. Pas la liste TTB, ni la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux, photos, sorties prévues, catégories, listes, stations et réglages. Pas la liste TTB, ni la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
@@ -5652,6 +5708,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} Prévoir une sortie, plus simple : « Prévoir une visite » est en haut de la fiche, sous Favori. Le jour et le moment se touchent (Demain, Samedi, Matin, Soir…) ; l\'heure précise n\'est plus obligatoire. Le lendemain, Mon planning demande « Tu y es allé ? ».',
     '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
     '{arrow-up-down} Retour à la même hauteur : en revenant à un écran (← Réglages, ou le bouton retour du téléphone), tu le retrouves là où tu l\'avais laissé, au lieu d\'être remonté en haut. Même chose quand un écran se redessine (un interrupteur, la taille du texte). Un écran ouvert pour la première fois commence en haut.',
     '{map} Vélib\' et fontaines sur la carte : « Toutes les stations sur la carte » (en bas de Vélib\') montre chaque station de la zone avec son nombre de vélos ou de places, et « Toutes les fontaines et toilettes sur la carte » (en bas de Fontaine et WC) fait de même. Aussi dans Filtres → Ajouter sur la carte. On les voit en zoomant ; ni GPS ni carte déplacée. L\'heure des Vélib\' est écrite en haut à gauche ; après 10 min les nombres s\'effacent. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'a plus de nombre et n\'est plus proposée : le 17 novembre, 3 stations « ouvertes » affichaient des vélos vieux de 6 à 12 h.',
@@ -5661,7 +5718,6 @@ const HELP = [
     '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
     '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
     '{a-large-small} Taille du texte ({settings} Réglages → Ce qui s\'affiche) : Normal, Grand ou Très grand. Tout le texte de l\'appli grandit ; la barre du bas et les rangées de 3 boutons gardent leur taille pour ne pas déborder.',
-    '{circle-help} Aide : chaque appui long a son chemin visible, écrit en premier (liste TTB, lignes de métro, modifier une catégorie) ; l\'appui long reste un raccourci. Phrase fausse corrigée : les tracés de métro comprennent bien les prolongements des lignes 11 et 14.',
   ]],
 ];
 

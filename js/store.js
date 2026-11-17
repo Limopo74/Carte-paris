@@ -1,5 +1,6 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from './geo.js';
+import { cleanPlan } from './planning.js';
 
 export const KEY = 'carte-paris.v1';
 export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#9c6644', '#c2255c', '#0c8599', '#495057'];
@@ -121,7 +122,7 @@ const clean = (p) => ({
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
   owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
   stars: cleanStars(p.stars),
-  ...(Number.isFinite(p.ticket?.at) ? { ticket: { at: p.ticket.at, ...(typeof p.ticket.with === 'string' && p.ticket.with.trim() ? { with: p.ticket.with.trim().slice(0, 40) } : {}) } } : {}), // Mon billet : date, heure, et avec qui (facultatif)
+  ...(cleanPlan(p.ticket) ? { ticket: cleanPlan(p.ticket) } : {}), // sortie prévue (Prévoir) : jour, heure ou moment, et avec qui (facultatif)
   lists: cleanIds(p.lists),
   covered: Boolean(p.covered),
   arr: Number.isInteger(p.arr) && p.arr >= 1 && p.arr <= 20 ? p.arr : null, // arrondissement, trouvé une fois pour toutes
