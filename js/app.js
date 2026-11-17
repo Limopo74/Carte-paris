@@ -36,7 +36,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (153)';
+const VERSION = '17 novembre 2026 (154)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2681,8 +2681,51 @@ function openPlanning(from = null) {
         el('button', { type: 'button', class: 'go-compass', onclick: () => invitePlace(p), 'aria-label': `Copier le lien d'invitation : ${p.name}` }, ico('copy')),
         el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
     ]),
+    el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
+}
+
+/* ---------- Trouver une sortie (v154) : l'agenda de la Ville pour un jour choisi, autour du centre de la carte ----------
+   Seulement les sorties qui ont un créneau publié ce jour-là (rien de deviné), rangées par heure. La carte ne bouge pas. */
+const dayEventsCache = new Map(); // jour → sorties, le temps de la session
+let dayEventsKey = 'j1';
+async function eventsOfDay(date) {
+  const k = date.toDateString();
+  if (dayEventsCache.has(k)) return dayEventsCache.get(k);
+  const today = k === new Date().toDateString();
+  const from = today ? new Date() : new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const r = await net(eventsUrl(from));
+  if (!r.ok) throw new Error(String(r.status));
+  const items = todayOnly(parseEvents(await r.json(), from), from);
+  dayEventsCache.set(k, items);
+  return items;
+}
+function openDayEvents(key = null, back = null) {
+  if (key) dayEventsKey = key;
+  const days = dayChoices();
+  const day = days.find((d) => d.key === dayEventsKey) ?? days[1];
+  dayEventsKey = day.key;
+  const again = () => openDayEvents(null, back);
+  const center = map.getCenter();
+  const from = { lat: center.lat, lng: center.lng };
+  const list = el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Chargement de l\'agenda…'));
+  const chips = el('div', { class: 'list-chips' }, days.map((d) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(d.key === day.key), onclick: () => openDayEvents(d.key, back) }, d.label)));
+  openSheet([ico('calendar-days'), ' Trouver une sortie'], el('div', { class: 'stack' },
+    chips,
+    el('p', { class: 'help' }, 'Autour du centre de la carte (2 km), par heure. Touche une sortie, puis Prévoir.'),
+    list,
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'joursortie', again });
+  eventsOfDay(day.date).then((all) => {
+    if (!list.isConnected) return;
+    const near = nearbyEvents(all, from, 2000).sort((a, b) => a.slotStart - b.slotStart).slice(0, 40);
+    const hm = (d) => `${d.getHours()}h${d.getMinutes() ? String(d.getMinutes()).padStart(2, '0') : ''}`;
+    fill(list, near.length
+      ? el('ul', { class: 'items ev-list' }, near.map((e) => sortieCard({ genre: genreOf(e, { expo: isExpo(e) }), name: e.title, onclick: () => openEventPage(e, named('Trouver une sortie', again)),
+        sub: [el('b', {}, hm(e.slotStart)), e.place], d: e.d, tags: [e.free ? freeTag() : null] })))
+      : el('p', { class: 'empty' }, 'Aucune sortie avec un horaire publié ce jour-là, à moins de 2 km du centre de la carte. Déplace la carte ou choisis un autre jour.'));
+  }).catch(() => { if (list.isConnected) fill(list, el('p', { class: 'error' }, 'L\'agenda de la Ville ne répond pas. Vérifie ta connexion, puis réessaie.')); });
 }
 
 /* ---------- Mes chiffres (tableau de bord sous Mon Paris) ----------
@@ -3021,6 +3064,8 @@ function evPhoto(e, cls = '') {
 
 /** Quand, en une ligne : « À 20h », « Finit dimanche 22 nov. », « Dès samedi 21 nov. »… Jamais « aujourd'hui » sans créneau connu (whenText). */
 function eventWhen(e, now = new Date()) {
+  // Créneau d'un autre jour (Trouver une sortie) : le jour est écrit, jamais un « À 20h » qui ferait croire à aujourd'hui
+  if (e.slotStart && e.slotStart > now && e.slotStart.toDateString() !== now.toDateString()) { const t = planText({ at: e.slotStart.getTime() }, now); return t.charAt(0).toUpperCase() + t.slice(1); }
   if (e.start && e.start > now && e.start.toDateString() !== now.toDateString()) return weekText(e, now);
   if (isExpo(e) && e.end) return endText(e.end, now);
   const w = whenText(e, now);
@@ -5609,6 +5654,7 @@ const HELP = [
     '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte et s\'efface le lendemain.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda.',
+    '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
     '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité. Non : la sortie s\'efface.',
@@ -5739,6 +5785,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
     '{alarm-clock} Prévoir une sortie de l\'agenda : sur sa page, « Prévoir » la met dans Mon planning (à son heure quand elle est connue), sans l\'ajouter à ta carte. Elle s\'efface le lendemain.',
     '{alarm-clock} Prévoir une sortie, plus simple : « Prévoir une visite » est en haut de la fiche, sous Favori. Le jour et le moment se touchent (Demain, Samedi, Matin, Soir…) ; l\'heure précise n\'est plus obligatoire. Le lendemain, Mon planning demande « Tu y es allé ? ».',
     '{ellipsis} ⋯ Plus dans la barre du haut : range sous ⋯ les boutons dont tu te sers moins (Resto, Boutique…). {settings} Réglages → Ce qui s\'affiche → Barre du haut : pour chacun, Barre, Plus ou Caché, comme les boutons de la carte. Un bouton allumé depuis Plus apparaît aussi dans la barre, le temps de l\'éteindre. Au départ, Plus contient Vélib\' et Fontaines et toilettes ; le reste ne bouge pas.',
@@ -5748,7 +5795,6 @@ const HELP = [
     '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
     '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
     '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
-    '{circle-help} Aide plus facile à lire : rangée par ce que tu veux faire, une idée par ligne, un mot en gras en tête. Deux rubriques réécrites pour commencer : Se repérer et Trouver une sortie. Les Nouveautés sont maintenant en bas.',
   ]],
 ];
 

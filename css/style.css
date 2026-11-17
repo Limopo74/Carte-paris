@@ -169,7 +169,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 .plan-note { display: block; font-size: var(--t13); color: var(--muted); margin-top: 2px; }
 .plan-note .ico svg { width: 14px; height: 14px; vertical-align: -2px; }
 .plan-note.bad { color: var(--danger); font-weight: 700; }
-.plan-time { flex: none; min-width: 52px; font-size: var(--t16); font-weight: 700; font-variant-numeric: tabular-nums; }
+.plan-time { flex: none; min-width: 52px; max-width: 4.8em; font-size: var(--t16); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .where { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t16); color: var(--muted); margin: 0; }
 
