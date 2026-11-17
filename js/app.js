@@ -2,7 +2,7 @@
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import {
+import { cleanMore, DEFAULT_MORE,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (123)';
+const VERSION = '17 novembre 2026 (124)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2313,6 +2313,14 @@ function updatePlanningCount() {
   c.textContent = n > 9 ? '9+' : String(n);
   c.hidden = !n;
   b.setAttribute('aria-label', n ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Mon planning : aucune sortie prévue');
+  // Mon planning rangé dans « Plus » : son chiffre passe sur ⋯
+  const more = document.getElementById('btnMore');
+  if (!more) return;
+  const inMore = cleanMore(state.moreTools, cleanHidden(state.hiddenTools)).includes('planning');
+  const mc = more.querySelector('.map-count');
+  mc.textContent = c.textContent;
+  mc.hidden = !inMore || !n;
+  more.setAttribute('aria-label', inMore && n ? `Plus de boutons (Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')})` : 'Plus de boutons');
 }
 /** Ce que la ligne d'une sortie doit dire en plus : départ (aujourd'hui), lieu fermé à cette heure-là, météo du jour. */
 function planInfo(p) {
@@ -3967,27 +3975,34 @@ function openSettings(section = null) {
         ['right', 'left'].map((side) => el('button', { type: 'button', 'aria-pressed': String((state.toolsSide ?? 'right') === side), onclick: () => {
           state.toolsSide = side; persist(); applyToolOrder(); openSettings('outils'); toast(side === 'left' ? 'Boutons à gauche' : 'Boutons à droite');
         } }, side === 'left' ? '← À gauche' : 'À droite →')))),
-      el('p', { class: 'help' }, 'De haut en bas, comme sur la carte. Le dernier est le plus près de ton pouce. Décoche un bouton pour le cacher.'),
+      el('p', { class: 'help' }, 'Pour chaque bouton : « Carte » le met dans la colonne, « Plus » le range sous le bouton ⋯ (avec son nom, à un appui), « Caché » l\'enlève. ↑ ↓ règlent l\'ordre, de haut en bas, dans la colonne comme dans Plus. Le dernier de la colonne est le plus près de ton pouce.'),
+      el('p', { class: 'summary' }, (() => { const h = cleanHidden(state.hiddenTools); const m = moreList(); const n = list.filter((t) => !h.includes(t) && !m.includes(t)).length; return `Sur la carte : ${plural(n, 'bouton', 'boutons')}${m.length ? ` + ⋯ (${m.length} dans Plus)` : ''}`; })()),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
         const move = (delta) => { state.mapTools = moveTool(list, t, delta); persist(); applyToolOrder(); openSettings('outils');
           requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
-        const shown = !cleanHidden(state.hiddenTools).includes(t);
-        const box = el('input', { type: 'checkbox', class: 'check', checked: shown, 'aria-label': `Afficher ${info.name}` });
-        box.addEventListener('change', () => {
+        const where = cleanHidden(state.hiddenTools).includes(t) ? 'hidden' : moreList().includes(t) ? 'more' : 'map';
+        const put = (to) => {
           const h = new Set(cleanHidden(state.hiddenTools));
-          if (box.checked) h.delete(t); else h.add(t);
-          state.hiddenTools = [...h]; persist(); applyToolOrder(); openSettings('outils');
-          toast(box.checked ? `${info.name} : affiché` : `${info.name} : caché`);
-        });
-        return el('div', { class: `cat-row${shown ? '' : ' off'}` },
-          el('label', { class: 'tool-check' }, box,
-            el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
-            el('span', { class: 'cat-name' }, info.name)),
+          const m = new Set(moreList());
+          h.delete(t); m.delete(t);
+          if (to === 'hidden') h.add(t);
+          if (to === 'more') m.add(t);
+          state.hiddenTools = [...h]; state.moreTools = [...m]; persist(); applyToolOrder(); openSettings('outils');
+          requestAnimationFrame(() => document.querySelector(`[data-put="${t}:${to}"]`)?.focus());
+          toast(`${info.short} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'caché'}`);
+        };
+        return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
+          el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
+          el('div', { class: 'tool-main' },
+            el('span', { class: 'cat-name' }, info.name),
+            el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place du bouton ${info.short}` },
+              [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Caché']].map(([k, label]) =>
+                el('button', { type: 'button', 'aria-pressed': String(where === k), 'data-put': `${t}:${k}`, onclick: () => { if (where !== k) put(k); } }, label)))),
           el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
           el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
       })),
-      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = [...DEFAULT_HIDDEN]; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
@@ -4190,7 +4205,7 @@ function openSettings(section = null) {
     voiceSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('list-filter', 'Barre du haut', (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous les boutons affichés', () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, afficher ou cacher', () => openSettings('outils'), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Application'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
@@ -4710,24 +4725,61 @@ document.getElementById('btnPlanning').addEventListener('click', () => openPlann
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
-  pratique: { el: 'btnPratique', icon: 'droplets', name: 'Fontaine et toilettes' },
-  metro: { el: 'btnMetro', icon: 'M', name: 'Métro le plus proche' },
-  locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et direction' },
-  paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris' },
-  velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche' },
-  home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)' },
-  sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte' },
-  planning: { el: 'btnPlanning', icon: 'calendar-clock', name: 'Mon planning (sorties prévues)' },
+  pratique: { el: 'btnPratique', icon: 'droplets', name: 'Fontaine et toilettes', short: 'Fontaine et WC' },
+  metro: { el: 'btnMetro', icon: 'M', name: 'Métro le plus proche', short: 'Métro' },
+  locate: { el: 'btnLocate', icon: 'locate-fixed', name: 'Ma position et direction', short: 'Ma position' },
+  paris: { el: 'btnParis', icon: 'Paris', name: 'Retour au centre de Paris', short: 'Centre de Paris' },
+  velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche', short: 'Vélib\'' },
+  home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)', short: 'Rentrer' },
+  sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
+  planning: { el: 'btnPlanning', icon: 'calendar-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
+/* « Plus » (⋯) : les boutons rangés là par Réglages → Boutons de la carte, avec leur nom, à un appui. Rien ne bouge tout seul. */
+const btnMore = el('button', { type: 'button', id: 'btnMore', class: 'map-btn c-guide', 'aria-label': 'Plus de boutons', 'aria-expanded': 'false', 'aria-controls': 'morePanel', onclick: () => (morePanel.hidden ? openMore() : closeMore()) },
+  ico('ellipsis', { size: 24 }), el('span', { class: 'map-count', hidden: true }));
+const morePanel = el('div', { id: 'morePanel', class: 'more-panel', role: 'group', 'aria-label': 'Plus de boutons', hidden: true });
+document.body.append(morePanel);
+const moreList = () => cleanMore(state.moreTools, cleanHidden(state.hiddenTools));
+function openMore() {
+  fill(morePanel, normalizeTools(state.mapTools).filter((t) => moreList().includes(t)).map((t) => {
+    const info = TOOL_INFO[t];
+    const extra = t === 'planning' ? document.querySelector('#btnPlanning .map-count:not([hidden])')?.textContent : '';
+    return el('button', { type: 'button', class: 'more-item', onclick: () => { closeMore(); document.getElementById(info.el).click(); } },
+      el('span', { class: `more-ico${t === 'paris' || t === 'metro' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
+      el('span', { class: 'more-name' }, info.short), extra ? el('span', { class: 'more-count' }, extra) : null);
+  }));
+  const r = btnMore.getBoundingClientRect();
+  morePanel.style.bottom = `${Math.max(8, innerHeight - r.bottom)}px`;
+  morePanel.classList.toggle('left', state.toolsSide === 'left');
+  morePanel.hidden = false;
+  btnMore.setAttribute('aria-expanded', 'true');
+  morePanel.querySelector('button')?.focus({ preventScroll: true });
+}
+function closeMore() {
+  if (morePanel.hidden) return;
+  morePanel.hidden = true;
+  btnMore.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('pointerdown', (e) => { if (!morePanel.hidden && !morePanel.contains(e.target) && !btnMore.contains(e.target)) closeMore(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !morePanel.hidden) { closeMore(); btnMore.focus(); } });
+map.on('movestart', closeMore);
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
   box.classList.toggle('left', state.toolsSide === 'left');
   const hidden = cleanHidden(state.hiddenTools);
-  for (const t of normalizeTools(state.mapTools)) {
+  const more = moreList();
+  const order = normalizeTools(state.mapTools);
+  for (const t of order) {
     const b = document.getElementById(TOOL_INFO[t].el);
-    b.hidden = hidden.includes(t);
+    b.hidden = hidden.includes(t) || more.includes(t);
     box.append(b);
   }
+  // ⋯ juste au-dessus de « Ma position » quand elle est en bas de la colonne, sinon en dernier
+  const shown = order.filter((t) => !hidden.includes(t) && !more.includes(t));
+  if (shown.at(-1) === 'locate') box.insertBefore(btnMore, document.getElementById('btnLocate')); else box.append(btnMore);
+  btnMore.hidden = !more.length;
+  closeMore();
+  updatePlanningCount();
 }
 applyToolOrder();
 // Sorties sans GPS : autour du centre de la carte, la carte ne bouge pas
@@ -4764,6 +4816,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
     '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
     '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
     '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. TTB : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TTB. Le nom du guide est abrégé en TTB, la source est citée dans Réglages → TTB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
@@ -4773,7 +4826,6 @@ const HELP = [
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
     '{wrench} Corrections : « Info trafic métro et RER » ouvrait une page en erreur, il ouvre maintenant la bonne page d\'Île-de-France Mobilités. Les marchés s\'écrivent « Marché Charonne » et non plus en majuscules, et leur liste se télécharge plus légère. Un lieu fermé le soir dit « Fermé », et « Fermé aujourd\'hui » seulement s\'il n\'a pas ouvert de la journée.',
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
-    '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4781,12 +4833,12 @@ const HELP = [
     'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TTB (les adresses d\'un guide de bonnes tables, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
-    'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
+    'À droite, au départ : Paris, M, Sorties, Mon planning, {ellipsis} Plus et Ma position. {ellipsis} Plus ouvre, avec leur nom, les boutons rangés là (au départ Fontaine et WC, Vélib\' et Rentrer) ; un appui lance la fonction. Pour chaque bouton, choisis « Carte », « Plus » ou « Caché », et l\'ordre : {settings} → Ce qui s\'affiche → Boutons de la carte. Si Mon planning est dans Plus, son chiffre passe sur {ellipsis}.',
     '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches ; chacun dit s\'il est ouvert, et un lieu fermé passe en dernier. Eau pétillante et brumisateurs sont signalés.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',
     'Si tu déplaces la carte au doigt, elle arrête de te suivre (bouton en pointillé) : un appui la recentre, un autre arrête tout.',
-    'Caché au départ, à réafficher dans {settings} → Boutons de la carte : Paris (revenir au centre de Paris).',
+    'Paris : revenir au centre de Paris.',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
     '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {calendar-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
@@ -4911,7 +4963,7 @@ const HELP = [
     'Position refusée : Chrome ⋮ → Paramètres → Paramètres des sites → Position → autorise limopo74.github.io, et allume la Position du téléphone.',
     'Carte grise : vérifie internet, puis {settings} → Application → Recharger la carte.',
     'Un lien reçu ouvre une carte vide : il s\'est ouvert dans le navigateur de Messages (ou de WhatsApp), qui ne connaît pas tes lieux. Appuie sur « Ouvrir dans Chrome ». Pour que ça n\'arrive plus : 1) Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome ; 2) Paramètres → Applis → Ma carte de Paris → Ouvrir par défaut : active « Ouvrir les liens compatibles » ; 3) dans Messages ou WhatsApp, si un réglage « Ouvrir les liens dans l\'appli » existe, désactive-le. Les noms exacts varient selon les téléphones.',
-    'Perdu sur la carte : {locate-fixed} pour revenir sur toi, ou le bouton Paris (à réafficher dans {settings} → Boutons de la carte).',
+    'Perdu sur la carte : {locate-fixed} pour revenir sur toi, ou le bouton Paris.',
     'Carte Épuré avec un filigrane ou vide : la clé CARTO manque ou est fausse. {settings} → La carte → Style → Clé CARTO.',
     'Une nouveauté n\'apparaît pas : {settings} → Application → Mettre à jour l\'appli.',
     'La voix ne parle pas : monte le volume, et vérifie {settings} → Voix.',

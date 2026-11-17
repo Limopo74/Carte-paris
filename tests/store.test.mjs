@@ -388,16 +388,16 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'pratique', 'metro', 'velib', 'paris', 'sorties', 'planning', 'locate']); // l'ancien bouton zoom disparaît
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'paris', 'pratique', 'metro', 'velib', 'sorties', 'planning', 'locate']); // l'ancien bouton zoom disparaît
   assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
-  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'velib', 'paris', 'sorties', 'planning', 'locate'], 'bouton manquant juste avant Ma position');
-  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), ['pratique', 'metro', 'velib', 'paris', 'home', 'sorties', 'planning', 'locate']);
-  assert.deepEqual(moveTool(MAP_TOOLS, 'pratique', -1), MAP_TOOLS);
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'paris', 'velib', 'sorties', 'planning', 'locate'], 'bouton manquant juste avant Ma position');
+  assert.deepEqual(moveTool(MAP_TOOLS, 'home', -1), ['paris', 'pratique', 'metro', 'home', 'velib', 'sorties', 'planning', 'locate']);
+  assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), MAP_TOOLS);
 });
 
 test('boutons cachés : noms connus seulement', async () => {
   const { cleanHidden } = await import('../js/store.js');
-  assert.deepEqual(cleanHidden(['paris', 'pirate', 'paris', 'metro', 'zoom']), ['metro', 'paris']);
+  assert.deepEqual(cleanHidden(['paris', 'pirate', 'paris', 'metro', 'zoom']), ['paris', 'metro']);
   assert.deepEqual(cleanHidden(null), []);
 });
 
@@ -462,10 +462,11 @@ test('mes stations : personnelles, sans doublon, dans ma sauvegarde mais pas rep
 test('boutons Paris et Zoom cachés au départ, une seule fois pour les anciens réglages', async () => {
   const { loadState, saveState, DEFAULT_HIDDEN } = await import('../js/store.js');
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
-  assert.deepEqual(loadState(mem(null)).hiddenTools, DEFAULT_HIDDEN);
+  assert.deepEqual(DEFAULT_HIDDEN, ['paris']);
+  assert.deepEqual(loadState(mem(null)).hiddenTools, []); // depuis la v124, Paris est affiché
   const old = mem(JSON.stringify({ points: [], hiddenTools: ['velib'] }));
   const st = loadState(old);
-  assert.deepEqual(st.hiddenTools, ['velib', 'paris']);
+  assert.deepEqual(st.hiddenTools, ['velib']);
   assert.equal(st.mapTools.at(-1), 'locate'); // le bouton position passe en bas
   st.hiddenTools = []; saveState(old, st); // l'utilisatrice les réaffiche : ça doit tenir
   assert.deepEqual(loadState(old).hiddenTools, []);
@@ -560,4 +561,24 @@ test('sauvegarde : restaurer sur une appli vide garde mes lieux à moi et remet 
   const old = JSON.parse(txt); delete old.settings;
   assert.deepEqual(Object.keys(readSettings(old)).sort(), ['fav', 'rings']);
   assert.equal(readSettings({ app: 'carte-paris', points: [] }), null);
+});
+
+test('boutons de la carte (v124) : Paris à la place de Fontaine, et « Plus » pour Fontaine, Vélib\' et Rentrer', async () => {
+  const { loadState, saveState, layoutV4, cleanMore, cleanSettings } = await import('../js/store.js');
+  const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
+  const fresh = loadState(mem(null));
+  assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t)), ['paris', 'metro', 'sorties', 'planning', 'locate']);
+  assert.deepEqual(fresh.moreTools, ['pratique', 'velib', 'home']);
+  // Mes réglages de la v123 : Paris caché en 5e place, Fontaine en tête
+  const v3 = mem(JSON.stringify({ points: [], layoutV: 3, mapTools: ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], hiddenTools: ['paris', 'velib'] }));
+  const st = loadState(v3);
+  assert.deepEqual(st.mapTools, ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'locate']);
+  assert.deepEqual(st.hiddenTools, ['velib']);
+  assert.deepEqual(st.moreTools, ['pratique', 'home'], 'un bouton caché ne va pas dans Plus');
+  // Mon choix tient ensuite (pas de seconde migration)
+  st.moreTools = ['sorties']; saveState(v3, st);
+  assert.deepEqual(loadState(v3).moreTools, ['sorties']);
+  assert.deepEqual(cleanMore(['x', 'home', 'home', 'velib'], ['velib']), ['home']);
+  assert.deepEqual(layoutV4(['metro', 'paris'], []).mapTools.slice(0, 2), ['metro', 'paris'], 'sans Fontaine avant Paris, l\'ordre ne change pas');
+  assert.deepEqual(cleanSettings({ hiddenTools: ['home'] }).moreTools, ['pratique', 'velib']);
 });

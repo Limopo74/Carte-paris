@@ -1060,3 +1060,26 @@ a.menu-row .menu-chev { font-size: 20px; }
 .me-line { display: flex; align-items: center; gap: 10px; }
 .me-line > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .me-line .btn { flex: none; width: auto; padding: 0 14px; }
+
+/* « Plus » (⋯) : panneau à côté de la colonne, boutons avec leur nom */
+.more-panel {
+  position: fixed; right: 76px; z-index: 520; display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 190px;
+  background: var(--bg); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
+}
+.more-panel.left { right: auto; left: 76px; }
+.more-panel[hidden] { display: none; }
+.more-item {
+  display: flex; align-items: center; gap: 10px; min-height: var(--h); padding: 0 10px; background: none; border: 0; border-radius: var(--r);
+  color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 16px; text-align: left;
+}
+.more-item:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.more-ico { flex: none; width: 28px; display: inline-flex; justify-content: center; color: var(--ink); }
+.more-ico.txt { font-size: 13px; font-weight: 800; }
+.more-name { flex: 1; }
+.more-count { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--disc); color: var(--bg); font-size: 11.5px; line-height: 20px; text-align: center; }
+/* Réglages → Boutons de la carte : Carte / Plus / Caché sous le nom */
+.tool-row { align-items: flex-start; padding: 10px 0; }
+.tool-row .tool-prev { margin-top: 2px; }
+.tool-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.seg.tool-where { gap: 4px; flex-wrap: nowrap; }
+.seg.tool-where button { flex: 1 1 0; min-height: 44px; padding: 0 4px; font-size: 14px; }

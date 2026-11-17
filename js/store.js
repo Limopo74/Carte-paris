@@ -138,7 +138,7 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [...DEFAULT_HIDDEN], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, showTtb: false, hiddenChips: [], hiddenFilters: [] });
+  const empty = () => ({ points: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], showMarkets: false, showLines: false, showTtb: false, hiddenChips: [], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -160,6 +160,9 @@ export function loadState(storage) {
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
+    // v124 : Paris prend la place de Fontaine et WC ; Fontaine, Vélib' et Rentrer passent dans « Plus » (une seule fois)
+    if (!(obj.layoutV >= 4)) Object.assign(st, layoutV4(st.mapTools, st.hiddenTools));
+    else st.moreTools = cleanMore(obj.moreTools, st.hiddenTools);
     // Avant la v119, seuls les lieux ajoutés étaient comptés : on repart de ce compte, avec l'empreinte actuelle.
     st.backup = cleanBackup(obj.backup) ?? (() => {
       const fresh = st.points.filter((p) => p.created > (lastExport ?? 0));
@@ -176,7 +179,7 @@ export function cleanSettings(o = {}) {
   return {
     rings: normalizeRings(o.rings ?? []), minuteRings: normalizeMinuteRings(o.minuteRings ?? []), ringUnit: o.ringUnit === 'min' ? 'min' : 'm',
     voice: o.voice !== false, fav: cleanFav(o.fav), chipIcons: o.chipIcons === true,
-    mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
+    mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(o.moreTools ?? DEFAULT_MORE, cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
 }
@@ -204,7 +207,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), layoutV: 3, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, hiddenChips: cleanChips(state.hiddenChips), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -345,7 +348,22 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-export const MAP_TOOLS = ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'];
+export const MAP_TOOLS = ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'locate'];
+/** Boutons rangés au départ dans « Plus » (un appui sur ⋯ les montre, avec leur nom). */
+export const DEFAULT_MORE = ['pratique', 'velib', 'home'];
+/** Boutons dans « Plus » : noms connus, sans doublon, jamais un bouton caché. */
+export function cleanMore(list, hidden = []) {
+  return Array.isArray(list) ? MAP_TOOLS.filter((t) => list.includes(t) && !hidden.includes(t)) : [];
+}
+/** Passage à la v124 : Paris prend la place de Fontaine et WC (et se montre), Fontaine, Vélib' et Rentrer vont dans « Plus ». */
+export function layoutV4(tools, hidden) {
+  const t = normalizeTools(tools);
+  const i = t.indexOf('pratique');
+  const j = t.indexOf('paris');
+  if (i >= 0 && j > i) { t.splice(j, 1); t.splice(i, 0, 'paris'); }
+  const h = cleanHidden(hidden).filter((x) => x !== 'paris');
+  return { mapTools: t, hiddenTools: h, moreTools: cleanMore(DEFAULT_MORE, h) };
+}
 
 /** Garde un ordre valide : chaque bouton une fois, ceux qui manquent ajoutés à la fin. */
 export function normalizeTools(list) {
