@@ -4,22 +4,32 @@ import { distanceM } from './geo.js';
 
 const BASE = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/exports/json';
 const iso = (d) => d.toISOString();
+/** « 2026-11-17 » : le jour tel qu'il est écrit dans les créneaux de l'agenda (heure de Paris). */
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** Une ou plusieurs journées : la sortie a un créneau ces jours-là, ou n'en publie aucun (tri ensuite sur le téléphone). */
+const onDays = (days) => `(${days.map((d) => `occurrences like "*${dayKey(d)}T*"`).join(' OR ')} OR occurrences is null)`;
 
-/** Événements en cours ou qui commencent avant la fin de la journée. */
+/** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions ni les créneaux). */
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,date_description,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor,cover_url,cover_credit,cover_alt';
+
+/**
+ * Événements d'aujourd'hui : ceux qui ont un créneau aujourd'hui, ou aucun créneau publié (todayOnly décide ensuite).
+ * Le 17 nov. 2026, 1 500 sorties couvraient la journée par leurs dates, mais 418 seulement avaient un créneau ce jour-là :
+ * le filtre sur les créneaux évite de perdre des sorties au-delà de la limite.
+ */
 export function eventsUrl(now = new Date()) {
   const end = new Date(now); end.setHours(23, 59, 0, 0);
   const u = new URL(BASE);
-  u.search = new URLSearchParams({ where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}"`, limit: '400' }).toString();
+  u.search = new URLSearchParams({ where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}" AND ${onDays([now])}`,
+    select: `${EVENT_FIELDS},occurrences,lead_text`, limit: '1000' }).toString();
   return u.toString();
-}
-
-/** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions). */
-export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor,cover_url,cover_credit,cover_alt'; // sans « occurrences » : trop lourd pour la semaine
+} // sans « occurrences » : trop lourd pour la semaine
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
 export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
   const u = new URL(BASE);
-  const q = { where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}"`, limit: light ? '3000' : '800' };
+  const list = Array.from({ length: days + 1 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
+  const q = { where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}" AND ${onDays(list)}`, limit: light ? '3000' : '800' };
   if (light) q.select = EVENT_FIELDS;
   u.search = new URLSearchParams(q).toString();
   return u.toString();
@@ -51,19 +61,34 @@ export function parseSlots(text, now = new Date()) {
 }
 /**
  * Les sorties d'aujourd'hui, avec leur vrai créneau : en cours ou plus tard dans la journée.
- * Une sortie sans créneaux (« occurrences » vide) garde ses dates de début et de fin.
+ * Une sortie sans créneau publié (« occurrences » vide) n'a pas de jour connu : elle n'est gardée que si
+ * `keepUndated(e)` le permet (une expo, ouverte toute sa période), et jamais dite « aujourd'hui » (whenText).
  */
-export function todayOnly(events, now = new Date()) {
+export function todayOnly(events, now = new Date(), keepUndated = () => false) {
   const end = new Date(now); end.setHours(23, 59, 59, 999);
   const out = [];
   for (const e of events) {
-    if (!e.slots) { out.push(e); continue; }
+    if (!e.slots) { if (keepUndated(e) && (!e.end || e.end >= now)) out.push(e); continue; }
     const slot = e.slots.filter((x) => x.end > now && x.start <= end).sort((a, b) => a.start - b.start)[0];
     if (slot) out.push({ ...e, slotStart: slot.start, slotEnd: slot.end });
   }
   return out;
 }
 
+/**
+ * Les dates officielles de l'agenda (« Le samedi 21 novembre 2026 de 15h00 à 16h30 »), en lignes de texte brut,
+ * 6 au plus (puis « … »). Une ligne qui commence par « de » (l'heure) rejoint la précédente.
+ */
+export function officialDates(html) {
+  if (typeof html !== 'string') return [];
+  const lines = [];
+  for (const raw of html.split(/<br\s*\/?>/i)) {
+    const t = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    if (!t) continue;
+    if (/^de \d/.test(t) && lines.length) lines[lines.length - 1] += ` ${t}`; else lines.push(t);
+  }
+  return lines.length > 6 ? [...lines.slice(0, 6), '…'] : lines;
+}
 const str = (v) => (typeof v === 'string' ? v.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '');
 function where(r) {
   for (const g of [r.lat_lon, r.geo_point_2d, r.geo]) {
@@ -92,6 +117,7 @@ export function parseEvents(json, now = new Date()) {
       url: /^https:\/\//.test(r.url ?? '') ? r.url : '',
       free: price.startsWith('gratuit'),
       lead: str(r.lead_text).slice(0, 200),
+      dates: officialDates(r.date_description),
       tags,
       indoor: r.event_indoor === 1 ? true : r.event_indoor === 0 ? false : null, // rempli par l'organisateur
       // Photo officielle de l'agenda (serveur d'images de la Ville seulement), avec son crédit
@@ -111,13 +137,22 @@ export function nearbyEvents(events, here, maxM = 2000) {
     .filter((e) => { const k = `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
-/** « jusqu'à 22h », « à 20h30 », « toute la journée ». */
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+/**
+ * « à 20h30 », « jusqu'à 22h », « en cours aujourd'hui » : seulement quand le créneau du jour est connu.
+ * Sans créneau connu (aucun publié, ou données de la semaine), jamais « aujourd'hui » : « jusqu'au 22 nov. »,
+ * ou rien. Mieux vaut ne rien dire que dire faux (17 nov. 2026).
+ */
 export function whenText(e, now = new Date()) {
   const hm = (d) => `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`.replace('h00', 'h');
-  const s = e.slotStart ?? e.start; const en = e.slotEnd ?? e.end; // le créneau du jour s'il est connu
-  if (s && s > now) return `à ${hm(s)}`;
-  if (en && en.toDateString() === now.toDateString()) return `jusqu'à ${hm(en)}`;
-  return 'en cours aujourd\'hui';
+  if (e.slotStart) {
+    if (e.slotStart > now) return `à ${hm(e.slotStart)}`;
+    if (e.slotEnd && e.slotEnd.toDateString() === now.toDateString()) return `jusqu'à ${hm(e.slotEnd)}`;
+    return 'en cours aujourd\'hui'; // créneau commencé qui finit après minuit
+  }
+  if (e.start && e.start > now && e.start.toDateString() === now.toDateString()) return `à ${hm(e.start)}`;
+  if (e.end && e.end >= now) return `jusqu'au ${e.end.getDate()} ${MOIS[e.end.getMonth()]}`;
+  return '';
 }
 
 /** Rubrique d'un événement : 'brocante' (brocantes, vide-greniers, puces), 'fete' (fêtes, festivals, bals) ou 'autre'. */

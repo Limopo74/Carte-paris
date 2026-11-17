@@ -29,11 +29,13 @@ const LIEUX = [
   lieu('e', 'Marché Saint-Quentin', 48.8774, 2.3567),
 ];
 const iso = (t) => new Date(t).toISOString();
+// Créneau au format de l'agenda (v140) : heure de Paris écrite telle quelle, avec un faux fuseau
+const wall = (t) => { const d = new Date(t); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00+02:00`; };
 const AGENDA = [
   ['Concert de jazz au square', 48.8800, 2.3360, 'Concerts -> Jazz'], ['Exposition photo : Paris la nuit', 48.8810, 2.3290, 'Expositions -> Photographie'],
   ['Brocante de la rue des Martyrs', 48.8790, 2.3390, 'Brocante'], ['Atelier dessin en famille', 48.8770, 2.3320, 'Enfants'],
   ['Balade commentée Pigalle', 48.8820, 2.3370, 'Balade urbaine'],
-].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3),
+].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3), occurrences: `${wall(now - 3600e3)}_${wall(now + (2 + i) * 3600e3)}`, date_description: 'Le mardi 17 novembre 2026<br />de 14h00 à 18h00<br />',
   address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, cover_url: `https://cdn.paris.fr/qfapv4/2026/11/17/huge-test${i}.jpg`, cover_credit: 'Photo de test', cover_alt: title, qfap_tags: tags, url: 'https://quefaire.paris.fr/' }));
 
 // Monuments : réponse Wikidata simulée (un musée, un immeuble protégé en façade seulement).
@@ -65,6 +67,12 @@ const ECRANS = {
   sauvegarde: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Sauvegarde' }).first().click(); await p.waitForTimeout(300); },
   restaurer: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Restaurer ou importer' }).click(); await p.waitForTimeout(300); },
   aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); },
+  boutons: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Boutons de la carte' }).click(); await p.waitForTimeout(300); },
+  nombouton: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.tool-rename').nth(1).click(); await p.waitForTimeout(300); },
+  nomscarte: async (p) => { // v139 : « Noms à côté des boutons » allumé, avec un nom choisi
+    await p.evaluate(() => { const k = 'carte-paris.v1'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.toolLabels = true; o.toolNames = { home: 'Chez moi', pratique: 'Eau et toilettes' }; o.moreTools = ['velib']; localStorage.setItem(k, JSON.stringify(o)); });
+    await p.goto(URL_APPLI); await p.waitForTimeout(700);
+  },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');

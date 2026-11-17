@@ -2,7 +2,7 @@
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
-import { cleanMore, DEFAULT_MORE,
+import { cleanMore, DEFAULT_MORE, cleanToolName, TOOL_NAME_MAX,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners,
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (138)';
+const VERSION = '17 novembre 2026 (140)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1914,7 +1914,8 @@ function setLocateBtn() {
   const b = document.getElementById('btnLocate');
   b.setAttribute('aria-pressed', String(following));
   b.classList.toggle('paused', following && !trackFollow);
-  b.setAttribute('aria-label', !following ? 'Afficher ma position et ma direction' : trackFollow ? 'Arrêter ma position et ma direction' : 'Recentrer sur ma position');
+  const say = !following ? 'Afficher ma position et ma direction' : trackFollow ? 'Arrêter ma position et ma direction' : 'Recentrer sur ma position';
+  b.setAttribute('aria-label', state.toolNames?.locate || state.toolLabels ? `${toolName('locate')} : ${say}` : say);
 }
 function startFollow() {
   track('Ma position et direction');
@@ -2740,12 +2741,12 @@ function evPhoto(e, cls = '') {
   return fig;
 }
 
-/** Quand, en une ligne : « À 20h », « Finit dimanche 22 nov. », « Dès samedi 21 nov. »… */
+/** Quand, en une ligne : « À 20h », « Finit dimanche 22 nov. », « Dès samedi 21 nov. »… Jamais « aujourd'hui » sans créneau connu (whenText). */
 function eventWhen(e, now = new Date()) {
   if (e.start && e.start > now && e.start.toDateString() !== now.toDateString()) return weekText(e, now);
   if (isExpo(e) && e.end) return endText(e.end, now);
   const w = whenText(e, now);
-  return w === 'en cours aujourd\'hui' ? 'En cours aujourd\'hui' : w.replace(/^à/, 'À').replace(/^j/, 'J');
+  return w === 'en cours aujourd\'hui' ? 'En cours' : w.replace(/^à/, 'À').replace(/^j/, 'J');
 }
 
 /** La page d'une sortie de l'agenda : photo officielle, quand, où, résumé, et les mêmes actions qu'un lieu. */
@@ -2757,6 +2758,7 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
   openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
     evPhoto(e),
     el('p', { class: 'summary' }, [label || GENRE_NAME[genre], eventWhen(e), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    e.dates?.length ? el('div', { class: 'ev-dates' }, el('p', { class: 'legend' }, 'Dates de l\'agenda'), ...e.dates.map((t) => el('p', {}, t))) : null,
     e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
     e.lead ? el('p', { class: 'help' }, e.lead) : null,
     e.free ? el('p', {}, freeTag()) : null,
@@ -2938,7 +2940,7 @@ async function openEvents(start = null) {
   const mode = eventsMode;
   const back = openEvents;
   const whereOn = (mode === 'all' || mode === 'free') ? evWhere : '';
-  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? []), o, 3000).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
+  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? [], new Date(), isExpo), o, 3000).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
   const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -3016,7 +3018,7 @@ async function openEvents(start = null) {
         entry('landmark', 'Grands lieux', `${ART_PLACES.length} musées, fondations, salles de concert`, () => openArtPlaces()),
         entry('calendar-days', 'Expos de la semaine', 'Par arrondissement, celles qui ferment d\'abord', () => openWeekExpos())),
       ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'Toutes les expos qui ferment'),
-      ...section('expos', 'Expos aujourd\'hui', expos.map((e) => eventRow(e, back)), 'Toutes les expos'),
+      ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'Toutes les expos'),
       galBox,
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les galeries privées n\'y sont souvent pas : regarde les galeries.') : null,
     ];
@@ -3025,7 +3027,8 @@ async function openEvents(start = null) {
     // En ce moment / plus tard aujourd'hui, chacun du plus proche au plus loin ; un marché déjà fini n'apparaît plus.
     const items = [
       ...mkAll.map((m) => ({ m, d: m.d, when: marketWhen(m).when })),
-      ...all.filter((e) => !lastIds.has(e)).map((e) => ({ e, d: e.d, when: startsLater(e) ? 'later' : 'now' })),
+      // « En ce moment » et « Plus tard » : seulement un créneau connu aujourd'hui (une expo sans créneau reste dans Expos)
+      ...all.filter((e) => !lastIds.has(e) && e.slotStart).map((e) => ({ e, d: e.d, when: startsLater(e) ? 'later' : 'now' })),
     ].filter((x) => x.when !== 'done').sort((x, y) => x.d - y.d);
     const now = items.filter((x) => x.when === 'now');
     const later = items.filter((x) => x.when === 'later').slice(0, 15);
@@ -3458,7 +3461,7 @@ async function drawMarkets() {
   if (!(markets ?? []).some((x) => !x.covered)) toast('Les marchés découverts de la Ville de Paris ne répondent pas pour le moment.', true);
   // Dans la rue : brocantes, fêtes, expos en plein air, marchés éphémères de l'agenda du jour
   let ev = [];
-  try { ev = todayOnly(await todayEvents()); } catch { return; }
+  try { ev = todayOnly(await todayEvents(), new Date(), (e) => isExpo(e) || streetKind(e) === 'marche'); } catch { return; } // sans créneau publié : seulement une expo ou un marché éphémère, ouverts toute leur période
   if (!state.showMarkets) return;
   const now = new Date();
   const seen = new Set();
@@ -4176,7 +4179,13 @@ function openSettings(section = null) {
         ['right', 'left'].map((side) => el('button', { type: 'button', 'aria-pressed': String((state.toolsSide ?? 'right') === side), onclick: () => {
           state.toolsSide = side; persist(); applyToolOrder(); openSettings('outils'); toast(side === 'left' ? 'Boutons à gauche' : 'Boutons à droite');
         } }, side === 'left' ? '← À gauche' : 'À droite →')))),
-      el('p', { class: 'help' }, 'Pour chaque bouton : « Carte » le met dans la colonne, « Plus » le range sous le bouton ⋯ (avec son nom, à un appui), « Caché » l\'enlève. ↑ ↓ règlent l\'ordre, de haut en bas, dans la colonne comme dans Plus. Le dernier de la colonne est le plus près de ton pouce.'),
+      el('p', { class: 'help' }, 'Touche le nom d\'un bouton pour le changer. Pour chaque bouton : « Carte » le met dans la colonne, « Plus » le range sous le bouton ⋯ (avec son nom, à un appui), « Caché » l\'enlève. ↑ ↓ règlent l\'ordre, de haut en bas, dans la colonne comme dans Plus. Le dernier de la colonne est le plus près de ton pouce.'),
+      el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.toolLabels === true), onclick: () => {
+        state.toolLabels = state.toolLabels !== true; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils');
+        toast(state.toolLabels ? 'Noms affichés à côté des boutons' : 'Noms cachés : icônes seules');
+      } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('tags')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Noms à côté des boutons'), el('span', { class: 'menu-sub' }, 'Écrits sur la carte, à côté de chaque bouton de la colonne')),
+        el('span', { class: `switch${state.toolLabels === true ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
       el('p', { class: 'summary' }, (() => { const h = cleanHidden(state.hiddenTools); const m = moreList(); const n = list.filter((t) => !h.includes(t) && !m.includes(t)).length; return `Sur la carte : ${plural(n, 'bouton', 'boutons')}${m.length ? ` + ⋯ (${m.length} dans Plus)` : ''}`; })()),
       el('div', {}, list.map((t, i) => {
         const info = TOOL_INFO[t];
@@ -4191,21 +4200,55 @@ function openSettings(section = null) {
           if (to === 'more') m.add(t);
           state.hiddenTools = [...h]; state.moreTools = [...m]; persist(); applyToolOrder(); openSettings('outils');
           requestAnimationFrame(() => document.querySelector(`[data-put="${t}:${to}"]`)?.focus());
-          toast(`${info.short} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'caché'}`);
+          toast(`${toolName(t)} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'caché'}`);
         };
         return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
           el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
           el('div', { class: 'tool-main' },
-            el('span', { class: 'cat-name' }, info.name),
-            el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place du bouton ${info.short}` },
+            el('button', { type: 'button', class: 'tool-rename', onclick: () => openSettings(`nom:${t}`), 'aria-label': `Renommer ${toolName(t)}` },
+              el('span', { class: 'cat-name' }, toolName(t)), ico('pencil'),
+              el('span', { class: 'menu-sub' }, state.toolNames?.[t] ? `${info.name} · nom d'origine : ${info.short}` : info.name)),
+            el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place du bouton ${toolName(t)}` },
               [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Caché']].map(([k, label]) =>
                 el('button', { type: 'button', 'aria-pressed': String(where === k), 'data-put': `${t}:${k}`, onclick: () => { if (where !== k) put(k); } }, label)))),
-          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${info.name}` }, '↑'),
-          el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${info.name}` }, '↓'));
+          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${toolName(t)}` }, '↑'),
+          el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${toolName(t)}` }, '↓'));
       })),
-      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; persist(); applyToolOrder(); openSettings('outils'); toast('Boutons d\'origine remis'); } }, 'Tout remettre comme au début'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris'); } }, 'Tout remettre comme au début'),
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
+    return;
+  }
+
+  if (typeof section === 'string' && section.startsWith('nom:')) {
+    const t = section.slice(4);
+    const info = TOOL_INFO[t];
+    if (!info) { openSettings('outils'); return; }
+    const custom = state.toolNames?.[t] ?? '';
+    const input = el('input', { type: 'text', maxlength: String(TOOL_NAME_MAX), value: custom || info.short, autocomplete: 'off', enterkeyhint: 'done', 'aria-describedby': 'toolNameHelp' });
+    const count = el('p', { class: 'help', id: 'toolNameHelp', 'aria-live': 'polite' });
+    const showCount = () => { count.textContent = `${[...input.value].length} sur ${TOOL_NAME_MAX} caractères. Nom d'origine : ${info.short}. Laisse vide pour le remettre.`; };
+    input.addEventListener('input', showCount); showCount();
+    const done = (names, msg) => { state.toolNames = names; persist(); applyToolOrder(); setLocateBtn(); toast(msg); openSettings('outils'); };
+    const reset = () => { const names = { ...(state.toolNames ?? {}) }; delete names[t]; done(names, `Nom d'origine remis : ${info.short}`); };
+    const save = () => {
+      const v = cleanToolName(input.value);
+      if (!v || v === info.short) { reset(); return; }
+      done({ ...(state.toolNames ?? {}), [t]: v }, `Bouton renommé : ${v}`);
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    openSheet([ico('pencil'), ' Nom du bouton'], el('div', { class: 'stack' },
+      el('div', { class: 'cat-row' }, el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
+        el('span', { class: 'cat-name' }, info.name)),
+      el('label', { class: 'field' }, 'Nom', input),
+      count,
+      custom ? el('button', { type: 'button', class: 'btn', onclick: reset }, ico('rotate-ccw'), `Remettre « ${info.short} »`) : null,
+      el('p', { class: 'help' }, 'Ce nom se voit dans le panneau ⋯ Plus, dans cette page et à côté du bouton si « Noms à côté des boutons » est allumé ; TalkBack le lit. L\'aide de l\'appli garde les noms d\'origine.'),
+      foot(el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn', onclick: () => openSettings('outils') }, 'Annuler'),
+        el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
+    ), { tall: true, name: `settings:nom:${t}`, again: () => openSettings(`nom:${t}`) });
+    requestAnimationFrame(() => { input.focus(); input.select(); });
     return;
   }
 
@@ -4423,7 +4466,7 @@ function openSettings(section = null) {
     voiceSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('list-filter', 'Barre du haut', (state.hiddenChips ?? []).length ? `${plural(state.hiddenChips.length, 'bouton masqué', 'boutons masqués')}` : 'Tous les boutons affichés', () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
@@ -4957,6 +5000,8 @@ const TOOL_INFO = {
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
+/** Nom d'un bouton de la carte : celui que j'ai choisi (Réglages → Boutons de la carte), sinon le nom d'origine. */
+const toolName = (t) => state.toolNames?.[t] || TOOL_INFO[t].short;
 /* « Plus » (⋯) : les boutons rangés là par Réglages → Boutons de la carte, avec leur nom, à un appui. Rien ne bouge tout seul. */
 const btnMore = el('button', { type: 'button', id: 'btnMore', class: 'map-btn c-guide', 'aria-label': 'Plus de boutons', 'aria-expanded': 'false', 'aria-controls': 'morePanel', onclick: () => (morePanel.hidden ? openMore() : closeMore()) },
   ico('ellipsis', { size: 24 }), el('span', { class: 'map-count', hidden: true }));
@@ -4969,7 +5014,7 @@ function openMore() {
     const extra = t === 'planning' ? document.querySelector('#btnPlanning .map-count:not([hidden])')?.textContent : '';
     return el('button', { type: 'button', class: 'more-item', onclick: () => { closeMore(); document.getElementById(info.el).click(); } },
       el('span', { class: `more-ico${t === 'paris' || t === 'metro' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
-      el('span', { class: 'more-name' }, info.short), extra ? el('span', { class: 'more-count' }, extra) : null);
+      el('span', { class: 'more-name' }, toolName(t)), extra ? el('span', { class: 'more-count' }, extra) : null);
   }));
   const r = btnMore.getBoundingClientRect();
   morePanel.style.bottom = `${Math.max(8, innerHeight - r.bottom)}px`;
@@ -4986,21 +5031,37 @@ function closeMore() {
 document.addEventListener('pointerdown', (e) => { if (!morePanel.hidden && !morePanel.contains(e.target) && !btnMore.contains(e.target)) closeMore(); }, true);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !morePanel.hidden) { closeMore(); btnMore.focus(); } });
 map.on('movestart', closeMore);
+/** Nom écrit à côté d'un bouton de la colonne (visible seulement avec « Noms à côté des boutons »). */
+function toolLabel(b, text) {
+  let lab = b.querySelector('.map-label');
+  if (!lab) { lab = el('span', { class: 'map-label', 'aria-hidden': 'true' }); b.append(lab); }
+  lab.textContent = text;
+}
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
   box.classList.toggle('left', state.toolsSide === 'left');
   const hidden = cleanHidden(state.hiddenTools);
   const more = moreList();
   const order = normalizeTools(state.mapTools);
+  box.classList.toggle('labels', state.toolLabels === true);
   for (const t of order) {
     const b = document.getElementById(TOOL_INFO[t].el);
     b.hidden = hidden.includes(t) || more.includes(t);
+    toolLabel(b, toolName(t));
+    if (t !== 'locate') { // « Ma position » change de description selon son état (setLocateBtn)
+      b.dataset.aria ??= b.getAttribute('aria-label') ?? '';
+      b.setAttribute('aria-label', state.toolNames?.[t] || state.toolLabels ? `${toolName(t)} : ${b.dataset.aria}` : b.dataset.aria);
+    }
     box.append(b);
   }
+  toolLabel(btnMore, 'Plus');
   // ⋯ juste au-dessus de « Ma position » quand elle est en bas de la colonne, sinon en dernier
   const shown = order.filter((t) => !hidden.includes(t) && !more.includes(t));
   if (shown.at(-1) === 'locate') box.insertBefore(btnMore, document.getElementById('btnLocate')); else box.append(btnMore);
   btnMore.hidden = !more.length;
+  // le dernier bouton de la colonne touche le bandeau « Maintenant » : son nom écrit le cacherait
+  for (const b of box.children) b.classList.remove('col-last');
+  [...box.children].filter((b) => !b.hidden).at(-1)?.classList.add('col-last');
   closeMore();
   updatePlanningCount();
 }
@@ -5039,6 +5100,8 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
+    '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
     '{settings} Rangement des styles de l\'appli (30 règles écrites deux fois, regroupées) : rien ne change à l\'écran, c\'est vérifié élément par élément sur les 24 écrans, en clair et en sombre.',
     '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
     '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
@@ -5047,8 +5110,6 @@ const HELP = [
     '{image} Sorties : la photo officielle de la sortie (fournie par l\'organisateur à l\'agenda de la Ville, avec son crédit) dans la plaque du haut et dans la page d\'une sortie. Toucher une sortie ouvre maintenant cette page : quand, où, Y aller, Boussole, Métro, Ajouter, et le lien vers Que faire à Paris.',
     '{map} Sorties : « Autre quartier » ferme la page et met une croix au centre de la carte ; déplace la carte, touche le bandeau, et les distances partent de la croix. « Ma position » les fait partir de toi (la position n\'est demandée qu\'à cet appui). Dans « Voir sur la carte », un carré noir marque le point de départ.',
     '{search} La loupe trouve aussi les grands lieux (« orsay », « cartier »…) : un appui ouvre leurs rendez-vous et leur programme officiel.',
-    '{umbrella} Sorties, onglets Tout et Gratuit : filtres « Dehors » et « À l\'abri ». C\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville ; un marché couvert compte à l\'abri, un marché découvert dehors.',
-    '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -5056,7 +5117,7 @@ const HELP = [
     'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TTB (les adresses d\'un guide de bonnes tables, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
-    'À droite, au départ : Paris, M, Sorties, Mon planning, {ellipsis} Plus et Ma position. {ellipsis} Plus ouvre, avec leur nom, les boutons rangés là (au départ Fontaine et WC, Vélib\' et Rentrer) ; un appui lance la fonction. Pour chaque bouton, choisis « Carte », « Plus » ou « Caché », et l\'ordre : {settings} → Ce qui s\'affiche → Boutons de la carte. Si Mon planning est dans Plus, son chiffre passe sur {ellipsis}.',
+    'À droite, au départ : Paris, M, Sorties, Mon planning, {ellipsis} Plus et Ma position. {ellipsis} Plus ouvre, avec leur nom, les boutons rangés là (au départ Fontaine et WC, Vélib\' et Rentrer) ; un appui lance la fonction. Pour chaque bouton, choisis « Carte », « Plus » ou « Caché », et l\'ordre : {settings} → Ce qui s\'affiche → Boutons de la carte. Si Mon planning est dans Plus, son chiffre passe sur {ellipsis}. Dans la même page, touche le nom d\'un bouton ({pencil}) pour le changer, et allume « Noms à côté des boutons » pour les lire sur la carte.',
     '{droplets} la fontaine à boire, les toilettes (de la Ville et des gares RATP : chacune dit s\'il faut un ticket) et un lieu frais (ombre, musée, bibliothèque) les plus proches ; chacun dit s\'il est ouvert, et un lieu fermé passe en dernier. Eau pétillante et brumisateurs sont signalés.',
     'M la station de métro la plus proche. Appui long sur M : afficher ou cacher les lignes de métro et RER ; en zoomant, chaque station montre le numéro de ses lignes, puis son nom (tracés 2022 : les prolongements 2024 des lignes 11 et 14 n\'y sont pas encore).',
     '{locate-fixed} le gros bouton du bas : ta position et ta direction (le cône bleu). Ils restent affichés et la carte te suit tant que tu ne rappuies pas. Écran allumé, vibration à 100 m d\'un de tes lieux.',

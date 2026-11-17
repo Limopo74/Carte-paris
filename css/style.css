@@ -1081,4 +1081,23 @@ a.menu-row .menu-chev { font-size: 20px; }
 .tool-row .tool-prev { margin-top: 2px; }
 .tool-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .seg.tool-where { gap: 4px; flex-wrap: nowrap; }
+/* v140 : dates officielles de l'agenda sur la page d'une sortie */
+.ev-dates { display: flex; flex-direction: column; gap: 2px; }
+.ev-dates p { margin: 0; font-size: 14px; color: var(--ink); }
+/* v139 : le nom d'un bouton se touche pour le changer (crayon) */
+.tool-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: var(--h-s); padding: 0; background: none; border: 0; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.tool-rename .cat-name { flex: 0 1 auto; }
+.tool-rename .ico { color: var(--info); }
+.tool-rename .menu-sub { flex-basis: 100%; }
+.tool-rename:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* v139 : « Noms à côté des boutons » : une étiquette à côté de chaque bouton de la colonne, sans le déplacer */
+.map-label { display: none; }
+.map-tools.labels .map-label {
+  display: block; position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  padding: 4px 8px; background: var(--bg); color: var(--ink); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
+  font-family: var(--display); font-weight: 700; font-size: 13px; line-height: 1.2; letter-spacing: 0;
+}
+.map-tools.left.labels .map-label { right: auto; left: calc(100% + 8px); }
+body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { display: none; }
+.map-btn[aria-pressed="true"] .map-label { background: var(--bg); color: var(--ink); }
 .seg.tool-where button { flex: 1 1 0; min-height: 44px; padding: 0 4px; font-size: 14px; }

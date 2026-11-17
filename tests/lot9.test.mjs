@@ -115,7 +115,7 @@ test('agenda : heure de Paris malgré le faux fuseau, et seulement les créneaux
   ];
   const ev = parseEvents(json, now);
   assert.equal(parseSlots(json[0].occurrences, now).length, 1, 'le vendredi passé (13) est hors de la fenêtre, le 20 y est');
-  const today = todayOnly(ev, now);
+  const today = todayOnly(ev, now, (e) => /^Expo/.test(e.title)); // v140 : sans créneau, seulement ce que l'appelant garde (une expo)
   assert.deepEqual(today.map((e) => e.title), ['Concert', 'Expo sans créneaux'], 'le vélo est le vendredi, l\'atelier du matin est fini');
   assert.equal(whenText(today[0], now), 'à 20h');
   assert.equal(startsLater(today[0], now), true);
