@@ -7,11 +7,18 @@ Usage, depuis la racine du dépôt :
 
 Garde seulement les toilettes ouvertes au public, dans Paris et la petite couronne (même zone que les lignes).
 """
-import json, sys
+import json, re, sys
 
 SRC, TODAY = sys.argv[1], sys.argv[2]
 S, N, W, E = 48.72, 48.96, 2.20, 2.50
 yes = lambda v: str(v or '').strip().lower() == 'oui'
+SMALL = {'de', 'du', 'des', 'la', 'le', 'les', 'et', 'sur', 'sous', 'en', 'aux', 'au'}
+def nice(name):
+    """« CHATELET LES HALLES » → « Chatelet les Halles » (la source mélange majuscules et casse normale)."""
+    name = re.sub(r'\s+', ' ', str(name or '')).strip()
+    if not name.isupper(): return name
+    words = re.split(r'([ \-])', name.lower())
+    return ''.join(w if w in ' -' or (i and w in SMALL) else w[:1].upper() + w[1:] for i, w in enumerate(words))
 items = []
 for f in json.load(open(SRC, encoding='utf8'))['features']:
     p, g = f['properties'], f.get('geometry') or {}
@@ -19,7 +26,7 @@ for f in json.load(open(SRC, encoding='utf8'))['features']:
     lng, lat = g['coordinates'][:2]
     if not (S <= lat <= N and W <= lng <= E): continue
     items.append({
-        'n': str(p.get('station') or '').strip()[:60], 'l': str(p.get('ligne') or '').strip()[:6],
+        'n': nice(p.get('station'))[:60], 'l': str(p.get('ligne') or '').strip()[:6],
         'lat': round(lat, 5), 'lng': round(lng, 5),
         'zone': yes(p.get('en_zone_controlee')),                    # dans la zone payante : il faut un ticket pour y entrer
         'passe': yes(p.get('acces_passe_navigo_ou_ticket_t')),      # la porte s'ouvre avec un passe Navigo ou un ticket

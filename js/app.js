@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (121)';
+const VERSION = '17 novembre 2026 (122)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -427,8 +427,7 @@ function renderChips() {
       toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
     }, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) : null,
     show('ttb', Boolean(state.showTtb)) ? (() => {
-      const b = chip(state.chipIcons ? ttbDot() : [ttbDot(), ' Très Très Bon'], Boolean(state.showTtb), toggleTtb,
-        { class: `ttb-chip${state.chipIcons ? ' icon-only' : ''}`, aria: state.chipIcons ? 'Très Très Bon : adresses du guide (appui long : la liste)' : null });
+      const b = chip(ttbDot(), Boolean(state.showTtb), toggleTtb, { class: 'ttb-chip icon-only', aria: 'TTB : adresses du guide (appui long : la liste)' });
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); openTtbList(); }); // appui long : la liste
       return b;
     })() : null,
@@ -486,7 +485,7 @@ function openFilters() {
     keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (aussi : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
-    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDot(), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
+    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
@@ -533,7 +532,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'Très Très Bon']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -542,7 +541,7 @@ function openFilterChoice(back = openFilters) {
         if (on) hid.add(key); else hid.delete(key);
         state.hiddenFilters = [...hid]; persist(); openFilterChoice(back);
       } },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, key === 'ttb' ? ttbDot() : ico(icon)),
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, key === 'ttb' ? ttbDotFor('') : ico(icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
@@ -1256,7 +1255,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       row('ticket', 'Mon billet', p.ticket ? `Billet ${ticketText(p.ticket.at)}` : 'Jour et heure de ta visite', () => openTicket(p, back)),
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
-      ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'Très Très Bon', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
+      ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
       el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -1788,14 +1787,14 @@ function renderNear(fit = false) {
   if (state.showTtb && ttbList().length) {
     // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min, puis toute la liste
     const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(15)).sort((a, b) => a.d - b.d);
-    body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'Très Très Bon à moins de 15 min'), el('span', {}, String(ttbNear.length))));
+    body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'TTB à moins de 15 min'), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
         ttbDotFor(x.rub),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
-    body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDot(), 'Liste Très Très Bon'));
+    body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
   }
   body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'margin-top:8px;width:100%', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris : arrondissements explorés'));
 
@@ -2646,7 +2645,7 @@ function loadGalleries(force = false) {
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
 const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette' };
-const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'Très Très Bon' };
+const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /** Une carte de sortie. `feat` : la grande plaque en tête (la seule plaque pleine de l'écran). */
 function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], buttons = [], feat = false, kicker = '', badge = null }) {
@@ -3290,7 +3289,7 @@ function openNavigo(x, back = null) {
   ), { name: `navigo:${x.lat},${x.lng}`, again });
 }
 
-/* ---------- Très Très Bon : adresses du guide, importées par moi et gardées sur le téléphone ----------
+/* ---------- TTB : adresses du guide, importées par moi et gardées sur le téléphone ----------
    Rien dans le dépôt, rien envoyé : le fichier est lu et trié ici. Seules les infos pratiques sont gardées. */
 
 const ttbLayer = L.layerGroup().addTo(map);
@@ -3302,9 +3301,9 @@ function ttbList() {
 const ttbRubs = new Set(); // filtres de la liste et de la carte (le temps de la session)
 const ttbBudgets = new Set();
 const ttbShown = () => ttbList().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
-/** La marque Très Très Bon, la même sur la carte, en haut et dans les listes : un rond terre cuite marqué « TB ».
- * Pour changer la marque, ne modifier que TTB_MARK (texte court, 2 lettres au plus pour tenir dans le rond). */
-const TTB_MARK = 'TB';
+/** Le bouton du haut : un rond terre cuite marqué « TTB » (ailleurs, le rond porte l'icône de la rubrique).
+ * Pour changer la marque, ne modifier que TTB_MARK (3 lettres au plus pour tenir dans le rond). */
+const TTB_MARK = 'TTB';
 const ttbDot = () => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, el('b', {}, TTB_MARK));
 /** Le rond d'une adresse ou d'une rubrique : l'icône de sa rubrique (couverts, bol, sandwich, croissant, panier, verre). */
 const ttbDotFor = (rub) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico(ttbIcon(rub), { size: 15, stroke: 2.4 }));
@@ -3321,7 +3320,7 @@ function drawTtb() {
   for (const x of ttbShown()) {
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
-      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, Très Très Bon${x.rub ? `, ${x.rub}` : ''}`))
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, TTB${x.rub ? `, ${x.rub}` : ''}`))
       .on('click', () => { if (!moving) openTtbPlace(x); })
       .addTo(ttbLayer);
   }
@@ -3329,7 +3328,7 @@ function drawTtb() {
 function toggleTtb() {
   if (!ttbList().length) { openTtb(); return; }
   state.showTtb = !state.showTtb; persist(); drawTtb(); refresh();
-  toast(state.showTtb ? `Très Très Bon : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte. Appui long : la liste.` : 'Très Très Bon : masqué');
+  toast(state.showTtb ? `TTB : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte. Appui long : la liste.` : 'TTB : masqué');
 }
 
 /** Liste des adresses, de la plus proche à la plus loin (ma position récente, sinon le centre de la carte : pas de GPS demandé). */
@@ -3341,21 +3340,21 @@ function openTtbList(back = null, limit = 30) {
   const all = ttbShown().map((x) => ({ ...x, d: distanceM(from, x) })).sort((a, b) => a.d - b.d);
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
   const flip = (set, v) => { if (set.has(v)) set.delete(v); else set.add(v); drawTtb(); openTtbList(back, 30); };
-  openSheet([ttbDot(), ' Très Très Bon'], el('div', { class: 'stack' },
+  openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
     el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDot()),
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDotFor('')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite, icône selon la rubrique, avec ces filtres')),
       el('span', { class: `switch${state.showTtb ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Rubriques' }, TTB_RUBS.map((r) => chip([ttbDotFor(r), ` ${r}`], ttbRubs.has(r), () => flip(ttbRubs, r)))),
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Budget' }, [1, 2, 3, 4].map((b) => chip(el('span', { 'aria-label': `Budget ${b} sur 4` }, '€'.repeat(b)), ttbBudgets.has(b), () => flip(ttbBudgets, b)))),
-    all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, named('Très Très Bon', again)),
+    all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, named('TTB', again)),
       sub: [ttbKicker(x), ttbToday(x) ? `aujourd'hui ${ttbToday(x)}` : ''], d: x.d,
-      buttons: [compassBtn(x), metroBtn(x, named('Très Très Bon', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
+      buttons: [compassBtn(x), metroBtn(x, named('TTB', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
       : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
     all.length > limit ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(back, limit + 30) }, ico('plus'), `Voir ${Math.min(30, all.length - limit)} de plus`) : null,
-    el('p', { class: 'help' }, `Liste du guide Très Très Bon${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone. Horaires selon le guide : vérifie avant d'y aller.`),
-    foot(back ? backBtn(back) : null, el('button', { type: 'button', class: 'btn c-info', onclick: () => openTtb(named('Très Très Bon', again)) }, ico('refresh-cw'), 'Mettre à jour')),
+    el('p', { class: 'help' }, `Liste du guide TTB${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone. Horaires selon le guide : vérifie avant d'y aller.`),
+    foot(back ? backBtn(back) : null, el('button', { type: 'button', class: 'btn c-info', onclick: () => openTtb(named('TTB', again)) }, ico('refresh-cw'), 'Mettre à jour')),
   ), { name: 'ttb-list', again, tall: true });
 }
 
@@ -3363,7 +3362,7 @@ function openTtbList(back = null, limit = 30) {
 function ttbAdd(x) {
   const mine = navigoFor(x, state.points);
   if (mine) { openDetail(mine.id); toast('Déjà dans tes lieux'); return; }
-  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `Très Très Bon : ${ttbKicker(x)}` });
+  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}` });
 }
 
 function openTtbPlace(x, back = null) {
@@ -3372,7 +3371,7 @@ function openTtbPlace(x, back = null) {
   const metro = stationFacts(x);
   const mine = navigoFor(x, state.points);
   const today = ttbToday(x);
-  const kick = `Très Très Bon · ${x.arr}${x.arr === 1 ? 'er' : 'e'}`;
+  const kick = `TTB · ${x.arr}${x.arr === 1 ? 'er' : 'e'}`;
   const insta = /instagram\.com/i.test(x.url), fb = /facebook\.com/i.test(x.url);
   openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), el('span', { class: 'fiche-name' }, x.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
     el('p', { class: 'summary' }, [ttbKicker(x), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
@@ -3381,7 +3380,7 @@ function openTtbPlace(x, back = null) {
       el('div', {},
         el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
         today ? el('div', { class: 'fiche-v' }, today.charAt(0).toUpperCase() + today.slice(1)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
-        el('div', { class: 'fiche-s' }, 'selon Très Très Bon')),
+        el('div', { class: 'fiche-s' }, 'selon TTB')),
       el('div', {},
         el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
         metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
@@ -3394,24 +3393,23 @@ function openTtbPlace(x, back = null) {
         : el('button', { type: 'button', class: 'btn c-add', onclick: () => ttbAdd(x) }, ico('plus'), 'Ajouter')),
     x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico(insta ? 'camera' : 'info'), insta ? 'Instagram du lieu' : fb ? 'Page Facebook du lieu' : 'Site du lieu') : null,
     el('a', { class: 'btn c-guide', href: reviewsUrl(x), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
-    x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon Très Très Bon') : null,
+    x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon TTB') : null,
     x.hours.length ? el('div', { class: 'fiche-lines' }, x.hours.map((h, i) => el('p', {}, el('b', {}, `${TTB_DAYS[i]} `), h))) : null,
-    el('p', { class: 'help' }, `Adresse du guide Très Très Bon${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}. Les horaires viennent du guide et peuvent avoir changé : vérifie avant d'y aller.`),
-    el('a', { class: 'btn', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('book-open-text'), 'Lire le guide sur trestresbon.fr'),
+    el('p', { class: 'help' }, `Adresse du guide TTB${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}. Les horaires viennent du guide et peuvent avoir changé : vérifie avant d'y aller.`),
     back ? backBtn(back) : null,
   ), { name: `ttb:${x.lat},${x.lng}`, again });
   if (!back) centerOn(x.lat, x.lng, Math.max(map.getZoom(), 16));
 }
 
-/** Réglages → Très Très Bon : importer ou mettre à jour la liste, la retirer. */
+/** Réglages → TTB : importer ou mettre à jour la liste, la retirer. */
 function openTtb(back = named('Réglages', () => openSettings()), confirm = false) {
   const n = ttbList().length;
   const again = () => openTtb(back, confirm);
   const input = el('input', { type: 'file', hidden: true }); // pas de filtre : Android ne reconnaît pas toujours le type .mhtml
   input.addEventListener('change', () => { const f = input.files?.[0]; input.value = ''; if (f) importTtbFile(f, back); });
-  openSheet([ttbDot(), ' Très Très Bon'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide Très Très Bon, sur ta carte.'),
-    n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('Très Très Bon', again)) }, ico('list'), 'Voir la liste') : null,
+  openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide TTB, sur ta carte.'),
+    n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('TTB', again)) }, ico('list'), 'Voir la liste') : null,
     el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
     el('ol', { class: 'steps' },
       el('li', {}, 'Ouvre la page Adresses du guide dans Chrome, en mode liste (bouton ci-dessous).'),
@@ -3420,13 +3418,13 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
     el('a', { class: 'btn c-guide', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Ouvrir la page Adresses'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => input.click() }, ico('download'), 'Choisir le fichier'),
     input,
-    el('p', { class: 'help' }, 'Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone : elle n\'est pas dans ta sauvegarde et rien n\'est envoyé.'),
+    el('p', { class: 'help' }, 'Source : le guide Très Très Bon (trestresbon.fr). Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone : elle n\'est pas dans ta sauvegarde et rien n\'est envoyé.'),
     n ? (confirm
-      ? el('div', { class: 'stack' }, el('p', { class: 'warn', role: 'alert' }, `Retirer les ${n} adresses Très Très Bon ? Tes lieux ne sont pas touchés.`),
+      ? el('div', { class: 'stack' }, el('p', { class: 'warn', role: 'alert' }, `Retirer les ${n} adresses TTB ? Tes lieux ne sont pas touchés.`),
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openTtb(back) }, 'Annuler'),
           el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
             try { storage.removeItem(TTB_KEY); } catch { /* rien */ }
-            ttbData = null; state.showTtb = false; persist(); drawTtb(); refresh(); openTtb(back); toast('Liste Très Très Bon retirée');
+            ttbData = null; state.showTtb = false; persist(); drawTtb(); refresh(); openTtb(back); toast('Liste TTB retirée');
           } }, 'Oui, retirer')))
       : el('button', { type: 'button', class: 'btn danger', onclick: () => openTtb(back, true) }, ico('trash-2'), 'Retirer la liste')) : null,
     foot(backBtn(back)),
@@ -3444,7 +3442,7 @@ async function importTtbFile(file, back) {
       if (html) res = { items: cleanAll(ttbRawFromDoc(new DOMParser().parseFromString(html, 'text/html'))), date: mhtmlDate(text) || dayKey(new Date()) };
     }
   } catch { res = null; }
-  if (!res?.items.length) { toast('Ce fichier ne contient pas d\'adresses Très Très Bon. Enregistre la page Adresses en mode liste, puis réessaie.', true); return; }
+  if (!res?.items.length) { toast('Ce fichier ne contient pas d\'adresses TTB. Enregistre la page Adresses en mode liste, puis réessaie.', true); return; }
   const before = ttbList().length;
   try { storage.setItem(TTB_KEY, JSON.stringify(ttbStore(res.items, res.date))); } catch { toast('Le téléphone n\'a pas pu garder la liste (plus de place).', true); return; }
   ttbData = { items: res.items, date: res.date };
@@ -3859,7 +3857,7 @@ function openSettings(section = null) {
       box.dataset.top = key;
       return box;
     };
-    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['ttb', ttbDot(), 'Très Très Bon'], ['lines', ico('lines'), 'Lignes de métro et RER']];
+    const fixed = [['all', ico('list'), 'Tout'], ['filters', ico('list-filter'), 'Filtres'], ['fav', glyph(state.fav.icon, { filled: true }), 'Favoris'], ['street', ico('tent'), 'Dans la rue aujourd\'hui'], ['ttb', ttbDotFor(''), 'TTB'], ['lines', ico('lines'), 'Lignes de métro et RER']];
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
       el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Coche pour afficher, décoche pour masquer : les lieux restent sur la carte. Flèches pour ranger tes catégories, crayon pour le nom, l\'icône et la couleur.'),
       // Réglage de toute la barre : en tête de page, sans faire défiler
@@ -4145,7 +4143,7 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
-    row(ttbDot(), 'Très Très Bon', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
+    row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
       state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
@@ -4731,8 +4729,9 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
-    '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. Très Très Bon : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
-    '{utensils} Très Très Bon : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → Très Très Bon, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton Très Très Bon en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
+    '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
+    '{rotate-cw} Données de l\'appli : lignes et gares, avantages Navigo et toilettes RATP sont refaits seuls chaque 1er du mois par un robot GitHub, qui ne publie que si tout est correct. Bouton « Lancer le robot maintenant » dans Réglages → Application → Données de l\'appli. Sur la carte, une pastille {calendar-clock} signale les lieux où une sortie est prévue dans les 7 jours. TTB : chaque rond porte l\'icône de sa rubrique ({utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave) ; le bouton du haut porte TTB. Le nom du guide est abrégé en TTB, la source est citée dans Réglages → TTB. Sauvegarde : restaurée sur une appli vide, elle remet aussi tes réglages, tes lieux restent les tiens (ils devenaient « lieux d\'un proche ») et les photos reviennent (elles ne revenaient pas).',
+    '{utensils} TTB : les adresses du guide sur ta carte, en ronds terre cuite. Pour les mettre : Réglages → TTB, puis enregistre la page Adresses du guide avec Chrome (menu ⋮, flèche Télécharger) et choisis ce fichier. Seules les adresses à Paris sont gardées, sur ce téléphone, sans les textes du guide. Le bouton TTB en haut les affiche ou les cache ; un appui long ouvre la liste, la plus proche en tête, avec un tri par rubrique (La Table, Boui-boui, Street-food, Bec sucré, Le panier, Cave) et par budget. Fiche : horaires selon le guide, métro, site ou Instagram du lieu, Ajouter à mes lieux. Autour de moi montre les 3 plus proches quand le calque est affiché.',
     '{save} Sauvegarde en tête des Réglages, avec son état : « À jour » en vert, ou en orange le nombre de changements non sauvegardés. Tout compte maintenant (note, étoiles, favori, déjà visité, billet, photo, suppression), plus seulement les lieux ajoutés. Le rappel vient à l\'ouverture dès 5 changements ou au bout de 3 jours, au plus une fois par jour, et « Sauvegarder maintenant » enregistre le fichier en un appui, photos comprises. Nouveau : Réglages → Restaurer ou importer ; et si la carte est vide à l\'ouverture (données de Chrome effacées), l\'appli propose tout de suite de restaurer ta sauvegarde.',
     '{refresh-cw} Réseau faible (métro, quai) : si le réseau ne répond pas en 3 secondes, l\'appli s\'ouvre avec la copie gardée sur le téléphone au lieu d\'attendre. Sorties, Monuments, Vélib\', la météo et les autres services affichent leur message d\'erreur au bout de 10 secondes au lieu de rester sur « Chargement… ». Sorties : la boussole et le M restent toujours au même endroit. Fiche d\'un lieu : le billet n\'est plus écrit deux fois (il est dans Pratique → Mon billet). Les tampons (Ouvert, Gratuit…) sont un peu plus grands.',
     '{landmark} Monuments (Autour de moi) : sous chaque monument de Paris, sa protection, son siècle et son type, par exemple « Classé · 17e siècle · église ». « Façade seulement » signale un immeuble dont seul l\'extérieur est protégé : il ne se visite en général pas. « Se visite : Musée Carnavalet » signale un monument qui abrite un musée. Données de la base Mérimée et de la liste des musées de la Région, gardées dans l\'appli : rappel une fois par an dans Données de l\'appli.',
@@ -4740,12 +4739,11 @@ const HELP = [
     '{toilet} Fontaine et toilettes : les toilettes disent si elles sont ouvertes (240 ferment avant 23 h) et celles d\'un parc suivent ses horaires ; une toilette fermée n\'est plus proposée en premier. Les lieux frais (musées, églises, abris) ont aussi leurs horaires. Les fontaines d\'eau pétillante et les brumisateurs sont signalés.',
     '{calendar-days} Sorties à la bonne heure : l\'agenda de la Ville écrit l\'heure de Paris avec un faux fuseau, et l\'appli affichait une heure de trop (deux en été). Et une sortie qui revient chaque semaine (le vendredi, par exemple) n\'apparaît plus que le jour où elle a lieu, avec son vrai créneau.',
     '{database} Réglages → Application → Données de l\'appli : pour chaque donnée gardée dans l\'appli (lignes, Navigo, toilettes RATP, marchés couverts, listes de l\'année), sa date, tous les combien la refaire et quoi envoyer à Claude ; un seul rappel groupé, au plus une fois par semaine. Les données de la Ville rechargées toutes seules ont leur lien opendata.paris.fr. Fiche d\'un lieu : « Avis Google » et « Uber jusqu\'ici » ne sont plus soulignés. Inviter un proche copie maintenant le lien seul. Un lien ouvert ailleurs que dans ton appli installée (navigateur de Messages, Samsung Internet…) est mieux repéré.',
-    '{trees} Horaires des parcs : tes lieux qui sont des parcs, jardins ou squares sans horaires prennent ceux de la Ville de Paris pour la saison en cours (fiche « Aujourd\'hui », filtre Ouvert maintenant, Mon planning, bandeau). Fontaine et toilettes : le lieu frais dit s\'il est ouvert, et un parc fermé passe après un lieu ouvert. La liste des parcs est téléchargée sans ta position, une fois par jour.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
     'Sous la barre : la température et la qualité de l\'air du quartier. Touche-les pour le détail et un conseil.',
-    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TB Très Très Bon (les adresses du guide, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
+    'Puis « Tout », {list-filter} Filtres, {star} favoris, {tent} Dans la rue aujourd\'hui (marchés, brocantes, fêtes, expos en plein air : un appui les montre ou les cache), le rond TTB (les adresses d\'un guide de bonnes tables, voir la rubrique du même nom), {lines} Lignes de métro et RER, et tes catégories. Fais glisser la barre pour toutes les voir. Pour en masquer : {settings} → Ce qui s\'affiche → Barre du haut.',
     'Catégories : touches-en une ou plusieurs ; touche-la encore pour la retirer, « Tout » pour tout revoir (catégories et favoris). Appui long : la modifier.',
     '{star} L\'étoile n\'affiche que tes favoris. Avec une catégorie, tu vois les favoris de cette catégorie seulement.',
     'À droite (ordre et boutons à cacher : {settings} → Ce qui s\'affiche → Boutons de la carte) :',
@@ -4765,7 +4763,7 @@ const HELP = [
     'Tes réglages sont gardés à chaque changement. En bas des {settings} Réglages, « Enregistrer mes réglages par défaut » fixe ta configuration préférée ; « Revenir aux miens » la remet d\'un appui.',
   ]],
   ['list-filter', 'Filtres', [
-    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, Très Très Bon (ils ne cachent aucun de tes lieux).',
+    'Le bouton {list-filter}, juste après « Tout », ouvre deux blocs. « Filtrer mes lieux » : {clock} Ouvert maintenant, {star} Mes mieux notés (4 étoiles et plus), {umbrella} Abrités, tes {list} listes et, si tu as importé les lieux d\'un proche, « Lieux de mes proches » : de qui afficher les lieux. « Ajouter sur la carte » : {lines} Lignes de métro et RER, {tent} Dans la rue aujourd\'hui, TTB (ils ne cachent aucun de tes lieux).',
     'En bas de Filtres (ou {settings} → Ce qui s\'affiche → Filtres affichés), « Choisir les filtres affichés » masque les lignes dont tu ne te sers pas. Une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.',
     'Le chiffre sur le bouton = nombre de filtres actifs. « Effacer les filtres » remet tout.',
     'Ils s\'appliquent à la carte, à la recherche, à Autour de moi et au Temps libre.',
@@ -4805,7 +4803,7 @@ const HELP = [
     '{copy} À côté de l\'adresse : la copier d\'un appui, pour la coller dans un taxi, un message ou une autre appli.',
     '{star} Étoiles : ta note de 1 à 5 ; touche la même étoile pour la retirer.',
     'Sous ton commentaire : Favori et {check} Déjà visité (touche à nouveau pour éteindre). Puis « Aujourd\'hui » (horaires) et le métro le plus proche, côte à côte.',
-    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, Avantage Navigo et Très Très Bon quand le lieu en fait partie, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps ; {car-taxi-front} Uber jusqu\'ici : l\'appli Uber s\'ouvre avec la destination remplie) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
+    'Tout en bas, trois rubriques : Sur ce lieu ({pencil} Modifier, {share-2} Partager, {qr-code} QR code), Pratique ({ticket} Mon billet, Avantage Navigo et TTB quand le lieu en fait partie, {clock} Horaires, {star} Avis Google : la note et les avis du lieu, ouverts dans Google Maps ; {car-taxi-front} Uber jusqu\'ici : l\'appli Uber s\'ouvre avec la destination remplie) et Rangement ({move} Déplacer, {trash-2} Supprimer).',
   ]],
   ['camera', 'Photos', [
     '{camera} Photo dans la fiche ouvre l\'appareil photo (6 photos par lieu).',
@@ -4813,7 +4811,7 @@ const HELP = [
     'Les photos restent sur ton téléphone, sans leur position GPS.',
   ]],
   ['tags', 'Catégories, listes et favoris', [
-    '{settings} → Catégories et listes : toute la barre du haut sur une page. Case cochée = bouton affiché en haut (décoché : masqué, les lieux restent sur la carte). ↑ ↓ pour l\'ordre de tes catégories, {pencil} pour le nom, l\'icône et la couleur. Tout, Filtres, Favoris, Dans la rue, Très Très Bon et Lignes restent toujours en tête.',
+    '{settings} → Catégories et listes : toute la barre du haut sur une page. Case cochée = bouton affiché en haut (décoché : masqué, les lieux restent sur la carte). ↑ ↓ pour l\'ordre de tes catégories, {pencil} pour le nom, l\'icône et la couleur. Tout, Filtres, Favoris, Dans la rue, TTB et Lignes restent toujours en tête.',
     '« Icônes seules en haut » : la barre n\'affiche que les logos.',
     'Une {list} liste regroupe des lieux de catégories différentes (« Sous la pluie », « Avec Paul »). {settings} → Catégories et listes → « Nouvelle liste », puis coche ses lieux d\'un coup ; un appui sur une liste existante pour en ajouter ou en retirer. On peut aussi la choisir depuis Modifier, lieu par lieu.',
     'Favori : bouton dans la fiche ; {settings} → Favoris pour l\'icône et la couleur (un cœur évite la confusion avec les étoiles).',
@@ -4829,13 +4827,13 @@ const HELP = [
     '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {calendar-clock} de la carte (Mon planning).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
-  ['book-open-text', 'Très Très Bon', [
-    'Les adresses du guide trestresbon.fr, à Paris : ronds terre cuite sur la carte, avec l\'icône de la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave (petits ronds sans icône quand tu vois tout Paris).',
-    'Pour les mettre : {settings} → Très Très Bon → « Ouvrir la page Adresses ». Dans Chrome, menu ⋮ → flèche Télécharger : la page est enregistrée dans Téléchargements. Reviens dans l\'appli et « Choisir le fichier ». Même chose pour mettre la liste à jour.',
-    'Le bouton TB en haut affiche ou cache les adresses. Appui long : la liste, la plus proche en tête (depuis ta position récente, sinon le centre de la carte), avec un tri par rubrique et par budget, appliqué aussi à la carte.',
+  ['book-open-text', 'TTB', [
+    'Les adresses d\'un guide de bonnes tables (la source est citée dans {settings} → TTB), à Paris : ronds terre cuite sur la carte, avec l\'icône de la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave (petits ronds sans icône quand tu vois tout Paris).',
+    'Pour les mettre : {settings} → TTB → « Ouvrir la page Adresses ». Dans Chrome, menu ⋮ → flèche Télécharger : la page est enregistrée dans Téléchargements. Reviens dans l\'appli et « Choisir le fichier ». Même chose pour mettre la liste à jour.',
+    'Le bouton TTB en haut affiche ou cache les adresses. Appui long : la liste, la plus proche en tête (depuis ta position récente, sinon le centre de la carte), avec un tri par rubrique et par budget, appliqué aussi à la carte.',
     'Fiche : rubrique, cuisine, budget, horaires selon le guide (ils peuvent avoir changé), station la plus proche, site ou Instagram du lieu, Avis Google, et + Ajouter pour en faire un de tes lieux.',
     'Quand le calque est affiché, Autour de moi montre les 3 adresses les plus proches. Et la fiche d\'un de tes lieux dit s\'il est dans le guide.',
-    'La liste reste sur ce téléphone : rien n\'est envoyé, elle n\'est pas dans ta sauvegarde, et les textes du guide ne sont pas gardés. {trash-2} {settings} → Très Très Bon → Retirer la liste.',
+    'La liste reste sur ce téléphone : rien n\'est envoyé, elle n\'est pas dans ta sauvegarde, et les textes du guide ne sont pas gardés. {trash-2} {settings} → TTB → Retirer la liste.',
   ]],
   ['database', 'Données de l\'appli', [
     'Les données en direct (fontaines, toilettes, lieux frais, agenda, marchés, Vélib\', météo) se rechargent seules.',
@@ -4861,7 +4859,7 @@ const HELP = [
   ['save', 'Sauvegarder (important)', [
     'Tes lieux ne sont que sur ce téléphone. Sauvegarde-les souvent : {settings} → Sauvegarde (en tête des Réglages, en orange s\'il y a des changements) → Sauvegarder maintenant. Un rappel s\'affiche à l\'ouverture dès 5 changements, ou au bout de 3 jours.',
     '{triangle-alert} Effacer les « données des sites » (ou « cookies et données des sites ») dans Chrome efface aussi tes lieux. Sauvegarde avant.',
-    'Le fichier contient tes lieux, leurs photos (case cochée), tes billets, catégories, listes, stations et réglages (affichage, cercles, favori). Restauré sur une appli vide, tout revient comme avant. Il ne contient pas la liste Très Très Bon (à réimporter), ta clé CARTO ni ta marche.',
+    'Le fichier contient tes lieux, leurs photos (case cochée), tes billets, catégories, listes, stations et réglages (affichage, cercles, favori). Restauré sur une appli vide, tout revient comme avant. Il ne contient pas la liste TTB (à réimporter), ta clé CARTO ni ta marche.',
     'Le fichier va dans tes Téléchargements. Envoie-le aussi de temps en temps sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
     '{upload} Pour retrouver tes lieux (nouveau téléphone, données effacées) : {settings} → Restaurer ou importer → Restaurer ma sauvegarde. Si la carte est vide à l\'ouverture, l\'appli te le propose tout de suite.',
     '{download} Importer de Google Maps : tes listes et tes lieux enregistrés (les étapes sont expliquées). Les listes .csv sont cherchées par leur nom : vérifie les lieux marqués « à vérifier ».',
@@ -4884,7 +4882,7 @@ const HELP = [
     'La voix ne parle pas : monte le volume, et vérifie {settings} → Voix.',
     'Vélib\', Curiosités, galeries ou météo muets : ces services en ligne ne répondent peut-être pas ; réessaie plus tard.',
     'Copier ne marche pas : le téléphone affiche alors le texte dans une fenêtre, à sélectionner et copier à la main.',
-    'Très Très Bon : « ce fichier ne contient pas d\'adresses » veut dire que la page n\'a pas été enregistrée en entier ou pas en mode liste. Ouvre-la depuis {settings} → Très Très Bon (le lien ouvre le mode liste), attends la fin du chargement, puis Télécharger.',
+    'TTB : « ce fichier ne contient pas d\'adresses » veut dire que la page n\'a pas été enregistrée en entier ou pas en mode liste. Ouvre-la depuis {settings} → TTB (le lien ouvre le mode liste), attends la fin du chargement, puis Télécharger.',
     'Boussole « indisponible » : le téléphone ne donne pas son orientation ; la flèche montre la direction, nord en haut.',
   ]],
 ];

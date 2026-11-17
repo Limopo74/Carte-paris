@@ -1,4 +1,4 @@
-// Très Très Bon : les adresses du guide trestresbon.fr, importées sur le téléphone par la personne
+// TTB : les adresses d'un guide de bonnes tables (source citée dans Réglages → TTB), importées sur le téléphone par la personne
 // (page enregistrée avec Chrome, ou fichier préparé). Rien n'est publié dans le dépôt ni demandé à un serveur :
 // le tri par distance se fait sur le téléphone. On ne garde que les informations pratiques, jamais les textes
 // de la rédaction. La station de métro vient des données de l'appli (celle du site manque souvent).
