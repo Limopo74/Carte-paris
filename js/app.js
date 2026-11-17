@@ -34,7 +34,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (148)';
+const VERSION = '17 novembre 2026 (149)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3297,7 +3297,7 @@ async function openHomePlan(home) {
   const busOpts = home.bus && busReady() ? busHome(busData, from, `${home.bus.n}|${home.bus.c}`, minutesToMeters(8)) : null;
   const busBlock = !home.bus ? [el('p', { class: 'help' }, 'Pour rentrer aussi en bus : choisis ton arrêt dans Mes stations.')] : [
     el('h3', { class: 'ring-title' }, el('span', {}, `En bus jusqu'à ${home.bus.n}`), el('span', {}, busOpts?.length ? String(busOpts.length) : '')),
-    !busReady() ? el('p', { class: 'empty' }, 'Les arrêts de bus ne sont pas encore chargés : le robot les ajoute à son prochain passage.')
+    !busReady() ? el('p', { class: 'empty' }, 'Les arrêts de bus ne sont pas encore chargés. Pour les avoir tout de suite : Réglages → Appli → Données de l\'appli → Lancer le robot maintenant.')
       : busOpts === null ? el('p', { class: 'empty' }, 'Ton arrêt de bus n\'existe plus dans la liste : choisis-le à nouveau dans Mes stations.')
         : busOpts.length ? el('ul', { class: 'items' }, busOpts.map((o) => el('li', { class: 'item' },
           el('button', { type: 'button', class: 'item-main', onclick: () => openCompass({ name: `Arrêt ${o.stop[2]}`, lat: o.stop[0], lng: o.stop[1] }), 'aria-label': `Boussole vers l'arrêt ${o.stop[2]}, lignes ${o.lines.join(', ')}` },
@@ -3344,7 +3344,7 @@ function pickMyStation(thenGo = false) {
 /** Choisir l'arrêt de bus « maison » d'une de mes stations (v148) : d'abord les plus proches de la station, ou par son nom. */
 async function pickBusStop(s, query = '') {
   await Promise.all([loadBus(), stationsReady]);
-  if (!busReady()) { toast('Les arrêts de bus ne sont pas encore chargés : le robot les ajoute à son prochain passage.', true); return; }
+  if (!busReady()) { toast('Les arrêts de bus ne sont pas encore chargés. Pour les avoir tout de suite : Réglages → Appli → Données de l\'appli → Lancer le robot maintenant.', true); return; }
   const st = stationByName(s.station);
   const results = el('ul', { class: 'items' });
   const input = el('input', { type: 'search', value: query, placeholder: 'Nom de l\'arrêt (ex. Gare du Nord)', 'aria-label': 'Chercher un arrêt de bus', enterkeyhint: 'search', autocomplete: 'off' });
@@ -5309,6 +5309,7 @@ const HELP = [
     '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Ajouter.',
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
+    '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
     '**Gratuit** : sorties gratuites, musées gratuits aujourd\'hui, théâtre à moitié prix, et les prochains jours gratuits.',
     '**Expos** : en tête, Grands lieux et Expos de la semaine. Puis Dernière chance, Expos en cours et galeries.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
@@ -5437,9 +5438,12 @@ const HELP = [
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
+    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Appli → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
+    '**Puis, quelques minutes après** : {settings} → Appli → Mettre à jour l\'appli.',
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{circle-help} Aide à jour : comment charger tout de suite les arrêts de bus (Ça ne marche pas ?), et pourquoi une sortie sans adresse sur la carte n\'apparaît pas (Trouver une sortie). Le message « arrêts de bus pas encore chargés » dit aussi quoi faire.',
     '{bus} Rentrer en bus : dans Mes stations, choisis ton arrêt de bus (les plus proches de ta station, ou par son nom). Rentrer montre les lignes qui y vont depuis un arrêt à moins de 8 min à pied, Paris et petite couronne. Sans horaires ni sens : vérifie le sens à l\'arrêt. Les arrêts arrivent avec le robot.',
     '{check} L\'essentiel ({settings} Réglages → Boutons de la carte) : un appui ne garde sur la carte que tes boutons choisis (au départ M, Rentrer, Sorties, Ma position) ; les autres passent dans ⋯ Plus, rien n\'est caché. « Choisir l\'essentiel » pour changer la liste, « Remettre mes boutons d\'avant » pour annuler.',
     '{circle-help} Toute l\'aide réécrite pour être facile à lire : 9 rubriques rangées par ce que tu veux faire (Se repérer, Trouver une sortie, Autour de moi, Mes lieux, TTB, Garder et partager, Régler l\'appli, Ça ne marche pas ?), une idée par ligne, des phrases courtes. Un quart plus courte qu\'avant.',
@@ -5449,7 +5453,6 @@ const HELP = [
     '{footprints} Mon pas ({settings} Réglages → La carte) : Rapide, Normal ou Tranquille, et tu règles la vitesse de chacun (2 à 7 km/h). Toutes les durées à pied suivent : listes, fiches, cercles en minutes, balade, Rentrer. Au départ : Normal, 5 km/h, comme avant.',
     '{map-pin} Sorties : une sortie que l\'organisateur n\'a pas placée sur la carte n\'apparaît plus. L\'agenda la mettait près de l\'Hôtel de Ville, quelle que soit son adresse : la Cité des sciences était « à 30 m » du centre de Paris.',
     '{calendar-days} Sorties : une sortie n\'est plus jamais dite « en cours aujourd\'hui » sans créneau connu ce jour-là (avant, une manifestation du dimanche pouvait l\'être un mardi). La page d\'une sortie montre les dates officielles de l\'agenda. Les listes du jour ne gardent que les sorties qui ont un créneau aujourd\'hui ; une expo sans créneau reste dans Expos en cours, avec sa date de fin. Et l\'appli ne perd plus de sorties : elle n\'en chargeait que 400 sur plus de 1 000 par jour.',
-    '{pencil} Boutons de la carte : tu peux changer le nom de chacun ({settings} → Ce qui s\'affiche → Boutons de la carte, touche son nom). Nouvelle option « Noms à côté des boutons » : chaque bouton de la colonne a son nom écrit à côté, sans changer de place. Éteinte au départ.',
   ]],
 ];
 
