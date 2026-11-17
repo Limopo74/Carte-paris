@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES,
+  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith,
   highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS,
 } from '../js/art.js';
 
@@ -78,6 +78,27 @@ test('prochaines gratuités : dates à venir, sans aujourd\'hui, dans l\'ordre',
   assert.ok(!freeSoon(new Date(2026, 11, 6)).some((x) => x.date.getDate() === 6 && x.date.getMonth() === 11));
   assert.equal(KIOSQUES.length, 3);
   assert.ok(KIOSQUES.every((k) => Number.isFinite(k.lat) && k.hours));
+});
+
+test('grands lieux : reconnus par le nom de l\'agenda, sans confondre Cartier et Cartier-Bresson', () => {
+  assert.equal(artPlaceOf({ place: 'Bourse de commerce - Pinault Collection' })?.name, 'Bourse de Commerce');
+  assert.equal(artPlaceOf({ place: 'Bourse de Commerce — Pinault Collection' })?.name, 'Bourse de Commerce');
+  assert.equal(artPlaceOf({ place: 'Fondation Cartier pour l\'art contemporain' })?.name, 'Fondation Cartier');
+  assert.equal(artPlaceOf({ place: 'Fondation Henri Cartier-Bresson' })?.name, 'Fondation Henri Cartier-Bresson');
+  assert.equal(artPlaceOf({ place: 'Musée d’Art Moderne de Paris' })?.name, 'Musée d\'Art moderne de Paris');
+  assert.equal(artPlaceOf({ place: 'Maison de la Radio et de la musique - Studio 104' })?.name, 'Maison de la Radio et de la Musique');
+  assert.equal(artPlaceOf({ place: 'Médiathèque Marguerite Duras' }), null);
+  assert.equal(artPlaceOf({ place: 'Grand Palais' })?.name, 'Grand Palais');
+  assert.equal(artPlaceOf({ place: 'Petit Palais - Musée des beaux-arts de la Ville de Paris' })?.name, 'Petit Palais');
+  assert.equal(artPlaceOf({ place: 'Palais  Galliera - musée de la Mode de Paris' })?.name, 'Palais Galliera');
+  assert.equal(artPlaceOf({ place: 'Musée du quai Branly - Jacques Chirac' })?.name, 'Musée du quai Branly');
+  assert.equal(artPlaceOf({ place: 'L\'Institut du Monde Arabe' })?.name, 'Institut du monde arabe');
+  assert.equal(new Set(ART_PLACES.map((p) => p.match)).size, ART_PLACES.length, 'un match par lieu');
+  const d = (s) => new Date(2026, 11, s);
+  const g = artPlacesWith([{ place: 'Palais de Tokyo', title: 'B', end: d(20) }, { place: 'Palais de Tokyo', title: 'A', end: d(5) }, { place: 'Palais de Tokyo', title: 'A', end: d(5) }]);
+  assert.equal(g.length, ART_PLACES.length);
+  assert.deepEqual(g.find((p) => p.name === 'Palais de Tokyo').events.map((e) => e.title), ['A', 'B']);
+  assert.ok(ART_PLACES.every((p) => /^https:\/\//.test(p.site) && Number.isFinite(p.lat)));
 });
 
 test('temps forts : en cours ou dans la semaine', () => {

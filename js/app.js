@@ -15,7 +15,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (130)';
+const VERSION = '17 novembre 2026 (131)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -216,7 +216,7 @@ const hideToast = () => { document.getElementById('toast').hidden = true; };
 
 /* Retour visible : toujours « ← nom de l'écran d'avant », jamais un « Retour » sans destination. */
 const named = (label, fn) => Object.assign(fn, { label });
-const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine']]);
+const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine'], [openArtPlaces, 'Grands lieux']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
 /** Barre collée en bas de la feuille : le retour (et Enregistrer) reste sous le pouce même sur une page longue. */
@@ -372,7 +372,7 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
-    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('calendar-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
+    const html = `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [32, 32], iconAnchor: [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
@@ -1169,7 +1169,7 @@ function openForm(draft, existing = null) {
       el('p', { class: 'where' }, ico('map-pin'), whereText),
       existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
     accWarn,
-    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('calendar-clock'), ` Sortie ${ticketText(draft.ticketAt)}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
+    !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Sortie ${ticketText(draft.ticketAt)}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
@@ -2292,7 +2292,7 @@ async function openMyParis(from = null) {
   const planned = plannedPoints().length;
   openSheet([ico('map'), ' Mon Paris et mes chiffres'], el('div', { class: 'stack' },
     el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-disc', onclick: () => openPlanning('myparis') },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('calendar-clock')),
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('alarm-clock')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon planning'), el('span', { class: 'menu-sub' }, planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue')),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
@@ -2378,7 +2378,7 @@ function openPlanning(from = null) {
     if (groups.at(-1)?.label !== label) groups.push({ label, items: [] });
     groups.at(-1).items.push(p);
   }
-  openSheet([ico('calendar-clock'), ' Mon planning'], el('div', { class: 'stack' },
+  openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
     groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue.'),
     groups.length ? null : el('p', { class: 'help' }, 'Pour prévoir une sortie : fiche d\'un lieu → Mon billet.'),
     ...groups.flatMap((g) => [
@@ -2781,6 +2781,40 @@ async function openWeekExpos() {
   ), { tall: true, name: 'week', again: openWeekExpos });
 }
 
+/** Grands lieux d'art et de musique, toute distance : liste fixe ; leurs événements viennent de l'agenda de la semaine. */
+async function openArtPlaces(focus = '') {
+  if (typeof focus !== 'string') focus = '';
+  track('Grands lieux');
+  const title = [ico('landmark'), ' Grands lieux'];
+  const back = foot(backBtn(openEvents));
+  if (!weekCache || weekCache.day !== new Date().toDateString()) {
+    openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'grands-lieux' });
+    try { await weekEvents(); } catch {
+      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), back), { name: 'grands-lieux' });
+      return;
+    }
+  }
+  const o = evFrom;
+  const places = artPlacesWith(weekCache.items).map((p) => ({ ...p, d: o ? distanceM(o, p) : null }));
+  const block = (p) => el('details', { class: 'help-item week-arr', open: p.name === focus },
+    el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
+      el('span', { class: 'week-arr-sub' }, [p.address, p.events.length ? plural(p.events.length, 'rendez-vous dans l\'agenda', 'rendez-vous dans l\'agenda') : 'rien dans l\'agenda cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
+    el('div', { class: 'stack' },
+      el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
+      p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
+  const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
+  const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique']];
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Les grands musées et fondations, et deux salles de concert, où que tu sois. Touche un lieu pour voir ce que l\'agenda de la Ville annonce cette semaine, et son programme officiel.'),
+    el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
+      open: (x) => openArtPlaces(x.name), back: () => openArtPlaces() }) }, ico('map'), 'Voir sur la carte'),
+    ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
+    el('p', { class: 'help' }, `Liste des lieux vérifiée le ${ART_PLACES_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée). Tous les rendez-vous n'y sont pas : le programme officiel fait foi. Le Centre Pompidou est fermé jusqu'en 2030, ses expositions ont lieu au Grand Palais ; le musée Maillol rouvre le 13 janvier 2027.`),
+    back,
+  ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus) });
+  if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
+}
+
 /** Sites utiles pour aller plus loin (ouverts dans le navigateur ; rien de l'appli n'est envoyé). Vérifiés le 16 novembre 2026. */
 const SORTIES_LINKS = [
   ['Que faire à Paris : à ne pas rater', 'La sélection de la rédaction de la Ville (paris.fr)', 'https://www.paris.fr/quefaire'],
@@ -2887,6 +2921,7 @@ async function openEvents(start = null) {
       galBox,
       head('Autres expos aujourd\'hui', expos.length), list(expos.map((e) => eventRow(e, back))),
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openWeekExpos() }, ico('calendar-days'), 'Expos de la semaine, tout Paris'),
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtPlaces() }, ico('landmark'), 'Grands lieux : expos, art, musique'),
       ...freeSection(),
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les expos des galeries privées n\'y sont souvent pas : regarde les galeries ci-dessus.') : null,
     ];
@@ -4764,7 +4799,7 @@ const TOOL_INFO = {
   velib: { el: 'btnVelib', icon: 'bike', name: 'Vélib\' le plus proche', short: 'Vélib\'' },
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)', short: 'Rentrer' },
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
-  planning: { el: 'btnPlanning', icon: 'calendar-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
+  planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
 };
 /* « Plus » (⋯) : les boutons rangés là par Réglages → Boutons de la carte, avec leur nom, à un appui. Rien ne bouge tout seul. */
 const btnMore = el('button', { type: 'button', id: 'btnMore', class: 'map-btn c-guide', 'aria-label': 'Plus de boutons', 'aria-expanded': 'false', 'aria-controls': 'morePanel', onclick: () => (morePanel.hidden ? openMore() : closeMore()) },
@@ -4848,6 +4883,8 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
+    '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
     '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
     '{badge-percent} Sorties → Gratuit : les prochains jours gratuits (Louvre le 1er vendredi soir, Bourse de Commerce le 1er samedi soir sur réservation, musées nationaux le 1er dimanche et, de novembre à mars, Arc de Triomphe, Panthéon, Sainte-Chapelle, Conciergerie et Hôtel de la Marine). Et les 3 Kiosques Théâtre : places du jour à moitié prix, avec « Voir sur la carte ».',
     '{badge-percent} Sorties → Navigo : des filtres par discipline (Cinéma, Théâtre, Musée…), pour la liste comme pour « Voir sur la carte ». Partout, chaque titre a son icône et le bouton retour est en bas de la page.',
@@ -4856,8 +4893,6 @@ const HELP = [
     '{settings} Réglages plus homogènes : chaque page a son bouton retour en bas, à la même place, avec le nom de la page d\'avant (Favoris et les catégories avaient « Annuler » ou rien). Chaque titre a son icône, et toutes les pages s\'ouvrent en pleine hauteur.',
     '{map} Mon Paris compte enfin tous tes lieux : l\'arrondissement vient de la position de chaque lieu, calculée sur ton téléphone avec les contours officiels (avant, seuls 20 lieux étaient cherchés à chaque ouverture, en ligne, et un lieu déplacé gardait son ancien arrondissement). Les lieux de tes proches ne colorent plus ta carte, ni tes chiffres.',
     '{ellipsis} Boutons de la carte : la colonne est plus courte. Paris prend la place de Fontaine et WC ; Fontaine et WC, Vélib\' et Rentrer sont rangés sous le bouton {ellipsis} Plus, avec leur nom, à un appui. Tout se règle dans {settings} → Ce qui s\'affiche → Boutons de la carte : pour chaque bouton « Carte », « Plus » ou « Caché », et l\'ordre.',
-    '{map} Voir sur la carte : dans Sorties, les onglets Navigo et Expos (galeries) ont un bouton « Voir sur la carte ». Les lieux de la liste s\'affichent en ronds à contour terre cuite (pointillés gris : galerie fermée) ; touche un rond pour sa fiche. Un bandeau en bas rappelle ce qui est affiché : touche-le pour revenir à la liste, la croix pour tout retirer.',
-    '{utensils} Le guide de bonnes tables s\'appelle maintenant TTB dans toute l\'appli ; son nom complet et son site ne sont cités qu\'une fois, comme source, dans Réglages → TTB. Le bouton du haut est un rond marqué TTB ; sur la carte et dans les listes, chaque rond porte l\'icône de sa rubrique. Toilettes RATP : 74 au lieu de 37 (le robot a pris la nouvelle liste de la RATP), noms de stations mieux écrits.',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
@@ -4873,7 +4908,7 @@ const HELP = [
     'Paris : revenir au centre de Paris.',
     '{bike} les 3 stations Vélib\' les plus proches avec des vélos ou des places libres.',
     '{calendar-days} Sorties autour du centre de la carte, sans ta position : la carte ne bouge pas. Déplace d\'abord la carte sur le quartier qui t\'intéresse.',
-    '{calendar-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {calendar-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
+    '{alarm-clock} Mon planning : tes sorties prévues (Mon billet), jour par jour. Le chiffre dit combien sont prévues. Chaque ligne signale un lieu fermé à l\'heure prévue, l\'heure de départ (le jour même), la pluie ou la chaleur annoncées et avec qui tu y vas. {copy} copie le lien d\'invitation : colle-le dans un SMS, ton proche reçoit le lieu, le jour et l\'heure. Sur la carte, une pastille {alarm-clock} à gauche de l\'épingle signale une sortie prévue dans les 7 jours.',
     '{house} Rentrer : les 3 stations de métro ou RER les plus proches, et le temps jusqu\'à ta station Maison (ou Travail…) depuis chacune. Touche une station pour le trajet. Tes stations : {settings} → Mes stations.',
     'En bas : {settings} Réglages, + Ajouter, Autour de moi.',
     'Changer l\'allure de la carte : {settings} → {palette} Style de la carte (Classique, Épuré, Française, Douce, Pastel, Nuit). Épuré, sans icônes de commerces, demande une clé CARTO gratuite à coller une fois.',
@@ -4943,7 +4978,7 @@ const HELP = [
     '{route} Parcours galeries : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée (Sorties ou Itinéraire).',
     '{plus} Le + à côté d\'une expo ou d\'une galerie l\'ajoute à ta carte, avec la date de fin de l\'expo dans la note.',
     '{sparkles} Temps forts (Nuit Blanche, Art Basel Paris…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
-    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {calendar-clock} de la carte (Mon planning).',
+    '{ticket} Mon billet : fiche → Pratique → Mon billet. Le jour J, « Maintenant » affiche l\'heure de départ (à pied ou en métro, 5 min de marge). Tous tes billets à venir, jour par jour : bouton {alarm-clock} de la carte (Mon planning).',
     'Les listes de gratuités et de temps forts sont fixes : vérifiées le 16 novembre 2026, à vérifier sur le site du musée. Sorties te prévient quand elles sont à mettre à jour, et Claude en prépare une chaque début septembre.',
   ]],
   ['book-open-text', 'TTB', [
@@ -4963,13 +4998,13 @@ const HELP = [
   ['map', 'Mon Paris', [
     'Les 20 arrondissements se colorent selon tes lieux « Déjà visité » (l\'arrondissement vient de la position du lieu, calculée sur ton téléphone ; les lieux de tes proches et ceux hors de Paris ne comptent pas) : pointillés = aucun, vert de plus en plus foncé = 1, 2 à 4, 5 et plus. Chaque case : visités / enregistrés.',
     'Marche et air : air bon en bleu-vert, moyen en orange, médiocre en prune (de plus en plus foncé, lisible sans les couleurs). Touche une barre pour le détail du jour.',
-    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {calendar-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
+    'Accès : en bas d\'Autour de moi, ou {settings} → Mon Paris. Ta marche du jour y est aussi, et en tête {alarm-clock} Mon planning : tes sorties prévues (billets), rangées par jour.',
     'Tout en bas, « Remettre à zéro… » efface au choix la marche et l\'air ou les fonctions utilisées, après confirmation. Tes lieux ne changent pas.',
   ]],
   ['users', 'Partager avec un ami', [
     'L\'appli elle-même : {settings} → Appli → « Envoyer le lien » ou « QR code ». Ton proche l\'installe depuis Chrome (menu ⋮ → Ajouter à l\'écran d\'accueil) ; elle arrive vide chez lui.',
     'Un lieu : dans sa fiche, rubrique Sur ce lieu → {share-2} Partager (lien) ou {qr-code} QR code à scanner. Ton ami l\'enregistre en un appui.',
-    'Une sortie à deux : {calendar-clock} Mon planning → {copy} à côté de la sortie copie le lien ; colle-le dans un SMS. Ton ami reçoit le lieu avec le jour et l\'heure ; en l\'enregistrant, la sortie arrive dans son planning.',
+    'Une sortie à deux : {alarm-clock} Mon planning → {copy} à côté de la sortie copie le lien ; colle-le dans un SMS. Ton ami reçoit le lieu avec le jour et l\'heure ; en l\'enregistrant, la sortie arrive dans son planning.',
     'Une balade : « Partager » dans Temps libre ou Parcours. Ton ami la reçoit avec la balade guidée.',
     'Te retrouver : Autour de moi → {locate} Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     'Tous tes lieux : {settings} → Sauvegarde, écris ton prénom, Envoyer le fichier ; ton ami fait Réglages → Restaurer ou importer → Importer les lieux d\'un proche.',
