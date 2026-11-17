@@ -33,7 +33,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (136)';
+const VERSION = '17 novembre 2026 (137)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -213,7 +213,7 @@ function toast(msg, isError = false, action = null) {
   t.classList.toggle('error', isError);
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : 3000);
+  toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : msg.length > 50 ? 5000 : 3000); // un long message reste le temps d'être lu
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
 
@@ -4600,7 +4600,12 @@ async function saveBackup(withPhotos = true) {
 /** Envoyer le fichier (mail, Drive…) par le menu de partage du téléphone. */
 async function sendBackup(withPhotos = true) {
   const f = backupFile(await backupText(withPhotos));
-  try { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); markSaved(); } catch { /* annulé */ }
+  try {
+    await navigator.share({ files: [f], title: 'Ma carte de Paris' });
+    markSaved();
+    // Le téléphone dit seulement que le fichier a été passé à une appli, pas qu'il est parti.
+    toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
+  } catch { /* annulé */ }
 }
 
 /* ---------- Restaurer ma sauvegarde, importer les lieux d'un proche ---------- */
@@ -5034,6 +5039,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['sparkles', 'Nouveautés', [
+    '{save} Sauvegarde : après « Envoyer le fichier (mail, Drive…) », un message rappelle de vérifier que le fichier est bien parti (le téléphone dit seulement qu\'il a été passé à l\'appli choisie). Après « Sauvegarder maintenant », le message dit où va le fichier ; la ligne Sauvegarde des Réglages passe à « À jour ».',
     '{calendar-days} Sorties refait pour être plus clair : des onglets soulignés, une seule ligne pour le point de départ (touche-la pour le changer) et le bouton Carte, une seule rangée de filtres. Chaque sortie tient sur une ligne, sans boutons : touche-la pour sa page (Y aller, Boussole, Métro, Ajouter). Chaque rubrique montre ses 3 plus proches, « Tous les… » déroule la suite. Grands lieux et Expos de la semaine sont en tête de l\'onglet Expos.',
     '{map} Plus facile à trouver : Mon Paris est à côté de « Où suis-je ? » en haut d\'Autour de moi ; allumer TTB affiche un bouton « Voir la liste » ; « Données de l\'appli » est en tête de la page Appli.',
     '{database} Réglages → Appli → Données de l\'appli : tous les liens vérifiés. Ajoutés : les contours des arrondissements (refaits par le robot), tes adresses TTB, Monuments, Curiosités et Annuaire, les sources des listes (gratuités, Kiosque Théâtre, grands lieux, marchés couverts) et un bouton « Mettre à jour l\'appli ». Corrigés : le lien RATP (nouvelle adresse) et le Kiosque Théâtre (seul celui de la Madeleine est ouvert).',
@@ -5043,7 +5049,6 @@ const HELP = [
     '{umbrella} Sorties, onglets Tout et Gratuit : filtres « Dehors » et « À l\'abri ». C\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville ; un marché couvert compte à l\'abri, un marché découvert dehors.',
     '{landmark} Sorties → Expos → Grands lieux : 26 grands musées, fondations et salles de concert (Grand Palais, Louvre, Orsay, Bourse de Commerce, Fondation Cartier, Louis Vuitton, Palais de Tokyo, Maison de la Radio, Philharmonie…), où que tu sois. Pour chacun, ce que l\'agenda de la Ville annonce cette semaine, son programme officiel, et « Voir sur la carte ».',
     '{alarm-clock} Mon planning a une nouvelle icône, un réveil, pour ne plus la confondre avec Sorties (un calendrier). La pastille des épingles change aussi.',
-    '{clock} Les horaires s\'écrivent partout de la même façon : « ouvre à 9h », « ferme à 22h30 » (la fiche d\'un lieu disait « 09h00 »).',
   ]],
   ['map', 'Les boutons de la carte', [
     'En haut : {search} chercher dans tes lieux (et dans l\'annuaire). Cette aide est en tête des {settings} Réglages.',
