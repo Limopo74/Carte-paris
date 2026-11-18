@@ -68,3 +68,19 @@ test('sorties « Prévu par » : gardées par cleanPlans, jamais dans « Tu y es
   assert.equal(pastPlans(p).length, 0);
   assert.equal(pastPlans(p.map(({ by, ...x }) => x)).length, 1);
 });
+
+test('audit du 18 nov. (1A, 2A) : mes favoris et mes « Déjà visité » ne partent pas, et un lieu reçu n\'est jamais son favori', () => {
+  const me = { me: 'Marie', categories: cats, lists: [], points: [
+    { id: 'p1', name: 'Bistrot', lat: 48.86, lng: 2.35, cat: 'resto', stars: 4, fav: true, done: true, visited: Date.now() - 864e5, created: 1 }] };
+  const file = exportForFriend(me, SEND_DEFAULT);
+  const sent = file.points[0];
+  assert.equal(sent.fav, undefined); assert.equal(sent.done, undefined); assert.equal(sent.visited, undefined);
+  assert.equal(sent.stars, 4, 'les étoiles partent');
+  // Un ancien fichier qui les contenait encore : chez elle, rien de tout cela
+  const old = { ...file, points: [{ ...sent, fav: true, done: true, visited: Date.now() }] };
+  const her = { me: 'Jeanne', categories: cats, lists: [], points: [] };
+  const got = mergeFriend(her, old, 'Marie', { lieux: true, notes: true, passages: true, photos: true, cats: null }).state.points[0];
+  assert.equal(got.fav, false); assert.equal(got.done, false); assert.equal(got.visited, null);
+  assert.equal(got.stars, 4);
+  assert.equal(got.owner, 'Marie');
+});

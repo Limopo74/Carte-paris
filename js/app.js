@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (185)';
+const VERSION = '18 novembre 2026 (186)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6386,7 +6386,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? »), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu appuies sur le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec ma note ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -6696,7 +6696,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     } else toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
   };
   openSheet([ico('users'), ' Envoyer à un proche'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Ta sauvegarde reste complète. Ici, tu choisis ce que ton proche reçoit. Il ouvre le fichier dans son appli : Réglages → Restaurer ou importer → Importer les lieux d\'un proche.'),
+    el('p', { class: 'help' }, 'Ta sauvegarde reste complète. Ici, tu choisis ce que ton proche reçoit. Tes favoris, tes « Déjà visité » et tes billets restent à toi ; tes étoiles partent. Il ouvre le fichier dans son appli : Réglages → Restaurer ou importer → Importer les lieux d\'un proche.'),
     state.me ? el('div', { class: 'me-line' }, el('span', {}, 'Tes lieux partiront au nom de ', el('b', {}, state.me)),
       el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, 'Modifier'))
       : el('div', { class: 'me-box' }, el('label', { class: 'field' }, 'Tes lieux partiront au nom de', meInput),
@@ -7463,7 +7463,7 @@ const HELP = [
     '{copy} **Partager une sortie** : Mon planning, à côté de la sortie. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, notes, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; ta sauvegarde, elle, reste complète.',
+    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, notes, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité » et tes billets restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à mon planning », ou Retirer.',
     '**Partager l\'appli** : {settings} → Appli → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
@@ -7508,6 +7508,8 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
+    '{save} Restaurer ta sauvegarde sur un téléphone vide remet aussi tes catégories telles que tu les avais (nom, couleur, icône, « Déjà goûté »…) et tes listes, même vides. Avant, une catégorie d\'origine revenait avec son nom d\'origine.',
     '{save} {settings} → Sauvegarde : « ← Réglages » est maintenant tout en bas, sous Restaurer, comme sur les autres pages.',
     '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
@@ -7516,8 +7518,6 @@ const HELP = [
     '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
     '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
     '{map-pin} Carte plus lisible avec beaucoup de lieux : de loin, les lieux proches se regroupent en une goutte noire qui porte leur nombre ; touche-la pour zoomer. Tes favoris restent toujours visibles, et à la vue « rue » chaque lieu a sa goutte.',
-    '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
-    '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
   ]],
 ];
 

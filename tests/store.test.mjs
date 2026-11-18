@@ -589,3 +589,23 @@ test('boutons de la carte (v124) : Paris à la place de Fontaine, et « Plus » 
   s5.moreTools = ['velib']; saveState(v165, s5);
   assert.deepEqual(loadState(v165).moreTools, ['velib'], 'sorti de Plus, il reste sur la carte');
 });
+
+test('restauration sur une appli vide : mes catégories et mes listes reviennent telles quelles (audit du 18 nov.)', () => {
+  const cats = DEFAULT_CATEGORIES.map((c) => ({ ...c })).map((c) => ({ ...c }));
+  cats[0].name = 'Restaurants'; cats[0].color = '#2b8a3e'; cats[0].did = 'Déjà goûté';
+  cats.push({ id: 'vide', name: 'Sans lieu', color: '#1971c2', icon: '📍' });
+  const mine = { me: 'M', categories: cats, lists: [{ id: 'l1', name: 'Week-end' }, { id: 'l2', name: 'Plus tard' }],
+    points: [{ id: 'a', name: 'A', lat: 48.86, lng: 2.35, cat: cats[0].id, lists: ['l1'], created: 1 }] };
+  const text = exportJSON(mine);
+  const empty = { me: '', categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), points: [], lists: [] };
+  const r = mergeImport(empty, text, '').state;
+  assert.equal(r.categories[0].name, 'Restaurants');
+  assert.equal(r.categories[0].did, 'Déjà goûté');
+  assert.ok(r.categories.some((c) => c.id === 'vide'), 'une catégorie sans lieu revient aussi');
+  assert.deepEqual(r.lists.map((l) => l.id), ['l1', 'l2']);
+  // Sur une appli qui a déjà des lieux, mes catégories ne sont pas remplacées
+  const used = { me: 'M', categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), points: [{ id: 'z', name: 'Z', lat: 48.87, lng: 2.36, cat: DEFAULT_CATEGORIES.map((c) => ({ ...c }))[0].id, created: 1 }], lists: [] };
+  assert.equal(mergeImport(used, text, '').state.categories[0].name, DEFAULT_CATEGORIES.map((c) => ({ ...c }))[0].name);
+  // Les lieux d'un proche ne changent jamais mes catégories
+  assert.equal(mergeImport(empty, text, 'Paul').state.categories[0].name, DEFAULT_CATEGORIES.map((c) => ({ ...c }))[0].name);
+});

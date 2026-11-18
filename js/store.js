@@ -297,6 +297,7 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
   const points = pts.map((p) => {
     const c = { ...p, owner: state.me || '' };
     delete c.ticket; // mes billets restent à moi
+    delete c.fav; delete c.done; delete c.visited; // mes favoris et mes « Déjà visité » (avec leur date) restent à moi (audit du 18 nov., choix 2A) ; les étoiles partent
     if (!sel.notes) c.note = '';
     if (!sel.photos) delete c.photos;
     if (!sel.passages) delete c.passages;
@@ -351,6 +352,7 @@ export function mergeFriend(state, obj, owner, choice) {
     c.owner = c.owner || who;
     if (state.me && c.owner === state.me) c.owner = '';
     delete c.ticket;
+    if (c.owner) { c.fav = false; c.done = false; c.visited = null; } // ses favoris et ses « Déjà visité » restent à lui (audit du 18 nov., choix 1A) ; ses étoiles restent, comme avis
     c.lists = c.lists.filter((x) => listIds.has(x));
     if (!choice.notes) c.note = '';
     if (!choice.photos) { delete c.photos; if (c.passages) c.passages = c.passages.map(({ photo, ...x }) => x); }
@@ -410,18 +412,21 @@ export function mergeImport(state, text, owner = '') {
   }
   // Les fichiers de la version 1 n'ont pas de catégories : ils utilisaient celles d'origine.
   const fileCats = Array.isArray(obj.categories) ? cleanCategories(obj.categories) : defaults();
-  const categories = state.categories.map((c) => ({ ...c }));
+  // Ma sauvegarde remise sur une appli vide : mes catégories et mes listes reviennent telles quelles (noms, couleurs,
+  // icônes, « Déjà goûté »…, même celles qui n'ont pas encore de lieu). Avant, une catégorie d'origine gardait son nom d'origine.
+  const restore = !owner && !(state.points ?? []).length;
+  const categories = restore && fileCats.length ? fileCats.map((c) => ({ ...c })) : state.categories.map((c) => ({ ...c }));
   const catIds = new Set(categories.map((c) => c.id));
   const usedCats = new Set(obj.points.map((p) => p?.cat));
   for (const c of fileCats) {
     if (!catIds.has(c.id) && usedCats.has(c.id)) { categories.push(c); catIds.add(c.id); }
   }
 
-  // Listes du fichier : ajoutées si elles servent et ne sont pas déjà là (même id)
+  // Listes du fichier : ajoutées si elles servent et ne sont pas déjà là (même id) ; toutes, pour une restauration
   const lists = [...(state.lists ?? [])];
   const listIds = new Set(lists.map((l) => l.id));
   const usedLists = new Set(obj.points.flatMap((p) => (Array.isArray(p?.lists) ? p.lists : [])));
-  for (const l of cleanLists(obj.lists)) if (!listIds.has(l.id) && usedLists.has(l.id)) { lists.push(l); listIds.add(l.id); }
+  for (const l of cleanLists(obj.lists)) if (!listIds.has(l.id) && (restore || usedLists.has(l.id))) { lists.push(l); listIds.add(l.id); }
 
   // Mon prénom : celui de l'appli, sinon (restauration sur une appli vide) celui du fichier, pour que mes lieux restent les miens
   const fileMe = typeof obj.owner === 'string' ? obj.owner.trim().slice(0, 30) : '';
@@ -436,7 +441,7 @@ export function mergeImport(state, text, owner = '') {
     known.add(p.id);
     const c = clean(p);
     c.lists = c.lists.filter((x) => listIds.has(x));
-    if (owner) { c.owner = c.owner || owner; delete c.ticket; } // ses billets restent à lui : on ne voit que ses lieux (une sortie à deux passe par une invitation)
+    if (owner) { c.owner = c.owner || owner; delete c.ticket; if (c.owner !== me) { c.fav = false; c.done = false; c.visited = null; } } // ses billets, ses favoris et ses « Déjà visité » restent à lui : on ne voit que ses lieux (une sortie à deux passe par une invitation)
     if (me && c.owner === me) c.owner = '';
     points.push(c);
     added++;
