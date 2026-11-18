@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (191)';
+const VERSION = '18 novembre 2026 (192)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -549,7 +549,7 @@ function openPassage(p, back, at = null) {
     if (!p.passages.length) delete p.passages;
     persist(); toast('Passage supprimé'); done();
   };
-  openSheet([ico('footprints'), old ? ' Ce passage' : ' J\'y suis passé'], el('div', { class: 'stack' },
+  openSheet([ico('footprints'), old ? ' Cette impression' : ' Écrire une impression'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, p.name),
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
     el('label', { class: 'field' }, 'Ce que j\'ai vu (facultatif)', text),
@@ -577,7 +577,7 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucun passage noté.'),
-    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « J\'y suis passé ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allé ? ».'),
+    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allé ? ».'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
@@ -798,7 +798,7 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); filt.arr = 0; personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
+    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
@@ -1960,9 +1960,9 @@ function openDetail(id, back = null) {
     facts2,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
-    el('div', { class: 'row' },
+    el('div', { class: 'row row-big' },
       planBtn,
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'J\'y suis passé')),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'Écrire une impression')),
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     photoWide(p, back),
     facts,
@@ -3411,7 +3411,7 @@ function openPlanning(from = null) {
     persist(); renderMarkers(); updateNow(true);
     openPlanning();
     if (!yes) { toast(`« ${p.name} » retiré de Mon planning`); return; }
-    toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : ${didLower(catOf(p.cat))}`, false, { label: 'Écrire un mot',
+    toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : ${didLower(catOf(p.cat))}`, false, { label: 'Écrire une impression',
       fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
   const past = pastPlans([...state.points, ...(state.plans ?? [])]);
@@ -3443,9 +3443,9 @@ function openPlanning(from = null) {
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
             el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
-            ...planInfo(p))),
-        el('button', { type: 'button', class: 'go-compass', onclick: () => invitePlace(p), 'aria-label': `Copier le lien d'invitation : ${p.name}` }, ico('copy')),
-        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
+            ...planInfo(p)),
+          /* v192 : la ligne n'a plus de boutons (charte) ; la flèche dit qu'elle s'ouvre. Boussole : sur la page ; invitation : Prévu → Copier le lien d'invitation */
+          el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))),
     ]),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
@@ -6767,7 +6767,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     el('ul', { class: 'items' },
       row('lieux', 'Lieux', `${plural(pts.length, 'lieu', 'lieux')} des catégories choisies plus bas`),
       row('notes', 'Notes', 'Ton commentaire sur chaque lieu'),
-      row('passages', 'Passages', 'Tes souvenirs datés (« J\'y suis passé »)', nbPassages > 0),
+      row('passages', 'Passages', 'Tes impressions datées (« Écrire une impression »)', nbPassages > 0),
       row('photos', 'Photos', `${plural(nbPhotos, 'photo', 'photos')} · fichier plus lourd`, nbPhotos > 0),
       row('plans', 'Sorties prévues', `${nbPlans} dans Mon planning`, nbPlans > 0),
       row('artists', 'Artistes', plural(nbArtists, 'artiste suivi', 'artistes suivis'), nbArtists > 0),
@@ -7417,9 +7417,9 @@ const HELP = [
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
-    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire un mot » : ce que tu retiens, une note, une photo.',
+    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire une impression » : ce que tu retiens, une note, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
-    '{copy} **Inviter quelqu\'un** : dans Mon planning, copie le lien et colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
+    '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
     '**Gratuités et temps forts** sont des listes vérifiées le 16 novembre 2026. Vérifie aussi sur le site du lieu.',
   ]],
@@ -7472,8 +7472,8 @@ const HELP = [
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour ; la station la plus proche.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
-    '{alarm-clock} **Prévoir une visite** : sous Favori, à côté de J\'y suis passé. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
-    '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
+    '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
+    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
@@ -7492,8 +7492,8 @@ const HELP = [
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis.',
-    '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Ajouter sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
-    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Ajouter sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
+    '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
+    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min. Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -7521,7 +7521,7 @@ const HELP = [
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
     '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui. Ton commentaire ne part que si tu coches « Avec ma note ».',
-    '{copy} **Partager une sortie** : Mon planning, à côté de la sortie. Ton ami la reçoit dans son planning.',
+    '{copy} **Partager une sortie** : Mon planning → la sortie → « Prévu » → Copier le lien d\'invitation. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, notes, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité » et tes billets restent à toi. Ta sauvegarde, elle, reste complète.',
@@ -7570,6 +7570,8 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
+    '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
     '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
     '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
     '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
@@ -7578,8 +7580,6 @@ const HELP = [
     '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
     '{save} Restaurer ta sauvegarde sur un téléphone vide remet aussi tes catégories telles que tu les avais (nom, couleur, icône, « Déjà goûté »…) et tes listes, même vides. Avant, une catégorie d\'origine revenait avec son nom d\'origine.',
     '{save} {settings} → Sauvegarde : « ← Réglages » est maintenant tout en bas, sous Restaurer, comme sur les autres pages.',
-    '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
-    '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
   ]],
 ];
 

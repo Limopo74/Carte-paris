@@ -145,6 +145,8 @@ button { cursor: pointer; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
+/* Grand et Très grand texte : ces deux boutons l'un sous l'autre, toujours (« Écrire une impression » ne tient pas en demi-largeur à 360 px) ; même ordre */
+:root:is([data-text="grand"], [data-text="tresgrand"]) .row-big { flex-direction: column; }
 
 .btn.big { min-height: var(--h-l); font-size: var(--t18); justify-content: flex-start; padding: 0 18px; }
 .btn:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; cursor: default; }

@@ -150,7 +150,7 @@ const ECRANS = {
   // v172 : « Vouliez-vous dire » sous le champ Artiste (Invader est déjà dans mes lieux)
   artisteaide: async (p) => { await ECRANS.vuenstreet(p); await feuille(p).locator('input[list="artist-names"]').fill('Invadr'); await p.waitForTimeout(500); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
-  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
+  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'Écrire une impression' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   curiosites: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); },
   plaque: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await feuille(p).locator('.item-main').first().click(); await p.waitForSelector('#sheet .plaque-text'); await p.waitForTimeout(300); },
@@ -180,7 +180,7 @@ const ECRANS = {
   pratlieu: async (p) => { await ECRANS.pratcarte(p); await p.locator('.pr-pin.lite').first().dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); },
   filtrearr: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.arr-pick').scrollIntoViewIfNeeded(); }, // v182
   filtrearrcarte: async (p) => { await ECRANS.filtrearr(p); await feuille(p).locator('.arr-pick .arr', { hasText: /^9e/ }).click(); await p.waitForTimeout(700); },
-  filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Ajouter sur la carte' }).scrollIntoViewIfNeeded(); },
+  filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Afficher aussi sur la carte' }).scrollIntoViewIfNeeded(); },
   plushaut: async (p) => { await p.locator('.chip.more-chip').click(); await p.waitForTimeout(300); },
   barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
