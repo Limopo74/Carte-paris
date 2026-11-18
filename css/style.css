@@ -701,6 +701,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Voir sur la carte (Navigo, galeries) : rond à contour terre cuite (le rond plein est TTB) ; fermé = pointillé gris */
 .peek-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
 .peek-pin.off { border-style: dashed; border-color: var(--muted); color: var(--muted); }
+.peek-pin.sel { border-color: var(--ink); color: var(--ink); border-width: 3px; transform: scale(1.25); }
 /* Sorties : point de départ des distances (v133) — ardoise, carré à coins arrondis pour ne pas ressembler à un lieu */
 .from-pin { width: 24px; height: 24px; border-radius: var(--r); background: var(--ink); color: var(--surface); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
 /* Sorties → Autre quartier : la croix au centre de la carte */

@@ -68,6 +68,10 @@ const VELIB = [[48.8815, 2.3365, 7, 12, 0], [48.8822, 2.3348, 0, 20, 0], [48.880
 const FONTAINES = [[48.8816, 2.3352, 'BORNE_FONTAINE', 'Wallace'], [48.8826, 2.3375, 'BORNE_FONTAINE', 'Arceau']].map(([lat, lon, type_objet, modele]) => ({ geo_point_2d: { lat, lon }, type_objet, modele, voie: 'RUE DES MARTYRS', commune: 'PARIS 9EME ARRDT', dispo: 'OUI' }));
 const SANISETTES = [[48.8809, 2.3358, '24 h / 24'], [48.8834, 2.3341, '06 h - 22 h']].map(([lat, lon, horaire]) => ({ geo_point_2d: { lat, lon }, type: 'SANISETTE', adresse: 'rue de Douai', horaire, acces_pmr: 'Oui', statut: 'Ouvert' }));
 const feuille = (p) => p.locator('#sheet');
+// v184 : Ajouter → Nom ou adresse → Voir sur la carte ; réponses simulées d'OpenStreetMap (3 lieux) et de l'IGN (aucune)
+const RECHERCHE = [[48.8722, 2.3330, 'Boulevard Haussmann', '36'], [48.8660, 2.3445, 'Rue Réaumur', '90'], [48.8798, 2.3554, 'Rue du Faubourg Saint-Denis', '150']]
+  .map(([lat, lon, road, hn], i) => ({ place_id: i, lat: String(lat), lon: String(lon), name: 'Supérette test', category: 'shop', type: 'supermarket', address: { house_number: hn, road, postcode: '75009', city: 'Paris', 'ISO3166-2-lvl6': 'FR-75C' } }));
+const chercher = async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'nom ou une adresse' }).click(); await feuille(p).locator('input[type=search]').fill('supérette'); await feuille(p).locator('button', { hasText: /^Chercher$/ }).click(); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).waitFor(); };
 // Dézoomer la carte à la molette, au centre de l'écran (aucun crochet de test dans l'appli)
 const dezoome = async (p, fois) => { const v = p.viewportSize(); await p.mouse.move(v.width / 2, v.height / 3); for (let i = 0; i < fois; i++) { await p.mouse.wheel(0, 240); await p.waitForTimeout(350); } await p.waitForTimeout(400); };
 const ECRANS = {
@@ -102,6 +106,8 @@ const ECRANS = {
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
   partagerlieu: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Partager' }).click(); await p.waitForTimeout(300); },
   modifier: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.legend', { hasText: 'Le bon moment' }).scrollIntoViewIfNeeded(); },
+  recherchelieux: async (p) => { await chercher(p); },
+  recherchecarte: async (p) => { await chercher(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(400); await p.locator('.leaflet-marker-icon[aria-label="Supérette test"]').first().dispatchEvent('click'); await p.waitForTimeout(300); },
   vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: 'Vu en passant' }).click(); await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
   // v168 : circuits de visite
   circuits: async (p) => { await p.evaluate(() => document.getElementById('btnCircuits').click()); await p.waitForSelector('#sheet .ev-list'); await p.waitForTimeout(300); },
@@ -193,6 +199,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/fontaines-a-boire/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FONTAINES) }));
   await page.route(/sanisettesparis/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SANISETTES) }));
   await page.route(/data\/oeuvres\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'OpenStreetMap', updated: '2026-11-18', ...ART_RUE }) })); // v170 : liste rangée dans l'appli
+  await page.route(/nominatim\.openstreetmap\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RECHERCHE) })); // v184
+  await page.route(/data\.geopf\.fr\/geocodage/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie

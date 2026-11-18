@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (183)';
+const VERSION = '18 novembre 2026 (184)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1407,7 +1407,7 @@ const ROUGH = {
 };
 
 /** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
-function openPlaceSearch(initial = '', autoRun = false, back = null) {
+function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
   const info = el('p', { class: 'help', id: 'placeHelp' }, 'Tape un nom de lieu ou une adresse, puis appuie sur « Chercher ». Recherche dans Paris et les départements voisins (92, 93, 94).');
   const out = el('div', { class: 'stack' });
@@ -1446,6 +1446,13 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
     const P = near(inView);
     const M = near(more);
     const A = addrs.status === 'fulfilled' ? addrs.value : [];
+    const failed = places.status === 'rejected' || addrs.status === 'rejected' || moreFailed;
+    show({ q, P, M, A, failed, box: Boolean(box) });
+  };
+  /** Les résultats d'une recherche (gardés pour revenir de la carte sans tout redemander). */
+  const show = (res) => {
+    const { q, P, M, A, failed, box } = res;
+    fill(out);
     const placeRows = (list) => el('ul', { class: 'results' }, list.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
       () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours }))));
     if (P.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, box ? 'Lieux dans la zone de la carte' : 'Lieux, du plus proche'), el('span', {}, String(P.length))), placeRows(P));
@@ -1455,7 +1462,8 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
         el('ul', { class: 'results' }, A.map((r) => row(r.label, ROUGH[r.type] ?? null,
           () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null })))));
     }
-    const failed = places.status === 'rejected' || addrs.status === 'rejected' || moreFailed;
+    const total = P.length + M.length + A.length;
+    if (total >= 2) out.prepend(el('button', { type: 'button', class: 'btn c-disc', onclick: () => showSearchPeek(res, () => openPlaceSearch(q, false, back, res)) }, ico('map'), 'Voir sur la carte'));
     if (P.length || M.length || A.length) {
       info.textContent = failed ? 'Une partie de la recherche n\'a pas répondu, les résultats peuvent être incomplets.' : 'Choisis un résultat :';
     } else {
@@ -1472,7 +1480,48 @@ function openPlaceSearch(initial = '', autoRun = false, back = null) {
     el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
     info, out, back ? foot(el('button', { type: 'button', class: 'btn', onclick: back.fn }, `← ${back.name}`)) : null),
     { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim()), back) });
-  if (autoRun) run(); else input.focus();
+  if (kept) show(kept); else if (autoRun) run(); else input.focus();
+}
+
+/** Ajouter → Nom ou adresse → « Voir sur la carte » : les résultats en ronds à contour terre cuite.
+    Un rond touché : son nom et son adresse dans le bandeau, un appui sur le bandeau ouvre la fiche d'ajout.
+    Toucher la carte à côté revient à « tous les résultats » ; le bandeau de départ rouvre la liste (sans nouvelle recherche). */
+function showSearchPeek(res, back) {
+  const items = [
+    ...[...res.P, ...res.M].map((r) => ({ lat: r.lat, lng: r.lng, name: r.name, sub: [r.kind, r.address].filter(Boolean).join(' · '), draft: { lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours } })),
+    ...res.A.map((r) => ({ lat: r.lat, lng: r.lng, name: r.label, sub: ROUGH[r.type] ?? 'Adresse', draft: { lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null } })),
+  ];
+  closeSheet();
+  endPeek();
+  const pins = [];
+  const card = (x) => {
+    peekCard?.remove();
+    if (x) {
+      peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Résultat choisi' },
+        el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openForm({ ...x.draft, onCancel: () => showSearchPeek(res, back) }); } },
+          el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, 'Résultat'), el('span', { class: 'now-name' }, x.name), el('span', { class: 'now-sub' }, `${x.sub ? `${x.sub} · ` : ''}Touche ici pour l'ajouter`)),
+          el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
+        el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
+      document.body.append(peekCard);
+    } else showPeekCard('Recherche', `« ${res.q} » · ${plural(items.length, 'résultat', 'résultats')}`, back, 'Touche un rond pour voir son nom');
+  };
+  const pick = (x) => {
+    for (const m of pins) m.getElement()?.querySelector('.peek-pin')?.classList.toggle('sel', m.options.item === x);
+    card(x);
+  };
+  for (const x of items) {
+    const m = L.marker([x.lat, x.lng], { keyboard: true, title: x.name, zIndexOffset: 400, item: x,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('map-pin-plus', { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', x.name))
+      .on('click', () => pick(x))
+      .addTo(peekLayer);
+    pins.push(m);
+  }
+  const toAll = () => { if (peekCard?.getAttribute('aria-label') === 'Résultat choisi') pick(null); };
+  map.on('click', toAll);
+  peekOff = () => map.off('click', toAll);
+  card(null);
+  map.fitBounds(L.latLngBounds(items.map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false });
 }
 
 /* ---------- Raccourcis de l'icône et partage vers l'appli ---------- */
@@ -1766,7 +1815,7 @@ function openForm(draft, existing = null) {
         el('div', { class: 'stack' }, ...details)),
     err,
     foot(el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : closeSheet()) }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn', onclick: () => (existing ? openDetail(existing.id) : draft.onCancel ? draft.onCancel() : closeSheet()) }, 'Annuler'), /* onCancel : revenir aux résultats sur la carte */
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
   ), { tall: Boolean(existing), name: 'form', ...(existing ? {} : { again: () => openForm(draft) }) }); // retour Android depuis « Ajuster » : la fiche revient remplie
 
@@ -4437,7 +4486,8 @@ async function openEvents(start = null) {
    Rien de permanent : un bandeau en bas dit ce qui est affiché, × retire tout, un appui sur le bandeau rouvre la liste. */
 const peekLayer = L.layerGroup().addTo(map);
 let peekCard = null;
-function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; document.querySelector('.area-cross')?.remove(); }
+let peekOff = null; // ce qu'un « Voir sur la carte » doit défaire en partant (ex. le toucher de la carte des résultats)
+function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; peekOff?.(); peekOff = null; document.querySelector('.area-cross')?.remove(); }
 
 /** Sorties → « Autre quartier » : la page se ferme, une croix marque le centre ; on déplace la carte puis on touche le bandeau. */
 function pickEventsArea() {
@@ -7340,7 +7390,7 @@ const HELP = [
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
   ]],
   ['map-pin', 'Mes lieux', [
-    '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse.',
+    '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Annuler » sur la fiche te ramène aux ronds.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
@@ -7458,6 +7508,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
     '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
@@ -7467,7 +7518,6 @@ const HELP = [
     '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
     '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
     '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
-    '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
   ]],
 ];
 
