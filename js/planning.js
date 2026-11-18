@@ -71,7 +71,7 @@ export function planTimes(t) {
 /** Sorties d'avant aujourd'hui (30 jours au plus), à confirmer : « Tu y es allé ? ». Les plus récentes d'abord. */
 export function pastPlans(points, now = new Date()) {
   const today = dayStart(now).getTime();
-  return points.filter((p) => !p.owner && Number.isFinite(p.ticket?.at) && p.ticket.at < today && p.ticket.at >= today - 30 * 864e5)
+  return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && p.ticket.at < today && p.ticket.at >= today - 30 * 864e5)
     .sort((a, b) => b.ticket.at - a.ticket.at);
 }
 
@@ -108,6 +108,7 @@ export function cleanPlans(list, now = Date.now()) {
       ...(typeof x.address === 'string' && x.address.trim() ? { address: x.address.trim().slice(0, 200) } : {}),
       ...(typeof x.place === 'string' && x.place.trim() ? { place: x.place.trim().slice(0, 120) } : {}),
       ...(typeof x.url === 'string' && /^https:\/\/[^\s"<>]+$/.test(x.url) ? { url: x.url.slice(0, 500) } : {}),
+      ...(typeof x.by === 'string' && x.by.trim() ? { by: x.by.trim().slice(0, 30) } : {}), // v181 : prévue par un proche (son fichier)
     };
   }).filter(Boolean).slice(0, 200);
 }

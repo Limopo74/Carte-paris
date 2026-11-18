@@ -7,7 +7,7 @@ import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, map
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, friendFileName, SEND_DEFAULT,
+  fileOwner, owners, exportForFriend, sendPoints, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (180)';
+const VERSION = '18 novembre 2026 (181)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2162,7 +2162,12 @@ function openPlanSpot(x, back = null) {
     lines: [[x.place, x.address].filter(Boolean).join(' · '), 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allé. « Ajouter » la garde dans tes lieux.'],
     place: x, link: x.url ? [x.url, 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
     add: { note: [x.place, x.url].filter(Boolean).join(' · ') },
-    extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(x, named(x.name, again), { done: again }) }, ico('alarm-clock'), 'Changer le jour ou retirer') });
+    extra: x.by
+      ? el('div', { class: 'stack' },
+        el('p', { class: 'help' }, `Prévu par ${x.by}. Elle n'est pas encore dans ton propre planning : le lendemain, l'appli ne te demandera pas si tu y es allé.`),
+        el('button', { type: 'button', class: 'btn c-disc', onclick: () => { const y = (state.plans ?? []).find((z) => z.id === x.id); if (y) delete y.by; persist(); updatePlanningCount(); toast(`« ${x.name} » est dans ton planning`); openPlanSpot(y ?? x, back); } }, ico('alarm-clock'), 'L\'ajouter à mon planning'),
+        el('button', { type: 'button', class: 'btn', onclick: () => { state.plans = (state.plans ?? []).filter((z) => z.id !== x.id); persist(); updatePlanningCount(); toast(`« ${x.name} » retiré de Mon planning`); if (back) back(); else closeSheet(); } }, 'Retirer'))
+      : el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(x, named(x.name, again), { done: again }) }, ico('alarm-clock'), 'Changer le jour ou retirer') });
 }
 
 /** Chercher dans OpenStreetMap les horaires d'un lieu déjà enregistré (même nom, à moins de 150 m). */
@@ -3278,7 +3283,7 @@ function openPlanning(from = null) {
           el('span', { class: 'plan-time' }, planClock(p.ticket)),
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
-            el('span', { class: 'item-sub' }, [p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
+            el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
             ...planInfo(p))),
         el('button', { type: 'button', class: 'go-compass', onclick: () => invitePlace(p), 'aria-label': `Copier le lien d'invitation : ${p.name}` }, ico('copy')),
         el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: p.name, lat: p.lat, lng: p.lng }), 'aria-label': `Boussole vers ${p.name}` }, ico('compass'))))),
@@ -6610,6 +6615,7 @@ async function onImportFile() {
   // Ma sauvegarde : directement. Si le fichier porte un autre prénom que le mien, on demande.
   if (importMode === 'mine' && (!from || !state.me || from === state.me)) { importText(text, ''); return; }
   if (importMode === 'friend' && from && from === state.me) { importText(text, ''); return; }
+  if (importMode === 'friend' && from) { openFriendImport(text, from); return; } // v181 : elle choisit ce qu'elle garde
   const other = el('input', { type: 'text', maxlength: '30', value: from, placeholder: 'Prénom', 'aria-label': 'Prénom de la personne' });
   openSheet('À qui sont ces lieux ?', el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn c-add', onclick: () => importText(text, '') }, 'Ce sont mes lieux (sauvegarde)'),
@@ -6617,10 +6623,92 @@ async function onImportFile() {
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
       const name = other.value.trim();
       if (!name) { other.focus(); toast('Indique son prénom.', true); return; }
-      importText(text, name);
+      openFriendImport(text, name);
     } }, 'Ajouter comme ses lieux'),
     el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
   ), { name: 'importwho' });
+}
+/* ---------- Les lieux d'un proche : elle choisit ce qu'elle garde (v181, maquette validée le 18 nov.) ----------
+   Seules les cases de ce qui a été envoyé, toutes cochées au départ ; catégories en puces ; artistes, salles et sorties
+   prévues une par une. Un lieu déjà chez elle n'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. */
+let impSel = {}; let impCats = null; let impArtists = new Set(); let impVenues = new Set(); let impPlans = new Set();
+function openFriendImport(text, owner, fresh = true) {
+  let obj = null;
+  try { obj = JSON.parse(text); } catch { obj = null; }
+  if (!obj || obj.app !== 'carte-paris' || !Array.isArray(obj.points)) { toast('Ce fichier n\'est pas un fichier de Ma carte de Paris.', true); return; }
+  const fileArtists = cleanArtists(obj.artists);
+  const fileVenues = cleanVenues(obj.venues);
+  const filePlans = cleanPlans(obj.plans);
+  const pts = obj.points;
+  const hasNotes = pts.some((p) => typeof p?.note === 'string' && p.note.trim());
+  const hasPassages = pts.some((p) => Array.isArray(p?.passages) && p.passages.length);
+  const hasPhotos = Boolean(obj.photos && typeof obj.photos === 'object' && Object.keys(obj.photos).length);
+  const hasTtb = Boolean(obj.ttb && ((Array.isArray(obj.ttb.items) && obj.ttb.items.length) || Object.keys(obj.ttb.marks ?? {}).length));
+  if (fresh) {
+    impSel = { lieux: pts.length > 0, notes: hasNotes, passages: hasPassages, photos: hasPhotos, ttb: hasTtb };
+    impCats = null; impArtists = new Set(fileArtists); impVenues = new Set(fileVenues); impPlans = new Set(filePlans.map((x) => x.id));
+  }
+  const again = () => openFriendImport(text, owner, false);
+  const choice = () => ({ ...impSel, cats: impCats, artists: impArtists, venues: impVenues, plans: impPlans });
+  let pre;
+  try { pre = mergeFriend(state, obj, owner, choice()); } catch (e) { toast(e.message || 'Import impossible.', true); return; }
+  const set = (k, v) => { impSel = { ...impSel, [k]: v }; again(); };
+  const row = (on, name, sub, onchange) => el('li', { class: 'item' }, el('label', { class: 'item-main check-row' },
+    el('input', { type: 'checkbox', class: 'check', checked: on, onchange: (e) => onchange(e.target.checked) }),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, name), sub ? el('span', { class: 'item-sub' }, sub) : null)));
+  const toggleIn = (setRef, v, on) => { if (on) setRef.add(v); else setRef.delete(v); again(); };
+  // TTB : ce qui se passera (la liste la plus récente gagne, mes marques restent)
+  let ttbLine = '';
+  if (hasTtb) {
+    ttbList();
+    const t = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, obj.ttb);
+    const theirs = obj.ttb.date ? `du ${frenchDate(obj.ttb.date)}` : 'sans date';
+    ttbLine = [ttbData?.items?.length
+      ? (t.list ? `Sa liste est ${theirs}, la tienne ${ttbData.date ? `du ${frenchDate(ttbData.date)}` : 'sans date'} : la sienne la remplace.` : `Ta liste est aussi récente ou plus récente : elle reste.`)
+      : (t.list ? `Sa liste (${plural(t.data.items.length, 'adresse', 'adresses')}, page ${theirs}) arrive sur ton téléphone.` : ''),
+    t.newMarks ? `Tes marques restent, ${plural(t.newMarks, 'des siennes s\'ajoute', 'des siennes s\'ajoutent')}.` : ''].filter(Boolean).join(' ') || 'Rien de nouveau pour ta liste TTB.';
+  }
+  const fileCats = Array.isArray(obj.categories) ? obj.categories : [];
+  const catChips = fileCats.map((c) => [c, pts.filter((p) => p?.cat === c.id).length]).filter(([c, n]) => n && typeof c?.name === 'string');
+  const toggleCat = (id) => { const c = new Set(impCats ?? catChips.map(([x]) => x.id)); if (c.has(id)) c.delete(id); else c.add(id); impCats = c.size === catChips.length ? null : c; };
+  const sent = obj.exported ? new Date(obj.exported) : null;
+  const lieuxSub = [plural(pre.added, 'nouveau lieu', 'nouveaux lieux'),
+    pre.dups ? `${plural(pre.dups, 'est', 'sont')} déjà chez toi : pas ajouté${pre.dups > 1 ? 's' : ''} une seconde fois` : '',
+    pre.updated ? `${plural(pre.updated, 'déjà reçu', 'déjà reçus')} de ${owner} : mis à jour` : ''].filter(Boolean).join('. ').replace(/^(\d+) (est|sont)/, '$1 $2');
+  const apply = async () => {
+    let r;
+    try { r = mergeFriend(state, obj, owner, choice()); } catch (e) { toast(e.message || 'Import impossible.', true); return; }
+    state = { ...r.state, ok: state.ok };
+    if (impSel.photos) await importPhotos(text, state);
+    const ttbNote = impSel.ttb && hasTtb ? importTtb(text) : '';
+    persist(); refresh(); updatePlanningCount();
+    openSettings('importer');
+    toast([`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')} (lieux de ${owner})`, r.dups ? `${r.dups} déjà chez toi` : '', r.updated ? `${plural(r.updated, 'mis à jour', 'mis à jour')}` : '',
+      r.artists ? plural(r.artists, 'artiste', 'artistes') : '', r.venues ? plural(r.venues, 'salle', 'salles') : '', r.plans ? `${plural(r.plans, 'sortie', 'sorties')} dans Mon planning` : '', ttbNote].filter(Boolean).join(', ') + '.');
+  };
+  openSheet([ico('user'), ` Lieux de ${owner}`], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${sent && !Number.isNaN(sent.getTime()) ? `Fichier envoyé le ${sent.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}. ` : ''}Tout est coché : décoche ce que tu ne veux pas garder.`),
+    el('h3', { class: 'fiche-sec' }, 'Contenu'),
+    el('ul', { class: 'items' },
+      pts.length ? row(impSel.lieux, `Lieux (${pts.length})`, impSel.lieux ? lieuxSub : '', (v) => set('lieux', v)) : null,
+      hasNotes ? row(impSel.notes, 'Notes', `Son commentaire sur chaque lieu`, (v) => set('notes', v)) : null,
+      hasPassages ? row(impSel.passages, 'Passages', 'Ses souvenirs datés', (v) => set('passages', v)) : null,
+      hasPhotos ? row(impSel.photos, 'Photos', plural(Object.keys(obj.photos).length, 'photo', 'photos'), (v) => set('photos', v)) : null,
+      hasTtb ? row(impSel.ttb, 'TTB', ttbLine, (v) => set('ttb', v)) : null),
+    catChips.length > 1 && impSel.lieux ? el('h3', { class: 'fiche-sec' }, 'Catégories') : null,
+    catChips.length > 1 && impSel.lieux ? el('div', { class: 'list-chips', style: 'margin-top: 8px' },
+      el('button', { type: 'button', class: 'chip', 'aria-pressed': String(impCats === null), onclick: () => { impCats = null; again(); } }, 'Toutes'),
+      ...catChips.map(([c, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(impCats === null || impCats.has(c.id)), onclick: () => { toggleCat(c.id); again(); } }, `${c.name} ${n}`))) : null,
+    fileArtists.length ? el('h3', { class: 'fiche-sec' }, `Artistes (${fileArtists.length})`) : null,
+    fileArtists.length ? el('ul', { class: 'items' }, fileArtists.map((a) => row(impArtists.has(a), a, (state.artists ?? []).includes(a) ? 'Tu le suis déjà' : '', (v) => toggleIn(impArtists, a, v)))) : null,
+    fileVenues.length ? el('h3', { class: 'fiche-sec' }, `Salles (${fileVenues.length})`) : null,
+    fileVenues.length ? el('ul', { class: 'items' }, fileVenues.map((v0) => row(impVenues.has(v0), v0, (state.venues ?? []).includes(v0) ? 'Tu la suis déjà' : '', (v) => toggleIn(impVenues, v0, v)))) : null,
+    filePlans.length ? el('h3', { class: 'fiche-sec' }, `Sorties prévues (${filePlans.length})`) : null,
+    filePlans.length ? el('ul', { class: 'items' }, filePlans.map((x) => row(impPlans.has(x.id), x.name, `${planText(x.ticket).replace(/^./, (c) => c.toUpperCase())} · Prévu par ${owner}`, (v) => toggleIn(impPlans, x.id, v)))) : null,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: apply }, ico('download'), 'Garder ce qui est coché'),
+    el('p', { class: 'help' }, `Les lieux de ${owner} gardent son nom (son initiale sur la goutte ; Filtres pour afficher les tiens, les siens ou tous). Rien n'est retiré de chez toi.`),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('importer') }, '← Restaurer ou importer')),
+  ), { name: 'import-proche', again });
 }
 function importText(text, owner) {
   const wasEmpty = state.points.length === 0;
@@ -7243,7 +7331,8 @@ const HELP = [
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
     '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, notes, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; ta sauvegarde, elle, reste complète.',
-    '**Ton ami** fait Restaurer ou importer → Importer les lieux d\'un proche. Puis Filtres → « Lieux de mes proches ».',
+    '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
+    '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à mon planning », ou Retirer.',
     '**Partager l\'appli** : {settings} → Appli → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
@@ -7286,6 +7375,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
     '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
     '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
     '{map-pin} Carte plus lisible avec beaucoup de lieux : de loin, les lieux proches se regroupent en une goutte noire qui porte leur nombre ; touche-la pour zoomer. Tes favoris restent toujours visibles, et à la vue « rue » chaque lieu a sa goutte.',
@@ -7295,7 +7385,6 @@ const HELP = [
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
-    '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
   ]],
 ];
 

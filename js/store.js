@@ -1,5 +1,5 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
-import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from './geo.js';
+import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS, distanceM } from './geo.js';
 import { cleanPlan, cleanPlans, cleanOutings } from './planning.js';
 import { cleanArtists, cleanArtist, cleanArtistLinks, cleanVenues } from './art.js';
 import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
@@ -322,6 +322,63 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
 export function friendFileName(date, me, count) {
   const z = (n) => String(n).padStart(2, '0');
   return `Ma carte de Paris - ${me ? `lieux de ${String(me).replace(/[\\/:*?"<>|]/g, '').slice(0, 30)}` : 'lieux'} du ${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()} (${count} lieu${count > 1 ? 'x' : ''}).json`;
+}
+
+/* ---------- Importer les lieux d'un proche, en choisissant (v181) ----------
+   `choice` : { lieux, notes, passages, photos, cats (Set ou null = toutes), artists (Set de noms), venues (Set), plans (Set d'id) }.
+   Un lieu qu'elle a déjà (même nom à moins de 60 m, ou n'importe quel lieu à moins de 12 m) n'est pas ajouté une seconde fois.
+   Un lieu déjà reçu de la même personne (même id) est mis à jour ; rien n'est jamais retiré. */
+const sameName = (a, b) => foldName(a) === foldName(b);
+export function mergeFriend(state, obj, owner, choice) {
+  if (!obj || obj.app !== 'carte-paris' || !Array.isArray(obj.points)) throw new Error('Ce fichier n\'est pas un fichier de Ma carte de Paris.');
+  const who = String(owner ?? '').trim().slice(0, 30);
+  const fileCats = Array.isArray(obj.categories) ? cleanCategories(obj.categories) : defaults();
+  const categories = state.categories.map((c) => ({ ...c }));
+  const catIds = new Set(categories.map((c) => c.id));
+  const allIds = new Set([...catIds, ...fileCats.map((c) => c.id)]);
+  const keep = (p) => choice.lieux && validatePoint(p, [...allIds]) && (choice.cats == null || choice.cats.has(p.cat));
+  const kept = obj.points.filter(keep);
+  for (const c of fileCats) if (!catIds.has(c.id) && kept.some((p) => p.cat === c.id)) { categories.push(c); catIds.add(c.id); }
+  const lists = [...(state.lists ?? [])];
+  const listIds = new Set(lists.map((l) => l.id));
+  const usedLists = new Set(kept.flatMap((p) => (Array.isArray(p?.lists) ? p.lists : [])));
+  for (const l of cleanLists(obj.lists)) if (!listIds.has(l.id) && usedLists.has(l.id)) { lists.push(l); listIds.add(l.id); }
+  const points = state.points.map((p) => ({ ...p }));
+  let added = 0, updated = 0, dups = 0;
+  const skipped = obj.points.length - obj.points.filter((p) => validatePoint(p, [...allIds])).length;
+  for (const p of kept) {
+    const c = clean(p);
+    c.owner = c.owner || who;
+    if (state.me && c.owner === state.me) c.owner = '';
+    delete c.ticket;
+    c.lists = c.lists.filter((x) => listIds.has(x));
+    if (!choice.notes) c.note = '';
+    if (!choice.photos) { delete c.photos; if (c.passages) c.passages = c.passages.map(({ photo, ...x }) => x); }
+    if (!choice.passages) delete c.passages;
+    const i = points.findIndex((x) => x.id === c.id);
+    if (i >= 0) {
+      if (!points[i].owner || points[i].owner !== c.owner) continue; // un de ses lieux à elle : on n'y touche pas
+      const old = points[i];
+      const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, lists: c.lists,
+        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}),
+        ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
+      if (c.gone) next.gone = c.gone; else delete next.gone;
+      if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
+      continue;
+    }
+    if (points.some((x) => (sameName(x.name, c.name) && distanceM(x, c) < 60) || distanceM(x, c) < 12)) { dups++; continue; }
+    points.push(c); added++;
+  }
+  const artists = cleanArtists([...(state.artists ?? []), ...cleanArtists(obj.artists).filter((a) => choice.artists?.has(a))]);
+  const venues = cleanVenues([...(state.venues ?? []), ...cleanVenues(obj.venues).filter((v) => choice.venues?.has(v))]);
+  const theirPlans = cleanPlans(obj.plans).filter((x) => choice.plans?.has(x.id)).map((x) => ({ ...x, by: who || x.by || '' }));
+  const plans = cleanPlans([...(state.plans ?? []), ...theirPlans.filter((x) => !(state.plans ?? []).some((y) => y.id === x.id || (y.name === x.name && Math.abs(y.ticket.at - x.ticket.at) < 864e5)))]);
+  return {
+    state: { ...state, points, categories, lists, artists, venues, plans },
+    added, updated, dups, skipped,
+    artists: artists.length - cleanArtists(state.artists).length, venues: venues.length - cleanVenues(state.venues).length,
+    plans: plans.length - cleanPlans(state.plans).length,
+  };
 }
 
 /**
