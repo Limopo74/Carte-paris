@@ -283,7 +283,6 @@ export function exportJSON(state) {
 /* ---------- Envoyer à un proche (v180, décidé le 18 nov.) ----------
    Un fichier séparé de ma sauvegarde : seulement ce que je coche, seulement mes lieux (pas ceux de mes proches),
    jamais mes billets, mes réglages, mes stations, mon journal ni mes problèmes notés. */
-export const SEND_PARTS = ['lieux', 'notes', 'passages', 'photos', 'plans', 'artists', 'venues', 'ttb'];
 /** En arrivant sur la page : les lieux et les notes sont cochés, le reste non (la liste TTB aussi). */
 export const SEND_DEFAULT = Object.freeze({ lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false });
 /** Mes lieux qui partent : `cats` = catégories choisies (null = toutes), `lists` = listes choisies (elles s'ajoutent). */

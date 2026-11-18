@@ -2,7 +2,6 @@
 // Aucune dépendance au navigateur : testé par tests/circuits.test.mjs.
 import { distanceM, routeMinutes } from './geo.js';
 
-export const CIRCUITS_FILE = 'data/circuits.json';
 /** Thèmes (choisis par l'utilisatrice le 18 nov. 2026), dans l'ordre des puces. */
 export const CIRCUIT_THEMES = [['histoire', 'Histoire'], ['art', 'Art'], ['nature', 'Jardins et eau'], ['passages', 'Passages couverts']];
 /** Durées de balade (marche + arrêts), dans l'ordre des puces. */
