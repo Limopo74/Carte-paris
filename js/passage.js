@@ -99,6 +99,11 @@ export const LOG_MAX = 24;
 export const logName = (cat) => (typeof cat?.log === 'string' && cat.log.trim() ? cat.log.trim().slice(0, LOG_MAX) : LOG_DEFAULT);
 /** Nom d'historique saisi : nettoyé, '' = celui par défaut. */
 export const cleanLog = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, LOG_MAX) : '');
+/** « Déjà visité » nommé par catégorie (v162) : « Déjà goûté », « Déjà vu »… ; vide = « Déjà visité ». Même nettoyage que l'historique. */
+export const DID_DEFAULT = 'Déjà visité';
+export const didName = (cat) => cleanLog(cat?.did) || DID_DEFAULT;
+/** Le même mot au milieu d'une phrase : « déjà goûté ». */
+export const didLower = (cat) => { const t = didName(cat); return t.charAt(0).toLowerCase() + t.slice(1); };
 
 const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 

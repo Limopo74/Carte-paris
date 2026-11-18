@@ -105,6 +105,7 @@ const cleanCategory = (c) => ({
   id: c.id, name: c.name.trim().slice(0, NAME_MAX), color: c.color.toLowerCase(),
   icon: ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id),
   ...(cleanLog(c.log) ? { log: cleanLog(c.log) } : {}), // nom de l'historique (« Mes repas »…), v157
+  ...(cleanLog(c.did) ? { did: cleanLog(c.did) } : {}), // nom de « Déjà visité » (« Déjà goûté »…), v162
 });
 
 function cleanCategories(list) {
@@ -346,12 +347,12 @@ export function mergeImport(state, text, owner = '') {
   return { state: { ...state, points, plans, artists, artistLinks, outings, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
 }
 
-function checkFields({ name, color, icon = DEFAULT_ICON, log = '' }, keepColor = null) {
+function checkFields({ name, color, icon = DEFAULT_ICON, log = '', did = '' }, keepColor = null) {
   const n = String(name ?? '').trim();
   if (!n) throw new Error('Donne un nom à la catégorie.');
   if (!PALETTE.includes(color) && color !== keepColor) throw new Error('Choisis une couleur dans la liste.');
   if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
-  return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}) };
+  return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}), ...(cleanLog(did) ? { did: cleanLog(did) } : {}) };
 }
 
 /** Ajoute une catégorie. Renvoie un nouvel état. */
@@ -364,9 +365,9 @@ export function addCategory(state, fields) {
 export function updateCategory(state, id, fields) {
   // Une couleur déjà utilisée reste acceptée même si elle a quitté la palette.
   const f = checkFields(fields, state.categories.find((c) => c.id === id)?.color);
-  // Nom d'historique effacé (champ vide) : on revient à « Mes passages »
-  const clearLog = (c) => { const { log, ...rest } = c; return log === undefined ? c : rest; };
-  return { ...state, categories: state.categories.map((c) => (c.id === id ? ('log' in fields && !f.log ? clearLog({ ...c, ...f }) : { ...c, ...f }) : c)) };
+  // Nom d'historique ou de « Déjà visité » effacé (champ vide) : on revient au nom par défaut
+  const clear = (c) => { const out = { ...c, ...f }; for (const k of ['log', 'did']) if (k in fields && !f[k]) delete out[k]; return out; };
+  return { ...state, categories: state.categories.map((c) => (c.id === id ? clear(c) : c)) };
 }
 
 /**

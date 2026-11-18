@@ -22,7 +22,7 @@ import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (161)';
+const VERSION = '18 novembre 2026 (162)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -395,7 +395,7 @@ function renderMarkers() {
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? ', disparue ou recouverte' : p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? ', disparue ou recouverte' : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -1547,20 +1547,22 @@ function openForm(draft, existing = null) {
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
   note.value = v.note;
   const artist = artistInput(v.artist ?? draft.artist ?? ''); // l'artiste d'une œuvre (v161)
+  // Modifier : l'adresse se corrige à la main (v162) ; le point ne bouge pas (Rangement → Déplacer le point pour cela)
+  const addr = existing ? el('input', { type: 'text', value: v.address ?? '', maxlength: '200', autocomplete: 'off', enterkeyhint: 'next', placeholder: 'Ex. : 16 rue Chaptal, 75009 Paris' }) : null;
   const err = el('div', { class: 'error', role: 'alert' });
 
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   // Nouveau lieu : les catégories sur une seule ligne qui défile, pour laisser de la place à la carte.
   const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
-    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); })),
+    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); })), // le nom de « Déjà visité » suit la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
   const doneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'État' });
   const drawDone = () => fill(doneSeg, 
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
-    segBtn('Déjà visité', done, () => { done = true; drawDone(); }),
+    segBtn(didName(catOf(cat)), done, () => { done = true; drawDone(); }),
     segBtn([glyph(state.fav.icon, { filled: true }), ' Favori'], fav, () => { fav = !fav; drawDone(); }));
   drawDone();
 
@@ -1576,7 +1578,7 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
+    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     openCategory(null, { back: reopen, done: (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); } });
@@ -1610,6 +1612,7 @@ function openForm(draft, existing = null) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
       if (cleanArtist(artist.value)) existing.artist = cleanArtist(artist.value); else delete existing.artist;
+      existing.address = addr.value.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
       markDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
@@ -1642,7 +1645,9 @@ function openForm(draft, existing = null) {
   ];
   const filled = Boolean(v.note || v.artist || draft.artist || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
-    el('div', { class: 'where-row' },
+    existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
+      el('p', { class: 'help' }, 'Corrige le texte : le point ne bouge pas. Pour le déplacer : fiche → Rangement → Déplacer le point (l\'adresse est alors recalculée).'))
+    : el('div', { class: 'where-row' },
       el('p', { class: 'where' }, ico('map-pin'), whereText),
       existing ? null : el('button', { type: 'button', class: 'btn c-add where-adjust', onclick: adjust, 'aria-label': 'Ajuster la position sur la carte' }, ico('locate-fixed'), 'Ajuster')),
     accWarn,
@@ -1687,7 +1692,7 @@ function openDetail(id, back = null) {
   // Favori et Déjà visité : deux interrupteurs à libellé fixe, l'état est dit par aria-pressed (v95).
   const toggles = el('div', { class: 'row' },
     el('button', { type: 'button', class: 'btn c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
-    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { markDone(p, !p.done); }) }, ico('check'), 'Déjà visité'));
+    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { markDone(p, !p.done); }) }, ico('check'), didName(catOf(p.cat))));
   // Prévoir (v152) : juste sous les interrupteurs, il dit aussi quand la sortie est prévue.
   const planned = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
   const planBtn = el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(p, back) },
@@ -2066,6 +2071,8 @@ async function findHours(p, back) {
 
 /** « Ajouté il y a 8 mois, jamais visité » ou « Visité le 3 mars 2026 ». */
 function ageLine(p) {
+  const did = didName(catOf(p.cat)); // « Déjà goûté »… (v162) ; par défaut, « Visité le 3 mars » comme avant
+  if (p.done && did !== DID_DEFAULT) return p.visited ? `${did} (le ${formatDate(p.visited)})` : `${did} (date non notée)`;
   if (p.done) return p.visited ? `Visité le ${formatDate(p.visited)}` : 'Visité (date non notée)';
   if (!(p.created > Date.UTC(2025, 0, 1))) return 'Jamais visité';
   const old = Date.now() - p.created > 30 * 86_400_000;
@@ -2652,7 +2659,7 @@ function openRoutePicker(selected = new Set()) {
     });
     return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
-        el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? 'Déjà visité' : 'À faire'].filter(Boolean).join(' · ')))));
+        el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
   }));
   update();
   openSheet('Parcours du jour', el('div', { class: 'stack' }, info, list, go), { tall: true, name: 'routepick', again: () => openRoutePicker(selected) });
@@ -3124,7 +3131,7 @@ function openPlanning(from = null) {
     persist(); renderMarkers(); updateNow(true);
     openPlanning();
     if (!yes) { toast(`« ${p.name} » retiré de Mon planning`); return; }
-    toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : déjà visité`, false, { label: 'Écrire un mot',
+    toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : ${didLower(catOf(p.cat))}`, false, { label: 'Écrire un mot',
       fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
   const past = pastPlans([...state.points, ...(state.plans ?? [])]);
@@ -4991,12 +4998,12 @@ function openCompass(p, step = null) {
   let arrived = false;
   doneBtn.hidden = true;
   fill(doneBtn, ico('check'), 'Visité');
-  doneBtn.setAttribute('aria-label', `Marquer ${p.name} comme déjà visité`);
+  doneBtn.setAttribute('aria-label', `Marquer ${p.name} : ${mine ? didLower(catOf(mine.cat)) : 'déjà visité'}`);
   doneBtn.onclick = () => {
     if (!mine) return;
     markDone(mine, true); persist(); renderMarkers();
     doneBtn.hidden = true;
-    toast(`${mine.name} : noté « déjà visité »`);
+    toast(`${mine.name} : noté « ${didLower(catOf(mine.cat))} »`);
   };
   compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
   compassEl.hidden = false;
@@ -5702,6 +5709,7 @@ function openCategory(id, ret = null) {
   let icon = c?.icon ?? '📍';
   const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
   const log = el('input', { type: 'text', value: c?.log ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Mes passages' });
+  const did = el('input', { type: 'text', value: c?.did ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Déjà visité' });
   const err = el('p', { class: 'error', role: 'alert' });
   const swatches = picker(PALETTE, color, (v) => { color = v; }, { colors: true, names: COLOR_NAMES });
   const icons = picker(ICONS, icon, (v) => { icon = v; });
@@ -5709,7 +5717,8 @@ function openCategory(id, ret = null) {
 
   const save = () => {
     try {
-      state = id ? updateCategory(state, id, { name: name.value, color, icon, log: cleanLog(log.value) }) : addCategory(state, { name: name.value, color, icon, log: cleanLog(log.value) });
+      const f = { name: name.value, color, icon, log: cleanLog(log.value), did: cleanLog(did.value) };
+      state = id ? updateCategory(state, id, f) : addCategory(state, f);
     } catch (e) { err.textContent = e.message; return; }
     persist(); refresh();
     if (ret && !id) ret.done(state.categories.at(-1).id); else openSettings('categories');
@@ -5766,6 +5775,8 @@ function openCategory(id, ret = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
     el('label', { class: 'field' }, 'Nom de l\'historique dans la fiche', log),
     el('p', { class: 'help' }, 'Ex. : « Mes repas » pour des restos, « Mes visites » pour des musées. Vide : « Mes passages ».'),
+    el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
+    el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
     err, zone,
     foot(el('div', { class: 'row' },
       backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
@@ -6415,7 +6426,7 @@ const HELP = [
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
     '**Aujourd\'hui** : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour.',
-    '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint.',
+    '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : juste en dessous. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
@@ -6423,9 +6434,10 @@ const HELP = [
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
+    '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
     '**En bas de la fiche** : Modifier, Partager, QR code, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer.',
-    '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône et la couleur.',
+    '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique et celui de « Déjà visité ».',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
     '**Favori** : son icône et sa couleur dans {settings} → Favoris. Un cœur évite la confusion avec les étoiles.',
@@ -6508,6 +6520,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
     '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
     '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
     '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
@@ -6517,7 +6530,6 @@ const HELP = [
     '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
-    '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
   ]],
 ];
 
