@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (182)';
+const VERSION = '18 novembre 2026 (183)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1890,7 +1890,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
       row('pencil', 'Modifier', vanish ? 'Nom, catégorie, commentaire, artiste, listes' : 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
-      row('share-2', 'Partager', 'Envoyer à un proche', () => sharePlace(p)),
+      row('share-2', 'Partager', 'Envoyer à un proche', () => (p.note ? openSharePlace(p, back) : sharePlace(p))),
       row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back)),
       row('wrench', 'Rangement', tidySub, openTidy)),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
@@ -2134,13 +2134,15 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     toast(`Dans Mon planning : ${planText(p.ticket)}`, false, p.plan ? { label: 'Voir', fn: () => openPlanning() } : null);
     done();
   };
+  const inviteNote = p.plan ? null : noteCheck(p);
   openSheet([ico('alarm-clock'), ` Prévoir · ${p.name}`], el('div', { class: 'stack' },
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
     el('div', { class: 'field' }, 'À quel moment ?', partSeg), timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
     err,
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('alarm-clock'), 'Enregistrer'),
-    old && stored ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p) }, ico('copy'), 'Copier le lien d\'invitation') : null,
+    old && stored ? inviteNote?.row : null,
+    old && stored ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
     old && stored ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
       if (p.plan) state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); else delete p.ticket;
       persist(); updateNow(true); renderMarkers(); updatePlanningCount(); toast('Sortie retirée de Mon planning');
@@ -2823,9 +2825,9 @@ function renderRoute(start, chosen) {
 
 /* ---------- Partager un lieu par un lien (tout est dans le #, rien ne passe par un serveur) ---------- */
 
-async function sharePlace(p) {
+async function sharePlace(p, withNote = false) {
   const c = catOf(p.cat);
-  const url = placeLink(location.href, p, c.name, c.icon);
+  const url = placeLink(location.href, p, c.name, c.icon, { note: withNote });
   const text = `${p.name}${p.address ? ` — ${p.address}` : ''}`;
   try {
     if (navigator.share) { await navigator.share({ title: p.name, text, url }); return; }
@@ -2833,11 +2835,36 @@ async function sharePlace(p) {
   try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message.'); } catch { prompt('Copie ce lien :', url); }
 }
 
-/** Inviter un proche à une sortie : copie le lien du lieu avec le jour et l'heure du billet (et mon prénom). */
-async function invitePlace(p) {
+/** Case « Avec ma note » (lien, QR code, invitation d'un seul lieu) : décochée à chaque fois, et seulement si le lieu a un commentaire. */
+function noteCheck(p, onchange) {
+  if (!p.note) return null;
+  const box = el('input', { type: 'checkbox', class: 'check' });
+  if (onchange) box.addEventListener('change', () => onchange(box.checked));
+  const txt = String(p.note).replace(/\s+/g, ' ').trim();
+  const row = el('label', { class: 'item-main check-row' }, box,
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma note'),
+      el('span', { class: 'item-sub' }, `Ton commentaire : « ${txt.length > 70 ? `${txt.slice(0, 68)}…` : txt} »`)));
+  return { row, box };
+}
+
+/** Partager un lieu qui a un commentaire : on choisit d'abord s'il part avec (case décochée). Sans commentaire, Partager envoie tout de suite. */
+function openSharePlace(p, back) {
+  const nc = noteCheck(p);
+  openSheet([ico('share-2'), ' Partager'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, p.name),
+    nc?.row,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: () => sharePlace(p, Boolean(nc?.box.checked)) }, ico('share-2'), 'Envoyer le lien'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => showQr(p, back, Boolean(nc?.box.checked)) }, ico('qr-code'), 'QR code'),
+    el('p', { class: 'help' }, 'Ton proche ouvre le lien : le lieu s\'ouvre, prêt à être ajouté à sa carte. Ton commentaire ne part que si la case est cochée.'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche')),
+  ), { name: `partager:${p.id}` });
+}
+
+/** Inviter un proche à une sortie : copie le lien du lieu avec le jour et l'heure du billet (et mon prénom). Mon commentaire seulement si `withNote`. */
+async function invitePlace(p, withNote = false) {
   if (!Number.isFinite(p.ticket?.at)) return;
   const c = p.plan ? { name: '', icon: '' } : catOf(p.cat);
-  const url = placeLink(location.href, p, c.name, c.icon, { invite: (state.me ?? '').trim() || true });
+  const url = placeLink(location.href, p, c.name, c.icon, { invite: (state.me ?? '').trim() || true, note: withNote });
   // Seulement le lien (ton proche voit le lieu, le jour et l'heure en l'ouvrant) : à coller dans un SMS ou un message
   try { await navigator.clipboard.writeText(url); toast(`Lien de l'invitation copié (${planText(p.ticket)}) : colle-le dans ton message.`); } catch { prompt('Copie ce lien :', url); }
 }
@@ -4600,15 +4627,19 @@ function showAppQr() {
 
 /* ---------- QR code d'un lieu, à montrer à quelqu'un à côté de toi ---------- */
 
-function showQr(p, back) {
+function showQr(p, back, withNote = false) {
   const c = catOf(p.cat);
-  const url = placeLink(location.href, p, c.name, c.icon);
-  const q = qrcode(0, 'M'); q.addData(url); q.make();
   const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': `QR code du lieu ${p.name}` });
-  box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  const draw = (on) => { // le code change avec la case : avec la note, il a plus de points
+    const q = qrcode(0, 'M'); q.addData(placeLink(location.href, p, c.name, c.icon, { note: on })); q.make();
+    box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  };
+  draw(withNote);
+  const nc = noteCheck(p, draw);
+  if (nc) nc.box.checked = withNote;
   openSheet([ico('qr-code'), ' QR code'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, p.name), box,
-    el('p', { class: 'help' }, 'Ton ami le scanne avec l\'appareil photo : le lieu s\'ouvre, prêt à être ajouté à sa carte.'),
+    el('p', { class: 'summary' }, p.name), box, nc?.row,
+    el('p', { class: 'help' }, `Ton ami le scanne avec l'appareil photo : le lieu s'ouvre, prêt à être ajouté à sa carte.${nc ? ' Ton commentaire ne part que si la case est cochée.' : ''}`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche')),
   ), { name: 'qr' });
 }
@@ -7378,7 +7409,7 @@ const HELP = [
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
-    '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui.',
+    '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui. Ton commentaire ne part que si tu coches « Avec ma note ».',
     '{copy} **Partager une sortie** : Mon planning, à côté de la sortie. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
@@ -7427,6 +7458,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
     '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
     '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
@@ -7436,7 +7468,6 @@ const HELP = [
     '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
     '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
-    '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
   ]],
 ];
 

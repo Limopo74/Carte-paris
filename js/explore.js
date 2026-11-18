@@ -9,8 +9,9 @@ const b64url = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s))).
 const unb64url = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 const r5 = (x) => Math.round(x * 1e5) / 1e5;
 
-/** Lien vers l'appli qui contient le lieu (nom, adresse, position, note, catégorie, mot). */
-export function placeLink(base, p, catName = '', catIcon = '', { invite = false } = {}) {
+/** Lien vers l'appli qui contient le lieu (nom, adresse, position, étoiles, catégorie, horaires).
+ *  Mon commentaire (`p.note`) n'y est que si `note` est vrai : case « Avec ma note », décochée au départ (décision du 18 nov.). */
+export function placeLink(base, p, catName = '', catIcon = '', { invite = false, note = false } = {}) {
   const o = { v: 1, n: p.name, y: r5(p.lat), x: r5(p.lng) };
   if (invite && Number.isFinite(p.ticket?.at)) o.t = Math.round(p.ticket.at / 60000); // invitation : jour et heure, à la minute
   if (invite && Number.isFinite(p.ticket?.at) && p.ticket.part) o.m = p.ticket.part; // invitation : moment de la journée (matin, soir…) au lieu d'une heure précise
@@ -19,7 +20,7 @@ export function placeLink(base, p, catName = '', catIcon = '', { invite = false 
   if (catName) o.c = catName;
   if (catIcon) o.i = catIcon;
   if (p.stars) o.s = p.stars;
-  if (p.note) o.o = String(p.note).slice(0, 300);
+  if (note && p.note) o.o = String(p.note).slice(0, 300);
   if (p.hours) o.h = p.hours;
   return `${base.split('#')[0]}#lieu=${b64url(JSON.stringify(o))}`;
 }

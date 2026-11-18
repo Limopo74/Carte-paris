@@ -6,11 +6,15 @@ const LOUVRE = { lat: 48.8606, lng: 2.3376 };
 
 test('lien de partage : aller-retour, accents, refus des liens abîmés ou hors Paris', () => {
   const p = { name: 'Café « Les Arts » – été', lat: 48.861234567, lng: 2.338, address: '12 Rue de Rivoli 75001 Paris', stars: 4, note: 'Croque ✓', hours: 'Mo-Su 08:00-23:00' };
-  const url = placeLink('https://limopo74.github.io/Carte-paris/?x=1#old', p, 'Restos', '🍽️');
+  const url = placeLink('https://limopo74.github.io/Carte-paris/?x=1#old', p, 'Restos', '🍽️', { note: true });
   assert.match(url, /^https:\/\/limopo74\.github\.io\/Carte-paris\/\?x=1#lieu=[\w-]+$/);
   const r = readPlaceLink(new URL(url).hash);
   assert.equal(r.name, p.name); assert.equal(r.lat, 48.86123); assert.equal(r.catName, 'Restos'); assert.equal(r.catIcon, '🍽️');
   assert.equal(r.stars, 4); assert.equal(r.note, 'Croque ✓'); assert.equal(r.hours, p.hours);
+  const sans = readPlaceLink(new URL(placeLink('https://x/', p, 'Restos', '🍽️')).hash);
+  assert.equal(sans.note, '', 'sans la case « Avec ma note », mon commentaire ne part pas');
+  assert.equal(sans.stars, 4, 'les étoiles partent toujours');
+  assert.equal(readPlaceLink(new URL(placeLink('https://x/', p, '', '', { invite: true })).hash).note, '', 'une invitation non plus');
   assert.equal(readPlaceLink('#lieu=%%%'), null);
   assert.equal(readPlaceLink('#autre=1'), null);
   const far = placeLink('https://x/', { name: 'NY', lat: 40.7, lng: -74 });
