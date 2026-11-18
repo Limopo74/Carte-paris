@@ -4,8 +4,11 @@
 Usage : python3 -I tools/verif-donnees.py DOSSIER_AVANT
 Échoue (code 1) si un fichier est illisible, vide, ou s'il a perdu plus de 20 % de ses éléments : une source
 coupée ou changée ne doit jamais vider l'appli. Le robot ne publie alors rien.
+
+Les listes de SOFT (v197 à v200) ne bloquent jamais : illisible, sous son minimum ou en perte de plus de 20 %,
+la liste d'avant est remise à sa place et le reste est publié.
 """
-import json, os, sys
+import json, os, shutil, sys
 
 BEFORE = sys.argv[1]
 FILES = {  # fichier : (clé de la liste, minimum absolu)
@@ -20,6 +23,38 @@ FILES = {  # fichier : (clé de la liste, minimum absolu)
 # v170 : listes d'OpenStreetMap, vides tant que le robot n'a jamais réussi à les obtenir (tools/maj-art.mjs garde
 # l'ancienne liste quand le serveur ne répond pas) : vides avant et après = pas encore là, ce n'est pas un échec.
 OPTIONAL = {'data/oeuvres.json': ('elements', 100), 'data/galeries.json': ('elements', 100)}
+# v207 : listes non bloquantes (clé de la liste, minimum : le même que dans leur script tools/maj-….py)
+SOFT = {
+    'data/respire.json': ('secteurs', 15),
+    'data/voies.json': ('voies', 500),
+    'data/architectes.json': ('items', 300),
+    'data/acces.json': ('items', 800),
+    'data/gares.json': ('stations', 100),
+}
+
+
+def count(path, key):
+    """Nombre d'éléments de la liste, ou None si le fichier est illisible."""
+    try:
+        return len(json.load(open(path, encoding='utf8'))[key])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+for path, (key, floor) in SOFT.items():
+    old_path = os.path.join(BEFORE, os.path.basename(path))
+    n, old = count(path, key), count(old_path, key)
+    if n == 0 and not old:
+        print(f'ok {path} : encore vide'); continue
+    why = 'illisible' if n is None else f'{n} éléments (au moins {floor} attendus)' if n < floor else f'{n} éléments contre {old} avant (perte de plus de 20 %)' if old and n < old * 0.8 else ''
+    if not why:
+        print(f'ok {path} : {n} éléments (avant : {old or 0})')
+    elif old is None:
+        print(f'ATTENTION {path} : {why}, et pas de liste d\'avant à remettre')
+    else:
+        shutil.copyfile(old_path, path)
+        print(f'GARDÉ {path} : {why} ; la liste d\'avant ({old} éléments) est remise')
+
 ok = True
 for path, (key, floor) in {**FILES, **OPTIONAL}.items():
     try:

@@ -58,3 +58,15 @@ test('envoyer : le fichier s\'importe chez un proche (lieux à mon nom) et son n
   assert.equal(friendFileName(new Date(2026, 10, 18), 'Marie', 3), 'Ma carte de Paris - lieux de Marie du 18-11-2026 (3 lieux).json');
   assert.equal(friendFileName(new Date(2026, 10, 18), '', 1), 'Ma carte de Paris - lieux du 18-11-2026 (1 lieu).json');
 });
+
+test('envoyer (v207) : seulement mes sorties à venir — ni une sortie passée, ni « Pas allé », ni celle prévue par un autre proche', async () => {
+  const { sendPlans } = await import('../js/store.js');
+  const now = new Date(2026, 10, 18, 15, 0);
+  const at = (days, h = 20) => new Date(2026, 10, 18 + days, h).getTime();
+  const plan = (id, days, extra = {}) => ({ id, name: `Sortie ${id}`, lat: 48.86, lng: 2.33, plan: true, ticket: { at: at(days) }, ...extra });
+  const s = { ...state(), plans: [plan('demain', 1), plan('matin', 0, { ticket: { at: at(0, 9) } }), plan('hier', -1), plan('manquee', -3, { missed: true, until: at(20) }), plan('paul', 2, { by: 'Paul' })] };
+  assert.deepEqual(sendPlans(s, now).map((x) => x.id), ['demain', 'matin']); // ce matin compte encore : c'est aujourd'hui
+  const f = exportForFriend(s, { ...SEND_DEFAULT, plans: true });
+  assert.ok(f.plans.every((x) => !x.by && !x.missed));
+  assert.equal(sendPlans({ ...state(), plans: [plan('hier', -1)] }, now).length, 0);
+});

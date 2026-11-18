@@ -22,6 +22,7 @@ export function placeLink(base, p, catName = '', catIcon = '', { invite = false,
   if (p.stars) o.s = p.stars;
   if (note && p.note) o.o = String(p.note).slice(0, 300);
   if (p.hours) o.h = p.hours;
+  if (p.hours && Number.isFinite(p.hoursAt) && p.hoursAt > 0) o.d = Math.floor(p.hoursAt / 864e5); // v207 : le jour où ces horaires ont été notés (jours depuis 1970)
   return `${base.split('#')[0]}#lieu=${b64url(JSON.stringify(o))}`;
 }
 
@@ -40,8 +41,10 @@ export function readPlaceLink(hash) {
     const ticketAt = at > Date.now() - 864e5 && at < Date.now() + 400 * 864e5 ? at : null;
     const withName = ticketAt && typeof o.w === 'string' ? o.w.trim().slice(0, 30) : '';
     const ticketPart = ticketAt && ['matin', 'midi', 'aprem', 'soir'].includes(o.m) ? o.m : '';
+    // v207 : date des horaires, gardée seulement si elle est plausible (ni avant 2000, ni dans le futur) ; sinon inconnue
+    const hoursAt = o.h && Number.isInteger(o.d) && o.d > 10957 && o.d * 864e5 <= Date.now() ? o.d * 864e5 : null;
     return {
-      name, lat, lng, stars, ticketAt, withName, ticketPart,
+      name, lat, lng, stars, ticketAt, withName, ticketPart, hoursAt,
       address: String(o.a ?? '').slice(0, 200), catName: String(o.c ?? '').slice(0, 30), catIcon: String(o.i ?? ''),
       note: String(o.o ?? '').slice(0, 300), hours: String(o.h ?? '').slice(0, 300),
     };

@@ -1,6 +1,6 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS, distanceM } from './geo.js';
-import { cleanPlan, cleanPlans, cleanOutings } from './planning.js';
+import { cleanPlan, cleanPlans, cleanOutings, isDayList } from './planning.js';
 import { cleanArtists, cleanArtist, cleanArtistLinks, cleanVenues } from './art.js';
 import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
 import { cleanCircuitNotes, cleanHiddenCircuits } from './circuits.js';
@@ -293,6 +293,12 @@ export const SEND_DEFAULT = Object.freeze({ lieux: true, notes: true, passages: 
 export function sendPoints(state, cats = null, lists = new Set()) {
   return (state.points ?? []).filter((p) => !p.owner && (cats === null || cats.has(p.cat) || (p.lists ?? []).some((l) => lists.has(l))));
 }
+/** Mes sorties de l'agenda qui peuvent partir (v207) : à partir d'aujourd'hui, et seulement les miennes. Une sortie passée
+ * (« Tu y es allé ? », « Pas allé ») ou encore « Prévu par » un autre proche ne part pas : chez lui, elle porterait mon prénom à tort. */
+export function sendPlans(state, now = new Date()) {
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return cleanPlans(state.plans, now.getTime()).filter((x) => !x.by && x.ticket.at >= t0);
+}
 /** L'objet du fichier pour un proche (sans les photos ni TTB : l'appli les ajoute si la case est cochée). */
 export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = new Set()) {
   const pts = sel.lieux ? sendPoints(state, cats, lists) : [];
@@ -307,7 +313,7 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
     else if (!sel.photos && c.passages) c.passages = c.passages.map(({ photo, ...x }) => x);
     return c;
   });
-  const plans = sel.plans ? cleanPlans(state.plans) : [];
+  const plans = sel.plans ? sendPlans(state) : [];
   const artists = sel.artists ? cleanArtists(state.artists) : [];
   const venues = sel.venues ? cleanVenues(state.venues) : [];
   const sent = [points.length ? 'lieux' : '', points.length && sel.notes ? 'notes' : '', points.length && sel.passages ? 'passages' : '',
@@ -705,7 +711,10 @@ export function unsavedCount(state) {
 
 /** Empreinte de ce que contient une sauvegarde (lieux, photos rattachées, catégories, listes, favoris, mes stations). */
 export function backupHash(state) {
-  const text = JSON.stringify([state.points, state.categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : []), ...(Object.keys(state.artistLinks ?? {}).length ? [state.artistLinks] : []), ...(state.venues?.length ? [state.venues] : []), ...(state.circuitNotes?.length ? [state.circuitNotes] : []), ...(state.hiddenCircuits?.length ? [state.hiddenCircuits] : []), ...(state.notes?.length ? [state.notes] : [])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
+  // v207 : la liste du jour (billet sans heure, effacé à minuit) ne compte pas comme un changement à sauvegarder ;
+  // « Fait » (Déjà visité) compte toujours. Sans liste du jour, l'empreinte est exactement celle d'avant.
+  const points = (state.points ?? []).map((p) => { if (!isDayList(p.ticket)) return p; const { ticket: _t, ...rest } = p; return rest; });
+  const text = JSON.stringify([points, state.categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : []), ...(Object.keys(state.artistLinks ?? {}).length ? [state.artistLinks] : []), ...(state.venues?.length ? [state.venues] : []), ...(state.circuitNotes?.length ? [state.circuitNotes] : []), ...(state.hiddenCircuits?.length ? [state.hiddenCircuits] : []), ...(state.notes?.length ? [state.notes] : [])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(36);
@@ -714,7 +723,7 @@ export function backupHash(state) {
 /**
  * Suivi des changements non sauvegardés : { saved (empreinte à la dernière sauvegarde), last (dernière empreinte vue),
  * n (changements depuis), since (heure du premier) }. Tout changement compte : lieu ajouté, modifié ou supprimé, note,
- * étoiles, favori, déjà visité, billet, photo, catégorie, liste. Revenir exactement à l'état sauvegardé remet à zéro.
+ * étoiles, favori, déjà visité, billet (sauf la liste du jour, v207), photo, catégorie, liste. Revenir exactement à l'état sauvegardé remet à zéro.
  */
 export function trackChange(state, now = Date.now()) {
   const b = state.backup ?? { saved: null, last: null, n: 0, since: null };

@@ -1,6 +1,7 @@
 # Robot de mise à jour des données figées : lignes et gares (IDFM), avantages Navigo (IDFM), toilettes RATP,
 # contours des arrondissements (Paris Data, pour Mon Paris), arrêts de bus et leurs lignes (IDFM, pour Rentrer),
-# plaques commémoratives (Paris Data), œuvres dans la rue et galeries (OpenStreetMap, v170).
+# plaques commémoratives (Paris Data), œuvres dans la rue et galeries (OpenStreetMap, v170), et, sans jamais bloquer
+# (v197 à v200) : secteurs Paris Respire, origine du nom des voies, auteurs des monuments, sorties du métro, RER et tram.
 # Tourne seul le 1er de chaque mois, ou à la demande (« Run workflow »). Il télécharge les exports officiels,
 # relance les scripts de tools/, contrôle les données et les tests, et publie seulement si tout passe.
 # Rien ne concerne le téléphone ni la position : il ne lit que des données publiques.
@@ -34,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
-          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json /tmp/avant/
+          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json /tmp/avant/
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
           PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
@@ -122,7 +123,7 @@ jobs:
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json"
-          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries (robot)"
+          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.
           CHANGED=$(git diff --name-only -- $FILES)
