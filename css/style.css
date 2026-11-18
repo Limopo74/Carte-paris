@@ -295,6 +295,11 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
   width: 24px; height: 24px; border-radius: 50%; background: var(--strong); color: var(--on-strong); font-weight: 700; font-size: 13px;
   display: inline-flex; align-items: center; justify-content: center; flex: none; border: 2px solid #fff;
 }
+/* Problèmes notés sur un circuit (v172) : une ligne de texte par signalement, sans bouton */
+.pb-list { list-style: none; margin: 0; padding: 0; }
+.pb-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.pb-list span { color: var(--muted); }
+.pb-list .pb-text { color: var(--ink); overflow-wrap: anywhere; }
 .arc-pin { width: 26px; height: 26px; margin: 7px; box-sizing: border-box; border-radius: var(--r); background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); } /* passage couvert (v168), zone d'appui de 40 px */
 .arc-pin svg { display: block; }
 .arc-pin.far { width: 14px; height: 14px; margin: 13px; border-radius: 50%; border-width: 2.5px; } /* de loin : un point, le toucher zoome */

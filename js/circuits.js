@@ -106,3 +106,41 @@ export const pointsNearTrace = (points, trace, maxM) => points.map((p) => ({ p, 
 export const circuitOutingId = (id, now = Date.now()) => `circuit-${id}-${now.toString(36)}`.slice(0, 64);
 /** Les fois où j'ai fait ce circuit (lignes de Mon journal), la plus récente d'abord. */
 export const circuitDone = (outings, id) => (Array.isArray(outings) ? outings : []).filter((o) => typeof o?.id === 'string' && o.id.startsWith(`circuit-${id}-`)).sort((a, b) => b.at - a.at);
+
+/* ---------- Signaler un problème, masquer un circuit (v172) ----------
+   Gardé sur le téléphone, jamais envoyé : « Copier pour Claude » met le texte dans le presse-papier. Aucune position notée. */
+export const STEP_PROBLEMS = [['ferme', 'Fermé ou inaccessible'], ['introuvable', 'Introuvable à cet endroit'], ['texte', 'Texte faux ou à revoir'], ['autre', 'Autre chose']];
+export const ROUTE_PROBLEMS = [['chemin', 'Chemin impossible (grille, travaux)'], ['escalier', 'Escalier ou pente non signalés'], ['duree', 'Durée très différente'], ['autre', 'Autre chose']];
+const PROBLEM_LABEL = new Map([...STEP_PROBLEMS, ...ROUTE_PROBLEMS]);
+export const problemLabel = (k) => PROBLEM_LABEL.get(k) ?? 'Autre chose';
+export const NOTES_MAX = 100;
+export const NOTE_TEXT_MAX = 300;
+const CID = /^[a-z0-9-]{1,40}$/;
+
+/** Signalements bien formés : { id, c (circuit), e (n° d'étape ou null pour le chemin), n (nom de l'étape), k, t, at }, du plus récent. */
+export function cleanCircuitNotes(list) {
+  const seen = new Set();
+  const out = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    if (typeof x?.id !== 'string' || !/^[\w-]{1,64}$/.test(x.id) || seen.has(x.id)) continue;
+    if (typeof x.c !== 'string' || !CID.test(x.c) || !PROBLEM_LABEL.has(x.k) || !Number.isFinite(x.at)) continue;
+    const step = Number.isInteger(x.e) && x.e >= 0 && x.e < 100;
+    seen.add(x.id);
+    out.push({ id: x.id, c: x.c, e: step ? x.e : null, n: step ? text(x.n, 80) : '', k: x.k, t: text(x.t, NOTE_TEXT_MAX), at: x.at });
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, NOTES_MAX);
+}
+export const cleanHiddenCircuits = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && CID.test(x)))].slice(0, 50);
+export const circuitNoteId = (cid, now = Date.now()) => `pb-${cid}-${now.toString(36)}`.slice(0, 64);
+export const notesOf = (notes, cid) => cleanCircuitNotes(notes).filter((x) => x.c === cid);
+
+/** Le texte à coller dans une conversation : un signalement par ligne, du plus ancien au plus récent. */
+export function notesText(notes, circuits) {
+  const titles = new Map((circuits ?? []).map((c) => [c.id, c.titre]));
+  const day = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const lines = cleanCircuitNotes(notes).reverse().map((x) => {
+    const where = x.e === null ? 'le chemin' : `étape ${x.e + 1}${x.n ? ` « ${x.n} »` : ''}`;
+    return `- ${titles.get(x.c) ?? x.c}, ${where} : ${problemLabel(x.k)}.${x.t ? ` « ${x.t} »` : ''} (${day(x.at)})`;
+  });
+  return lines.length ? ['Problèmes notés sur les circuits de « Ma carte de Paris » :', ...lines].join('\n') : '';
+}

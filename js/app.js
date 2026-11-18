@@ -19,7 +19,7 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
-import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone } from './circuits.js';
+import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (172)';
+const VERSION = '18 novembre 2026 (173)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5245,16 +5245,22 @@ async function openCircuits(back = null) {
     return;
   }
   const from = circuitFrom();
-  const shown = circuitsFor(list, { theme: circuitTheme, dur: circuitDur }, from);
+  const hidden = new Set(cleanHiddenCircuits(state.hiddenCircuits));
+  const kept = list.filter((c) => !hidden.has(c.id));
+  const notes = cleanCircuitNotes(state.circuitNotes);
+  const self = named('Circuits', again);
+  const shown = circuitsFor(kept, { theme: circuitTheme, dur: circuitDur }, from);
   const chip = (on, label, fn) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick: fn }, label);
   openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${plural(list.length, 'balade', 'balades')} à pied, d'un métro à l'autre. ${from.kind === 'map' ? 'La plus proche du centre de la carte d\'abord.' : 'La plus proche de toi d\'abord.'}`),
+    el('p', { class: 'summary' }, `${plural(kept.length, 'balade', 'balades')} à pied, d'un métro à l'autre. ${from.kind === 'map' ? 'La plus proche du centre de la carte d\'abord.' : 'La plus proche de toi d\'abord.'}`),
     el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Thème et durée' },
       ...CIRCUIT_THEMES.map(([k, label]) => chip(circuitTheme === k, label, () => { circuitTheme = circuitTheme === k ? '' : k; again(); })),
       ...CIRCUIT_DURATIONS.map(([k, label]) => chip(circuitDur === k, label, () => { circuitDur = circuitDur === k ? '' : k; again(); }))),
     shown.length ? el('ul', { class: 'items ev-list' }, shown.map((c) => sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(c, named('Circuits', again)),
       sub: [`${c.depart} → ${c.arrivee}`, `environ ${minText(circuitTimes(c).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(c)] })))
       : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
+    notes.length ? ficheRow('triangle-alert', 'Problèmes notés', `${plural(notes.length, 'signalement', 'signalements')} · Copier pour Claude`, () => openCircuitNotes(null, self)) : null,
+    hidden.size ? ficheRow('eye-off', plural(list.filter((c) => hidden.has(c.id)).length, 'circuit masqué', 'circuits masqués'), 'Les voir et les remettre', () => openHiddenCircuits(list, self)) : null,
     el('p', { class: 'help' }, `La durée suit ton pas : la marche, plus ${STOP_MIN} min pour regarder chaque étape. Les visites de musée sont en plus. Le temps à droite : pour aller au départ.`),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'circuits', again });
@@ -5271,7 +5277,10 @@ function openCircuit(c, back) {
   const stopNames = new Set(c.etapes.map((e) => e.n));
   const arcs = arcadesNearTrace(arcadesData ?? [], c.trace, minutesToMeters(ARCADE_TRACE_MIN)).filter((x) => !stopNames.has(x.a.nom));
   const self = named(c.titre, again);
+  const pbs = notesOf(state.circuitNotes, c.id);
+  const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
   openSheet([ico('signpost'), ` ${c.titre}`], el('div', { class: 'stack' },
+    isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
     el('p', { class: 'summary' }, `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
     el('p', { class: 'help' }, ico('footprints'), ` ${minText(t.walk)} de marche à ton pas, environ ${minText(t.total)} avec les arrêts.`),
     c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.confort}`) : null,
@@ -5290,6 +5299,11 @@ function openCircuit(c, back) {
     mineShown.length < mine.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { openCircuit.all = c.id; again(); } }, `Tous mes lieux près du tracé (${mine.length})`, ico('chevron-down')) : null,
     arcs.length ? el('h3', { class: 'fiche-sec' }, `Autres passages à ${ARCADE_TRACE_MIN} min du tracé`) : null,
     arcs.length ? el('ul', { class: 'items' }, arcs.map((x) => arcadeRow(x, self, `${walkMinutes(x.d)} min du tracé · ${x.a.rues}`))) : null,
+    el('h3', { class: 'fiche-sec' }, 'Un souci sur ce circuit ?'),
+    pbs.length ? ficheRow('triangle-alert', plural(pbs.length, 'problème noté', 'problèmes notés'), `Le dernier le ${dayText(pbs[0].at)} · les voir, les copier`, () => openCircuitNotes(c, self)) : null,
+    ficheRow('triangle-alert', 'Signaler un problème sur le chemin', 'Pour une étape : ouvre l\'étape, puis « Signaler un problème »', () => openProblem(c, null, self)),
+    isHidden ? ficheRow('eye', 'Remettre ce circuit', 'Il revient dans la liste', () => setCircuitHidden(c, false, again))
+      : ficheRow('eye-off', 'Masquer ce circuit', 'Il quitte la liste ; tu pourras le remettre', () => setCircuitHidden(c, true, back ?? (() => openCircuits()))),
     el('p', { class: 'help' }, 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: `circuit:${c.id}`, again });
@@ -5298,7 +5312,9 @@ function openCircuit(c, back) {
 /** Une étape : son texte et sa source, puis les mêmes actions qu'un lieu de Sorties (Y aller, Boussole, Métro, Ajouter). */
 function openCircuitStep(c, i, back) {
   const e = c.etapes[i];
+  const self = named(e.n, () => openCircuitStep(c, i, back));
   openSpot({ icon: e.m ? 'train-front' : 'signpost', title: e.n, kicker: `Étape ${i + 1} sur ${c.etapes.length} · ${c.titre}`, lines: [e.t], place: e,
+    extra: el('button', { type: 'button', class: 'btn c-info', onclick: () => openProblem(c, i, self) }, ico('triangle-alert'), 'Signaler un problème'),
     link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}` });
 }
 
@@ -5325,6 +5341,84 @@ function markCircuitDone(c, back) {
   persist();
   toast('Noté dans Mon journal');
   openOuting(id, back);
+}
+
+/* ---------- Un souci sur un circuit (v172) : noté sur le téléphone, jamais envoyé ; « Copier pour Claude » ; masquer un circuit ---------- */
+const ficheRow = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'fiche-row', onclick },
+  ico(icon), el('span', {}, title, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+
+/** Signaler un problème : sur le chemin (i = null) ou sur une étape. Un choix, un mot facultatif. Ni position ni photo. */
+function openProblem(c, i, back) {
+  const kinds = i === null ? ROUTE_PROBLEMS : STEP_PROBLEMS;
+  let pick = '';
+  const text = el('textarea', { maxlength: String(NOTE_TEXT_MAX), placeholder: i === null ? 'Ex. : grille fermée rue de Lyon' : 'Ex. : la date est 1828, pas 1826' });
+  const save = el('button', { type: 'button', class: 'btn primary', onclick: () => {
+    if (!pick) { toast('Choisis d\'abord le problème, juste au-dessus.', true); return; }
+    const e = i === null ? null : c.etapes[i];
+    state.circuitNotes = cleanCircuitNotes([{ id: circuitNoteId(c.id), c: c.id, e: i, n: e?.n ?? '', k: pick, t: text.value, at: Date.now() }, ...(state.circuitNotes ?? [])]);
+    persist();
+    toast('Problème noté. Liste des circuits → Problèmes notés → Copier pour Claude.');
+    back();
+  } }, ico('check'), 'Noter le problème');
+  const chips = kinds.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', onclick: (ev) => {
+    pick = k;
+    for (const b of chips) b.setAttribute('aria-pressed', String(b === ev.currentTarget));
+  } }, label));
+  openSheet([ico('triangle-alert'), ' Signaler un problème'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, i === null ? `${c.titre} · le chemin` : `${c.titre} · étape ${i + 1} : ${c.etapes[i].n}`),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Le problème (un seul choix)' }, chips),
+    el('label', { class: 'field' }, 'Un mot (facultatif)', text),
+    save,
+    el('p', { class: 'help' }, 'Gardé sur ton téléphone, rien n\'est envoyé, ta position n\'est pas notée. Pour que je corrige le circuit : « Copier pour Claude », puis colle le texte dans une conversation.'),
+    foot(backBtn(back)),
+  ), { name: `probleme:${c.id}:${i ?? 'chemin'}` });
+}
+
+/** Les problèmes notés (d'un circuit, ou de tous), à copier pour Claude ou à effacer une fois le circuit corrigé. */
+function openCircuitNotes(c, back) {
+  const again = () => openCircuitNotes(c, back);
+  const notes = c ? notesOf(state.circuitNotes, c.id) : cleanCircuitNotes(state.circuitNotes);
+  const titles = new Map((circuitsData ?? []).map((x) => [x.id, x.titre]));
+  if (!notes.length) { back(); return; }
+  openSheet([ico('triangle-alert'), ' Problèmes notés'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${c ? `${c.titre} · ` : ''}${plural(notes.length, 'signalement', 'signalements')}, du plus récent.`),
+    el('ul', { class: 'pb-list' }, notes.map((x) => el('li', {},
+      el('b', {}, `${c ? '' : `${titles.get(x.c) ?? x.c} · `}${x.e === null ? 'Le chemin' : `Étape ${x.e + 1}${x.n ? ` : ${x.n}` : ''}`}`),
+      el('span', {}, `${problemLabel(x.k)} · le ${dayText(x.at)}`),
+      x.t ? el('span', { class: 'pb-text' }, `« ${x.t} »`) : null))),
+    el('button', { type: 'button', class: 'btn c-info', onclick: () => copyText(notesText(notes, circuitsData), 'Copié : colle-le dans une conversation avec Claude.') }, ico('copy'), 'Copier pour Claude'),
+    el('button', { type: 'button', class: 'btn danger', onclick: () => {
+      if (!confirm(notes.length > 1 ? `Effacer ces ${notes.length} signalements ?` : 'Effacer ce signalement ?')) return;
+      const gone = new Set(notes.map((x) => x.id));
+      state.circuitNotes = cleanCircuitNotes(state.circuitNotes).filter((x) => !gone.has(x.id));
+      persist(); toast('Signalements effacés'); back();
+    } }, ico('trash-2'), notes.length > 1 ? 'Effacer ces signalements' : 'Effacer ce signalement'),
+    el('p', { class: 'help' }, 'Une fois le circuit corrigé dans l\'appli, efface ses signalements.'),
+    foot(backBtn(back)),
+  ), { tall: true, name: `pb:${c?.id ?? 'tous'}`, again });
+}
+
+/** Masquer ou remettre un circuit : rien n'est supprimé, il quitte seulement la liste. */
+function setCircuitHidden(c, on, next) {
+  const now = cleanHiddenCircuits(state.hiddenCircuits).filter((id) => id !== c.id);
+  state.hiddenCircuits = on ? [...now, c.id] : now;
+  persist();
+  toast(on ? `« ${c.titre} » masqué : en bas de la liste des circuits pour le remettre.` : `« ${c.titre} » est de nouveau dans la liste.`, false,
+    on ? { label: 'Annuler', fn: () => setCircuitHidden(c, false, next) } : null);
+  next();
+}
+
+function openHiddenCircuits(list, back) {
+  const again = () => openHiddenCircuits(list, back);
+  const hidden = new Set(cleanHiddenCircuits(state.hiddenCircuits));
+  const items = list.filter((c) => hidden.has(c.id));
+  if (!items.length) { back(); return; }
+  const self = named('Circuits masqués', again);
+  openSheet([ico('eye-off'), ' Circuits masqués'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Touche un circuit, puis « Remettre ce circuit » en bas de sa page.'),
+    el('ul', { class: 'items ev-list' }, items.map((c) => sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(c, self), sub: [`${c.depart} → ${c.arrivee}`, kmText(c.m)] }))),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'circuits-masques', again });
 }
 
 /* ---------- Passages couverts (v168) : liste fixe dans l'appli (data/passages.json), triée sur le téléphone ----------
@@ -6891,6 +6985,7 @@ const HELP = [
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord.',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
+    '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Relier des lieux** : 2 à 4 lieux dans le meilleur ordre.',
@@ -7024,6 +7119,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
     '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
     '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
@@ -7032,7 +7128,6 @@ const HELP = [
     '{signpost} Circuits de visite : des balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
     '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
     '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
-    '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
   ]],
 ];
