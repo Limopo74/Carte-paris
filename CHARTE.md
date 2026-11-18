@@ -5,7 +5,7 @@ Règles d'apparence de toute l'appli, en place depuis la v103 (16 novembre 2026)
 ## 1. Principe
 - **Encre sur papier** : texte presque noir sur fond blanc ; en sombre, « papier de nuit ». Lisible dehors, au soleil.
 - **La couleur signale, elle ne décore pas** : elle dit la famille d'une action (texte, icône et contour d'un bouton) ou un état (ouvert, fermé). Jamais de fond teinté sur un bouton au repos.
-- **Forme = importance** : une seule plaque pleine par écran (l'action principale), des contours pour le reste, des tampons pour les états. Exception : la carte « En ce moment, au plus près » de Sorties, pleine en terre cuite, est une information et non un bouton (décision du 16 novembre 2026).
+- **Forme = importance** : une seule plaque pleine par écran (l'action principale), des contours pour le reste, des tampons pour les états. Les tampons sont droits, en lettres normales (v177 : plus de majuscules espacées ni d'inclinaison, illisibles au soleil). Sorties n'a plus de grande carte pleine en tête (v177).
 - **Filets plutôt que cadres** : les listes et les informations sont séparées par des filets fins, sans boîte ni ombre.
 - **Une seule source** : toutes les couleurs et mesures sont des jetons, définis une fois en tête de `css/style.css` (`:root`, puis `:root[data-theme="dark"]`). On ne réécrit jamais une couleur en dur dans une règle d'interface, et on n'ajoute jamais une « couche » qui redéfinit une règle existante : on modifie la règle elle-même.
 
@@ -43,8 +43,8 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 5. Texte
 - Polices : **Inter** pour le texte, **Archivo** (étroit) pour les titres et les boutons. Pas de police à empattements.
-- Échelle : **11,5 · 13 · 14 · 16 · 18 · 22 · 26 px**. 11,5 = intertitres (majuscules espacées) et tampons ; 13 = surtitre, légende, petits boutons ; 14 = aide et sous-titres ; 16 = texte et boutons ; 18 = chapô et grands boutons ; 22 = titre de la feuille ; 26 = nom d'un lieu dans sa fiche.
-- **Taille du texte** (v144, Réglages → Ce qui s'affiche) : Normal, Grand (× 1,15) ou Très grand (× 1,3). En CSS, une taille de texte s'écrit avec son jeton (`var(--t13)`… `var(--t26)`, `--t115` pour 11,5), qui vaut l'échelle × `--ts`. Restent en px fixes : les icônes, ce qui est dessiné sur la carte, la grille de Mon Paris, la barre du bas et les rangées de 3 boutons (`.row3`), dont la largeur est fixe. Avant de publier un écran : contrôle avec `TEXTE=tresgrand` (texte trop large, bouton hors de l'écran).
+- Échelle : **11,5 · 13 · 14 · 16 · 18 · 22 · 26 px**. 11,5 = intertitres (majuscules espacées) ; 13 = surtitre, légende, petits boutons, tampons ; 14 = aide et sous-titres ; 16 = texte et boutons ; 18 = chapô et grands boutons ; 22 = titre de la feuille ; 26 = nom d'un lieu dans sa fiche.
+- **Taille du texte** (v144, Réglages → Ce qui s'affiche) : Normal, Grand (× 1,15) ou Très grand (× 1,3). En CSS, une taille de texte s'écrit avec son jeton (`var(--t13)`… `var(--t26)`, `--t115` pour 11,5), qui vaut l'échelle × `--ts`. Restent en px fixes : les icônes, ce qui est dessiné sur la carte (sauf ses étiquettes de texte : numéros des lignes, noms des stations, cercles, qui suivent `--ts` depuis v177), la grille de Mon Paris, la barre du bas et les rangées de 3 boutons (`.row3`), dont la largeur est fixe. Avant de publier un écran : contrôle avec `TEXTE=tresgrand` (texte trop large, bouton hors de l'écran).
 - **Titraille de la fiche** : surtitre (catégorie · arrondissement) en terre cuite, nom en 26 px, chapô (ton commentaire) en 18 px, intertitres sur filet encre.
 - Noms et sous-titres : 2 lignes au plus. **Jamais d'opacité sur un texte** : un texte atténué prend `--muted` (ou `--compass-muted` dans la boussole). Un bouton inactif : texte gris et contour en tirets.
 

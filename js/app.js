@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (176)';
+const VERSION = '18 novembre 2026 (177)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3600,23 +3600,21 @@ const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocant
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /**
  * Une ligne de sortie (v136) : icône du genre, nom, quand et où, et le temps à pied à droite. Aucun bouton dans la ligne :
- * un appui ouvre sa page, où sont Y aller, Boussole, Métro, Ajouter. `feat` : la grande plaque en tête (photo, plaque pleine).
+ * un appui ouvre sa page, où sont Y aller, Boussole, Métro, Ajouter. (v177 : plus de grande plaque en tête de Sorties.)
  * `buttons` est gardé pour compatibilité et ignoré.
  */
-function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], feat = false, kicker = '', badge = null, photo = null }) {
+function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null }) {
   const label = GENRE_NAME[genre];
   const dist = d != null ? el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0'))) : el('span', { class: 'ev-dist' });
   const inner = [
-    photo,
-    el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: feat ? 26 : 22 })),
+    el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 })),
     el('span', { class: 'ev-text' },
-      kicker ? el('span', { class: 'feat-kicker' }, kicker) : null,
       el('span', { class: 'ev-name' }, label ? el('span', { class: 'sr-only' }, `${label} : `) : null, name),
       sub.filter(Boolean).length ? el('span', { class: 'ev-sub' }, ...sub.filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [typeof x === 'string' ? x.charAt(0).toUpperCase() + x.slice(1) : x]))) : null,
       tags.filter(Boolean).length ? el('span', { class: 'ev-tags' }, ...tags.filter(Boolean)) : null),
     dist];
   const main = el(href ? 'a' : onclick ? 'button' : 'div', { class: 'ev-main', ...(href ? { href, target: '_blank', rel: 'noopener' } : onclick ? { type: 'button', onclick } : {}) }, ...inner);
-  return el(feat ? 'div' : 'li', { class: feat ? 'ev feat' : 'ev' }, main);
+  return el('li', { class: 'ev' }, main);
 }
 /** Boussole et M toujours au même endroit : la place du + reste réservée quand une ligne n'en a pas. */
 const slots = (btns, n) => [...btns, ...Array.from({ length: Math.max(0, n - btns.length) }, () => el('span', { class: 'go-compass slot', 'aria-hidden': 'true' }))];
@@ -3752,13 +3750,13 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
   ), { tall: true, name: 'sortie', again });
 }
 
-const eventRow = (e, back, { last = false, week = false, feat = false, kicker = '' } = {}) => {
+const eventRow = (e, back, { last = false, week = false } = {}) => {
   const expo = isExpo(e);
   const keep = () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null,
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
   const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
-  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null], feat, kicker, photo: feat ? evPhoto(e, 'feat-photo') : null,
+  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
 };
@@ -3818,9 +3816,9 @@ const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick:
 /** Un marché du jour : en ce moment, plus tard, ou déjà fini. */
 /** Ouvert, plus tard ou fini, pour un marché découvert comme pour un marché couvert qui ferme à midi. */
 const marketWhen = (m, now = new Date()) => whenToday(m, now);
-const marketRow = (m, back, { feat = false, kicker = '' } = {}) => {
+const marketRow = (m, back) => {
   const w = marketWhen(m);
-  return sortieCard({ genre: isFleaMarket(m) ? 'chiner' : 'marche', name: m.name, onclick: () => openMarket(m, back), sub: [w.when === 'later' ? el('b', {}, w.text) : w.text, m.place], d: m.d, feat, kicker,
+  return sortieCard({ genre: isFleaMarket(m) ? 'chiner' : 'marche', name: m.name, onclick: () => openMarket(m, back), sub: [w.when === 'later' ? el('b', {}, w.text) : w.text, m.place], d: m.d,
     buttons: [compassBtn(m), metroBtn(m, back)] });
 };
 
@@ -4288,13 +4286,11 @@ async function openEvents(start = null) {
       ];
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
     } else {
-      const feat = now[0] ?? null; // la plus proche en ce moment : la grande plaque en tête
       onMap(last.slice(0, 3), (e) => openEventPage(e, back));
       body = [
         venueBox(back),
-        feat ? card(feat, { feat: true, kicker: 'En ce moment, au plus près' }) : null,
         ...top,
-        ...section('now', 'En ce moment', now.slice(1, 26).map((x) => card(x)), 'Toutes les sorties en ce moment'),
+        ...section('now', 'En ce moment', now.slice(0, 25).map((x) => card(x)), 'Toutes les sorties en ce moment'),
         ...section('later', 'Plus tard aujourd\'hui', later.map((x) => card(x)), 'Toutes les sorties plus tard'),
         ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'Toutes les expos qui ferment'),
         !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
@@ -4762,7 +4758,7 @@ async function drawLines() {
     const longest = ln.paths.reduce((a, b) => (b.length > a.length ? b : a), []);
     const mid = longest[Math.floor(longest.length / 2)];
     if (mid) L.marker(mid, { interactive: false, keyboard: false, zIndexOffset: -200,
-      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag${rer ? ' rer' : ''}" style="--c:${ln.color};--t:${textOn(ln.color)}">${rer ? `RER ${ln.ref}` : ln.ref}</span>`, iconSize: [30, 20], iconAnchor: [15, 10] }) }).addTo(linesLayer);
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag${rer ? ' rer' : ''}" style="--c:${ln.color};--t:${textOn(ln.color)}">${rer ? `RER ${ln.ref}` : ln.ref}</span>`, iconSize: [0, 0] }) }).addTo(linesLayer); /* centrée en CSS : elle grandit avec la taille du texte (v177) */
   }
   // Stations : un rond et les numéros de leurs lignes (visibles à partir du niveau quartier, noms en zoomant encore)
   await stationsReady;
@@ -7161,6 +7157,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
     '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
     '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
@@ -7170,7 +7167,6 @@ const HELP = [
     '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
     '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
     '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
-    '{signpost} Circuits de visite : des balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
   ]],
 ];
 

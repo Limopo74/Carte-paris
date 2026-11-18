@@ -1,7 +1,7 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v176';
+const CACHE = 'carte-paris-v177';
 const TILES = 'carte-paris-tuiles';
 const MAX_TILES = 3000; // environ 50 Mo
 const FRESH = 7 * 864e5; // une tuile de moins de 7 jours n'est pas redemandée
