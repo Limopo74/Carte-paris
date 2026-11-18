@@ -96,6 +96,11 @@ const ECRANS = {
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   planningmanque: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button[aria-label^="Non, pas allé à Exposition"]').click(); await p.waitForSelector('#sheet button:has-text("Prévoir un autre jour")'); await p.waitForTimeout(300); },
   prevoirgratuit: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('carte-paris.v1')); s.points[0].lat = 48.8600; s.points[0].lng = 2.3266; localStorage.setItem('carte-paris.v1', JSON.stringify(s)); }); await p.reload(); await p.waitForTimeout(800); if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click(); await p.evaluate(() => document.querySelector('.leaflet-marker-icon')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
+  // v201 : liste du jour (Mon planning → Aujourd'hui). La liste est posée le temps de l'écran, puis le stockage est remis : les écrans suivants ne la voient pas.
+  jour: async (p) => { await avecListe(p, ['d', 'c', 'f']); await p.locator('#btnPlanning').click(); await p.waitForSelector('#sheet .go-bar'); },
+  jourlieux: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Ajouter des lieux' }).click(); await p.waitForSelector('#sheet input[type="search"]'); },
+  jourordre: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Changer l\'ordre' }).click(); await p.waitForSelector('#sheet .btn.move'); },
+  prevoirjour: async (p) => { await ECRANS.prevoir(p); await feuille(p).locator('.seg button', { hasText: 'Aujourd\'hui' }).click(); await p.waitForTimeout(300); },
   ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
   donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
@@ -192,6 +197,17 @@ const ECRANS = {
   barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
+async function avecListe(p, ids) {
+  const avant = await p.evaluate((liste) => {
+    const k = 'carte-paris.v1'; const brut = localStorage.getItem(k); const o = JSON.parse(brut);
+    const d = new Date(); const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
+    liste.forEach((id, i) => { const pt = o.points.find((x) => x.id === id); if (pt) pt.ticket = { at, list: i + 1 }; });
+    localStorage.setItem(k, JSON.stringify(o)); return brut;
+  }, ids);
+  await p.reload(); await p.waitForTimeout(600);
+  if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click();
+  await p.evaluate((brut) => localStorage.setItem('carte-paris.v1', brut), avant);
+}
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');
 
 const b = await chromium.launch();

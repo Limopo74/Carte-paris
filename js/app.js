@@ -32,7 +32,7 @@ import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, t
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
-import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
+import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
@@ -47,7 +47,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (200)';
+const VERSION = '18 novembre 2026 (201)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2237,9 +2237,9 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const days = dayChoices(now);
   const oldDay = old ? days.find((d) => iso(d.date) === iso(new Date(old.at))) : null;
   let day = old ? (oldDay?.key ?? 'other') : null;
-  let part = old ? (isPart(old.part) ? old.part : 'time') : null;
+  let part = old ? (isPart(old.part) ? old.part : isDayList(old) ? null : 'time') : null; // liste du jour : ni moment ni heure
   const date = el('input', { type: 'date', min: iso(now), value: old ? iso(new Date(old.at)) : '' });
-  const time = el('input', { type: 'time', value: old && !isPart(old.part) ? `${pad(new Date(old.at).getHours())}:${pad(new Date(old.at).getMinutes())}` : '' });
+  const time = el('input', { type: 'time', value: old && !isPart(old.part) && !isDayList(old) ? `${pad(new Date(old.at).getHours())}:${pad(new Date(old.at).getMinutes())}` : '' });
   const dateField = el('label', { class: 'field' }, 'Date', date);
   const timeField = el('label', { class: 'field' }, 'Heure', time);
   const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: old?.with ?? '' });
@@ -2248,25 +2248,39 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   const daySeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Quel jour' });
   const partSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'À quel moment' });
+  // v201 : aujourd'hui, pour un de mes lieux, le moment est facultatif : sans moment, le lieu va dans la liste du jour
+  const partHelp = el('p', { class: 'help' }, 'Aujourd\'hui, le moment est facultatif : sans moment, le lieu va dans ta liste du jour (Mon planning).');
   const draw = () => {
     fill(daySeg, ...days.map((d) => segBtn(d.label, day === d.key, () => { day = d.key; err.textContent = ''; draw(); })),
       segBtn('Autre jour', day === 'other', () => { day = 'other'; err.textContent = ''; draw(); date.focus(); }));
-    fill(partSeg, ...Object.entries(PARTS).map(([k, v]) => segBtn(v.label, part === k, () => { part = k; err.textContent = ''; draw(); })),
-      segBtn('Heure précise', part === 'time', () => { part = 'time'; err.textContent = ''; draw(); time.focus(); }));
+    fill(partSeg, ...Object.entries(PARTS).map(([k, v]) => segBtn(v.label, part === k, () => { part = part === k ? null : k; err.textContent = ''; draw(); })), /* un second appui retire le moment */
+      segBtn('Heure précise', part === 'time', () => { part = part === 'time' ? null : 'time'; err.textContent = ''; draw(); if (part) time.focus(); }));
     dateField.hidden = day !== 'other';
     timeField.hidden = part !== 'time';
+    partHelp.hidden = p.plan || day !== 'j0';
   };
   draw();
   const save = () => {
     let d = days.find((x) => x.key === day)?.date ?? null;
     if (day === 'other') { const [y, mo, da] = date.value.split('-').map(Number); d = y ? new Date(y, mo - 1, da, 12) : null; }
     if (!d) { err.textContent = 'Choisis le jour.'; return; }
+    if (!part && !p.plan && daysUntil(d.getTime()) === 0) {
+      const mine = isDayList(p.ticket) && daysUntil(p.ticket.at) === 0;
+      const list = dayList(state.points);
+      if (!mine && list.length >= DAY_MAX) { err.textContent = `${DAY_MAX} lieux au plus dans la liste d'aujourd'hui.`; return; }
+      p.ticket = dayTicket(mine ? p.ticket.list : list.length + 1, new Date(), who.value.trim().slice(0, 40));
+      persist(); updateNow(true); renderMarkers(); updatePlanningCount();
+      toast('Dans ta liste d\'aujourd\'hui', false, { label: 'Voir', fn: () => openPlanning() });
+      done();
+      return;
+    }
     if (!part) { err.textContent = 'Choisis le moment.'; return; }
     const [h, mi] = time.value.split(':').map(Number);
     if (part === 'time' && !Number.isFinite(h)) { err.textContent = 'Choisis l\'heure.'; return; }
     delete p.missed; // v199 : une sortie manquée reprévue redevient une sortie comme les autres
     p.ticket = { at: planAt(d, part === 'time' ? null : part, h, mi || 0), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}), ...(part !== 'time' ? { part } : {}) };
     if (p.plan && !stored) state.plans = cleanPlans([...(state.plans ?? []), p]);
+    rankDayList(dayList(state.points)); // un lieu sorti de la liste du jour ne laisse pas de trou dans les rangs
     persist(); updateNow(true); renderMarkers(); updatePlanningCount();
     toast(`Dans Mon planning : ${planText(p.ticket)}`, false, p.plan ? { label: 'Voir', fn: () => openPlanning() } : null);
     done();
@@ -2274,15 +2288,16 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const inviteNote = p.plan ? null : noteCheck(p);
   openSheet([ico('alarm-clock'), ` Prévoir · ${p.name}`], el('div', { class: 'stack' },
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
-    el('div', { class: 'field' }, 'À quel moment ?', partSeg), timeField,
+    el('div', { class: 'field' }, 'À quel moment ?', partSeg), partHelp, timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
     err,
     freeNote(p),
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('alarm-clock'), 'Enregistrer'),
-    old && stored ? inviteNote?.row : null,
-    old && stored ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
+    old && stored && !isDayList(old) ? inviteNote?.row : null, /* la liste du jour n'a ni heure ni moment à annoncer : pas d'invitation */
+    old && stored && !isDayList(old) ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
     old && stored ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
       if (p.plan) state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); else delete p.ticket;
+      rankDayList(dayList(state.points));
       persist(); updateNow(true); renderMarkers(); updatePlanningCount(); toast('Sortie retirée de Mon planning');
       if (p.plan) openPlanning(); else done();
     } }, 'Retirer de Mon planning') : null,
@@ -2906,7 +2921,7 @@ function renderWay(from, dest) {
   map.fitBounds(b, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
 }
 
-/* ---------- Parcours du jour ---------- */
+/* ---------- Relier des lieux ---------- */
 
 function openRoutePicker(selected = new Set()) {
   track('Relier des lieux');
@@ -2934,7 +2949,7 @@ function openRoutePicker(selected = new Set()) {
         el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
   }));
   update();
-  openSheet('Parcours du jour', el('div', { class: 'stack' }, info, list, go), { tall: true, name: 'routepick', again: () => openRoutePicker(selected) });
+  openSheet([ico('route'), ' Relier des lieux'], el('div', { class: 'stack' }, info, list, go), { tall: true, name: 'routepick', again: () => openRoutePicker(selected) });
 }
 
 function renderRoute(start, chosen) {
@@ -3481,7 +3496,8 @@ function openPlanning(from = null) {
   loadForecast();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   state.plans = cleanPlans(state.plans); // une sortie de l'agenda s'efface 30 jours après (Tu y es allé ? avant)
-  const items = plannedPoints().sort((a, b) => a.ticket.at - b.ticket.at);
+  dropStaleDayList();
+  const items = plannedPoints().filter((p) => !isDayList(p.ticket)).sort((a, b) => a.ticket.at - b.ticket.at);
   const back = named('Mon planning', () => openPlanning());
   const dayLabel = (d) => {
     const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 864e5);
@@ -3529,25 +3545,172 @@ function openPlanning(from = null) {
     if (groups.at(-1)?.label !== label) groups.push({ label, items: [] });
     groups.at(-1).items.push(p);
   }
+  /* v192 : la ligne n'a plus de boutons (charte) ; la flèche dit qu'elle s'ouvre. Boussole : sur la page ; invitation : Prévu → Copier le lien d'invitation */
+  const planLine = (p) => el('li', { class: 'item' },
+    el('button', { type: 'button', class: 'item-main', onclick: () => openPlanned(p, back) },
+      el('span', { class: 'plan-time' }, planClock(p.ticket)),
+      el('span', { class: 'item-text' },
+        el('span', { class: 'item-name' }, p.name),
+        el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ')),
+        ...planInfo(p)),
+      el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  /* v201 : « Aujourd'hui » toujours en tête. La liste du jour (mes lieux sans heure, dans mon ordre) : le prochain lieu avec Y aller,
+     Boussole, Métro (ordre de la charte) et Fait ; les lignes n'ont pas de boutons ; l'ordre se change sur une page à part. */
+  const todayLabel = dayLabel(new Date());
+  const timed = groups[0]?.label === todayLabel ? groups.shift().items : [];
+  const list = dayList(state.points);
+  const next = list[0] ?? null;
+  const pos = freshHere();
+  const dNext = next && pos ? distanceM(pos, next) : null;
+  const tagNext = next ? hoursTag(next) : null; // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
+  const todayBlock = [
+    el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
+    next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
+    next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? 1000), target: '_blank', rel: 'noopener' },
+      ico('arrow-right'), dNext != null ? `Y aller · ${fmtWalk(dNext).replace(/ /g, '\u00a0')}` : 'Y aller', dNext != null ? el('small', { class: 'go-dist' }, fmtDist(dNext)) : null) : null,
+    next ? el('div', { class: 'row3' },
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(next, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => dayDone(next), 'aria-label': `Fait : ${next.name}` }, ico('check'), 'Fait')) : null,
+    next ? el('ol', { class: 'items' }, list.map((p, i) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, back) },
+        el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, p.name),
+          el('span', { class: 'item-sub' }, [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · '), ' ', hoursTag(p))),
+        el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))) : null,
+    next ? null : el('p', { class: 'help' }, 'Note ici les lieux que tu veux faire aujourd\'hui : tu iras de l\'un à l\'autre d\'un appui.'),
+    timed.length ? el('ul', { class: 'items' }, timed.map(planLine)) : null,
+    list.length >= 2 && list.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(list), target: '_blank', rel: 'noopener' }, ico('route'), 'Tout le parcours · Google Maps') : null,
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => openDayPicker() }, ico('plus'), 'Ajouter des lieux'),
+    list.length >= 2 ? el('button', { type: 'button', class: 'btn', onclick: () => openDayOrder() }, ico('arrow-up-down'), 'Changer l\'ordre') : null,
+  ];
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
+    ...todayBlock,
     ...pastBlock,
-    groups.length ? null : el('p', { class: 'empty' }, 'Aucune sortie prévue.'),
-    groups.length ? null : el('p', { class: 'help' }, 'Pour prévoir une sortie : touche un lieu sur la carte, puis Prévoir une visite.'),
+    groups.length || timed.length ? null : el('p', { class: 'help' }, 'Pour prévoir un autre jour : touche un lieu sur la carte, puis Prévoir une visite.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
-      el('ul', { class: 'items' }, g.items.map((p) => el('li', { class: 'item' },
-        el('button', { type: 'button', class: 'item-main', onclick: () => openPlanned(p, back) },
-          el('span', { class: 'plan-time' }, planClock(p.ticket)),
-          el('span', { class: 'item-text' },
-            el('span', { class: 'item-name' }, p.name),
-            el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ')),
-            ...planInfo(p)),
-          /* v192 : la ligne n'a plus de boutons (charte) ; la flèche dit qu'elle s'ouvre. Boussole : sur la page ; invitation : Prévu → Copier le lien d'invitation */
-          el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))),
+      el('ul', { class: 'items' }, g.items.map(planLine)),
     ]),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
+}
+
+/* ---------- Liste du jour (v201) : Fait, Lieux du jour (cases à cocher), Changer l'ordre ---------- */
+
+/** Le lendemain, ce qui reste dans la liste du jour s'efface sans question : les lieux restent sur la carte. */
+function dropStaleDayList() {
+  const old = staleDayList(state.points);
+  if (!old.length) return false;
+  for (const p of old) delete p.ticket;
+  persist();
+  return true;
+}
+
+/** « Fait » : le lieu passe en Déjà visité (comme « Tu y es allé ? → Oui ») et quitte la liste ; « Annuler » remet tout comme avant. */
+function dayDone(p) {
+  const before = { ticket: p.ticket, done: p.done, visited: p.visited, passages: p.passages ? [...p.passages] : null };
+  markDone(p, true);
+  delete p.ticket;
+  rankDayList(dayList(state.points));
+  persist(); renderMarkers(); updateNow(true);
+  openPlanning();
+  const short = p.name.length > 28 ? `${p.name.slice(0, 27)}…` : p.name;
+  toast(`« ${short} » : ${didLower(catOf(p.cat))}`, false, { label: 'Annuler', fn: () => {
+    p.ticket = before.ticket;
+    p.done = before.done;
+    if (before.visited === undefined) delete p.visited; else p.visited = before.visited;
+    if (before.passages) p.passages = before.passages; else delete p.passages;
+    rankDayList([p, ...dayList(state.points).filter((x) => x.id !== p.id)]); // il reprend sa place : le premier
+    persist(); renderMarkers(); updateNow(true);
+    if (view === 'planning') openPlanning();
+  } });
+}
+
+/** Lieux du jour : mes lieux avec une case (les plus proches d'abord quand ma position est connue), un champ pour chercher. */
+function openDayPicker(selected = null, query = '') {
+  track('Lieux du jour');
+  const cur = dayList(state.points);
+  const sel = selected ?? new Set(cur.map((p) => p.id));
+  const start = freshHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
+  // Un lieu déjà prévu à une heure ou un autre jour garde sa sortie : il ne se coche pas ici
+  const busy = (p) => Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && !(isDayList(p.ticket) && daysUntil(p.ticket.at) === 0);
+  const all = offered().map((p) => ({ p, d: start ? distanceM(start, p) : 0, key: fold(p.name) }))
+    .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Chercher un de mes lieux', 'aria-label': 'Chercher un de mes lieux', value: query });
+  const list = el('ul', { class: 'items' });
+  const more = el('p', { class: 'help' });
+  const go = el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => save() });
+  const update = () => {
+    go.disabled = !sel.size && !cur.length;
+    fill(go, ico('check'), sel.size ? `Enregistrer (${plural(sel.size, 'lieu', 'lieux')})` : cur.length ? 'Enregistrer (liste vide)' : 'Coche au moins un lieu');
+  };
+  const row = ({ p, d }) => {
+    const box = el('input', { type: 'checkbox', class: 'check', 'aria-label': p.name, disabled: busy(p) });
+    box.checked = sel.has(p.id);
+    box.addEventListener('change', () => {
+      if (box.checked && sel.size >= DAY_MAX) { box.checked = false; toast(`${DAY_MAX} lieux au plus.`); return; }
+      if (box.checked) sel.add(p.id); else sel.delete(p.id);
+      update();
+    });
+    return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
+        el('span', { class: 'item-sub' }, busy(p) ? `Prévu ${planText(p.ticket)}` : [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
+  };
+  const draw = () => {
+    const q = fold(input.value.trim());
+    const hits = all.filter((x) => !q || x.key.includes(q));
+    const shown = q ? hits.slice(0, 60) : hits.filter((x, i) => i < 60 || sel.has(x.p.id));
+    fill(list, ...shown.map(row));
+    more.textContent = !hits.length ? (q ? 'Aucun de tes lieux ne porte ce nom.' : 'Ta carte n\'a pas encore de lieu : touche Ajouter, en bas de la carte.')
+      : hits.length > shown.length ? `${shown.length} lieux affichés sur ${hits.length} : cherche un nom pour voir les autres.` : '';
+    more.hidden = !more.textContent;
+  };
+  function save() {
+    const kept = cur.filter((p) => sel.has(p.id));
+    const added = all.filter((x) => sel.has(x.p.id) && !cur.includes(x.p) && !busy(x.p)).map((x) => x.p);
+    // Une liste neuve part dans le parcours le plus court depuis ma position ; ensuite, mon ordre est gardé et les nouveaux vont à la fin
+    const shortest = !cur.length && Boolean(start) && added.length > 1;
+    const order = shortest ? orderRoute(start, added) : [...kept, ...added];
+    for (const p of cur) if (!sel.has(p.id)) delete p.ticket;
+    order.forEach((p, i) => { p.ticket = dayTicket(i + 1, new Date(), isDayList(p.ticket) ? p.ticket.with ?? '' : ''); });
+    persist(); renderMarkers(); updateNow(true);
+    openPlanning();
+    toast(order.length ? `Aujourd'hui : ${plural(order.length, 'lieu', 'lieux')}${shortest ? ', dans l\'ordre le plus court' : ''}` : 'Liste d\'aujourd\'hui vidée');
+  }
+  input.addEventListener('input', draw);
+  draw(); update();
+  openSheet([ico('alarm-clock'), ' Lieux du jour'], el('div', { class: 'stack' },
+    input,
+    el('p', { class: 'help' }, `Coche les lieux d'aujourd'hui, ${DAY_MAX} au plus. ${start ? 'Les plus proches d\'abord.' : 'Par ordre alphabétique : ta position n\'est pas connue.'}`),
+    list, more, go,
+    foot(backBtn(named('Mon planning', () => openPlanning()))),
+  ), { tall: true, name: 'jourlieux', again: () => openDayPicker(sel, input.value) });
+}
+
+/** Changer l'ordre de la liste du jour : les flèches de Réglages, sur une page à part (une ligne de liste n'a pas de boutons). */
+function openDayOrder(focus = null) {
+  const list = dayList(state.points);
+  if (list.length < 2) { openPlanning(); return; }
+  const apply = (next, f = null) => { rankDayList(next); persist(); openDayOrder(f); };
+  const start = freshHere();
+  const shortest = () => {
+    apply(start ? orderRoute(start, list) : [list[0], ...orderRoute(list[0], list.slice(1))]);
+    toast(start ? 'Parcours le plus court depuis ta position' : 'Parcours le plus court depuis le premier lieu');
+  };
+  openSheet([ico('arrow-up-down'), ' Changer l\'ordre'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Le n° 1 est le prochain lieu, celui de « Y aller ». Range à ta façon.'),
+    el('div', {}, list.map((p, i) => el('div', { class: 'cat-row' },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'cat-name' }, p.name),
+      el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${p.id}:-1`, onclick: () => apply(moveInList(list, p.id, -1), `${p.id}:-1`), 'aria-label': `Monter ${p.name}` }, '↑'),
+      el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${p.id}:1`, onclick: () => apply(moveInList(list, p.id, 1), `${p.id}:1`), 'aria-label': `Descendre ${p.name}` }, '↓')))),
+    el('button', { type: 'button', class: 'btn', onclick: shortest }, ico('route'), 'Remettre le plus court'),
+    foot(backBtn(named('Mon planning', () => openPlanning()))),
+  ), { name: 'jourordre', again: () => openDayOrder() });
+  if (focus) requestAnimationFrame(() => (document.querySelector(`[data-move="${focus}"]:not(:disabled)`) ?? document.querySelector(`[data-move^="${focus.split(':')[0]}:"]:not(:disabled)`))?.focus());
 }
 
 /* ---------- Trouver une sortie (v154) : l'agenda de la Ville pour un jour choisi, autour du centre de la carte ----------
@@ -7638,10 +7801,13 @@ const HELP = [
     '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda. Le lendemain, « Tu y es allé ? » : « Non » sur une expo encore à l\'affiche la garde, avec « Prévoir un autre jour » ou « Retirer ».',
+    '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom. Depuis une fiche : Prévoir une visite → Aujourd\'hui → Enregistrer, sans choisir de moment.',
+    '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Changer l\'ordre » : des flèches pour ranger à ta façon. « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
+    '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit au-dessus d\'« Enregistrer ».',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
-    '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire une impression » : ce que tu retiens, une note, une photo.',
+    '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire une impression » : ce que tu retiens, une note, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
@@ -7795,6 +7961,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Changer l\'ordre »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
     '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an. Les gares arrivent avec la prochaine mise à jour des données.',
     '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ». Les sorties du métro arrivent avec la prochaine mise à jour des données.',
     '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ». Les origines et les auteurs arrivent avec la prochaine mise à jour des données.',
@@ -7804,7 +7971,6 @@ const HELP = [
     '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
     '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
     '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
-    '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
   ]],
 ];
 
@@ -7889,11 +8055,12 @@ document.querySelector('#nowCard .now-close').addEventListener('click', () => {
   updateNow(true);
 });
 let markersDay = new Date().toDateString(); // à minuit, les pastilles agenda des épingles changent
-setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); renderMarkers(); } }, 5 * 60000);
+setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); dropStaleDayList(); renderMarkers(); } }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
+if (dropStaleDayList()) renderMarkers(); // la liste du jour d'hier s'efface sans question (v201)
 updatePlanningCount();
 refreshParkHours().catch(() => {}); // horaires de la Ville pour mes parcs (liste sans position, gardée un jour)
 // Fichiers de l'appli (rien n'est envoyé) : Navigo pour les fiches ; une fois toutes les dates connues, le rappel groupé

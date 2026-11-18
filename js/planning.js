@@ -10,6 +10,34 @@ export const PARTS = {
 };
 export const isPart = (k) => Object.hasOwn(PARTS, k);
 
+/* ---------- Liste du jour (v201) : les lieux notés pour aujourd'hui, sans heure ni moment, dans mon ordre ----------
+   Un billet { at, list } : `at` = ce jour-là à midi (seul le jour compte), `list` = le rang (1 = le prochain lieu).
+   Le lendemain, ce qui n'a pas été fait s'efface sans question ; « Fait » = Déjà visité. */
+export const DAY_MAX = 8;
+export const isDayList = (t) => Number.isFinite(t?.at) && !isPart(t.part) && Number.isInteger(t.list) && t.list >= 1;
+/** Le billet d'un lieu de la liste du jour, au rang donné. */
+export const dayTicket = (rank, now = new Date(), who = '') => ({ at: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12).getTime(), list: rank, ...(who ? { with: who } : {}) });
+/** Les lieux de la liste d'aujourd'hui, dans mon ordre. */
+export function dayList(points, now = new Date()) {
+  return points.filter((p) => isDayList(p.ticket) && daysFrom(p.ticket.at, now) === 0).sort((a, b) => a.ticket.list - b.ticket.list);
+}
+/** Les lieux d'une liste d'un jour passé : leur billet s'efface sans question (les lieux restent sur la carte). */
+export const staleDayList = (points, now = new Date()) => points.filter((p) => isDayList(p.ticket) && daysFrom(p.ticket.at, now) < 0);
+/** Donne les rangs 1, 2, 3… dans l'ordre de la liste. */
+export function rankDayList(list) {
+  list.forEach((p, i) => { p.ticket = { ...p.ticket, list: i + 1 }; });
+  return list;
+}
+/** La liste avec ce lieu monté (−1) ou descendu (+1) d'un cran ; la même si le mouvement est impossible. */
+export function moveInList(list, id, delta) {
+  const i = list.findIndex((p) => p.id === id);
+  const k = i + delta;
+  const out = [...list];
+  if (i < 0 || k < 0 || k >= out.length) return out;
+  [out[i], out[k]] = [out[k], out[i]];
+  return out;
+}
+
 const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 /** Nombre de jours entre aujourd'hui et la date (0 = aujourd'hui, 1 = demain, −1 = hier). */
 export const daysFrom = (at, now = new Date()) => Math.round((dayStart(new Date(at)) - dayStart(now)) / 864e5);
@@ -47,14 +75,16 @@ export function planText(t, now = new Date()) {
   const part = isPart(t.part) ? PARTS[t.part] : null;
   if (part && k === 0) return part.today;
   const day = k === 0 ? 'aujourd\'hui' : k === 1 ? 'demain' : k === -1 ? 'hier' : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+  if (isDayList(t)) return day; // liste du jour : le jour seul, jamais une heure inventée
   return part ? `${day} ${part.day}` : `${day} à ${hm(d)}`;
 }
 
 /** Ce qui s'écrit dans la colonne de l'heure de Mon planning : « 15h » ou « Soir ». */
-export const planClock = (t) => (isPart(t?.part) ? PARTS[t.part].label : hm(new Date(t.at)));
+export const planClock = (t) => (isPart(t?.part) ? PARTS[t.part].label : isDayList(t) ? '' : hm(new Date(t.at)));
 
 /** Fin de la sortie pour « Maintenant » : 30 min après l'heure précise, ou la fin du moment choisi. */
 export function planEnd(t) {
+  if (isDayList(t)) { const d = new Date(t.at); return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(); } // liste du jour : jusqu'à minuit
   if (!isPart(t?.part)) return t.at + 30 * 60000;
   const d = new Date(t.at);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), PARTS[t.part].to).getTime();
@@ -71,17 +101,17 @@ export function planTimes(t) {
 /** Sorties d'avant aujourd'hui (30 jours au plus), à confirmer : « Tu y es allé ? ». Les plus récentes d'abord. */
 export function pastPlans(points, now = new Date()) {
   const today = dayStart(now).getTime();
-  return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && p.ticket.at < today && p.ticket.at >= today - 30 * 864e5)
+  return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && !isDayList(p.ticket) && p.ticket.at < today && p.ticket.at >= today - 30 * 864e5)
     .sort((a, b) => b.ticket.at - a.ticket.at);
 }
 
-/** Une sortie prévue lisible, ou null : { at, with?, part? }. */
+/** Une sortie prévue lisible, ou null : { at, with?, part? } ; ou un lieu de la liste du jour : { at, with?, list }. */
 export function cleanPlan(t) {
   if (!Number.isFinite(t?.at)) return null;
   return {
     at: t.at,
     ...(typeof t.with === 'string' && t.with.trim() ? { with: t.with.trim().slice(0, 40) } : {}),
-    ...(isPart(t.part) ? { part: t.part } : {}),
+    ...(isPart(t.part) ? { part: t.part } : isDayList(t) ? { list: Math.min(t.list, 99) } : {}),
   };
 }
 

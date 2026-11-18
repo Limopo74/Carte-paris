@@ -2,7 +2,7 @@
 // Tout est trié sur le téléphone ; aucune position n'est envoyée, sauf à Wikipédia, arrondie à 100 m (comme Curiosités).
 import { distanceM } from './geo.js';
 import { openState } from './hours.js';
-import { planEnd } from './planning.js';
+import { planEnd, isDayList } from './planning.js';
 
 const DAY = 864e5;
 const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -370,7 +370,7 @@ export const leaveAt = (at, travelMin, margin = 5) => new Date(at - (travelMin +
 
 /** Une sortie à afficher dans « Maintenant » : aujourd'hui, pas plus de 30 min après l'heure (ou avant la fin du moment choisi). */
 export function ticketToday(points, now = new Date()) {
-  return points.filter((p) => Number.isFinite(p.ticket?.at) && dayStart(new Date(p.ticket.at)).getTime() === dayStart(now).getTime() && planEnd(p.ticket) > now)
+  return points.filter((p) => Number.isFinite(p.ticket?.at) && !isDayList(p.ticket) && dayStart(new Date(p.ticket.at)).getTime() === dayStart(now).getTime() && planEnd(p.ticket) > now) /* la liste du jour n'a pas d'heure : « Maintenant » ne la rappelle pas */
     .sort((a, b) => a.ticket.at - b.ticket.at)[0] ?? null;
 }
 
