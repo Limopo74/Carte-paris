@@ -989,6 +989,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .go-compass.go-metro { color: var(--metro); border-color: var(--metro); font-family: var(--display); font-weight: 800; font-size: 18px; }
 .hl-line { margin: 0; display: flex; align-items: flex-start; gap: 6px; color: var(--ink); font-weight: 600; font-size: var(--t16); line-height: 1.35; }
 .hl-line .ico { color: var(--disc); flex: none; margin-top: 1px; }
+.hl-line.ok .ico { color: var(--add); }
 .quarter { display: flex; flex-direction: column; gap: 8px; }
 .quarter:empty { display: none; }
 .quarter-text { margin: 0; font-size: var(--t16); line-height: 1.45; }

@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (188)';
+const VERSION = '18 novembre 2026 (189)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1094,6 +1094,16 @@ function departureFor(p, pos) {
   return { leave: leaveAt(p.ticket.at, travel), travel, how };
 }
 
+/* Vibrer quand « Maintenant » a du nouveau (v189, réglage éteint au départ) : une courte vibration, une seule fois
+   par suggestion et par ouverture de l'appli. Seulement pour : Pars maintenant, Tu es déjà passé ici, C'est le moment,
+   Dans la rue, Gratuit à 5 min. Rien quand l'écran est éteint (le téléphone ne le permet pas) : jamais un réveil. */
+const buzzed = new Set();
+function buzzNow(key) {
+  if (state.vibrateNow !== true || buzzed.has(key)) return;
+  buzzed.add(key);
+  try { navigator.vibrate?.([120, 80, 120]); } catch { /* pas de vibreur */ }
+}
+
 /* « Maintenant » : sur la carte, le lieu le plus proche et ouvert (15 min à pied au plus).
    Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
 function updateNow(force = false) {
@@ -1116,6 +1126,7 @@ function updateNow(force = false) {
       el('span', { class: 'now-sub' }, leave
         ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`
         : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`));
+    if (leave && leave <= new Date()) buzzNow(`pars:${tk.name}:${at}`);
     card.querySelector('.now-open').onclick = () => openPlanned(tk);
     return;
   }
@@ -1130,6 +1141,7 @@ function updateNow(force = false) {
       el('span', { class: 'now-kicker' }, `Tu es déjà passé ici${m.at ? ` · ${agoText(m.at)}` : ''}`),
       el('span', { class: 'now-name' }, mem.p.name),
       el('span', { class: 'now-sub' }, m.text || (m.photo ? 'Ta photo' : 'Voir la fiche')));
+    buzzNow(`passe:${mem.p.id}`);
     card.querySelector('.now-open').onclick = () => openDetail(mem.p.id);
     return;
   }
@@ -1141,6 +1153,7 @@ function updateNow(force = false) {
       el('span', { class: 'now-kicker' }, `C'est le moment · ${momentText(mo.p.moments)}`),
       el('span', { class: 'now-name' }, mo.p.name),
       el('span', { class: 'now-sub' }, [`${walkMinutes(mo.d)} min à pied`, mo.p.note?.trim() ? mo.p.note.trim().slice(0, 60) : null].filter(Boolean).join(' · ')));
+    buzzNow(`moment:${mo.p.id}`);
     card.querySelector('.now-open').onclick = () => openDetail(mo.p.id);
     return;
   }
@@ -1169,6 +1182,7 @@ function updateNow(force = false) {
       el('span', { class: 'now-name' }, street.title),
       el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place,
         !street.street && street.booking === 'advised' ? 'réservation conseillée' : null].filter(Boolean).join(' · ')));
+    buzzNow(`sortie:${street.title}:${street.lat},${street.lng}`);
     card.querySelector('.now-open').onclick = () => openEventPage(street);
     return;
   }
@@ -6257,8 +6271,10 @@ function openSettings(section = null) {
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '↗'))
       : el('div', { class: 'menu-row c-info' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub))));
     openSheet([ico('database'), ' Données de l\'appli'], el('div', { class: 'stack' },
-      el('p', { class: due.size ? 'warn' : 'help' }, due.size ? `${plural(due.size, 'donnée à mettre à jour', 'données à mettre à jour')}.`
-        : unknown.size ? `${plural(unknown.size, 'date inconnue', 'dates inconnues')} : rouvre cette page avec du réseau.` : 'Tout est à jour.'),
+      // v189 : l'état d'un coup d'œil (coche verte ou triangle), en gros, au lieu d'une ligne grise
+      due.size ? el('p', { class: 'warn' }, ico('triangle-alert'), ` ${plural(due.size, 'donnée à mettre à jour', 'données à mettre à jour')}`)
+        : unknown.size ? el('p', { class: 'help' }, `${plural(unknown.size, 'date inconnue', 'dates inconnues')} : rouvre cette page avec du réseau.`)
+        : el('p', { class: 'hl-line ok' }, ico('circle-check'), 'Tout est à jour'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'Mises à jour par le robot, chaque 1er du mois'), el('span', {}, '')),
       el('div', { class: 'menu' }, FIXED_DATA.filter((d) => d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, d.name),
@@ -6430,6 +6446,16 @@ function openSettings(section = null) {
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
   el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
+  const buzzOn = state.vibrateNow === true; // v189 : éteint au départ
+  const vibrateSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(buzzOn), onclick: () => {
+    state.vibrateNow = !buzzOn; persist(); openSettings();
+    if (state.vibrateNow) { try { navigator.vibrate?.([120, 80, 120]); } catch { /* pas de vibreur */ } } // un essai, tout de suite
+    toast(state.vibrateNow ? 'Le téléphone vibrera quand « Maintenant » a du nouveau, appli ouverte' : 'Vibration coupée');
+  } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('vibrate')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Vibrer quand « Maintenant » a du nouveau'), el('span', { class: 'menu-sub' }, 'Seulement appli ouverte, écran allumé')),
+  el('span', { class: `switch${buzzOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages'], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
@@ -6469,6 +6495,7 @@ function openSettings(section = null) {
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     voiceSwitch,
+    vibrateSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
     row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton caché', 'boutons cachés') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
@@ -7309,7 +7336,7 @@ const HELP = [
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
-    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache.',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé.',
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
@@ -7494,6 +7521,7 @@ const HELP = [
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Voix pour l\'éteindre.',
+    '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
     '{database} **Données de l\'appli** : {settings} → Appli. Chaque donnée a sa date.',
@@ -7529,6 +7557,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
     '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
@@ -7538,7 +7567,6 @@ const HELP = [
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
     '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
-    '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
   ]],
 ];
 
