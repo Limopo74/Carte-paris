@@ -191,7 +191,15 @@ const ECRANS = {
   pratcarte: async (p) => { await p.evaluate(() => document.getElementById('btnPratique').click()); await p.waitForSelector('#sheet .items'); const allumer = feuille(p).locator('button', { hasText: 'Toutes les fontaines' }); if (await allumer.count()) await allumer.click(); else await p.locator('#sheetClose').click(); /* calque gardé allumé par l'écran d'avant */ await p.waitForTimeout(600); if (await p.locator('#layerNote:not([hidden])').count()) await p.locator('#layerNote').click(); await p.waitForTimeout(700); },
   pratlieu: async (p) => { await ECRANS.pratcarte(p); await p.locator('.pr-pin.lite').first().dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); },
   filtrearr: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.arr-pick').scrollIntoViewIfNeeded(); }, // v182
-  filtrearrcarte: async (p) => { await ECRANS.filtrearr(p); await feuille(p).locator('.arr-pick .arr', { hasText: /^9e/ }).click(); await p.waitForTimeout(700); },
+  filtrearrcarte: async (p) => { await ECRANS.filtrearr(p); await feuille(p).locator('.arr-pick .arr', { hasText: /^9e/ }).click(); await p.waitForTimeout(700); }, // v202 : la liste « Mes lieux du 9e » sous la carte
+  arrlistereduite: async (p) => { await ECRANS.filtrearrcarte(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); }, // v202
+  arrlistevide: async (p) => { // v202 : un appui sur la carte, dans un arrondissement voisin sans lieu de test (le 2e)
+    await ECRANS.filtrearrcarte(p);
+    const at = await p.evaluate(() => { for (const e of document.querySelectorAll('.arr-num')) { if (parseInt(e.textContent, 10) === 2) { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } } return null; });
+    if (!at) throw new Error('numéro du 2e pas trouvé sur la carte');
+    await p.mouse.click(at.x + 16, at.y + 12); await p.waitForTimeout(600);
+    await feuille(p).getByText('Aucun de tes lieux dans cet arrondissement').waitFor({ timeout: 3000 });
+  },
   filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Afficher aussi sur la carte' }).scrollIntoViewIfNeeded(); },
   plushaut: async (p) => { await p.locator('.chip.more-chip').click(); await p.waitForTimeout(300); },
   barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },

@@ -225,6 +225,22 @@ export function arrAt(lat, lng, data) {
   }
   return null;
 }
+/** Mes lieux d'un arrondissement rangés par catégorie (v202) : une rubrique par catégorie qui a au moins un lieu, dans l'ordre de
+ * mes catégories ; dans chacune, par ordre alphabétique. Un lieu dont la catégorie n'existe plus garde sa rubrique, en dernier. */
+export function arrGroups(points, categories) {
+  const byName = (a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'fr', { sensitivity: 'base' });
+  const order = [...new Set([...(categories ?? []).map((c) => c.id), ...points.map((p) => p.cat)])];
+  return order.map((cat) => ({ cat, rows: points.filter((p) => p.cat === cat).sort(byName) })).filter((g) => g.rows.length);
+}
+
+/** Un appui sur la carte pendant qu'un arrondissement est choisi (v202) : le numéro de l'autre arrondissement touché, ou null
+ * (aucun arrondissement choisi, même arrondissement, hors de Paris, contours pas lus). */
+export function arrTap(lat, lng, current, data) {
+  if (!current) return null;
+  const n = arrAt(lat, lng, data);
+  return n && n !== current ? n : null;
+}
+
 /**
  * Arrondissement d'une position seulement s'il est sûr (v193) : le cercle d'incertitude (précision du GPS, contours simplifiés
  * à 4 m, marche possible depuis la mesure à 1,4 m/s) doit tenir entier dans l'arrondissement. Sinon null : pas d'info plutôt
