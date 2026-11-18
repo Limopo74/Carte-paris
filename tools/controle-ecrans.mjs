@@ -35,7 +35,7 @@ const LIEUX = [
 // Une sortie de l'agenda prévue (v153) : dans Mon planning, pas sur la carte
 const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng: 2.3360, place: 'Square Montholon', url: 'https://quefaire.paris.fr/', ticket: { at: new Date(now + 2 * 864e5).setHours(20, 30, 0, 0) } },
   // v158 : une expo de l'agenda prévue hier, pour « Tu y es allé ? »
-  { id: 'ev2', name: 'Exposition photo : Paris la nuit', lat: 48.8810, lng: 2.3290, place: 'Galerie du 9e', ticket: { at: new Date(now - 864e5).setHours(15, 0, 0, 0), part: 'aprem' } }];
+  { id: 'ev2', name: 'Exposition photo : Paris la nuit', lat: 48.8810, lng: 2.3290, place: 'Galerie du 9e', until: now + 40 * 864e5, ticket: { at: new Date(now - 864e5).setHours(15, 0, 0, 0), part: 'aprem' } }]; // v199 : expo encore à l'affiche
 // v158 : mon carnet de sorties (Mon journal) et mes artistes
 const OUTINGS = [{ id: 'o1', at: now - 10 * 864e5, name: 'Hockney 25', lat: 48.8766, lng: 2.2633, place: 'Fondation Louis Vuitton', text: 'Les arbres en grand format, salle 5', stars: 5 }];
 const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle'];
@@ -94,6 +94,8 @@ const ECRANS = {
   donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: /^\s*Appli(?![a-z])/ }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
+  planningmanque: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button[aria-label^="Non, pas allé à Exposition"]').click(); await p.waitForSelector('#sheet button:has-text("Prévoir un autre jour")'); await p.waitForTimeout(300); },
+  prevoirgratuit: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('carte-paris.v1')); s.points[0].lat = 48.8600; s.points[0].lng = 2.3266; localStorage.setItem('carte-paris.v1', JSON.stringify(s)); }); await p.reload(); await p.waitForTimeout(800); if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click(); await p.evaluate(() => document.querySelector('.leaflet-marker-icon')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
   donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
@@ -217,6 +219,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
     { r: 'PA00085808', t: 'Immeuble', a: ['Guimard Hector (architecte)'], d: '1898', lat: 48.8805, lng: 2.335 },
     { r: 'PA00086001', t: 'Castel Béranger', a: ['Guimard Hector (architecte)'], d: '1895, 1898', lat: 48.8527, lng: 2.2742 },
     { r: 'PA00086002', t: 'Synagogue de la rue Pavée', a: ['Guimard Hector (architecte)'], d: '1913', lat: 48.8554, lng: 2.3601 }] }) }));
+  // v199 : la vraie sortie du métro Blanche (référentiel IDFM, lu le 18 nov. 2026)
+  await page.route(/data\/acces\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'IDFM', updated: '2026-11-18', items: [{ n: 'bd de Clichy', s: '1', lat: 48.88367, lng: 2.33288 }] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie

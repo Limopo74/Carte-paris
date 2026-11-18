@@ -635,3 +635,30 @@ export function artistSuggest(text, names) {
 }
 /** « Chercher ce nom » : une recherche Google « nom + street art », ouverte seulement par mon appui (un lien, rien n'est envoyé avant). */
 export const artistSearchUrl = (name) => `https://www.google.com/search?q=${encodeURIComponent(`${String(name ?? '').trim()} street art`)}`;
+
+/* ---------- Gratuit dans N jours, au moment de Prévoir (v199) ---------- */
+
+/** Un lieu de la liste des gratuités à moins de 150 m de `p` (hors musées de la Ville, gratuits toute l'année), ou null. */
+export function freePlaceFor(p) {
+  if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return null;
+  let best = null;
+  for (const f of FREE_PLACES) {
+    if (f.rule === 'always') continue;
+    const d = distanceM(p, f);
+    if (d <= 150 && (!best || d < best.d)) best = { f, d };
+  }
+  return best?.f ?? null;
+}
+
+/** Le prochain jour gratuit de ce lieu, d'aujourd'hui à `days` jours : { date, when, k } (k : jours d'écart), ou null. */
+export function nextFreeFor(p, date = new Date(), days = 35) {
+  const f = freePlaceFor(p);
+  if (!f) return null;
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  for (let k = 0; k <= days; k += 1) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + k);
+    const hit = freeToday(d).find((x) => x.name === f.name);
+    if (hit) return { date: d, when: hit.when, k };
+  }
+  return null;
+}

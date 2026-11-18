@@ -109,6 +109,8 @@ export function cleanPlans(list, now = Date.now()) {
       ...(typeof x.place === 'string' && x.place.trim() ? { place: x.place.trim().slice(0, 120) } : {}),
       ...(typeof x.url === 'string' && /^https:\/\/[^\s"<>]+$/.test(x.url) ? { url: x.url.slice(0, 500) } : {}),
       ...(typeof x.by === 'string' && x.by.trim() ? { by: x.by.trim().slice(0, 30) } : {}), // v181 : prévue par un proche (son fichier)
+      ...(Number.isFinite(x.until) && x.until > 0 ? { until: x.until } : {}), // v199 : fin d'une expo de l'agenda
+      ...(x.missed === true ? { missed: true } : {}), // v199 : « Non » à « Tu y es allé ? », encore à l'affiche
     };
   }).filter(Boolean).slice(0, 200);
 }

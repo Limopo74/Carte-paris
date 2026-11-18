@@ -15,12 +15,13 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
+import { cleanAcces, exitFor } from './acces.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
@@ -45,7 +46,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (198)';
+const VERSION = '18 novembre 2026 (199)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -117,6 +118,9 @@ const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '
 
 /* ---------- Stations de métro et RER ---------- */
 
+/** Sorties du métro (data/acces.json, robot ; v199) : lues au démarrage, après les stations ; vides tant que le robot ne les a pas rangées. */
+let accesData = null; let acces = [];
+const loadAcces = async () => { accesData ??= await fetch('data/acces.json').then((r) => (r.ok ? r.json() : null)).catch(() => null); acces = cleanAcces(accesData); return acces; };
 let stations = [];
 let stationsSource = '';
 let transportsUpdated = ''; // date des tracés et des stations gardés dans l'appli (AAAA-MM-JJ)
@@ -131,6 +135,7 @@ const stationsReady = fetch('data/stations.json')
   })
   .catch(() => { /* pas encore de données : la fonction reste discrète */ });
 
+stationsReady.then(() => loadAcces()).catch(() => {});
 /** Appel à un service en ligne, abandonné au bout de 10 s : avec un réseau faible (métro, quai), l'écran affiche
  * son message d'erreur au lieu de rester sur « Chargement… ». Les fichiers de l'appli passent par fetch() directement. */
 function net(url, opts = {}) {
@@ -140,7 +145,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -1916,7 +1921,7 @@ function openDetail(id, back = null) {
     el('div', {},
       el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
       metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
-      metro ? el('div', { class: 'fiche-s' }, `≈ ${metro.min} min à pied`) : null)) : null;
+      metro ? el('div', { class: 'fiche-s' }, metro.exit ? `${metro.exit} · ≈ ${metro.min} min` : `≈ ${metro.min} min à pied`) : null)) : null;
 
   // Lignes d'information, séparées par des filets.
   const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
@@ -2028,7 +2033,8 @@ function stationFacts(p) {
   if (!r || r.d > 2000) return null;
   const { station: st, d } = r;
   const lines = [Array.isArray(st.l) ? st.l.join(', ') : '', Array.isArray(st.rer) && st.rer.length ? `RER ${st.rer.join(', ')}` : ''].filter(Boolean).join(' · ');
-  return { name: st.n, lines, min: walkMinutes(d) };
+  const exit = exitFor(acces, st, p); // v199 : la sortie la plus proche du lieu, et les minutes depuis elle
+  return { name: st.n, lines, min: walkMinutes(exit ? exit.d : d), exit: exit?.label ?? '' };
 }
 
 /* ---------- Photos d'un lieu (gardées sur le téléphone) ---------- */
@@ -2205,6 +2211,14 @@ function draftPlan(draft) {
 }
 
 /* ---------- Prévoir (v152) : le jour et le moment en puces, l'heure précise seulement si on veut ---------- */
+/** Prévoir (v199) : « Gratuit ici dimanche 6 décembre (1er dimanche du mois…) » quand le lieu a un jour gratuit dans les 35 jours. */
+function freeNote(p) {
+  const n = nextFreeFor(p);
+  if (!n) return null;
+  const day = n.k === 0 ? 'aujourd\'hui' : n.k === 1 ? 'demain' : dayTitle(n.date);
+  return el('p', { class: 'help' }, el('b', {}, `Gratuit ici ${day}`), ` : ${n.when}.`);
+}
+
 function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -2241,6 +2255,7 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     if (!part) { err.textContent = 'Choisis le moment.'; return; }
     const [h, mi] = time.value.split(':').map(Number);
     if (part === 'time' && !Number.isFinite(h)) { err.textContent = 'Choisis l\'heure.'; return; }
+    delete p.missed; // v199 : une sortie manquée reprévue redevient une sortie comme les autres
     p.ticket = { at: planAt(d, part === 'time' ? null : part, h, mi || 0), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}), ...(part !== 'time' ? { part } : {}) };
     if (p.plan && !stored) state.plans = cleanPlans([...(state.plans ?? []), p]);
     persist(); updateNow(true); renderMarkers(); updatePlanningCount();
@@ -2253,6 +2268,7 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     el('div', { class: 'field' }, 'À quel moment ?', partSeg), timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
     err,
+    freeNote(p),
     el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('alarm-clock'), 'Enregistrer'),
     old && stored ? inviteNote?.row : null,
     old && stored ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
@@ -2273,7 +2289,8 @@ function planEvent(e, again) {
   const slot = e.slotStart instanceof Date && e.slotStart.getTime() > Date.now() - 30 * 60000 ? e.slotStart.getTime() : null;
   openPlan({ id: newPhotoId(), name: String(e.title ?? '').trim().slice(0, 120), lat: e.lat, lng: e.lng, plan: true,
     ...(e.address ? { address: e.address } : {}), ...(e.place ? { place: e.place } : {}), ...(e.url ? { url: e.url } : {}),
-    ...(slot ? { ticket: { at: slot } } : {}) }, named('Sortie', again), { done: again });
+    ...(slot ? { ticket: { at: slot } } : {}),
+    ...(isExpo(e) && e.end instanceof Date && Number.isFinite(+e.end) ? { until: +e.end } : {}) }, named('Sortie', again), { done: again }); // v199 : la fin d'une expo, pour « encore à l'affiche »
 }
 
 /** Page d'une sortie de l'agenda prévue : Y aller, boussole, métro, changer le jour, retirer ; « Ajouter » la garde dans mes lieux. */
@@ -3386,6 +3403,10 @@ async function openMyParis(from = null) {
 
 /* ---------- Mon planning : les sorties prévues (Prévoir), rangées par jour ; la veille et avant : « Tu y es allé ? ». ---------- */
 
+/** v199 : une expo prévue encore à l'affiche après aujourd'hui (date de fin gardée au moment de Prévoir). */
+const stillOn = (p) => Number.isFinite(p.until) && p.until >= new Date(new Date().setHours(23, 59, 59, 999)).getTime();
+const untilText = (p) => new Date(p.until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
 /** Sorties prévues à partir d'aujourd'hui. */
 function plannedPoints() { const t = new Date().setHours(0, 0, 0, 0); return [...state.points, ...(state.plans ?? [])].filter((p) => Number.isFinite(p.ticket?.at) && p.ticket.at >= t); }
 /** Ouvre ce qui est prévu : la fiche d'un de mes lieux, ou la page d'une sortie de l'agenda. */
@@ -3457,10 +3478,12 @@ function openPlanning(from = null) {
     const date = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return days === 0 ? `Aujourd'hui · ${date}` : days === 1 ? `Demain · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
   };
-  // Le lendemain (v152) : « Tu y es allé ? ». Oui = Déjà visité, à la date prévue ; Non = la sortie s'efface.
+  // Le lendemain (v152) : « Tu y es allé ? ». Oui = Déjà visité, à la date prévue ; Non = la sortie s'efface (v199 : sauf une expo encore à l'affiche).
   // v158 : aussi pour une sortie de l'agenda (Oui = une ligne dans Mon journal) ; le message propose d'écrire un mot.
   const answer = (p, yes) => {
     const at = p.ticket.at;
+    // v199 : « Non » sur une expo encore à l'affiche la garde, avec « Prévoir un autre jour » ou « Retirer »
+    if (!yes && p.plan && !p.missed && stillOn(p)) { p.missed = true; persist(); openPlanning(); toast(`« ${p.name} » : encore à l'affiche jusqu'au ${untilText(p)}`); return; }
     if (p.plan) {
       state.plans = (state.plans ?? []).filter((x) => x.id !== p.id);
       if (yes) state.outings = cleanOutings([outingOf(p), ...(state.outings ?? [])].filter(Boolean));
@@ -3475,15 +3498,20 @@ function openPlanning(from = null) {
       fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
   const past = pastPlans([...state.points, ...(state.plans ?? [])]);
+  const removePlan = (p) => { state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); persist(); renderMarkers(); updateNow(true); openPlanning(); toast(`« ${p.name} » retiré de Mon planning`); };
   const pastBlock = past.length ? [
     el('h3', { class: 'ring-title' }, el('span', {}, 'Tu y es allé ?'), el('span', {}, String(past.length))),
     el('ul', { class: 'items' }, past.map((p) => el('li', { class: 'item past-plan' },
       el('span', { class: 'item-text' },
         el('span', { class: 'item-name' }, p.name),
-        el('span', { class: 'item-sub' }, [planText(p.ticket).replace(/^./, (c) => c.toUpperCase()), p.ticket.with ? `avec ${p.ticket.with}` : ''].filter(Boolean).join(' · '))),
-      el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => answer(p, true), 'aria-label': `Oui, je suis allé à ${p.name}` }, ico('check'), 'Oui'),
-        el('button', { type: 'button', class: 'btn', onclick: () => answer(p, false), 'aria-label': `Non, pas allé à ${p.name}` }, 'Non'))))),
+        el('span', { class: 'item-sub' }, p.missed ? (stillOn(p) ? `Pas allé · encore à l'affiche jusqu'au ${untilText(p)}` : 'Pas allé · l\'expo est finie')
+          : [planText(p.ticket).replace(/^./, (c) => c.toUpperCase()), p.ticket.with ? `avec ${p.ticket.with}` : ''].filter(Boolean).join(' · '))),
+      p.missed ? el('div', { class: 'row' },
+        stillOn(p) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openPlan(p, named('Mon planning', () => openPlanning()), { done: () => openPlanning() }) }, 'Prévoir un autre jour') : null,
+        el('button', { type: 'button', class: 'btn', onclick: () => removePlan(p) }, 'Retirer'))
+        : el('div', { class: 'row' },
+          el('button', { type: 'button', class: 'btn c-add', onclick: () => answer(p, true), 'aria-label': `Oui, je suis allé à ${p.name}` }, ico('check'), 'Oui'),
+          el('button', { type: 'button', class: 'btn', onclick: () => answer(p, false), 'aria-label': `Non, pas allé à ${p.name}` }, 'Non'))))),
   ] : [];
   const groups = [];
   for (const p of items) {
@@ -3804,7 +3832,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -6509,6 +6537,10 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : les lieux partenaires et les offres changent (festivals, saisons).`),
         el('div', { class: 'menu' }, link({ name: 'Lieux bénéficiant des avantages culture Navigo', file: 'lieux-avantages-cultures-navigo.geojson', url: NAVIGO_SOURCE })),
         say('Mets à jour les avantages Navigo', 'tools/maj-navigo.py')],
+      acces: () => [
+        el('p', { class: 'help' }, 'Sert à la fiche d\'un lieu : la sortie de métro la plus proche (numéro et nom écrits sur les panneaux, à vérifier sur place). Seulement les accès RATP. Une sortie fermée pour travaux n\'est pas connue. Île-de-France Mobilités, Licence Ouverte 2.0.'),
+        el('div', { class: 'menu' }, link(ACCES_FILE)),
+        say('Mets à jour les sorties du métro', 'tools/maj-acces.py')],
       architectes: () => [
         el('p', { class: 'help' }, 'Sert à Monuments : l\'auteur (architecte, sculpteur…) et la date de chaque monument protégé de Paris, et « Du même auteur ». Ministère de la Culture, base Mérimée, Licence Ouverte 2.0, lu dans l\'API de data.gouv.fr.'),
         el('div', { class: 'menu' }, link(ARCH_FILE)),
@@ -7578,9 +7610,9 @@ const HELP = [
     '**Navigo** : les lieux partenaires des avantages Navigo. Touche-en un pour lire l\'offre.',
     '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
-    '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda.',
+    '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda. Le lendemain, « Tu y es allé ? » : « Non » sur une expo encore à l\'affiche la garde, avec « Prévoir un autre jour » ou « Retirer ».',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
-    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif.',
+    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit au-dessus d\'« Enregistrer ».',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
     '**Le lendemain**, Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface. « Écrire une impression » : ce que tu retiens, une note, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
@@ -7636,7 +7668,7 @@ const HELP = [
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
-    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour ; la station la plus proche.',
+    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
@@ -7736,6 +7768,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ». Les sorties du métro arrivent avec la prochaine mise à jour des données.',
     '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ». Les origines et les auteurs arrivent avec la prochaine mise à jour des données.',
     '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
     '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
@@ -7745,7 +7778,6 @@ const HELP = [
     '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
     '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
     '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
-    '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
   ]],
 ];
 
