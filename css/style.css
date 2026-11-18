@@ -352,6 +352,9 @@ ol.items { padding: 0; }
   display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;
 }
 
+/* v200 : gare de RER (R) et arrêt de tram (T), même rond que le métro, en encre */
+.metro-mini.rer, .metro-mini.tram { border-color: var(--ink); color: var(--ink); }
+
 .go-compass:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 /* Fontaines et toilettes */

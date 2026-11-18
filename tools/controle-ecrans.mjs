@@ -20,7 +20,7 @@ const THEMES = (process.env.THEMES || 'light,dark').split(',');
 mkdirSync(SORTIE, { recursive: true });
 
 const now = Date.now();
-const lieu = (id, name, lat, lng, extra = {}) => ({ id, name, lat, lng, address: '16 rue Chaptal, 75009 Paris', hours: 'Mo-Su 09:00-23:00', created: now - 864e5 * 10, ...extra });
+const lieu = (id, name, lat, lng, extra = {}) => ({ id, name, lat, lng, address: '16 rue Chaptal, 75009 Paris', hours: 'Mo-Su 09:00-23:00', hoursAt: now - 864e5 * 400, created: now - 864e5 * 10, ...extra }); // v200 : horaires de plus d'un an
 const LIEUX = [
   lieu('a', 'Musée de la Vie romantique', 48.8818, 2.3337, { fav: true, stars: 4, note: 'Le jardin et son salon de thé, au calme.', ticket: { at: now + 3 * 3600e3 },
     passages: [{ at: now - 20 * 864e5, text: 'La glycine en fleur dans la cour', stars: 5 }, { at: now - 60 * 864e5 }, { at: now - 200 * 864e5, text: 'Salon de thé fermé' }], moments: ['printemps', 'matin'] }),
@@ -219,6 +219,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
     { r: 'PA00085808', t: 'Immeuble', a: ['Guimard Hector (architecte)'], d: '1898', lat: 48.8805, lng: 2.335 },
     { r: 'PA00086001', t: 'Castel Béranger', a: ['Guimard Hector (architecte)'], d: '1895, 1898', lat: 48.8527, lng: 2.2742 },
     { r: 'PA00086002', t: 'Synagogue de la rue Pavée', a: ['Guimard Hector (architecte)'], d: '1913', lat: 48.8554, lng: 2.3601 }] }) }));
+  // v200 : une gare de RER et un arrêt de tram près des lieux de test (exemples ; les vrais arrivent avec le robot)
+  await page.route(/data\/gares\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'IDFM', updated: '2026-11-18', stations: [{ n: 'Gare du Nord', m: 'R', l: ['B', 'D'], lat: 48.8809, lng: 2.3553 }, { n: 'Porte de la Chapelle', m: 'T', l: ['3b'], lat: 48.8977, lng: 2.3592 }] }) }));
   // v199 : la vraie sortie du métro Blanche (référentiel IDFM, lu le 18 nov. 2026)
   await page.route(/data\/acces\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'IDFM', updated: '2026-11-18', items: [{ n: 'bd de Clichy', s: '1', lat: 48.88367, lng: 2.33288 }] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne

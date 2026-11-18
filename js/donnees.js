@@ -25,6 +25,8 @@ export const MERIMEE_FILES = [
 export const BUS_FILE = { name: 'Arrêts et lignes associées', file: 'arrets-lignes.json', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/arrets-lignes/export/' };
 /** Plaques commémoratives (data/plaques.json, refait par le robot avec tools/maj-plaques.py, v159). */
 export const PLAQUES_FILE = { name: 'Plaques commémoratives', file: 'plaques_commemoratives.geojson', url: 'https://opendata.paris.fr/explore/dataset/plaques_commemoratives/export/' };
+/** Gares de RER et arrêts de tram (data/gares.json, refait par le robot avec tools/maj-gares.py, v200). */
+export const GARES_FILE = { name: 'Emplacement des gares IDF', file: 'emplacement-des-gares-idf.geojson', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf/export/' };
 /** Sorties du métro (data/acces.json, refait par le robot avec tools/maj-acces.py, v199). */
 export const ACCES_FILE = { name: 'Référentiel des arrêts : Accès', file: 'acces.json', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/acces/export/' };
 /** Auteur et date des monuments (data/architectes.json, refait par le robot avec tools/maj-architectes.py, v198). */
@@ -57,6 +59,7 @@ export const FIXED_DATA = [
   { id: 'voies', name: 'Origine du nom des rues (Où suis-je ?)', every: 45, robot: true, lazy: true }, // v198 ; Ville de Paris, licence ODbL
   { id: 'architectes', name: 'Auteurs des monuments (Monuments)', every: 45, robot: true, lazy: true }, // v198 ; ministère de la Culture, Licence Ouverte 2.0
   { id: 'acces', name: 'Sorties du métro (fiche d\'un lieu)', every: 45, robot: true, lazy: true }, // v199 ; IDFM, Licence Ouverte 2.0
+  { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre

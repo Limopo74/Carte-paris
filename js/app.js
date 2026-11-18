@@ -15,13 +15,14 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
 import { cleanAcces, exitFor } from './acces.js';
+import { cleanGares, gareLines, garesNear } from './gares.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
@@ -46,7 +47,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (199)';
+const VERSION = '18 novembre 2026 (200)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -121,6 +122,9 @@ const catOf = (id) => state.categories.find((c) => c.id === id) ?? { id, name: '
 /** Sorties du métro (data/acces.json, robot ; v199) : lues au démarrage, après les stations ; vides tant que le robot ne les a pas rangées. */
 let accesData = null; let acces = [];
 const loadAcces = async () => { accesData ??= await fetch('data/acces.json').then((r) => (r.ok ? r.json() : null)).catch(() => null); acces = cleanAcces(accesData); return acces; };
+/** Gares de RER et arrêts de tram (data/gares.json, robot ; v200) : lus par Station et Rentrer. */
+let garesData = null; let gares = [];
+const loadGares = async () => { garesData ??= await fetch('data/gares.json').then((r) => (r.ok ? r.json() : null)).catch(() => null); gares = cleanGares(garesData); return gares; };
 let stations = [];
 let stationsSource = '';
 let transportsUpdated = ''; // date des tracés et des stations gardés dans l'appli (AAAA-MM-JJ)
@@ -145,7 +149,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -1917,6 +1921,7 @@ function openDetail(id, back = null) {
       el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
       st ? el('div', { class: `fiche-v ${st.open ? 'ok' : 'ko'}` }, hoursLine(p)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
       closedDaysText(hoursOf(p)) ? el('div', { class: 'fiche-s' }, closedDaysText(hoursOf(p))) : null,
+      st && p.hours && hoursAge(p) ? el('div', { class: 'fiche-s' }, hoursAge(p)) : null,
       !p.hours && parkHoursById.has(p.id) ? el('div', { class: 'fiche-s' }, 'Horaires de la Ville, saison en cours') : null),
     el('div', {},
       el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
@@ -2028,6 +2033,10 @@ function arrLabel(p) {
 }
 
 /** Station la plus proche, en morceaux pour la fiche : nom, lignes, minutes à pied (ou null au-delà de 2 km). */
+/** v200 : « horaires notés en mars 2024 » quand les horaires d'un lieu ont été copiés dans l'appli il y a plus d'un an (rien sans date). */
+const hoursAge = (p) => (Number.isFinite(p.hoursAt) && Date.now() - p.hoursAt > 365 * 864e5
+  ? `horaires notés en ${new Date(p.hoursAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` : '');
+
 function stationFacts(p) {
   const r = nearestStation(stations, p);
   if (!r || r.d > 2000) return null;
@@ -2316,6 +2325,7 @@ async function findHours(p, back) {
     const hit = res.filter((r) => r.hours && distanceM(r, p) < 150).sort((a, b) => distanceM(a, p) - distanceM(b, p))[0];
     if (!hit) { toast('Horaires introuvables pour ce lieu dans OpenStreetMap.', true); return; }
     p.hours = hit.hours;
+    p.hoursAt = Date.now(); // v200
     persist();
     openDetail(p.id, back);
     toast('Horaires ajoutés');
@@ -3832,7 +3842,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]) || (id === 'gares' && !gares.length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -4875,8 +4885,13 @@ async function openHomePlan(home) {
               el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop)].filter(Boolean).join(' · ')))))))
           : el('p', { class: 'empty' }, `Aucun bus vers ${home.bus.n} à moins de 8 min à pied.`),
   ];
+  await loadGares();
+  const railNear = garesNear(gares, from, 1500, 1)[0];
+  const metroD = near[0]?.d ?? Infinity;
+  const railLine = railNear && railNear.d + 200 < metroD ? el('p', { class: 'help' }, ico('train-front'), ` Plus près que le métro : ${railNear.station.n} (${gareLines(railNear.station)}), ${fmtWalk(railNear.d)}. Vérifie qu'il va vers chez toi.`) : null;
   openSheet([ico('house'), ` Rentrer · ${home.label}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
+    railLine,
     opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => renderMetroPlan(dest, from, back, o.st) },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
@@ -6438,7 +6453,7 @@ function openSettings(section = null) {
   if (section === 'donnees') {
     // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore ») ;
     // arrêts de bus et plaques aussi (v187) : sans eux, leur date restait inconnue et la ligne disait « À jour » à tort
-    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire(), loadVoies(), loadArch()]).finally(() => openSettings(section)); return; }
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire(), loadVoies(), loadArch(), loadGares()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
     // Date inconnue (fichier illisible, hors réseau et jamais gardé) : ni « À jour » ni « En retard » (v187 : pas d'info plutôt qu'une info fausse)
@@ -6537,6 +6552,10 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : les lieux partenaires et les offres changent (festivals, saisons).`),
         el('div', { class: 'menu' }, link({ name: 'Lieux bénéficiant des avantages culture Navigo', file: 'lieux-avantages-cultures-navigo.geojson', url: NAVIGO_SOURCE })),
         say('Mets à jour les avantages Navigo', 'tools/maj-navigo.py')],
+      gares: () => [
+        el('p', { class: 'help' }, 'Sert à Station et Rentrer : les gares de RER et les arrêts de tramway de Paris et de la proche couronne, avec leurs lignes. Ni horaires ni sens. Île-de-France Mobilités, ODbL.'),
+        el('div', { class: 'menu' }, link(GARES_FILE)),
+        say('Mets à jour les gares de RER et de tram', 'tools/maj-gares.py')],
       acces: () => [
         el('p', { class: 'help' }, 'Sert à la fiche d\'un lieu : la sortie de métro la plus proche (numéro et nom écrits sur les panneaux, à vérifier sur place). Seulement les accès RATP. Une sortie fermée pour travaux n\'est pas connue. Île-de-France Mobilités, Licence Ouverte 2.0.'),
         el('div', { class: 'menu' }, link(ACCES_FILE)),
@@ -7263,6 +7282,8 @@ async function nearestMetro() {
 }
 
 function showNearestMetro(from, note = null) {
+  if (!garesData) loadGares().then(() => { if (gares.length) showNearestMetro(from, note); });
+  const rail = garesNear(gares, from, 1500, 3); // v200 : RER et tram à moins de 1,5 km
   const list = nearestStations(stations, from, 3);
   const [first, ...others] = list;
   const st = first.station;
@@ -7282,6 +7303,12 @@ function showNearestMetro(from, note = null) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
           el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${stationLabel(o)}`))),
       el('a', { class: 'go', href: mapsUrl(o, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))),
+    rail.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'RER et tram proches'), el('span', {}, '')) : null,
+    rail.length ? el('ul', { class: 'items' }, rail.map(({ station: o, d }) => el('li', { class: 'item' },
+      el('span', { class: 'item-main' }, el('span', { class: `metro-mini${o.m === 'R' ? ' rer' : ' tram'}`, 'aria-hidden': 'true' }, o.m === 'R' ? 'R' : 'T'),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${gareLines(o)}`))),
+      el('a', { class: 'go', href: mapsUrl(o, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}, ${gareLines(o)}` }, 'Y aller')))) : null,
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [st.lat, st.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
@@ -7567,7 +7594,7 @@ const HELP = [
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
     '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
-    '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations.',
+    '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi.',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus. Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Caché, et l\'ordre.',
@@ -7640,7 +7667,7 @@ const HELP = [
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
     '{landmark} **Monuments** : les monuments protégés à moins de 1 km, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date. « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
-    '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro.',
+    '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
     '{map} **Mon Paris** : chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés.',
@@ -7668,7 +7695,7 @@ const HELP = [
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
-    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
+    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
@@ -7768,6 +7795,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an. Les gares arrivent avec la prochaine mise à jour des données.',
     '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ». Les sorties du métro arrivent avec la prochaine mise à jour des données.',
     '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ». Les origines et les auteurs arrivent avec la prochaine mise à jour des données.',
     '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
@@ -7777,7 +7805,6 @@ const HELP = [
     '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
     '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
     '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
-    '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
   ]],
 ];
 

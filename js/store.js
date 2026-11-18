@@ -72,6 +72,7 @@ export function newPoint({ name, cat, note = '', done = false, fav = false, lat,
     lng: Number(lng),
     address: String(address ?? ''),
     hours: String(hours ?? '').slice(0, 300),
+    ...(String(hours ?? '').trim() ? { hoursAt: Date.now() } : {}), // v200 : le jour où les horaires ont été copiés dans l'appli
     owner: String(owner ?? '').trim().slice(0, 30),
     stars: cleanStars(stars),
     lists: cleanIds(lists),
@@ -128,6 +129,7 @@ const clean = (p) => ({
   fav: Boolean(p.fav), lat: p.lat, lng: p.lng,
   address: typeof p.address === 'string' ? p.address : '',
   hours: typeof p.hours === 'string' ? p.hours.slice(0, 300) : '',
+  ...(typeof p.hours === 'string' && p.hours.trim() && Number.isFinite(p.hoursAt) && p.hoursAt > 0 ? { hoursAt: p.hoursAt } : {}), // v200
   owner: typeof p.owner === 'string' ? p.owner.trim().slice(0, 30) : '', // '' = mes lieux
   stars: cleanStars(p.stars),
   ...(cleanPlan(p.ticket) ? { ticket: cleanPlan(p.ticket) } : {}), // sortie prévue (Prévoir) : jour, heure ou moment, et avec qui (facultatif)
@@ -360,7 +362,7 @@ export function mergeFriend(state, obj, owner, choice) {
     if (i >= 0) {
       if (!points[i].owner || points[i].owner !== c.owner) continue; // un de ses lieux à elle : on n'y touche pas
       const old = points[i];
-      const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, lists: c.lists,
+      const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, ...(Number.isFinite(c.hoursAt) ? { hoursAt: c.hoursAt } : {}), lists: c.lists,
         ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}),
         ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
       if (c.gone) next.gone = c.gone; else delete next.gone;
