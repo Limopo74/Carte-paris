@@ -220,6 +220,16 @@ export function freeNear(here, date = new Date(), maxM = 3000, k = 3) {
     .sort((a, b) => a.r - b.r || (a.rule === 'always') - (b.rule === 'always') || a.d - b.d).slice(0, k);
 }
 
+/**
+ * « Gratuit aujourd'hui » dans « Maintenant » (v187) : le lieu gratuit du jour (pas les musées de la Ville, gratuits toute
+ * l'année) le plus proche à `maxM` mètres, pas encore fermé : ouvert ou qui ouvre plus tard d'abord, horaires inconnus ensuite.
+ */
+export function freeDayNear(here, date = new Date(), maxM = 1200) {
+  if (!here) return null;
+  return freeToday(date).filter((p) => p.rule !== 'always').map((p) => ({ ...p, d: distanceM(here, p), r: spotRank(p, date) }))
+    .filter((p) => p.d <= maxM && p.r !== 2).sort((a, b) => a.r - b.r || a.d - b.d)[0] ?? null;
+}
+
 /* ---------- 5 ter. Grands lieux : liste fixe, leurs événements tirés de l'agenda de la Ville (toute distance) ---------- */
 
 export const ART_PLACES_CHECKED = '17 novembre 2026';

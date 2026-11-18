@@ -133,6 +133,7 @@ export function parseEvents(json, now = new Date()) {
       address: [str(r.address_street), str(r.address_zipcode), str(r.address_city)].filter(Boolean).join(' ').slice(0, 120),
       url: /^https:\/\//.test(r.url ?? '') ? r.url : '',
       free: price.startsWith('gratuit'),
+      freeSure: price === 'gratuit', // sans « sous condition » (v187 : seul ce cas va dans « Maintenant »)
       lead: str(r.lead_text).slice(0, 200),
       dates: officialDates(r.date_description),
       tags,
@@ -197,6 +198,21 @@ export const isFleaMarket = (m) => /puces|brocante|antiquit|livres? anciens?|vie
 const OUTDOOR = /plein air|en ext[ée]rieur|dans la rue|\b(rue|place|square|parvis|quai|quais|jardin|jardins|parc|grilles?|esplanade|boulevard|bd|avenue|av\.|all[ée]e|promenade|berges?|canal|pont|cour|march[ée] couvert)\b/i;
 const INDOOR = /\b(mus[ée]e|galerie|th[ée][âa]tre|cin[ée]ma|biblioth[èe]que|m[ée]diath[èe]que|salle|institut|fondation|conservatoire|auditorium|op[ée]ra|[ée]glise|mairie annexe|centre d'animation|centre culturel|gymnase|piscine)\b/i;
 const EPHEMERAL = /march[ée] de no[eë]l|march[ée]s? de cr[ée]ateurs|march[ée] (artisanal|gourmand|des producteurs|bio|d'art)|village de no[eë]l|salon .*plein air|march[ée] [ée]ph[ée]m[èe]re/i;
+
+/**
+ * « Maintenant » (v158, v187) : la sortie la plus proche à `maxM` mètres, en cours ou dans la demi-heure, avec un créneau
+ * connu aujourd'hui : { ...sortie, d, street } ou null. Soit dans la rue (devinée, comme avant), soit gratuite en salle :
+ * « gratuit » sans condition, réservation « non » ou « conseillée » (jamais obligatoire ni inconnue),
+ * et pas sur le point de finir (encore 15 min au moins). Dans le doute, rien.
+ */
+export function nowNearEvent(items, here, now = new Date(), maxM = 400) {
+  if (!here) return null;
+  const soon = now.getTime() + 30 * 60000;
+  const freeIn = (e) => e.freeSure && (e.booking === 'none' || e.booking === 'advised') && e.slotEnd && e.slotEnd.getTime() >= now.getTime() + 15 * 60000;
+  const list = todayOnly(items ?? [], now).filter((e) => e.slotStart && e.slotStart.getTime() <= soon)
+    .map((e) => ({ ...e, street: !!streetKind(e) })).filter((e) => e.street || freeIn(e));
+  return nearbyEvents(list, here, maxM)[0] ?? null;
+}
 
 /**
  * Type d'un événement de rue : 'marche' (éphémère), 'brocante', 'fete', 'expo' ; null s'il semble en salle.

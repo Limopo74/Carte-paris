@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
@@ -29,7 +29,7 @@ import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logNam
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (187)';
+const VERSION = '18 novembre 2026 (188)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1157,21 +1157,38 @@ function updateNow(force = false) {
     card.querySelector('.now-open').onclick = () => openPlanning('map');
   };
   if (nx && daysUntil(nx.ticket.at) === 1) { showNext(); return; }
-  // « Dans la rue, à 5 min » (v158) : brocante, fête, marché éphémère ou expo en plein air, en cours ou dans la demi-heure,
-  // seulement avec un créneau connu aujourd'hui (agenda de la Ville chargé une fois par jour, sans position)
+  // « Dans la rue, à 5 min » (v158) : brocante, fête, marché éphémère ou expo en plein air, en cours ou dans la demi-heure ;
+  // « Gratuit, à 5 min » (v187) : une sortie gratuite en salle, sans réservation obligatoire (js/events.js nowNearEvent).
+  // Seulement avec un créneau connu aujourd'hui (agenda de la Ville chargé une fois par jour, sans position)
   const street = !pos || nowHidden || eventsCache?.day !== new Date().toDateString() ? null
-    : nearbyEvents(todayOnly(eventsCache.items, new Date()).filter((e) => e.slotStart && e.slotStart.getTime() <= Date.now() + 30 * 60000 && streetKind(e)), pos, minutesToMeters(5))[0] ?? null;
+    : nowNearEvent(eventsCache.items, pos, new Date(), minutesToMeters(5));
   if (street) {
     card.hidden = false;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, `Dans la rue · ${walkMinutes(street.d)} min à pied`),
+      el('span', { class: 'now-kicker' }, `${street.street ? 'Dans la rue' : 'Gratuit'} · ${walkMinutes(street.d)} min à pied`),
       el('span', { class: 'now-name' }, street.title),
-      el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place].filter(Boolean).join(' · ')));
+      el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place,
+        !street.street && street.booking === 'advised' ? 'réservation conseillée' : null].filter(Boolean).join(' · ')));
     card.querySelector('.now-open').onclick = () => openEventPage(street);
     return;
   }
   // Bientôt gratuit (v158) : aujourd'hui, demain ou après-demain ; la croix le cache pour la journée, la suggestion revient
   const fb = nowHidden || storage.getItem(FREE_SEEN_KEY) === new Date().toDateString() ? null : freeBanner();
+  // v187 : aujourd'hui, le lieu gratuit du jour le plus proche (15 min à pied au plus), avec son heure seulement si elle est sûre
+  const fd = fb && !fb.k && pos ? freeDayNear(pos, new Date(), minutesToMeters(15)) : null;
+  if (fd) {
+    const st = openState(spotHours(fd));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    card.hidden = false;
+    card.dataset.kind = 'free';
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, 'Gratuit aujourd\'hui'),
+      el('span', { class: 'now-name' }, fd.name),
+      el('span', { class: 'now-sub' }, [`${walkMinutes(fd.d)} min à pied`, st?.open ? (st.until ? `jusqu'à ${hhText(st.until)}` : null) : st?.opensAt ? `dès ${hhText(st.opensAt)}` : 'horaires inconnus, vérifie',
+        /réservation/i.test(`${fd.note ?? ''} ${fd.when}`) ? 'sur réservation' : null].filter(Boolean).join(' · ')));
+    card.querySelector('.now-open').onclick = () => openFreeDaySpot(fd, today, named('Carte', () => closeSheet()));
+    return;
+  }
   if (fb) {
     card.hidden = false;
     card.dataset.kind = 'free';
@@ -1179,8 +1196,9 @@ function updateNow(force = false) {
       el('span', { class: 'now-kicker' }, `Gratuit ${fb.when}`),
       el('span', { class: 'now-name' }, fb.text),
       el('span', { class: 'now-sub' }, fb.k ? 'Voir les lieux et leurs heures' : 'Voir Sorties → Gratuit'));
-    // v168 : un jour à venir ouvre sa page (lieux, heures ce jour-là, Prévoir) ; aujourd'hui, Sorties → Gratuit
-    card.querySelector('.now-open').onclick = () => { if (fb.k) { const d = new Date(); openFreeDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + fb.k), named('Carte', () => closeSheet())); } else { eventsMode = 'free'; openEvents('map'); } };
+    // v168 : un jour à venir ouvre sa page (lieux, heures ce jour-là, Prévoir) ; aujourd'hui, Sorties → Gratuit,
+    // depuis ma position si elle est connue (v187, sans demander le GPS), sinon depuis le centre de la carte
+    card.querySelector('.now-open').onclick = () => { if (fb.k) { const d = new Date(); openFreeDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + fb.k), named('Carte', () => closeSheet())); } else { eventsMode = 'free'; const p = freshHere(); openEvents(p ? { lat: p.lat, lng: p.lng, acc: p.acc, time: p.time, kind: 'gps', via: 'now' } : 'map'); } };
     return;
   }
   // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
@@ -4303,7 +4321,7 @@ async function openEvents(start = null) {
   if (!evFrom) { openNear(); return; }
   const o = evFrom;
   const fromMap = o.kind === 'map';
-  const backNear = () => (fromMap ? null : el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
+  const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties du jour'];
   if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
@@ -7287,7 +7305,7 @@ const HELP = [
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
-    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, sinon le lieu ouvert le plus proche. La croix le cache.',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache.',
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
@@ -7338,7 +7356,7 @@ const HELP = [
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
     '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
     '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
-    '**Bientôt gratuit** : 2 jours avant (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte le dit. Touche-le pour Gratuit ; la croix le cache pour la journée.',
+    '**Bientôt gratuit** : 2 jours avant (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte le dit. Le jour même, s\'il y en a un à 15 min, il te donne ce lieu et son heure ; sinon, touche-le pour Gratuit, autour de toi. La croix le cache pour la journée.',
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. Horaires habituels, vérifiés sur leurs sites ; rien un jour férié.',
@@ -7507,6 +7525,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
     '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
     '{save} Restaurer ta sauvegarde sur un téléphone vide remet aussi tes catégories telles que tu les avais (nom, couleur, icône, « Déjà goûté »…) et tes listes, même vides. Avant, une catégorie d\'origine revenait avec son nom d\'origine.',
@@ -7516,7 +7535,6 @@ const HELP = [
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
     '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
     '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
-    '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
   ]],
 ];
 
