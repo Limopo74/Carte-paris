@@ -25,3 +25,19 @@ test('sauvegarde : une photo du fichier redevient une image, sans fetch() (refus
     assert.equal(await dataUrlToBlob(null), null);
   } finally { globalThis.fetch = saved; }
 });
+
+test('photos en grand : glisser de côté change de photo, sans boucler (v201)', async () => {
+  const { swipeStep, swipeIndex, photoCount, SWIPE_MIN } = await import('../js/photos.js');
+  assert.equal(swipeStep(-SWIPE_MIN, 0), 1); // doigt vers la gauche : la suivante
+  assert.equal(swipeStep(SWIPE_MIN, 0), -1); // doigt vers la droite : celle d'avant
+  assert.equal(swipeStep(-(SWIPE_MIN - 1), 0), 0); // trop court : rien
+  assert.equal(swipeStep(-60, 50), 0); // en biais ou de haut en bas : rien
+  assert.equal(swipeStep(0, 0), 0);
+  assert.equal(swipeStep(NaN, 0), 0);
+  assert.equal(swipeIndex(0, 6, 1), 1);
+  assert.equal(swipeIndex(5, 6, 1), 5); // dernière : on s'arrête
+  assert.equal(swipeIndex(0, 6, -1), 0); // première : on s'arrête
+  assert.equal(swipeIndex(0, 1, 1), 0);
+  assert.equal(photoCount(1, 6), '2 / 6');
+  assert.equal(photoCount(0, 1), ''); // une seule photo : pas de repère
+});

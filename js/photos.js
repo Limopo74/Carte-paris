@@ -33,6 +33,18 @@ export const putPhoto = (id, blob) => tx('readwrite', (s) => s.put(blob, id));
 export const getPhoto = (id) => tx('readonly', (s) => s.get(id));
 export const deletePhoto = (id) => tx('readwrite', (s) => s.delete(id));
 
+/** Photos en grand (v201) : glissement de côté le plus court qui change de photo, en px. */
+export const SWIPE_MIN = 48;
+/** 1 = photo suivante (doigt vers la gauche), -1 = photo d'avant, 0 = rien (trop court, ou plutôt de haut en bas). */
+export function swipeStep(dx, dy) {
+  if (!(Math.abs(dx) >= SWIPE_MIN) || Math.abs(dx) < Math.abs(dy) * 1.5) return 0;
+  return dx < 0 ? 1 : -1;
+}
+/** Rang de la photo après un pas : on s'arrête à la première et à la dernière, sans boucler. */
+export const swipeIndex = (i, n, step) => Math.min(Math.max(i + step, 0), Math.max(n - 1, 0));
+/** Repère affiché au-dessus de la photo : « 2 / 6 », rien pour une seule photo. */
+export const photoCount = (i, n) => (n > 1 ? `${i + 1} / ${n}` : '');
+
 /** Taille réduite en gardant les proportions (le plus grand côté à `max` px au plus). */
 export function fitSize(w, h, max = MAX_SIDE) {
   const k = Math.min(1, max / Math.max(w, h));

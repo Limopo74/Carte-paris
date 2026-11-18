@@ -33,7 +33,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
-import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
+import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
@@ -47,7 +47,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (202)';
+const VERSION = '18 novembre 2026 (203)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2122,7 +2122,7 @@ function openPhotos(p, back) {
     const img = el('img', { alt: `Photo ${i + 1} de ${p.name}` });
     photoUrl(id).then((u) => { if (u) img.src = u; });
     return el('div', { class: 'photo-cell' },
-      el('button', { type: 'button', class: 'photo-open', onclick: () => viewPhoto(id, p.name), 'aria-label': `Voir la photo ${i + 1} en grand` }, img),
+      el('button', { type: 'button', class: 'photo-open', onclick: () => viewPhoto(p.photos, i, p.name), 'aria-label': `Voir la photo ${i + 1} en grand` }, img),
       el('button', { type: 'button', class: 'photo-del', 'aria-label': `Supprimer la photo ${i + 1}`, onclick: () => askDeletePhoto(p, id, back) }, '✕'));
   }));
   const full = p.photos.length >= MAX_PHOTOS;
@@ -2154,25 +2154,88 @@ function askDeletePhoto(p, id, back) {
   ), { name: 'photodel' });
 }
 
-/** Photo en plein écran ; le retour d'Android ou un appui la ferme. */
-async function viewPhoto(id, name) {
-  const u = await photoUrl(id);
+/** Photos en plein écran ; le retour d'Android ou un appui ferme. Avec plusieurs photos, glisser de côté passe à la suivante ou à la précédente (v201). */
+async function viewPhoto(ids, i, name) {
+  const u = await photoUrl(ids[i]);
   if (!u) { toast('Photo introuvable.', true); return; }
-  const v = document.getElementById('viewer');
-  v.querySelector('img').src = u;
-  v.querySelector('img').alt = `Photo de ${name}`;
-  v.hidden = false;
+  viewerSet = { ids, i, name };
+  showViewerPhoto(u);
+  document.getElementById('viewer').hidden = false;
   viewerOpen = true;
   history.pushState({ viewer: true }, '');
 }
 let viewerOpen = false;
+let viewerSet = null; // { ids, i, name } : les photos du lieu et celle qu'on regarde
+function showViewerPhoto(u, from = 0) {
+  const v = document.getElementById('viewer');
+  const img = v.querySelector('img');
+  const { ids, i, name } = viewerSet;
+  const many = ids.length > 1;
+  img.src = u;
+  img.alt = many ? `Photo ${i + 1} sur ${ids.length} de ${name}` : `Photo de ${name}`;
+  const count = v.querySelector('.viewer-count');
+  count.textContent = photoCount(i, ids.length);
+  count.hidden = !many;
+  v.querySelector('.viewer-hint').textContent = many ? 'Glisse de côté : autre photo.\nTouche pour fermer.' : 'Touche pour fermer';
+  // la nouvelle photo arrive du côté où on l'a tirée (sans mouvement si le téléphone le demande : voir style.css)
+  img.classList.add('drag');
+  img.style.transform = from ? `translateX(${from * 48}px)` : '';
+  requestAnimationFrame(() => requestAnimationFrame(() => { img.classList.remove('drag'); img.style.transform = ''; }));
+}
+/** Photo suivante (1) ou précédente (-1) ; une photo introuvable est sautée ; rien au bout de la série. */
+async function stepViewer(step) {
+  if (!viewerOpen || !viewerSet) return;
+  const n = viewerSet.ids.length;
+  let i = viewerSet.i;
+  for (;;) {
+    const next = swipeIndex(i, n, step);
+    if (next === i) return;
+    i = next;
+    const u = await photoUrl(viewerSet.ids[i]);
+    if (!viewerOpen) return;
+    if (u) { viewerSet.i = i; showViewerPhoto(u, step); return; }
+  }
+}
 function closeViewer(fromHistory = false) {
   if (!viewerOpen) return;
-  viewerOpen = false;
   document.getElementById('viewer').hidden = true;
-  if (!fromHistory) history.back();
+  // Fermée par un appui : le retour qui suit repasse ici. `viewerOpen` reste vrai jusque-là, pour que la page Photos reste ouverte dessous (v201 : on retombait sur la fiche).
+  if (!fromHistory) { history.back(); return; }
+  viewerOpen = false;
+  viewerSet = null;
 }
-document.getElementById('viewer').addEventListener('click', () => closeViewer());
+{ // un appui ferme ; un glissement de côté change de photo (doigt vers la gauche : la suivante)
+  const v = document.getElementById('viewer');
+  const img = v.querySelector('img');
+  let drag = null;
+  let moved = false;
+  const zoomed = () => (globalThis.visualViewport?.scale ?? 1) > 1.01; // photo agrandie à deux doigts : on laisse la page se déplacer
+  globalThis.visualViewport?.addEventListener('resize', () => v.classList.toggle('zoomed', zoomed()));
+  v.addEventListener('pointerdown', (e) => {
+    moved = false;
+    drag = e.isPrimary && !zoomed() && viewerSet?.ids.length > 1 ? { x: e.clientX, y: e.clientY } : null;
+    if (drag) v.setPointerCapture?.(e.pointerId);
+  });
+  v.addEventListener('pointermove', (e) => {
+    if (!drag || !e.isPrimary || !viewerSet) return;
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 8 || Math.abs(e.clientY - drag.y) > 8) moved = true;
+    const end = (dx > 0 && viewerSet.i === 0) || (dx < 0 && viewerSet.i === viewerSet.ids.length - 1);
+    img.classList.add('drag');
+    img.style.transform = `translateX(${end ? dx / 4 : dx}px)`; // au bout de la série, la photo résiste
+  });
+  const drop = (e) => {
+    if (!drag) return;
+    const step = e.type === 'pointerup' ? swipeStep(e.clientX - drag.x, e.clientY - drag.y) : 0;
+    drag = null;
+    img.classList.remove('drag');
+    img.style.transform = '';
+    if (step) stepViewer(step);
+  };
+  v.addEventListener('pointerup', drop);
+  v.addEventListener('pointercancel', drop);
+  v.addEventListener('click', () => { if (moved) { moved = false; return; } closeViewer(); });
+}
 window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); });
 
 /** « Ouvert · ferme à 22h30 », « Fermé · ouvre à 9h », ou null si horaires inconnus (même écriture que les tampons). */
@@ -6285,11 +6348,15 @@ function openCompass(p, step = null) {
 function closeCompass(fromHistory = false) {
   if (!compassStop) return;
   compassStop();
-  if (!fromHistory) history.back();
+  if (fromHistory) return;
+  // Fermée par la croix ou en fin de balade : le retour qui suit repasse par popstate. `compassOpen` reste vrai jusque-là,
+  // pour que la fiche ou la page d'en dessous reste ouverte (v203 : la croix fermait aussi la fiche).
+  compassOpen = true;
+  history.back();
 }
 compassEl.querySelector('.compass-close').addEventListener('click', () => { guide = null; closeCompass(); });
 compassEl.querySelector('.compass-next').addEventListener('click', guideNext);
-window.addEventListener('popstate', () => { if (compassOpen) closeCompass(true); });
+window.addEventListener('popstate', () => { if (!compassOpen) return; if (compassStop) closeCompass(true); else compassOpen = false; });
 
 /* ---------- Réglages ---------- */
 
@@ -7902,7 +7969,7 @@ const HELP = [
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
     '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici.',
-    '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer.',
+    '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique et celui de « Déjà visité ».',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
@@ -7991,6 +8058,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
     '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
     '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Changer l\'ordre »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
     '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an. Les gares arrivent avec la prochaine mise à jour des données.',
@@ -8000,7 +8068,6 @@ const HELP = [
     '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
     '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
     '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
-    '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
   ]],
 ];
 
@@ -8038,6 +8105,7 @@ drawTtb();
 setTimeout(() => { if (navigator.onLine) todayEvents().then(() => updateNow(true)).catch(() => {}); }, 4000);
 // Échap ferme la feuille ouverte (ou la boussole, la photo en grand)
 document.addEventListener('keydown', (e) => {
+  if (viewerOpen && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { stepViewer(e.key === 'ArrowRight' ? 1 : -1); return; } /* photos en grand : flèches du clavier */
   if (e.key !== 'Escape' || e.defaultPrevented) return;
   if (!document.getElementById('viewer')?.hidden) { history.back(); return; }
   if (!document.getElementById('compass')?.hidden) { history.back(); return; }
