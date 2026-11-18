@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (166)';
+const VERSION = '18 novembre 2026 (167)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -229,7 +229,7 @@ function toast(msg, isError = false, action = null) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   // action { label, fn } : un bouton dans le message (le geste caché devient visible), message gardé 6 s
-  if (action) t.append(' ', el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; action.fn(); } }, action.label));
+  for (const a of [action].flat().filter(Boolean)) t.append(' ', el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; a.fn(); } }, a.label)); // une ou plusieurs actions (v167)
   t.classList.toggle('error', isError);
   t.hidden = false;
   clearTimeout(toastTimer);
@@ -3558,12 +3558,35 @@ const freeTag = () => el('span', { class: 'tag open' }, 'Gratuit');
 const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d, tags: [stateTag(spotHours(k))] });
 function openKiosque(k, back = null) {
   openSpot({ icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [hoursLine(k, spotHours(k)), k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
-    place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}` });
+    place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}`, add: { hours: k.oh ?? '' }, fav: 'theatre' });
 }
 /** La page d'un lieu de Sorties qui n'a pas de fiche (musée gratuit, kiosque, galerie) : ce qu'on sait, puis les mêmes actions qu'une sortie. */
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null }) {
+/**
+ * « ★ Favori » d'un lieu qui n'est pas encore à moi (v167) : un appui le garde dans mes lieux, en favori, avec une catégorie
+ * devinée (`favCategory`) ; le message propose Modifier et Annuler. Déjà à moi (même lieu à quelques mètres) : l'étoile
+ * s'allume ou s'éteint. Aucune catégorie ne va : le formulaire s'ouvre, Favori coché. `again` redessine la page.
+ */
+function favButton({ name, lat, lng, address = '', hours = '', note = '', kind = 'musee', text = 'Favori' }, again, cls = 'btn c-fav') {
+  const mine = findDuplicate(state.points.filter((p) => !p.owner), { name, lat, lng })?.point ?? null;
+  const on = Boolean(mine?.fav);
+  const label = mine ? `${name} : ${on ? 'favori' : 'dans tes lieux'}` : `Garder ${name} en favori`;
+  return el('button', { type: 'button', class: cls, 'aria-pressed': String(on), 'aria-label': label, onclick: () => {
+    if (mine) { mine.fav = !mine.fav; persist(); renderMarkers(); again(); toast(mine.fav ? `« ${mine.name} » en favori` : 'Favori retiré'); return; }
+    const cat = favCategory(kind, state.categories);
+    if (!cat) { openForm({ name, lat, lng, address, hours, acc: null, fav: true, note }); return; }
+    const np = newPoint({ name, cat, fav: true, lat, lng, address, hours, note });
+    state.points.push(np);
+    persist(); renderMarkers(); again();
+    toast(`« ${name} » en favori, dans ${catOf(cat).name}`, false, [
+      { label: 'Modifier', fn: () => openForm({ lat: np.lat, lng: np.lng, address: np.address }, np) },
+      { label: 'Annuler', fn: () => { state.points = state.points.filter((x) => x.id !== np.id); persist(); renderMarkers(); again(); toast('Retiré de tes lieux'); } }]);
+    refreshParkHours().catch(() => {});
+  } }, glyph(state.fav.icon, { filled: on }), text);
+}
+
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null }) {
   const d = freshHere() ? distanceM(freshHere(), place) : null;
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
@@ -3571,7 +3594,9 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: title, lat: place.lat, lng: place.lng, id: `spot:${place.lat},${place.lng}` }, named(title, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', acc: null, ...add }) }, ico('plus'), 'Ajouter')),
+      // v167 : « ★ Favori » (un appui) pour un musée, une galerie, un théâtre ; « Ajouter » (formulaire) pour le reste
+      fav ? favButton({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', hours: add.hours ?? '', note: add.note ?? '', kind: fav }, again)
+        : el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', acc: null, ...add }) }, ico('plus'), 'Ajouter')),
     extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
     back ? foot(backBtn(back)) : null,
@@ -3636,6 +3661,9 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
       e.book ? linkRow('ticket', e.bookText || (e.booking === 'none' ? 'Plus d\'infos' : 'Infos et réservations'), e.book) : null,
       e.site && e.site !== e.book ? linkRow('external-link', e.org ? `Site : ${e.org}` : 'Site de l\'organisateur', e.site) : null,
       e.url ? linkRow('external-link', 'Voir dans « Que faire à Paris »', e.url) : null) : null,
+    // Le lieu de la sortie en favori (v167), avec l'expo ou la sortie dans la note
+    e.place ? favButton({ name: e.place, lat: e.lat, lng: e.lng, address: e.address ?? '', kind: isExpo(e) ? 'expo' : genre === 'scene' ? 'theatre' : genre === 'musique' ? 'musique' : 'musee',
+      note: isExpo(e) && e.end ? `Expo « ${e.title} » jusqu'au ${e.end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : `« ${e.title} »`, text: `${e.place} en favori` }, again) : null,
     // Mes salles (v166) : suivre le lieu de cette sortie, son programme vient en tête de Sorties
     e.place ? el('div', { class: 'fiche-toc' }, cleanVenues(state.venues).some((v) => atVenue(e, v))
       ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openVenues(named('Sortie', again)) }, ico('heart'), el('span', {}, 'Dans Mes salles', el('small', {}, e.place)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))
@@ -3661,7 +3689,7 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
 /** Un musée gratuit aujourd'hui. */
 /** Page d'un musée gratuit : quand c'est gratuit, et s'il est ouvert en ce moment (v156 ; rien si l'horaire n'est pas sûr). */
 const openFreeSpot = (f, back = null) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
-  lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}` });
+  lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}`, fav: 'musee' });
 const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeSpot(f, back), sub: [f.when], d: f.d, tags: [stateTag(spotHours(f))] });
 
 /** Un marché du jour : en ce moment, plus tard, ou déjà fini. */
@@ -3751,7 +3779,9 @@ async function openArtPlaces(focus = '', from = null) {
       el('span', { class: 'week-arr-sub' }, [p.address, p.events.length ? plural(p.events.length, 'rendez-vous dans l\'agenda', 'rendez-vous dans l\'agenda') : 'rien dans l\'agenda cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
     el('div', { class: 'stack' },
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
-      el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
+      el('div', { class: 'row' },
+        el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
+        favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167
       p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
   const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
   const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique']];
@@ -4276,7 +4306,7 @@ async function openStreetArt() {
 function openGalleryCard(g, back = null) {
   const st = openState(g.hours);
   openSpot({ icon: 'palette', title: g.name, kicker: g.kind || 'Galerie', lines: [g.address, !st ? 'Horaires inconnus : vérifie avant d\'y aller.' : st.open ? `Ouverte${st.until ? ` jusqu'à ${hhText(st.until)}` : ''}.` : 'Fermée en ce moment.', closedDaysText(g.hours)],
-    place: g, link: g.site ? [g.site, 'Site de la galerie'] : null, back: typeof back === 'function' ? back : null, key: `galerie:${g.lat},${g.lng}`, add: { hours: g.hours } });
+    place: g, link: g.site ? [g.site, 'Site de la galerie'] : null, back: typeof back === 'function' ? back : null, key: `galerie:${g.lat},${g.lng}`, add: { hours: g.hours }, fav: 'galerie' });
 }
 
 /* ---------- Parcours galeries : une boucle à pied par les galeries ouvertes à ton arrivée ---------- */
@@ -6525,6 +6555,7 @@ const HELP = [
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
+    '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans la note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
     '{heart} **Mes salles** : sur la page d\'une sortie, « Suivre ce lieu ». Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
     '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
     '{external-link} **Pour aller plus loin**, en bas de Sorties : paris.fr, Paris Musées, les galeries (Offi), l\'office du tourisme, Sortir à Paris.',
@@ -6691,6 +6722,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
     '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
     '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
@@ -6700,7 +6732,6 @@ const HELP = [
     '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
     '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
     '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
-    '{landmark} Bientôt gratuit : 2 jours avant un jour gratuit (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte te prévient. La croix le cache pour la journée.',
   ]],
 ];
 

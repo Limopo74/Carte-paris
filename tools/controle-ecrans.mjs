@@ -111,6 +111,8 @@ const ECRANS = {
   // v166 : feuille réduite, Mes salles
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   salles: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-more, .fiche-row', { hasText: 'Mes salles' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
+  // v167 : le lieu d'une sortie gardé en favori d'un appui (la page se redessine, le message propose Modifier et Annuler)
+  sortiefavori: async (p) => { await ECRANS.sortie(p); await feuille(p).locator('button', { hasText: 'en favori' }).first().click(); await p.waitForTimeout(500); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
   passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },

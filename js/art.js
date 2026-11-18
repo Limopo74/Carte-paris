@@ -550,3 +550,25 @@ export function venueEvents(events, venues, now = new Date()) {
   const t = (x) => { const st = x.e.slots?.find((sl) => sl.end > now)?.start ?? x.e.start; return st && st >= now ? st.getTime() : now.getTime() + 8 * DAY; };
   return out.sort((a, b) => t(a) - t(b));
 }
+
+/* ---------- 19. Garder un lieu en favori d'un appui (v167) : la catégorie devinée parmi les miennes ---------- */
+// Mots cherchés dans le nom de mes catégories, du plus juste au plus large (le premier mot trouvé l'emporte)
+const FAV_WORDS = {
+  musee: [/musee/, /expo/, /patrimoine|visite/, /\barts?\b/, /culture/],
+  expo: [/expo/, /musee/, /galerie/, /\barts?\b/, /culture/],
+  galerie: [/galerie/, /\barts?\b/, /expo/, /musee/, /culture/],
+  theatre: [/theatre/, /spectacle|scene/, /culture/, /sortie/],
+  musique: [/concert/, /musique/, /salle/, /spectacle/, /culture/, /sortie/],
+};
+/**
+ * La catégorie d'un lieu gardé d'un appui : la première des miennes dont le nom va avec le genre (Musées, Culture…),
+ * sinon « Culture » de l'appli, sinon null (le formulaire s'ouvre alors pour la choisir). Jamais Vu en passant ni street art.
+ */
+export function favCategory(kind, categories) {
+  const cats = (Array.isArray(categories) ? categories : []).filter((c) => c?.id && c.id !== 'vu' && c.id !== 'streetart');
+  for (const re of FAV_WORDS[kind] ?? FAV_WORDS.musee) {
+    const c = cats.find((x) => re.test(plain(x.name)));
+    if (c) return c.id;
+  }
+  return cats.find((c) => c.id === 'culture')?.id ?? null;
+}
