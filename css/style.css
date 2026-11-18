@@ -44,7 +44,7 @@
   --compass-bg: #15181D; --compass-ink: #FFFFFF; --compass-muted: #C2C7CF; --r: 4px; --float: 0 1px 4px rgba(21, 24, 29, .28); --h: 48px; --h-s: 44px; --h-l: 56px;
   /* Échelle du texte (CHARTE.md §5), multipliée par --ts : Normal 1, Grand 1,15, Très grand 1,3 */
   --ts: 1;
-  --t115: calc(11.5px * var(--ts)); --t13: calc(13px * var(--ts)); --t14: calc(14px * var(--ts)); --t16: calc(16px * var(--ts));
+  --t115: calc(11.5px * var(--ts)); --t13: calc(13px * var(--ts)); --t14: calc(14px * var(--ts)); --t15: calc(15px * var(--ts)); --t16: calc(16px * var(--ts));
   --t18: calc(18px * var(--ts)); --t22: calc(22px * var(--ts)); --t26: calc(26px * var(--ts));
 }
 
@@ -399,7 +399,7 @@ ol.items { padding: 0; }
 .fiche-lines > .muted { font-size: var(--t14); color: var(--muted); }
 .fiche-lines p > .ico { display: inline-flex; vertical-align: -2px; }
 .fiche-lines p > .ico svg { width: 16px; height: 16px; }
-.fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 1.5px solid var(--ink); font: 800 var(--t115) var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--ink); }
+.fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 1.5px solid var(--ink); font: 800 var(--t15)/1.3 var(--display); color: var(--ink); }
 .fiche-toc { display: flex; flex-direction: column; }
 .fiche-row { display: grid; grid-template-columns: minmax(24px, auto) minmax(0, 1fr) minmax(20px, auto); align-items: center; gap: 12px; min-height: 52px; padding: 6px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; color: var(--ink); font: 700 var(--t16) var(--display); text-decoration: none; }
@@ -731,7 +731,8 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 }
 #sheetTitle { font-size: var(--t22); font-weight: 800; font-stretch: 85%; letter-spacing: -.005em; }
 .item-name, .menu-title { font-weight: 700; font-stretch: 92%; }
-.ring-title, .legend { font-family: var(--display); font-size: var(--t115); font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+/* Intertitres (v186) : 15 px en minuscules, sans lettres espacées : lisibles au soleil avec des lunettes */
+.ring-title, .legend { font-family: var(--display); font-size: var(--t15); font-weight: 800; line-height: 1.3; gap: 12px; }
 .legend { margin-bottom: 6px; color: var(--muted); }
 
 /* Feuille : papier, coin franc */
@@ -1063,6 +1064,8 @@ a.menu-row .menu-chev { font-size: 20px; }
   font-family: var(--display); font-weight: 700; font-size: var(--t16); color: var(--disc); text-align: left; cursor: pointer;
 }
 .ev-more .ico svg { width: 18px; height: 18px; }
+/* v186 : moins de blanc entre « Voir les … » et l'intertitre suivant */
+:is(.ev-more, .stack:has(> .ev-more:last-child)) + .ring-title { margin-top: 4px; }
 
 
 /* Photo officielle d'une sortie (agenda de la Ville) : dans la page d'une sortie (v133) */

@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (189)';
+const VERSION = '18 novembre 2026 (190)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4224,7 +4224,7 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
     names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
       : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} dans tes salles cette semaine.` : 'Rien dans l\'agenda de la Ville pour tes salles cette semaine.') : null,
     found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, here, { week: true }))) : null,
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Les salles que je suis'), el('span', {}, String(names.length))),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Les salles que tu suis'), el('span', {}, String(names.length))),
     names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
         found.length ? el('span', { class: 'item-sub' }, plural(found.filter((x) => x.where === n).length, 'rendez-vous', 'rendez-vous')) : null),
@@ -4265,7 +4265,7 @@ async function openArtists() {
     names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
       : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} avec tes artistes cette semaine, tout Paris.` : 'Aucun de tes artistes dans l\'agenda de la Ville cette semaine.') : null,
     found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtists, { week: true }))) : null,
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Les artistes que je suis'), el('span', {}, String(names.length))),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Les artistes que tu suis'), el('span', {}, String(names.length))),
     names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openArtist(n, named('Mes artistes', () => openArtists())) },
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
@@ -4288,11 +4288,20 @@ const SORTIES_LINKS = [
   ['Sortir à Paris', 'Le plus complet, avec beaucoup de publicité (sortiraparis.com)', 'https://www.sortiraparis.com/'],
 ];
 
+/** Clé d'une sortie, la même dans l'agenda du jour et dans celui de la semaine (titre et position). */
+const evKey = (e) => `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
+/** Les clés des 3 rendez-vous de mes salles montrés en tête de Sorties → Tout (v186 : pas répétés plus bas). */
+function venueShownKeys() {
+  const names = cleanVenues(state.venues);
+  if (!names.length || weekCache?.day !== new Date().toDateString()) return new Set();
+  return new Set(venueEvents(weekCache.items ?? [], names).slice(0, 3).map(({ e }) => evKey(e)));
+}
 /**
  * Mes salles en tête de Sorties → Tout (v166) : les 3 prochains rendez-vous de mes salles cette semaine, puis « Mes salles ».
  * Sans salle suivie : une seule ligne qui explique. Le programme de la semaine se charge une fois par jour, en arrière-plan.
+ * v186 : une sortie qui a lieu aujourd'hui s'affiche comme plus bas (`todayRow` : son heure, ou « Dernier jour » pour une expo qui ferme) ; elle n'y est pas répétée.
  */
-function venueBox(back) {
+function venueBox(back, todayRow = () => null) {
   const names = cleanVenues(state.venues);
   const go = () => openVenues(named('Sorties', () => openEvents()));
   const line = (sub) => el('div', { class: 'fiche-toc' }, el('button', { type: 'button', class: 'fiche-row', onclick: go },
@@ -4304,11 +4313,11 @@ function venueBox(back) {
     const o = evFrom;
     if (!found.length) { fill(box, line(`${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} : rien cette semaine`)); return; }
     fill(box, el('h3', { class: 'ring-title' }, el('span', {}, 'Mes salles cette semaine'), el('span', {}, String(found.length))),
-      el('ul', { class: 'items ev-list' }, found.slice(0, 3).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, back, { week: true }))),
-      el('button', { type: 'button', class: 'ev-more', onclick: go }, `Mes salles (${found.length})`));
+      el('ul', { class: 'items ev-list' }, found.slice(0, 3).map(({ e }) => todayRow(e) ?? eventRow({ ...e, d: o ? distanceM(o, e) : null }, back, { week: true }))),
+      el('button', { type: 'button', class: 'ev-more', onclick: go }, `Mes salles (${found.length})`, ico('chevron-right')));
   };
   if (weekCache?.day === new Date().toDateString()) draw();
-  else { fill(box, line('Programme de la semaine en chargement…')); weekEvents().then(() => { if (box.isConnected) draw(); }).catch(() => { if (box.isConnected) fill(box, line('L\'agenda de la semaine ne répond pas')); }); }
+  else { fill(box, line('Programme de la semaine en chargement…')); weekEvents().then(() => { if (!box.isConnected) return; if (venueShownKeys().size) openEvents(); else draw(); }) /* v186 : redessine Sorties pour retirer les doublons */.catch(() => { if (box.isConnected) fill(box, line('L\'agenda de la semaine ne répond pas')); }); }
   return box;
 }
 
@@ -4359,13 +4368,13 @@ async function openEvents(start = null) {
   const lastIds = new Set(last);
   const notes = []; // sources et précautions : regroupées tout en bas, dans « Aide, sources et mise à jour »
   const head = (label, n) => (n ? el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(n))) : null);
-  /** Une rubrique (v136) : son intertitre, ses 3 premières lignes, puis « Les N … » qui déplie le reste (le temps de la session). */
-  const section = (key, label, rows, moreLabel, max = 3) => {
+  /** Une rubrique (v136) : son intertitre, ses 3 premières lignes, puis « Voir les N … » (v186) qui déplie le reste (le temps de la session). */
+  const section = (key, label, rows, noun, max = 3) => {
     if (!rows.length) return [];
     const opened = evOpen.has(`${mode}:${key}`);
     const shown = opened || rows.length <= max + 1 ? rows : rows.slice(0, max);
     return [head(label, rows.length), el('ul', { class: 'items ev-list' }, shown),
-      shown.length < rows.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { evOpen.add(`${mode}:${key}`); openEvents(); } }, `${moreLabel} (${rows.length})`, ico('chevron-down')) : null];
+      shown.length < rows.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { evOpen.add(`${mode}:${key}`); openEvents(); } }, `Voir les ${rows.length} ${noun}`, ico('chevron-down')) : null];
   };
   const mapList = []; // ce que montre « Carte » : { name, lat, lng, go }
   const onMap = (xs, go) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: () => go(x) }); };
@@ -4403,7 +4412,7 @@ async function openEvents(start = null) {
     onMap(nvNear, (x) => openNavigo(x));
     body = [
       el('p', { class: 'help' }, ico('ticket'), ' Réductions sur présentation du passe Navigo (annuel, mois, imagine R, Senior, Liberté +).'),
-      ...(nvNear.length ? section('navigo', within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches', nvNear.map((x) => navigoRow(x, back)), 'Tous les lieux partenaires', 5)
+      ...(nvNear.length ? section('navigo', within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches', nvNear.map((x) => navigoRow(x, back)), 'lieux', 5)
         : [el('p', { class: 'empty' }, 'La liste des lieux partenaires n\'a pas pu être lue.')]),
     ];
     notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
@@ -4413,7 +4422,7 @@ async function openEvents(start = null) {
     const drawGal = () => {
       if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Lecture de la liste des galeries de Paris…')); return; }
       const g = galleriesNear(galleries, o).slice(0, 15);
-      fill(galBox, ...section('galeries', 'Galeries à moins de 1,5 km', g.map((x) => galleryRow(x, back)), 'Toutes les galeries'),
+      fill(galBox, ...section('galeries', 'Galeries à moins de 1,5 km', g.map((x) => galleryRow(x, back)), 'galeries'),
         g.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => openGalleryWalk(openEvents) }, 'Parcours des galeries ouvertes', ico('chevron-right')) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'));
     };
     drawGal();
@@ -4433,8 +4442,8 @@ async function openEvents(start = null) {
         entry('moon', 'Ouvert tard', (() => { const t = lateTonight(new Date(), ART_PLACES, holidayOn()); return t.length ? `Ce soir : ${t.slice(0, 3).map((p) => p.name.replace(/^Musée (du |de l'|d')?/, '')).join(', ')}${t.length > 3 ? '…' : ''}` : 'Les nocturnes des musées et fondations'; })(), () => openLate()),
         entry('shapes', 'Art dans la rue', 'Statues et sculptures à moins de 1 km', () => openStreetArt()),
         entry('user', 'Mes artistes', cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda', () => openArtists())),
-      ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'Toutes les expos qui ferment'),
-      ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'Toutes les expos'),
+      ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'expos'),
+      ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'expos'),
       galBox,
       !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les galeries privées n\'y sont souvent pas : regarde les galeries.') : null,
     ];
@@ -4455,9 +4464,9 @@ async function openEvents(start = null) {
       const freePlaces = whereOn === 'out' ? [] : freeAll; // musées et théâtre : à l'abri
       onMap(freePlaces, (f) => openFreeSpot(f));
       body = [
-        ...section('sorties', 'Sorties gratuites', freeItems.map((x) => card(x)), 'Toutes les sorties gratuites'),
-        ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'Tous les musées gratuits'),
-        ...(whereOn === 'out' ? [] : section('theatre', 'Théâtre à moitié prix', kiosks.map((k) => kiosqueRow(k, back)), 'Tous les kiosques')),
+        ...section('sorties', 'Sorties gratuites', freeItems.map((x) => card(x)), 'sorties'),
+        ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'musées'),
+        ...(whereOn === 'out' ? [] : section('theatre', 'Théâtre à moitié prix', kiosks.map((k) => kiosqueRow(k, back)), 'kiosques')),
         soonFree.length ? head('Bientôt gratuit', soonFree.length) : null,
         soonFree.length ? el('ul', { class: 'items' }, soonFree.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openFreeDay(x.date) },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('calendar-days', { size: 18 })),
@@ -4468,12 +4477,16 @@ async function openEvents(start = null) {
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
     } else {
       onMap(last.slice(0, 3), (e) => openEventPage(e, back));
+      // v186 : une sortie déjà montrée dans Mes salles (en tête) n'est pas répétée plus bas ; elle reste sur la Carte
+      const inVenues = venueShownKeys();
+      const notShown = (e) => !inVenues.has(evKey(e));
+      const todayByKey = new Map(near3.map((e) => [evKey(e), e]));
       body = [
-        venueBox(back),
+        venueBox(back, (w) => { const t = todayByKey.get(evKey(w)); return t ? eventRow(t, back, { last: lastIds.has(t) }) : null; }),
         ...top,
-        ...section('now', 'En ce moment', now.slice(0, 25).map((x) => card(x)), 'Toutes les sorties en ce moment'),
-        ...section('later', 'Plus tard aujourd\'hui', later.map((x) => card(x)), 'Toutes les sorties plus tard'),
-        ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'Toutes les expos qui ferment'),
+        ...section('now', 'En ce moment', now.filter((x) => !x.e || notShown(x.e)).slice(0, 25).map((x) => card(x)), 'sorties'),
+        ...section('later', 'Plus tard aujourd\'hui', later.filter((x) => !x.e || notShown(x.e)).map((x) => card(x)), 'sorties'),
+        ...section('last', 'Dernière chance', last.filter(notShown).map((e) => eventRow(e, back, { last: true })), 'expos'),
         !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
       ];
     }
@@ -7377,7 +7390,7 @@ const HELP = [
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ.',
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
-    '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
+    '**Chaque rubrique** montre les 3 plus proches. « Voir les … » déroule la suite. Une sortie de Mes salles, montrée en tête de Tout, n\'est pas répétée plus bas.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
     '{calendar-days} **Bientôt gratuit**, dans Sorties → Gratuit (et le bandeau « Maintenant ») : touche un jour pour voir les lieux gratuits ce jour-là, leurs heures, ceux qui sont sur réservation, et « Prévoir ce dimanche » pour le mettre dans Mon planning.',
     '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans la note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
@@ -7557,6 +7570,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
     '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
@@ -7566,7 +7580,6 @@ const HELP = [
     '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
-    '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
   ]],
 ];
 
