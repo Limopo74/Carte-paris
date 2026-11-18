@@ -122,7 +122,12 @@ const ECRANS = {
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   salles: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-more, .fiche-row', { hasText: 'Mes salles' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
   // v167 : le lieu d'une sortie gardé en favori d'un appui (la page se redessine, le message propose Modifier et Annuler)
-  sortiefavori: async (p) => { await ECRANS.sortie(p); await feuille(p).locator('button', { hasText: 'en favori' }).first().click(); await p.waitForTimeout(500); },
+  // (puis « Annuler » dans le message : le lieu ajouté ne doit pas gêner les écrans suivants, qui partagent le même stockage)
+  sortiefavori: async (p) => { await ECRANS.sortie(p); await feuille(p).locator('button', { hasText: 'en favori' }).first().click(); await p.waitForTimeout(500); await p.locator('#toast .toast-act', { hasText: 'Annuler' }).click(); await p.waitForTimeout(300); },
+  // v168 : un jour gratuit à venir, puis un de ses lieux (heures de ce jour-là, Prévoir ce …)
+  gratuitjour: async (p) => { await ECRANS.gratuit(p); const b = feuille(p).locator('.item-main', { hasText: /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i }).first(); await b.scrollIntoViewIfNeeded(); await b.click(); await p.waitForSelector('#sheet .ev-list'); await p.waitForTimeout(300); },
+  gratuitlieu: async (p) => { await ECRANS.gratuitjour(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
+  gratuitprevoir: async (p) => { await ECRANS.gratuitlieu(p); await feuille(p).locator('button', { hasText: /^\s*Prévoir ce/ }).click(); await p.waitForTimeout(400); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
   passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },

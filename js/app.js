@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (168)';
+const VERSION = '18 novembre 2026 (169)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1154,8 +1154,9 @@ function updateNow(force = false) {
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `Gratuit ${fb.when}`),
       el('span', { class: 'now-name' }, fb.text),
-      el('span', { class: 'now-sub' }, 'Voir Sorties → Gratuit'));
-    card.querySelector('.now-open').onclick = () => { eventsMode = 'free'; openEvents('map'); };
+      el('span', { class: 'now-sub' }, fb.k ? 'Voir les lieux et leurs heures' : 'Voir Sorties → Gratuit'));
+    // v168 : un jour à venir ouvre sa page (lieux, heures ce jour-là, Prévoir) ; aujourd'hui, Sorties → Gratuit
+    card.querySelector('.now-open').onclick = () => { if (fb.k) { const d = new Date(); openFreeDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + fb.k), named('Carte', () => closeSheet())); } else { eventsMode = 'free'; openEvents('map'); } };
     return;
   }
   // Selon l'heure, un lieu du bon type passe devant (comme s'il était 400 m plus près) :
@@ -3699,6 +3700,52 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
 /** Page d'un musée gratuit : quand c'est gratuit, et s'il est ouvert en ce moment (v156 ; rien si l'horaire n'est pas sûr). */
 const openFreeSpot = (f, back = null) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
   lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}`, fav: 'musee' });
+/* ---------- Un jour gratuit à venir (v168) : les lieux gratuits ce jour-là, leurs heures, Prévoir ---------- */
+/** Les heures d'un lieu un jour donné : « 9h30 – 18h », « Fermé ce jour-là » ou null (horaires inconnus). */
+function hoursOn(f, date) {
+  const h = spotHours(f, date);
+  const d0 = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 1);
+  const st = openState(h, d0);
+  if (!st) return null;
+  if (!st.opensAt) return 'Fermé ce jour-là';
+  const [hh, mm] = st.opensAt.split(':').map(Number);
+  const until = openState(h, new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm))?.until;
+  return `${hhText(st.opensAt)}${until ? ` – ${hhText(until)}` : ''}`;
+}
+const dayTitle = (date) => date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+/** Un lieu gratuit ce jour-là : ses heures ce jour-là, la règle, Y aller, Boussole, Métro, ★ Favori, et « Prévoir ce … ». */
+function openFreeDaySpot(f, date, back) {
+  const again = () => openFreeDaySpot(f, date, back);
+  const h = hoursOn(f, date);
+  const day = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+  const plan = () => { // une sortie prévue (Mon planning), à l'heure d'ouverture de ce jour-là si elle est connue
+    const st = openState(spotHours(f, date), new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 1));
+    const [hh, mm] = (st?.opensAt ?? '14:00').split(':').map(Number);
+    const at = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm).getTime();
+    openPlan({ id: newPhotoId(), name: f.name, lat: f.lat, lng: f.lng, plan: true, place: f.name, ticket: st?.opensAt ? { at } : { at, part: 'aprem' } }, named(f.name, again), { done: again });
+  };
+  openSpot({ icon: 'landmark', title: f.name, kicker: `Gratuit ${dayTitle(date)}`, place: f, back, key: `gratuitjour:${f.lat},${f.lng}:${date.getTime()}`, fav: 'musee',
+    lines: [h ? el('p', {}, ico('clock'), ` Ce jour-là : ${h}`) : el('p', { class: 'help' }, 'Horaires de ce jour-là inconnus : vérifie avant d\'y aller.'),
+      `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'],
+    extra: el('button', { type: 'button', class: 'btn c-disc', onclick: plan }, ico('alarm-clock'), `Prévoir ce ${day}`) });
+}
+/** La page d'un jour gratuit à venir (Sorties → Gratuit → Bientôt gratuit, ou le bandeau « Maintenant ») : du plus proche au plus loin. */
+function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; openEvents(); })) {
+  const again = () => openFreeDay(date, back);
+  const o = evFrom ?? origin ?? (() => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng, kind: 'map' }; })(); // jamais de GPS demandé ici
+  const list = freeToday(date).filter((f) => f.rule !== 'always').map((f) => ({ ...f, d: distanceM(o, f) })).sort((a, b) => a.d - b.d);
+  const here = named(`Gratuit ${date.toLocaleDateString('fr-FR', { weekday: 'long' })}`, again);
+  openSheet([ico('landmark'), ` Gratuit ${dayTitle(date)}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(list.length, 'lieu gratuit', 'lieux gratuits')} ce jour-là, en plus des musées de la Ville (gratuits toute l'année).`),
+    list.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: `Gratuit ${dayTitle(date)}`, label: plural(list.length, 'lieu', 'lieux'), items: list, icon: 'landmark',
+      open: (x) => openFreeDaySpot(x, date, here), back: again, from: o }) }, ico('map'), 'Voir sur la carte') : null,
+    el('ul', { class: 'items ev-list' }, list.map((f) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeDaySpot(f, date, here), sub: [hoursOn(f, date), f.when], d: f.d,
+      tags: [/réservation/i.test(`${f.note ?? ''} ${f.when}`) ? el('span', { class: 'tag closed' }, 'Sur réservation') : null] }))),
+    el('p', { class: 'help' }, `Liste vérifiée le ${FREE_CHECKED}. Distances depuis ${o.kind === 'map' ? 'le centre de la carte' : 'le point de départ de Sorties'}. Les règles changent : vérifie sur le site du lieu.`),
+    foot(backBtn(back)),
+  ), { tall: true, name: `gratuitjour:${date.getTime()}`, again });
+}
+
 const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeSpot(f, back), sub: [f.when], d: f.d, tags: [stateTag(spotHours(f))] });
 
 /** Un marché du jour : en ce moment, plus tard, ou déjà fini. */
@@ -4153,7 +4200,10 @@ async function openEvents(start = null) {
         ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'Tous les musées gratuits'),
         ...(whereOn === 'out' ? [] : section('theatre', 'Théâtre à moitié prix', kiosks.map((k) => kiosqueRow(k, back)), 'Tous les kiosques')),
         soonFree.length ? head('Bientôt gratuit', soonFree.length) : null,
-        soonFree.length ? el('div', { class: 'stack', style: 'gap:0' }, ...soonFree.map((x) => el('p', { class: 'hl-line soon-line' }, ico('calendar-days'), ` ${x.line}`))) : null,
+        soonFree.length ? el('ul', { class: 'items' }, soonFree.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openFreeDay(x.date) },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('calendar-days', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, dayTitle(x.date).replace(/^./, (c) => c.toUpperCase())), el('span', { class: 'item-sub' }, x.text.replace(/^./, (c) => c.toUpperCase()))),
+          el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))) : null, // v168 : chaque jour s'ouvre
         !freeItems.length && !freePlaces.length ? el('p', { class: 'empty' }, `Aucune sortie gratuite${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
       ];
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
@@ -6747,6 +6797,7 @@ const HELP = [
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
+    '{calendar-days} **Bientôt gratuit**, dans Sorties → Gratuit (et le bandeau « Maintenant ») : touche un jour pour voir les lieux gratuits ce jour-là, leurs heures, ceux qui sont sur réservation, et « Prévoir ce dimanche » pour le mettre dans Mon planning.',
     '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans la note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
     '{heart} **Mes salles** : sur la page d\'une sortie, « Suivre ce lieu ». Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
     '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
@@ -6919,6 +6970,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
     '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
     '{signpost} Circuits de visite : 6 balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
     '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
@@ -6928,7 +6980,6 @@ const HELP = [
     '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
     '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
-    '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
   ]],
 ];
 
