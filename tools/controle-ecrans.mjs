@@ -161,6 +161,7 @@ const ECRANS = {
   prevoir: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   prevoirautre: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await feuille(p).locator('.seg button', { hasText: 'Autre jour' }).click(); await feuille(p).locator('.seg button', { hasText: 'Heure précise' }).click(); await p.waitForTimeout(300); },
   ousuisje: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Où suis' }).click(); await p.waitForSelector('#sheet .where-big'); await p.waitForTimeout(900); },
+  memeauteur: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.locator('#sheet button', { hasText: 'Du même auteur' }).first().click(); await p.waitForSelector('#sheet .items .item-main'); await p.waitForTimeout(300); },
   respire: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Itinéraire' }).click(); await p.locator('#sheet button', { hasText: 'Rues sans voitures' }).click(); await p.waitForSelector('#sheet .items .plan-time'); await p.waitForTimeout(300); },
   respirecarte: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Itinéraire' }).click(); await p.locator('#sheet button', { hasText: 'Rues sans voitures' }).click(); await p.locator('#sheet .items .item-main').first().click(); await p.waitForSelector('.respire-zone'); await p.waitForTimeout(400); },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
@@ -211,6 +212,11 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   // v198 : « Où suis-je ? » — adresse simulée (IGN) et origine du nom de la rue (vraie phrase du jeu de la Ville)
   await page.route(/data\.geopf\.fr\/geocodage\/reverse/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ geometry: { coordinates: [2.3361, 48.8812] }, properties: { label: '62 Rue des Archives 75003 Paris', type: 'housenumber', citycode: '75103', street: 'Rue des Archives' } }] }) }));
   await page.route(/data\/voies\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'Paris Data', updated: '2026-11-18', voies: { 'rue des archives': 'Cette voie longe les bâtiments des Archives nationales.' } }) }));
+  // v198 : auteur des monuments simulé (l'immeuble PA00085808 de test, et deux autres édifices du même auteur)
+  await page.route(/data\/architectes\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'Mérimée', updated: '2026-11-18', items: [
+    { r: 'PA00085808', t: 'Immeuble', a: ['Guimard Hector (architecte)'], d: '1898', lat: 48.8805, lng: 2.335 },
+    { r: 'PA00086001', t: 'Castel Béranger', a: ['Guimard Hector (architecte)'], d: '1895, 1898', lat: 48.8527, lng: 2.2742 },
+    { r: 'PA00086002', t: 'Synagogue de la rue Pavée', a: ['Guimard Hector (architecte)'], d: '1913', lat: 48.8554, lng: 2.3601 }] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
