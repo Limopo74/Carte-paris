@@ -87,6 +87,15 @@ export function opensThatDay(hours, date = new Date()) {
   return today.length > 0;
 }
 
+/** Marge gardée entre l'arrivée à pied et la fermeture : la marche est une estimation (ligne droite, à mon pas). */
+export const ARRIVAL_MARGIN = 5;
+/** Vrai si le lieu est ouvert mais aura fermé (à ARRIVAL_MARGIN minutes près) après `walkMin` minutes de marche. Faux sans horaires ou sans temps de marche. */
+export function closedOnArrival(hours, walkMin, date = new Date()) {
+  if (walkMin == null || !(walkMin >= 0)) return false;
+  const left = minutesLeft(hours, date);
+  return left != null && walkMin + ARRIVAL_MARGIN > left;
+}
+
 /** Minutes avant la fermeture si c'est ouvert et que l'heure de fin est connue, sinon null. */
 export function minutesLeft(hours, date = new Date()) {
   const st = openState(hours, date);

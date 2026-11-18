@@ -16,7 +16,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
-import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
+import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
@@ -42,7 +42,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (195)';
+const VERSION = '18 novembre 2026 (196)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2150,18 +2150,24 @@ function hoursLine(p, h = hoursOf(p)) {
   if (st.open) return st.until ? `Ouvert · ferme à ${hhText(st.until)}` : 'Ouvert toute la journée';
   return st.opensAt ? `Fermé · ouvre à ${hhText(st.opensAt)}` : 'Fermé pour aujourd\'hui';
 }
-/** Tampon d'état du jour, le même partout : Ouvert, Ferme dans 20 min, Ouvre à 14h, Fermé aujourd'hui (rien si horaires inconnus). */
-function stateTag(hours) {
+/**
+ * Tampon d'état du jour, le même partout : Ouvert, Ferme dans 20 min, Ouvre à 14h, Fermé aujourd'hui (rien si horaires inconnus).
+ * Avec `walk` (minutes à pied jusqu'au lieu, v196) : « Fermé à ton arrivée » quand la marche dépasse le temps qui reste.
+ */
+function stateTag(hours, walk = null) {
   const st = openState(hours);
   if (!st) return null;
   const left = minutesLeft(hours);
+  if (closedOnArrival(hours, walk)) return el('span', { class: 'tag soon' }, 'Fermé à ton arrivée');
   if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${left} min`);
   if (st.open) return el('span', { class: 'tag open' }, 'Ouvert');
   if (st.opensAt) return el('span', { class: 'tag soon' }, `Ouvre à ${hhText(st.opensAt)}`);
   // Fermé toute la journée, ou déjà fermé ce soir (le lieu a ouvert plus tôt) : on ne dit pas « aujourd'hui » à tort
   return el('span', { class: 'tag closed' }, opensThatDay(hours) ? 'Fermé' : 'Fermé aujourd\'hui');
 }
-function hoursTag(p) { return stateTag(hoursOf(p)); }
+function hoursTag(p, walk = null) { return stateTag(hoursOf(p), walk); }
+/** Minutes à pied pour une distance connue, null sinon (pas de point de départ). */
+const walkOf = (d) => (d == null ? null : walkMinutes(d));
 
 /* ---------- Copier d'un appui (adresse, coordonnées) pour coller dans une autre appli ---------- */
 
@@ -2608,7 +2614,7 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, starsText(p.stars), hoursTag(p), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done ? null : el('span', { class: 'tag' }, 'À faire')))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
@@ -3829,7 +3835,7 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
 /** Boussole et M toujours au même endroit : la place du + reste réservée quand une ligne n'en a pas. */
 const slots = (btns, n) => [...btns, ...Array.from({ length: Math.max(0, n - btns.length) }, () => el('span', { class: 'go-compass slot', 'aria-hidden': 'true' }))];
 const freeTag = () => el('span', { class: 'tag open' }, 'Gratuit');
-const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d, tags: [stateTag(spotHours(k))] });
+const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d, tags: [stateTag(spotHours(k), walkOf(k.d))] });
 function openKiosque(k, back = null) {
   openSpot({ icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [hoursLine(k, spotHours(k)), k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
     place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}`, add: { hours: k.oh ?? '' }, fav: 'theatre' });
@@ -3892,7 +3898,7 @@ const addBtn = (name, label, onclick) => el('button', { type: 'button', class: '
 const galleryRow = (g, back) => {
   const st = openState(g.hours);
   const stTxt = !st ? 'horaires inconnus' : st.open && st.until ? `jusqu'à ${hhText(st.until)}` : '';
-  return sortieCard({ genre: 'galerie', name: g.name, onclick: () => openGalleryCard(g, back), sub: [g.kind === 'Galerie' ? '' : g.kind, stTxt, closedDaysText(g.hours)], d: g.d, tags: [stateTag(g.hours)] });
+  return sortieCard({ genre: 'galerie', name: g.name, onclick: () => openGalleryCard(g, back), sub: [g.kind === 'Galerie' ? '' : g.kind, stTxt, closedDaysText(g.hours)], d: g.d, tags: [stateTag(g.hours, walkOf(g.d))] });
 };
 
 /** Une expo ou une sortie : genre, titre, quand, où ; boussole, métro, et pour une expo « garder » (avec sa date de fin). */
@@ -4021,7 +4027,7 @@ function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; 
   ), { tall: true, name: `gratuitjour:${date.getTime()}`, again });
 }
 
-const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeSpot(f, back), sub: [f.when], d: f.d, tags: [stateTag(spotHours(f))] });
+const freeRow = (f, back) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeSpot(f, back), sub: [f.when], d: f.d, tags: [stateTag(spotHours(f), walkOf(f.d))] });
 
 /** Un marché du jour : en ce moment, plus tard, ou déjà fini. */
 /** Ouvert, plus tard ou fini, pour un marché découvert comme pour un marché couvert qui ferme à midi. */
@@ -7223,7 +7229,7 @@ function showPratique(from, fs, ts, cs = []) {
         const target = { name: item.label, lat: item.lat, lng: item.lng };
         return el('li', { class: 'item' },
           el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
-            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
+            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours, walkMinutes(d)) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
           el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
@@ -7454,7 +7460,7 @@ const HELP = [
     '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
     '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
     '**Bientôt gratuit** : 2 jours avant (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte le dit. Le jour même, s\'il y en a un à 15 min, il te donne ce lieu et son heure ; sinon, touche-le pour Gratuit, autour de toi. La croix le cache pour la journée.',
-    '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
+    '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
     '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris.',
@@ -7477,7 +7483,7 @@ const HELP = [
     '**Gratuités et temps forts** sont des listes vérifiées le 16 novembre 2026. Vérifie aussi sur le site du lieu.',
   ]],
   ['map-pinned', 'Autour de moi', [
-    '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles.',
+    '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Cercles.',
     '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, la station la plus proche et le quartier en 3 lignes.',
@@ -7623,6 +7629,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
     '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
     '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
     '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
@@ -7632,7 +7639,6 @@ const HELP = [
     '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
-    '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
   ]],
 ];
 
