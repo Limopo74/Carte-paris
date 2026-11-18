@@ -51,3 +51,13 @@ test('sortie de métro : ni numéro 0 ni nom vide de sens (v202)', async () => {
   const st = { lat: 48.8, lng: 2.3 };
   assert.equal(exitFor([{ n: 'Entrée', s: '0', lat: 48.8, lng: 2.3 }], st, st), null);
 });
+
+test('v210 : une sortie plus près d\'une autre station n\'est pas affichée', async () => {
+  const { exitFor } = await import('../js/acces.js');
+  const a = { lat: 48.87, lng: 2.34 }; const b = { lat: 48.87, lng: 2.3425 }; // deux stations à 183 m
+  const acces = [{ n: 'r. de B', s: '7', lat: 48.87, lng: 2.3422 }]; // à 22 m de b, 161 m de a
+  const place = { lat: 48.8701, lng: 2.3421 };
+  assert.equal(exitFor(acces, a, place, [a, b]), null, 'la sortie est celle de b');
+  assert.equal(exitFor(acces, b, place, [a, b]).label, 'Sortie 7, r. de B');
+  assert.equal(exitFor(acces, a, place).label, 'Sortie 7, r. de B', 'sans la liste des stations : comme avant');
+});
