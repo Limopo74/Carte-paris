@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (169)';
+const VERSION = '18 novembre 2026 (170)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3594,6 +3594,16 @@ function favButton({ name, lat, lng, address = '', hours = '', note = '', kind =
   } }, glyph(state.fav.icon, { filled: on }), text);
 }
 
+/** « ♡ Suivre » une salle (v170) : elle entre dans Mes salles (son programme arrive en tête de Sorties) ; un nouvel appui la retire. */
+function followButton(name, again) {
+  const on = cleanVenues(state.venues).some((v) => artistKey(v) === artistKey(name));
+  return el('button', { type: 'button', class: 'btn c-disc', 'aria-pressed': String(on), 'aria-label': on ? `${name} : dans Mes salles` : `Suivre ${name} dans Mes salles`, onclick: () => {
+    state.venues = on ? cleanVenues(state.venues).filter((v) => artistKey(v) !== artistKey(name)) : cleanVenues([...cleanVenues(state.venues), name]);
+    persist(); again();
+    toast(on ? `${name} : retiré de Mes salles` : `${name} : dans Mes salles`, false, on ? null : { label: 'Voir', fn: () => openVenues(named(name, again)) });
+  } }, ico('heart'), on ? 'Suivie (Mes salles)' : 'Suivre');
+}
+
 function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null }) {
   const d = freshHere() ? distanceM(freshHere(), place) : null;
   const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav });
@@ -3607,6 +3617,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
       // v167 : « ★ Favori » (un appui) pour un musée, une galerie, un théâtre ; « Ajouter » (formulaire) pour le reste
       fav ? favButton({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', hours: add.hours ?? '', note: add.note ?? '', kind: fav }, again)
         : el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', acc: null, ...add }) }, ico('plus'), 'Ajouter')),
+    fav ? followButton(title, again) : null, // v170 : une salle, une galerie, un musée se suivent aussi (Mes salles)
     extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
     back ? foot(backBtn(back)) : null,
@@ -3838,6 +3849,7 @@ async function openArtPlaces(focus = '', from = null) {
       el('div', { class: 'row' },
         el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
         favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167
+      followButton(p.name, () => openArtPlaces(p.name, from)), // v170
       p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
   const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
   const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique']];
@@ -3965,6 +3977,14 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
   input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') add(); });
   const removeName = (n) => { state.venues = cleanVenues(state.venues).filter((x) => x !== n); persist(); again(); };
   const here = named('Mes salles', again);
+  // Suggestions (v170) : les lieux des sorties que j'ai prévues ou faites (Mon planning, Mon journal), pas encore suivis
+  const known = new Set(names.map(artistKey));
+  const sugg = [];
+  for (const x of [...(state.plans ?? []), ...cleanOutings(state.outings)]) {
+    const n = cleanVenues([x.place ?? ''])[0];
+    if (n && !known.has(artistKey(n))) { known.add(artistKey(n)); sugg.push(n); }
+  }
+  const follow = (n) => { state.venues = cleanVenues([...cleanVenues(state.venues), n]); persist(); again(); toast(`${n} : dans Mes salles`); };
   openSheet(title, el('div', { class: 'stack' },
     names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
       : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} dans tes salles cette semaine.` : 'Rien dans l\'agenda de la Ville pour tes salles cette semaine.') : null,
@@ -3974,9 +3994,13 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
         found.length ? el('span', { class: 'item-sub' }, plural(found.filter((x) => x.where === n).length, 'rendez-vous', 'rendez-vous')) : null),
       el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Ne plus suivre ${n}` }, ico('x'))))) : null,
+    sugg.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Les lieux de tes sorties'), el('span', {}, String(Math.min(sugg.length, 8)))) : null,
+    sugg.length ? el('ul', { class: 'items' }, sugg.slice(0, 8).map((n) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => follow(n) },
+      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('plus', { size: 18 })),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n), el('span', { class: 'item-sub' }, 'Un appui pour la suivre')))))) : null,
     el('label', { class: 'field' }, 'Suivre une salle', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
-    el('p', { class: 'help' }, 'Le plus simple : sur la page d\'une sortie, « Suivre ce lieu ». L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Les salles qui n\'y publient pas n\'apparaîtront pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    el('p', { class: 'help' }, 'Le plus simple : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie ou d\'un musée gratuit. L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Les salles qui n\'y publient pas n\'apparaîtront pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
     foot(backBtn(back)),
   ), { tall: true, name: 'salles', again });
 }
@@ -6799,7 +6823,7 @@ const HELP = [
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
     '{calendar-days} **Bientôt gratuit**, dans Sorties → Gratuit (et le bandeau « Maintenant ») : touche un jour pour voir les lieux gratuits ce jour-là, leurs heures, ceux qui sont sur réservation, et « Prévoir ce dimanche » pour le mettre dans Mon planning.',
     '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans la note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
-    '{heart} **Mes salles** : sur la page d\'une sortie, « Suivre ce lieu ». Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
+    '{heart} **Mes salles** : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui. Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
     '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
     '{external-link} **Pour aller plus loin**, en bas de Sorties : paris.fr, Paris Musées, les galeries (Offi), l\'office du tourisme, Sortir à Paris.',
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
@@ -6970,6 +6994,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
     '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
     '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
     '{signpost} Circuits de visite : 6 balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
@@ -6979,7 +7004,6 @@ const HELP = [
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
     '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
-    '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
   ]],
 ];
 
