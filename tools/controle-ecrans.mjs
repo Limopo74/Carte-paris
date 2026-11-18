@@ -39,6 +39,7 @@ const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng
 // v158 : mon carnet de sorties (Mon journal) et mes artistes
 const OUTINGS = [{ id: 'o1', at: now - 10 * 864e5, name: 'Hockney 25', lat: 48.8766, lng: 2.2633, place: 'Fondation Louis Vuitton', text: 'Les arbres en grand format, salle 5', stars: 5 }];
 const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle'];
+const VENUES = ['Paris 9e']; // v166 : Mes salles (le lieu des sorties simulées)
 // v158 : œuvres dans la rue (OpenStreetMap simulé)
 const ART_RUE = { elements: [
   { type: 'node', id: 1, lat: 48.8818, lon: 2.3370, tags: { tourism: 'artwork', artwork_type: 'statue', name: 'Statue de test', artist_name: 'Niki de Saint Phalle', start_date: '1983' } },
@@ -107,6 +108,9 @@ const ECRANS = {
   // v162 : l'adresse dans Modifier, le nom de « Déjà visité » dans la catégorie
   modifieradresse: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); },
   categorie: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
+  // v166 : feuille réduite, Mes salles
+  sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
+  salles: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-more, .fiche-row', { hasText: 'Mes salles' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
   passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
@@ -157,7 +161,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
-  await page.evaluate(([pts, plans, textSize, outings, artists]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS]);
+  await page.evaluate(([pts, plans, textSize, outings, artists, venues]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES]);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

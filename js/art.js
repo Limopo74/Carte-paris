@@ -509,3 +509,44 @@ export function cleanArtistLinks(obj) {
   }
   return out;
 }
+
+/* ---------- 18. Mes salles (v166) : les lieux de sortie que je suis, et leur programme de la semaine ---------- */
+
+/** Noms de salles suivies : nettoyés, sans doublon (accents, majuscules et ponctuation ignorés), 80 signes, 100 au plus. */
+export function cleanVenues(list) {
+  const seen = new Set();
+  const out = [];
+  for (const s of Array.isArray(list) ? list : []) {
+    if (typeof s !== 'string') continue;
+    const name = s.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const key = artistKey(name);
+    if (key.replace(/ /g, '').length < 3 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out.slice(0, 100);
+}
+/** La salle est-elle celle de la sortie ? Son nom, mot pour mot, dans le lieu ou l'organisateur (« Philharmonie de Paris - Salle Pierre Boulez »). */
+export function atVenue(e, venue) {
+  const words = (t) => ` ${artistKey(t)} `;
+  const needle = words(venue);
+  return needle.trim().length >= 3 && words(`${e?.place ?? ''} ${e?.org ?? ''}`).includes(needle);
+}
+/** Les sorties de mes salles : [{ e, where }], la plus proche dans le temps d'abord, sans doublon. */
+export function venueEvents(events, venues, now = new Date()) {
+  const list = cleanVenues(venues);
+  if (!list.length) return [];
+  const seen = new Set();
+  const out = [];
+  for (const e of events ?? []) {
+    const where = list.find((v) => atVenue(e, v));
+    if (!where) continue;
+    const k = `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ e, where });
+  }
+  // les rendez-vous datés d'abord, du plus proche au plus loin ; ce qui est déjà en cours (une expo) après
+  const t = (x) => { const st = x.e.slots?.find((sl) => sl.end > now)?.start ?? x.e.start; return st && st >= now ? st.getTime() : now.getTime() + 8 * DAY; };
+  return out.sort((a, b) => t(a) - t(b));
+}

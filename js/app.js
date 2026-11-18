@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (165)';
+const VERSION = '18 novembre 2026 (166)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -880,6 +880,7 @@ let shownKey = null; // nom de l'écran affiché dans la feuille
 let sheetOpener = null; // bouton qui a ouvert la feuille : il retrouve le focus à la fermeture
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
   if (moving && name !== 'move') stopMove();
+  setSheetMini(false); // un nouvel écran (ou le même redessiné) s'ouvre toujours en grand
   const focusOutside = !sheet.contains(document.activeElement);
   if (sheet.hidden && focusOutside && document.activeElement !== document.body) sheetOpener = document.activeElement;
   const prevClose = onSheetClose;
@@ -958,6 +959,35 @@ window.addEventListener('popstate', () => {
   }
 });
 document.getElementById('sheetClose').addEventListener('click', () => closeSheet());
+
+/* Réduire la feuille pour voir la carte (v166) : un bouton à côté de la croix, et la barre du titre qui se fait glisser.
+   Réduite, seule la barre du titre reste ; la carte se voit et se déplace. Agrandie, la liste revient à la même hauteur. */
+const sheetMin = el('button', { type: 'button', id: 'sheetMin', class: 'icon-btn', 'aria-label': 'Réduire pour voir la carte', 'aria-expanded': 'true', onclick: () => setSheetMini(!sheet.classList.contains('mini')) }, ico('chevron-down'));
+document.getElementById('sheetClose').before(sheetMin);
+let miniScroll = 0;
+function setSheetMini(on) {
+  if (on === sheet.classList.contains('mini')) return;
+  if (on) miniScroll = sheetBody.scrollTop;
+  sheet.classList.toggle('mini', on);
+  fill(sheetMin, ico(on ? 'chevron-up' : 'chevron-down'));
+  sheetMin.setAttribute('aria-label', on ? 'Agrandir la fenêtre' : 'Réduire pour voir la carte');
+  sheetMin.setAttribute('aria-expanded', String(!on));
+  if (!on) sheetBody.scrollTop = miniScroll;
+}
+{ // glisser la barre du titre : vers le bas, la feuille se réduit ; vers le haut, elle s'agrandit
+  const head = sheet.querySelector('.sheet-head');
+  let drag = null;
+  head.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; drag = { y: e.clientY }; head.setPointerCapture?.(e.pointerId); });
+  head.addEventListener('pointermove', (e) => { if (!drag) return; const dy = e.clientY - drag.y; sheet.style.transform = !sheet.classList.contains('mini') && dy > 0 ? `translateY(${dy}px)` : ''; });
+  const end = (e) => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    drag = null; sheet.style.transform = '';
+    if (dy > 50) setSheetMini(true); else if (dy < -30) setSheetMini(false);
+  };
+  head.addEventListener('pointerup', end);
+  head.addEventListener('pointercancel', () => { drag = null; sheet.style.transform = ''; });
+}
 
 /* ---------- Localisation ---------- */
 
@@ -3606,6 +3636,11 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
       e.book ? linkRow('ticket', e.bookText || (e.booking === 'none' ? 'Plus d\'infos' : 'Infos et réservations'), e.book) : null,
       e.site && e.site !== e.book ? linkRow('external-link', e.org ? `Site : ${e.org}` : 'Site de l\'organisateur', e.site) : null,
       e.url ? linkRow('external-link', 'Voir dans « Que faire à Paris »', e.url) : null) : null,
+    // Mes salles (v166) : suivre le lieu de cette sortie, son programme vient en tête de Sorties
+    e.place ? el('div', { class: 'fiche-toc' }, cleanVenues(state.venues).some((v) => atVenue(e, v))
+      ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openVenues(named('Sortie', again)) }, ico('heart'), el('span', {}, 'Dans Mes salles', el('small', {}, e.place)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))
+      : el('button', { type: 'button', class: 'fiche-row', onclick: () => { state.venues = cleanVenues([...cleanVenues(state.venues), e.place]); persist(); again(); toast(`${e.place} : dans Mes salles`); } },
+        ico('heart'), el('span', {}, 'Suivre ce lieu', el('small', {}, `${e.place} : son programme en tête de Sorties`)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))) : null,
     el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur. Horaires et prix : vérifie sur son site.'),
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
     back ? foot(backBtn(back)) : null,
@@ -3818,6 +3853,48 @@ function openArtist(name, back = null) {
   ), { tall: true, name: `artiste:${k}`, again });
 }
 
+/**
+ * Mes salles (v166) : les lieux de sortie que je suis (salle de concert, théâtre, galerie, musée) et leur programme
+ * de la semaine dans l'agenda de la Ville (tout Paris, 7 jours). Un lieu se suit depuis la page d'une de ses sorties.
+ */
+async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; openEvents(); })) {
+  track('Mes salles');
+  const title = [ico('heart'), ' Mes salles'];
+  const again = () => openVenues(back);
+  const names = cleanVenues(state.venues);
+  let failed = false;
+  if (names.length && (!weekCache || weekCache.day !== new Date().toDateString())) {
+    openSheet(title, el('p', { class: 'help' }, 'Recherche du programme de tes salles dans l\'agenda de la Ville de Paris (7 jours)…'), { name: 'salles' });
+    try { await weekEvents(); } catch { failed = true; }
+  }
+  const o = evFrom;
+  const found = names.length && !failed ? venueEvents(weekCache?.items ?? [], names) : [];
+  const input = el('input', { type: 'text', maxlength: '80', autocomplete: 'off', placeholder: 'Ex. : Philharmonie de Paris', 'aria-label': 'Nom d\'une salle' });
+  const add = () => {
+    const before = cleanVenues(state.venues).length;
+    state.venues = cleanVenues([...cleanVenues(state.venues), input.value]);
+    if (state.venues.length === before) { toast(input.value.trim() ? 'Cette salle est déjà dans ta liste.' : 'Écris un nom.', true); return; }
+    persist(); again();
+  };
+  input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') add(); });
+  const removeName = (n) => { state.venues = cleanVenues(state.venues).filter((x) => x !== n); persist(); again(); };
+  const here = named('Mes salles', again);
+  openSheet(title, el('div', { class: 'stack' },
+    names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
+      : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} dans tes salles cette semaine.` : 'Rien dans l\'agenda de la Ville pour tes salles cette semaine.') : null,
+    found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, here, { week: true }))) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Les salles que je suis'), el('span', {}, String(names.length))),
+    names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
+        found.length ? el('span', { class: 'item-sub' }, plural(found.filter((x) => x.where === n).length, 'rendez-vous', 'rendez-vous')) : null),
+      el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Ne plus suivre ${n}` }, ico('x'))))) : null,
+    el('label', { class: 'field' }, 'Suivre une salle', input),
+    el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
+    el('p', { class: 'help' }, 'Le plus simple : sur la page d\'une sortie, « Suivre ce lieu ». L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Les salles qui n\'y publient pas n\'apparaîtront pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'salles', again });
+}
+
 async function openArtists() {
   track('Mes artistes');
   const title = [ico('user'), ' Mes artistes'];
@@ -3865,6 +3942,30 @@ const SORTIES_LINKS = [
   ['Paris je t\'aime', 'Office du tourisme : calendrier des grandes expos (parisjetaime.com)', 'https://parisjetaime.com/article/calendrier-expositions-paris-a1055'],
   ['Sortir à Paris', 'Le plus complet, avec beaucoup de publicité (sortiraparis.com)', 'https://www.sortiraparis.com/'],
 ];
+
+/**
+ * Mes salles en tête de Sorties → Tout (v166) : les 3 prochains rendez-vous de mes salles cette semaine, puis « Mes salles ».
+ * Sans salle suivie : une seule ligne qui explique. Le programme de la semaine se charge une fois par jour, en arrière-plan.
+ */
+function venueBox(back) {
+  const names = cleanVenues(state.venues);
+  const go = () => openVenues(named('Sorties', () => openEvents()));
+  const line = (sub) => el('div', { class: 'fiche-toc' }, el('button', { type: 'button', class: 'fiche-row', onclick: go },
+    ico('heart'), el('span', {}, 'Mes salles', el('small', {}, sub)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  if (!names.length) return line('Suis tes lieux préférés (« Suivre ce lieu » sur la page d\'une sortie) : leur programme ici');
+  const box = el('div', { class: 'stack', style: 'gap:0' });
+  const draw = () => {
+    const found = venueEvents(weekCache?.items ?? [], names);
+    const o = evFrom;
+    if (!found.length) { fill(box, line(`${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} : rien cette semaine`)); return; }
+    fill(box, el('h3', { class: 'ring-title' }, el('span', {}, 'Mes salles cette semaine'), el('span', {}, String(found.length))),
+      el('ul', { class: 'items ev-list' }, found.slice(0, 3).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, back, { week: true }))),
+      el('button', { type: 'button', class: 'ev-more', onclick: go }, `Mes salles (${found.length})`));
+  };
+  if (weekCache?.day === new Date().toDateString()) draw();
+  else { fill(box, line('Programme de la semaine en chargement…')); weekEvents().then(() => { if (box.isConnected) draw(); }).catch(() => { if (box.isConnected) fill(box, line('L\'agenda de la semaine ne répond pas')); }); }
+  return box;
+}
 
 const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), le temps de la session
 /** Sorties → « Autour de … ▾ » : d'où partent les distances. */
@@ -4021,6 +4122,7 @@ async function openEvents(start = null) {
       const feat = now[0] ?? null; // la plus proche en ce moment : la grande plaque en tête
       onMap(last.slice(0, 3), (e) => openEventPage(e, back));
       body = [
+        venueBox(back),
         feat ? card(feat, { feat: true, kicker: 'En ce moment, au plus près' }) : null,
         ...top,
         ...section('now', 'En ce moment', now.slice(1, 26).map((x) => card(x)), 'Toutes les sorties en ce moment'),
@@ -6375,6 +6477,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['map', 'Se repérer', [
+    '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche.',
     '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
@@ -6422,6 +6525,7 @@ const HELP = [
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
+    '{heart} **Mes salles** : sur la page d\'une sortie, « Suivre ce lieu ». Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
     '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
     '{external-link} **Pour aller plus loin**, en bas de Sorties : paris.fr, Paris Musées, les galeries (Offi), l\'office du tourisme, Sortir à Paris.',
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
@@ -6587,6 +6691,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
     '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
     '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
@@ -6596,7 +6701,6 @@ const HELP = [
     '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
     '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
     '{landmark} Bientôt gratuit : 2 jours avant un jour gratuit (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte te prévient. La croix le cache pour la journée.',
-    '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
   ]],
 ];
 
