@@ -468,3 +468,44 @@ export function textMatch(q, ...fields) {
   const hay = plain(fields.filter(Boolean).join(' '));
   return words.every((w) => hay.includes(w));
 }
+
+/* ---------- 17. L'artiste d'un lieu (v161) : les œuvres de mes lieux, son site ---------- */
+
+/** Clé de comparaison d'un nom d'artiste : sans accents, majuscules ni ponctuation (« Miss.Tic » = « miss tic »). */
+export const artistKey = (name) => plain(name).replace(/[^a-z0-9]+/g, ' ').trim();
+/** Un nom d'artiste saisi : nettoyé comme ceux de Mes artistes, '' s'il est trop court. */
+export const cleanArtist = (name) => cleanArtists([name])[0] ?? '';
+/** Les lieux signés par cet artiste ; les disparus après les autres, puis du plus proche au plus loin (ou par nom). */
+export function artistWorks(points, name, here = null) {
+  const k = artistKey(name);
+  if (!k) return [];
+  return (points ?? []).filter((p) => p.artist && artistKey(p.artist) === k)
+    .map((p) => ({ p, d: here ? distanceM(here, p) : null }))
+    .sort((a, b) => (Boolean(a.p.gone) - Boolean(b.p.gone)) || (here ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
+}
+/** Les noms déjà connus (mes lieux, puis Mes artistes), sans doublon, par ordre alphabétique : pour compléter la saisie. */
+export const knownArtists = (points, followed = []) => cleanArtists([...(points ?? []).map((p) => p.artist).filter(Boolean), ...cleanArtists(followed)])
+  .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+/**
+ * Le site ou l'Instagram d'un artiste, tel que je l'écris : une adresse https, « instagram.com/nom » ou « @nom ».
+ * Renvoie l'adresse https à ouvrir, ou '' si ce n'est ni l'un ni l'autre (jamais de http, de javascript: ni d'espace).
+ */
+export function linkFrom(text) {
+  const t = String(text ?? '').trim();
+  const handle = /^@([A-Za-z0-9._]{1,30})$/.exec(t) ?? /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]{1,30})\/?$/i.exec(t);
+  if (handle) return `https://www.instagram.com/${handle[1]}/`;
+  if (/\s/.test(t) || t.length > 200) return '';
+  const url = /^https:\/\//i.test(t) ? t : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(t) ? `https://${t}` : '';
+  try { return url && new URL(url).protocol === 'https:' ? url : ''; } catch { return ''; }
+}
+/** Liens des artistes : { clé du nom : { n: nom, u: adresse https } }, 200 au plus. */
+export function cleanArtistLinks(obj) {
+  const out = {};
+  for (const v of Object.values(obj && typeof obj === 'object' ? obj : {}).slice(0, 200)) {
+    const n = cleanArtist(v?.n);
+    const u = linkFrom(v?.u);
+    if (n && u && u === String(v.u)) out[artistKey(n)] = { n, u };
+  }
+  return out;
+}

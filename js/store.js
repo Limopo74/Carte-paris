@@ -1,7 +1,7 @@
 // Enregistrement des lieux et des catégories dans le téléphone, export et import.
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from './geo.js';
 import { cleanPlan, cleanPlans, cleanOutings } from './planning.js';
-import { cleanArtists } from './art.js';
+import { cleanArtists, cleanArtist, cleanArtistLinks } from './art.js';
 import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
 
 export const KEY = 'carte-paris.v1';
@@ -11,6 +11,7 @@ export const ICONS = [
   '🛍️', '👗', '👟', '📚', '🎁', '💄', '🧀', '🍫', '🏛️', '🖼️', '🎭', '🎬',
   '🎵', '⛪', '🌳', '🌸', '🏊', '🧘', '💈', '💊', '📍', '⭐', '❤️', '🏠',
   '📷', // Vu en passant (v157)
+  '🎨', // Street art (v161)
 ];
 export const DEFAULT_ICON = '📍';
 export const FAV_COLORS = ['#f2a900', ...PALETTE];
@@ -29,6 +30,7 @@ export const PRESETS = [
   { name: 'Spectacles', icon: '🎭', color: '#7b2cbf' },
   { name: 'Cinémas', icon: '🎬', color: '#7b2cbf' },
   { name: 'Parcs et jardins', icon: '🌳', color: '#2b8a3e' },
+  { name: 'Street art', icon: '🎨', color: '#c2255c' },
   { name: 'Bien-être', icon: '🧘', color: '#0c8599' },
   { name: 'Pratique', icon: '💊', color: '#495057' },
 ];
@@ -133,6 +135,8 @@ const clean = (p) => ({
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   ...(cleanPassages(p.passages).length ? { passages: cleanPassages(p.passages) } : {}), // Mes passages (v157)
   ...(cleanMoments(p.moments).length ? { moments: cleanMoments(p.moments) } : {}), // Le bon moment (v158)
+  ...(cleanArtist(p.artist) ? { artist: cleanArtist(p.artist) } : {}), // l'artiste de l'œuvre (v161)
+  ...(Number.isFinite(p.gone) ? { gone: p.gone } : {}), // « Disparue ou recouverte », noté ce jour-là (v161)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -148,7 +152,7 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], outings: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
+  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], artistLinks: {}, outings: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -166,7 +170,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    const st = { points, plans: cleanPlans(obj.plans), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), outings: cleanOutings(obj.outings), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(obj.moreChips, cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
+    const st = { points, plans: cleanPlans(obj.plans), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), outings: cleanOutings(obj.outings), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(obj.moreChips, cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
       essentials: cleanEssentials(obj.essentials), layoutBefore: cleanLayout(obj.layoutBefore),
@@ -231,7 +235,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), outings: cleanOutings(state.outings), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), outings: cleanOutings(state.outings), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -262,6 +266,7 @@ export function exportJSON(state) {
     plans: cleanPlans(state.plans),
     // Mes artistes (v158) et mon carnet de sorties de l'agenda (v158) : seulement s'il y en a
     ...(cleanArtists(state.artists).length ? { artists: cleanArtists(state.artists) } : {}),
+    ...(Object.keys(cleanArtistLinks(state.artistLinks)).length ? { artistLinks: cleanArtistLinks(state.artistLinks) } : {}), // sites des artistes (v161)
     ...(cleanOutings(state.outings).length ? { outings: cleanOutings(state.outings) } : {}),
   }, null, 2);
 }
@@ -336,8 +341,9 @@ export function mergeImport(state, text, owner = '') {
   const plans = !owner ? cleanPlans([...(state.plans ?? []), ...cleanPlans(obj.plans).filter((x) => !(state.plans ?? []).some((y) => y.id === x.id))]) : (state.plans ?? []);
   // Mes artistes et mon carnet : seulement depuis ma propre sauvegarde, ajoutés à ce qui est déjà là
   const artists = !owner ? cleanArtists([...(state.artists ?? []), ...cleanArtists(obj.artists)]) : cleanArtists(state.artists);
+  const artistLinks = !owner ? cleanArtistLinks({ ...cleanArtistLinks(obj.artistLinks), ...cleanArtistLinks(state.artistLinks) }) : cleanArtistLinks(state.artistLinks);
   const outings = !owner ? cleanOutings([...(state.outings ?? []), ...cleanOutings(obj.outings).filter((x) => !(state.outings ?? []).some((y) => y.id === x.id))]) : cleanOutings(state.outings);
-  return { state: { ...state, points, plans, artists, outings, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
+  return { state: { ...state, points, plans, artists, artistLinks, outings, categories, lists, ...(myStations ? { myStations } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
 }
 
 function checkFields({ name, color, icon = DEFAULT_ICON, log = '' }, keepColor = null) {
@@ -567,7 +573,7 @@ export function unsavedCount(state) {
 
 /** Empreinte de ce que contient une sauvegarde (lieux, photos rattachées, catégories, listes, favoris, mes stations). */
 export function backupHash(state) {
-  const text = JSON.stringify([state.points, state.categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : [])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
+  const text = JSON.stringify([state.points, state.categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : []), ...(Object.keys(state.artistLinks ?? {}).length ? [state.artistLinks] : [])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(36);

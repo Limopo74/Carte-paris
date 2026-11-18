@@ -22,6 +22,31 @@ export function withSeenCat(state) {
   return { ...state, categories: [...state.categories, { ...SEEN_CAT }], hiddenChips: [...new Set([...(state.hiddenChips ?? []), `cat:${SEEN_CAT.id}`])] };
 }
 
+/* ---------- Street art (v161) : une catégorie à part, des œuvres qui peuvent disparaître ---------- */
+
+/** La catégorie Street art proposée par Vu en passant : créée au premier usage, comme une catégorie à moi. */
+export const STREET_CAT = { id: 'streetart', name: 'Street art', color: '#c2255c', icon: '🎨' };
+const plainName = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+/** Une de mes catégories est-elle « street art » ? Celle de l'appli, ou une à moi qui en porte le nom (Street art, Art urbain, Graffitis…). */
+export const isStreetCat = (c) => Boolean(c) && (c.id === STREET_CAT.id || /street.?art|art urbain|graff/.test(plainName(c.name)));
+/** L'id de ma catégorie street art (la première dans mon ordre), ou null. */
+export const streetCatId = (categories) => (categories ?? []).find(isStreetCat)?.id ?? null;
+/** Ajoute la catégorie Street art si aucune des miennes ne l'est déjà (en dernier). */
+export function withStreetCat(state) {
+  if (streetCatId(state.categories)) return state;
+  return { ...state, categories: [...state.categories, { ...STREET_CAT }] };
+}
+/**
+ * « Encore là ? » : une note Vu en passant, une œuvre de ma catégorie street art ou un lieu dont l'artiste est noté
+ * peuvent être marqués « Disparue ou recouverte ».
+ */
+export const canVanish = (p, categories = []) => Boolean(p) && (p.cat === SEEN_CAT.id || Boolean(p.artist) || isStreetCat((categories ?? []).find((c) => c.id === p.cat)));
+/** Le dernier jour où je l'ai vue : ajout, visite ou passage le plus récent (null si aucune date). */
+export function lastSeen(p) {
+  const t = Math.max(p?.created ?? 0, Number.isFinite(p?.visited) ? p.visited : 0, ...cleanPassages(p?.passages).map((x) => x.at));
+  return t > 0 ? t : null;
+}
+
 /** « il y a 3 jours », « il y a 2 mois », « il y a plus d'un an » (date d'ajout ou de visite). */
 export function agoText(t, now = Date.now()) {
   const days = Math.floor((now - t) / 864e5);
@@ -46,7 +71,7 @@ export function memoryHere(points, pos, shown = {}, now = Date.now()) {
   if (!pos) return null;
   let best = null;
   for (const p of points) {
-    if (p.owner || !(p.note?.trim() || p.photos?.length || (p.passages ?? []).some((x) => x.text || x.photo))) continue;
+    if (p.owner || p.gone || !(p.note?.trim() || p.photos?.length || (p.passages ?? []).some((x) => x.text || x.photo))) continue;
     const since = Math.max(p.created ?? 0, p.visited ?? 0, ...(p.passages ?? []).map((x) => x.at ?? 0));
     if (now - since < 864e5) continue;
     const s = shown[p.id];
@@ -156,7 +181,7 @@ export function momentHere(points, pos, date = new Date(), maxM = 800, isOpen = 
   if (!pos) return null;
   let best = null;
   for (const p of points) {
-    if (p.owner || !p.moments?.length || !momentNow(p.moments, date) || !isOpen(p)) continue;
+    if (p.owner || p.gone || !p.moments?.length || !momentNow(p.moments, date) || !isOpen(p)) continue;
     const d = distanceM(pos, p);
     if (d <= maxM && (!best || d < best.d)) best = { p, d };
   }

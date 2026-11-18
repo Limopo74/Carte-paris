@@ -28,6 +28,9 @@ const LIEUX = [
   lieu('c', 'Square d\'Anvers', 48.8829, 2.3446, { done: true, covered: true }),
   lieu('d', 'Librairie Les Abbesses', 48.8845, 2.3380, { ticket: { at: now + 3 * 864e5 } }),
   lieu('e', 'Marché Saint-Quentin', 48.8774, 2.3567, { ticket: { at: new Date(now + 864e5).setHours(14, 0, 0, 0), part: 'aprem' } }),
+  // v161 : deux œuvres du même artiste, dont une disparue
+  lieu('f', 'Mosaïque jaune rue des Martyrs', 48.8792, 2.3398, { cat: 'culture', artist: 'Invader', hours: '', passages: [{ at: now - 3 * 864e5, text: 'Toujours là, un peu abîmée' }] }),
+  lieu('g', 'Mosaïque bleue rue Condorcet', 48.8796, 2.3440, { cat: 'culture', artist: 'Invader', hours: '', gone: now - 864e5 }),
 ];
 // Une sortie de l'agenda prévue (v153) : dans Mon planning, pas sur la carte
 const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng: 2.3360, place: 'Square Montholon', url: 'https://quefaire.paris.fr/', ticket: { at: new Date(now + 2 * 864e5).setHours(20, 30, 0, 0) } },
@@ -95,6 +98,11 @@ const ECRANS = {
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
   modifier: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.legend', { hasText: 'Le bon moment' }).scrollIntoViewIfNeeded(); },
   vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: 'Vu en passant' }).click(); await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
+  // v161 : street art
+  ficheoeuvre: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque jaune"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Disparue ou recouverte' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  fichedisparue: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque bleue"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'de nouveau là' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  artiste: async (p) => { await ECRANS.ficheoeuvre(p); await feuille(p).locator('.fiche-row', { hasText: 'Invader' }).click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
+  vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
   passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   curiosites: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); },

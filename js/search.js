@@ -7,7 +7,7 @@ export function fold(s) {
 }
 
 /**
- * Lieux dont le nom, la note, l'adresse ou la catégorie contiennent tous les mots cherchés.
+ * Lieux dont le nom, la note, l'adresse, l'artiste ou la catégorie contiennent tous les mots cherchés.
  * Triés par distance si `here` est donné, sinon par ordre alphabétique.
  */
 export function searchPoints(points, categories, query, here = null) {
@@ -15,7 +15,7 @@ export function searchPoints(points, categories, query, here = null) {
   const catName = Object.fromEntries(categories.map((c) => [c.id, c.name]));
   const out = [];
   for (const point of points) {
-    const hay = fold([point.name, point.note, point.address, catName[point.cat]].join(' '));
+    const hay = fold([point.name, point.note, point.address, point.artist, catName[point.cat]].join(' '));
     if (words.every((w) => hay.includes(w))) out.push({ point, d: here ? distanceM(here, point) : null });
   }
   if (here) out.sort((a, b) => a.d - b.d);

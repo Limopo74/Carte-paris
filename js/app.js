@@ -17,12 +17,12 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '17 novembre 2026 (160)';
+const VERSION = '18 novembre 2026 (161)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -372,6 +372,8 @@ const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) 
   && (personFilter === 'all' || p.owner === personFilter);
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
+/** Ce que l'appli propose (Autour de moi, Surprise, balades, alertes…) : pas une œuvre « Disparue ou recouverte » (v161). Elle reste sur la carte et dans le journal. */
+const offered = () => visible().filter((p) => !p.gone);
 
 /** Initiale d'un proche pour son épingle : une seule lettre, jamais de texte saisi brut dans le HTML. */
 const initialOf = (name) => (String(name).match(/\p{L}|\p{N}/u)?.[0] ?? '?').toLocaleUpperCase('fr');
@@ -384,16 +386,16 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
-    const seen = p.cat === SEEN_CAT.id && p.photos?.length; // Vu en passant (v157)
+    const seen = p.cat === SEEN_CAT.id && p.photos?.length && !p.gone; // Vu en passant (v157) ; disparue : une goutte grise
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
-      : `<span class="pin${p.done ? ' done' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
+      : `<span class="pin${p.done ? ' done' : ''}${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? ', disparue ou recouverte' : p.done ? ', déjà visité' : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -605,7 +607,7 @@ function openOuting(id, back) {
 /** Déjà visité, avec son passage daté (v157) : coché = un passage sans texte ce jour-là ; décoché = ce passage vide part. */
 function markDone(p, done, at = Date.now()) {
   if (done && !p.done) p.passages = addPassage(p.passages, { at });
-  if (!done && p.done) p.passages = dropAutoPassage(p.passages, at);
+  if (!done && p.done) p.passages = dropAutoPassage(p.passages, Number.isFinite(p.visited) ? p.visited : at); // le passage du jour où je l'avais coché (v161)
   if (!p.passages?.length) delete p.passages;
   setDone(p, done, at);
 }
@@ -1115,7 +1117,7 @@ function updateNow(force = false) {
   const fits = (p) => slot && slot.re.test(`${catOf(p.cat).name} ${p.name}`);
   // Un favori (même déjà visité) passe devant un lieu jusqu'à 5 min de marche plus proche
   const score = (x) => x.d - (fits(x.p) ? 400 : 0) - (x.p.fav ? minutesToMeters(5) : 0);
-  const best = !pos || nowHidden ? null : visible().filter((p) => openState(hoursOf(p))?.open !== false)
+  const best = !pos || nowHidden ? null : offered().filter((p) => openState(hoursOf(p))?.open !== false)
     .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => score(a) - score(b))[0];
   // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
   const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
@@ -1206,6 +1208,7 @@ function captureSeen() {
   document.body.append(camera);
   camera.click();
 }
+let seenStreet = false; // dernier rangement choisi dans Vu en passant (le temps de la session) : Street art ou non
 function openSeenForm(blob, where) {
   const url = URL.createObjectURL(blob);
   const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine' });
@@ -1215,6 +1218,19 @@ function openSeenForm(blob, where) {
   const starBox = el('div', { class: 'field', hidden: true }, 'Ma note (facultatif)', starPicker(0, (n) => { stars = n; }));
   let target = 'new'; // id d'une de mes adresses proches, ou une nouvelle note
   let fix = null;
+  // Ranger une nouvelle note (v161) : Vu en passant, ou Street art avec son artiste (facultatif)
+  let street = seenStreet;
+  const artist = artistInput();
+  const artistBox = el('label', { class: 'field' }, 'Artiste (facultatif)', artist);
+  const sortBox = el('div', { class: 'field' });
+  const drawSort = () => {
+    fill(sortBox, 'Ranger dans', el('div', { class: 'seg', role: 'group', 'aria-label': 'Ranger dans' },
+      el('button', { type: 'button', 'aria-pressed': String(!street), onclick: () => { street = false; drawSort(); } }, 'Vu en passant'),
+      el('button', { type: 'button', 'aria-pressed': String(street), onclick: () => { street = true; drawSort(); } }, 'Street art')));
+    sortBox.hidden = target !== 'new';
+    artistBox.hidden = target !== 'new' || !street;
+  };
+  drawSort();
   where.then((r) => {
     fix = r;
     const near = !r?.error ? placeNear(state.points, r, 30) : null;
@@ -1224,7 +1240,7 @@ function openSeenForm(blob, where) {
         el('button', { type: 'button', 'aria-pressed': String(target === near.p.id), onclick: () => { target = near.p.id; draw(); } }, `Ajouter à : ${near.p.name}`),
         el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouvelle note')));
       const drawAll = draw;
-      draw = () => { drawAll(); starBox.hidden = target === 'new'; };
+      draw = () => { drawAll(); starBox.hidden = target === 'new'; drawSort(); };
       draw();
       choice.hidden = false;
     }
@@ -1256,15 +1272,18 @@ function openSeenForm(blob, where) {
       else toast(`Ajouté à « ${place.name} »`, false, { label: 'Voir', fn: () => openDetail(place.id) });
       return;
     }
-    state = withSeenCat(state);
-    const np = newPoint({ name: seenName(line.value), cat: SEEN_CAT.id, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
+    seenStreet = street;
+    state = street ? withStreetCat(state) : withSeenCat(state);
+    const cat = street ? streetCatId(state.categories) : SEEN_CAT.id;
+    const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
     np.photos = [id];
+    if (street && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
     state.points.push(np);
     persist(); refresh();
     URL.revokeObjectURL(url);
     closeSheet();
     centerOn(at.lat, at.lng, Math.max(map.getZoom(), 17));
-    toast(rough ? 'Gardé · position approximative' : 'Gardé dans Vu en passant', false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
+    toast(rough ? 'Gardé · position approximative' : `Gardé dans ${street ? catOf(cat).name : 'Vu en passant'}`, false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
     reverseAddress(at.lat, at.lng).then((label) => { if (label) { np.address = label; persist(); } }).catch(() => {});
   };
   openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
@@ -1273,6 +1292,8 @@ function openSeenForm(blob, where) {
     posLine,
     choice,
     starBox,
+    sortBox,
+    artistBox,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: () => { URL.revokeObjectURL(url); closeSheet(); toast('Photo non gardée'); } }, 'Annuler'),
       keep),
@@ -1480,6 +1501,14 @@ function starPicker(value, onPick) {
   return box;
 }
 
+/** Champ « Artiste » (v161) : les noms déjà connus (mes lieux, Mes artistes) sont proposés pendant la saisie. */
+function artistInput(value = '') {
+  const id = 'artist-names';
+  document.getElementById(id)?.remove();
+  document.body.append(el('datalist', { id }, knownArtists(state.points, state.artists).map((n) => el('option', { value: n }))));
+  return el('input', { type: 'text', maxlength: '60', list: id, autocomplete: 'off', enterkeyhint: 'done', value, placeholder: 'Ex. : Invader, Miss.Tic, Rodin' });
+}
+
 function openForm(draft, existing = null) {
   const firstCat = filterCats.size === 1 ? [...filterCats][0] : state.categories[0].id;
   // Modifier : les saisies en cours (draft.pending) passent avant le lieu enregistré, pour revenir d'une nouvelle catégorie sans rien perdre
@@ -1517,6 +1546,7 @@ function openForm(draft, existing = null) {
   const name = el('input', { type: 'text', value: v.name, maxlength: '80', autocomplete: 'off', enterkeyhint: 'next', required: true });
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
   note.value = v.note;
+  const artist = artistInput(v.artist ?? draft.artist ?? ''); // l'artiste d'une œuvre (v161)
   const err = el('div', { class: 'error', role: 'alert' });
 
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
@@ -1546,14 +1576,14 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
+    const keep = { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     openCategory(null, { back: reopen, done: (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); } });
   };
   /** Ajuster la position d'un nouveau lieu sur toute la carte, sans perdre ce qui est déjà rempli. */
   const adjust = () => {
-    Object.assign(draft, { name: name.value, note: note.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] });
+    Object.assign(draft, { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] });
     startDraftMove(draft);
   };
 
@@ -1579,10 +1609,12 @@ function openForm(draft, existing = null) {
     if (existing) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
+      if (cleanArtist(artist.value)) existing.artist = cleanArtist(artist.value); else delete existing.artist;
       markDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
       if (moments.size) np.moments = cleanMoments([...moments]);
+      if (cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
       if (done) np.passages = addPassage([], { at: np.created }); // ajouté comme « Déjà visité » : son premier passage
       state.points.push(np);
@@ -1599,6 +1631,7 @@ function openForm(draft, existing = null) {
   // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
   const details = [
     el('label', { class: 'field' }, 'Note (facultatif)', note),
+    el('label', { class: 'field' }, 'Artiste (facultatif)', artist),
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
     el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
@@ -1607,7 +1640,7 @@ function openForm(draft, existing = null) {
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
     momentBox,
   ];
-  const filled = Boolean(v.note || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
+  const filled = Boolean(v.note || v.artist || draft.artist || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     el('div', { class: 'where-row' },
       el('p', { class: 'where' }, ico('map-pin'), whereText),
@@ -1618,7 +1651,7 @@ function openForm(draft, existing = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
       : el('details', { class: 'help-item form-more', open: filled },
-        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, état, listes…')),
+        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, artiste, état, listes…')),
         el('div', { class: 'stack' }, ...details)),
     err,
     foot(el('div', { class: 'row' },
@@ -1676,19 +1709,32 @@ function openDetail(id, back = null) {
 
   // Lignes d'information, séparées par des filets.
   const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
+  // « Encore là ? » (v161) : pour une œuvre, le dernier jour où je l'ai vue (jamais « toujours là »), ou qu'elle a disparu
+  const vanish = canVanish(p, state.categories);
+  const seenAt = vanish ? lastSeen(p) : null;
   const facts = el('div', { class: 'fiche-lines' },
     p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
     // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
-    el('p', { class: 'muted' }, ageLine(p)));
+    p.gone ? el('p', {}, ico('eye-off'), ` Disparue ou recouverte (noté le ${formatDate(p.gone)})`) : null,
+    el('p', { class: 'muted' }, seenAt ? `${p.gone ? 'Vue pour la dernière fois' : 'Vue'} le ${formatDate(seenAt)}` : ageLine(p)));
 
   // Actions, version A « Sommaire » : trois rubriques nommées, tout à un appui (plus de « Plus »).
   const row = (icon, label, sub, onclick, cls = '') => el('button', { type: 'button', class: `fiche-row ${cls}`.trim(), onclick },
     typeof icon === 'string' ? ico(icon) : icon, el('span', {}, label, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
   const tidy = el('div', { class: 'fiche-toc' });
+  const setGone = (on) => {
+    if (on) p.gone = Date.now();
+    else { delete p.gone; p.passages = addPassage(p.passages, { at: Date.now() }); } // revue aujourd'hui : un passage
+    persist(); renderMarkers(); openDetail(id, back);
+    if (on) toast('Notée disparue : l\'appli ne la propose plus', false, { label: 'Annuler', fn: () => { delete p.gone; persist(); renderMarkers(); openDetail(id, back); } });
+    else toast('De nouveau là : vue aujourd\'hui');
+  };
   const showTidy = () => fill(tidy,
+    !vanish ? null : p.gone ? row('eye', 'Elle est de nouveau là', 'L\'appli la propose à nouveau', () => setGone(false))
+      : row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true)),
     row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
     row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
   const askDelete = () => fill(tidy,
@@ -1718,7 +1764,8 @@ function openDetail(id, back = null) {
     ...passageSection(p, here),
     el('h3', { class: 'fiche-sec' }, 'Sur ce lieu'),
     el('div', { class: 'fiche-toc' },
-      row('pencil', 'Modifier', 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
+      p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
+      row('pencil', 'Modifier', 'Nom, catégorie, commentaire, artiste, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
       row('share-2', 'Partager', 'Envoyer à un proche', () => sharePlace(p)),
       row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back))),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
@@ -2269,7 +2316,7 @@ function nearTitle() {
 }
 
 function renderNear(fit = false) {
-  const pts = visible();
+  const pts = offered();
   const groups = groupByRings(pts, origin, nearRings(), { favBonus: minutesToMeters(5) }); // favoris en tête de leur cercle
   const inside = groups.reduce((n, g) => n + g.items.length, 0);
   const farther = pts.length - inside;
@@ -2470,7 +2517,7 @@ function startFollow() {
     if (fix.acc > 150 && !first) return; // trop imprécis pour suivre
     if (first) {
       first = false;
-      for (const p of newlyNear(visible(), fix, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
+      for (const p of newlyNear(offered(), fix, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
       map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), ZOOM_RUE), { animate: false });
       toast(`Position et direction activées${fix.acc > 100 ? ` (à ${Math.round(fix.acc)} m près)` : ''}. Rappuie sur le bouton pour arrêter.`);
     } else if (trackFollow) {
@@ -2481,7 +2528,7 @@ function startFollow() {
     countWalk(fix);
     remember(fix);
     if (view === 'near' && origin?.kind === 'gps') origin = { ...fix, kind: 'gps' };
-    const alerts = newlyNear(visible(), fix, signaled, 100);
+    const alerts = newlyNear(offered(), fix, signaled, 100);
     for (const p of alerts) signaled.add(p.id);
     if (alerts.length) {
       try { navigator.vibrate?.([200, 100, 200]); } catch { /* pas de vibreur */ }
@@ -2551,7 +2598,7 @@ function openWayPicker() {
 }
 
 function renderWay(from, dest) {
-  const found = onTheWay(visible(), from, dest).filter((x) => distanceM(x.point, dest) > 30);
+  const found = onTheWay(offered(), from, dest).filter((x) => distanceM(x.point, dest) > 30);
   const total = distanceM(from, dest);
   const body = [
     el('p', { class: 'summary' }, found.length
@@ -2585,7 +2632,7 @@ function renderWay(from, dest) {
 function openRoutePicker(selected = new Set()) {
   track('Relier des lieux');
   const start = origin ?? freshHere();
-  const pts = visible()
+  const pts = offered()
     .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
     .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
   const go = el('button', { type: 'button', class: 'btn primary', onclick: () => renderRoute(start, pts.filter((x) => selected.has(x.p.id)).map((x) => x.p)) });
@@ -3689,6 +3736,53 @@ function openLate() {
  * Mes artistes (v158) : les noms que je suis, cherchés mot pour mot dans l'agenda de la Ville (tout Paris, 7 jours).
  * Rien n'est envoyé : l'agenda est téléchargé en entier, la recherche se fait sur le téléphone.
  */
+/**
+ * La page d'un artiste (v161), ouverte depuis la fiche d'une œuvre ou Mes artistes : ses œuvres dans mes lieux
+ * (les disparues à la fin), son site ou son Instagram noté une fois, et « Suivre ses expos » (Mes artistes). Rien n'est envoyé.
+ */
+function openArtist(name, back = null) {
+  const n = cleanArtist(name);
+  if (!n) return;
+  const k = artistKey(n);
+  const again = () => openArtist(n, back);
+  const here = named(n, again);
+  const pos = freshHere() ?? origin;
+  const works = artistWorks(state.points, n, pos);
+  const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
+  const link = cleanArtistLinks(state.artistLinks)[k];
+  const input = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', inputmode: 'url', enterkeyhint: 'done', placeholder: 'https://… ou @nom (Instagram)', 'aria-label': `Site ou Instagram de ${n}` });
+  const saveLink = () => {
+    const u = linkFrom(input.value);
+    if (!u) { toast('Écris une adresse qui commence par https://, ou @nom pour Instagram.', true); return; }
+    state.artistLinks = { ...cleanArtistLinks(state.artistLinks), [k]: { n, u } };
+    persist(); again(); toast('Lien enregistré');
+  };
+  input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') saveLink(); });
+  const dropLink = () => { const l = { ...cleanArtistLinks(state.artistLinks) }; delete l[k]; state.artistLinks = l; persist(); again(); toast('Lien retiré'); };
+  const follow = () => { state.artists = cleanArtists([...cleanArtists(state.artists), n]); persist(); again(); toast(`${n} est dans Mes artistes`); };
+  const site = link ? link.u.replace(/^https:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
+  openSheet([ico('user'), ` ${n}`], el('div', { class: 'stack' },
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Ses œuvres dans tes lieux'), el('span', {}, String(works.length))),
+    works.length ? el('ul', { class: 'items ev-list' }, works.map(({ p, d }) => sortieCard({ genre: 'oeuvre', name: p.name, onclick: () => openDetail(p.id, here),
+      sub: [catOf(p.cat).name, p.address], d, tags: [p.gone ? el('span', { class: 'tag closed' }, 'Disparue ou recouverte') : null] })))
+      : el('p', { class: 'empty' }, 'Aucune pour l\'instant. Note l\'artiste dans la fiche d\'une œuvre (Modifier → Artiste).'),
+    el('h3', { class: 'fiche-sec' }, 'Son site'),
+    link ? el('div', { class: 'fiche-toc' },
+      el('a', { class: 'fiche-row', href: link.u, target: '_blank', rel: 'noopener' }, ico('external-link'),
+        el('span', {}, site, el('small', {}, 'Noté par toi, ouvert dans le navigateur')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+      el('button', { type: 'button', class: 'fiche-row danger', onclick: dropLink }, ico('trash-2'), el('span', {}, 'Retirer ce lien'), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))
+      : el('div', { class: 'stack' },
+        el('label', { class: 'field' }, 'Adresse (facultatif)', input),
+        el('button', { type: 'button', class: 'btn c-add', onclick: saveLink }, ico('save'), 'Enregistrer le lien'),
+        el('p', { class: 'help' }, 'Recopie l\'adresse de son site officiel ou son compte Instagram (@nom). L\'appli ne le cherche pas pour toi : un faux compte est vite arrivé.')),
+    el('h3', { class: 'fiche-sec' }, 'Ses expos'),
+    followed ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtists() }, ico('palette'), 'Voir Mes artistes')
+      : el('button', { type: 'button', class: 'btn c-disc', onclick: follow }, ico('plus'), 'Suivre ses expos'),
+    el('p', { class: 'help' }, followed ? 'Dans Mes artistes, l\'appli cherche son nom dans l\'agenda de la Ville sur 7 jours.' : 'Son nom ira dans Mes artistes (Sorties → Expos) : l\'appli le cherchera dans l\'agenda de la Ville sur 7 jours.'),
+    foot(backBtn(back ?? named('Mes artistes', () => openArtists()))),
+  ), { tall: true, name: `artiste:${k}`, again });
+}
+
 async function openArtists() {
   track('Mes artistes');
   const title = [ico('user'), ' Mes artistes'];
@@ -3716,8 +3810,9 @@ async function openArtists() {
     found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtists, { week: true }))) : null,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Les artistes que je suis'), el('span', {}, String(names.length))),
     names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
-        found.length ? el('span', { class: 'item-sub' }, plural(found.filter((x) => x.who.includes(n)).length, 'rendez-vous', 'rendez-vous')) : null),
+      el('button', { type: 'button', class: 'item-main', onclick: () => openArtist(n, named('Mes artistes', () => openArtists())) },
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
+          el('span', { class: 'item-sub' }, [found.length ? plural(found.filter((x) => x.who.includes(n)).length, 'rendez-vous', 'rendez-vous') : '', artistWorks(state.points, n).length ? plural(artistWorks(state.points, n).length, 'œuvre dans tes lieux', 'œuvres dans tes lieux') : ''].filter(Boolean).join(' · ') || 'Ses œuvres, son site'))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Retirer ${n} de mes artistes` }, ico('x'))))) : null,
     el('label', { class: 'field' }, 'Ajouter un artiste', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
@@ -4669,7 +4764,7 @@ let freeDwell = 15;
 function openFreeTime() {
   track('J\'ai du temps');
   if (!origin) { openNear(); return; }
-  const todo = visible(); // « déjà visité » n'est qu'une information : tous les lieux comptent
+  const todo = offered(); // « déjà visité » n'est qu'une information : tous les lieux comptent
   // Ouvert à l'heure d'arrivée ? (horaires inconnus : on garde)
   const isOpen = (p, t) => { const st = openState(hoursOf(p), new Date(Date.now() + t * 60000)); return st ? st.open : null; };
   const plan = planLoopOpen(origin, todo, freeMin, isOpen, { dwell: freeDwell });
@@ -4714,7 +4809,7 @@ function surprise() {
   track('Surprise');
   if (!origin) { openNear(); return; }
   const max = minutesToMeters(15);
-  const pool = visible().filter((p) => distanceM(origin, p) <= max);
+  const pool = offered().filter((p) => distanceM(origin, p) <= max);
   if (!pool.length) { toast('Aucun de tes lieux à moins de 15 min (avec les filtres actuels).', true); return; }
   const p = pool[Math.floor(Math.random() * pool.length)];
   openDetail(p.id, named('Autour de moi', () => renderNear()));
@@ -6306,6 +6401,9 @@ const HELP = [
     '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
+    '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
+    '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste. Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
+    '{eye-off} **Disparue ou recouverte** : pour une œuvre, en bas de la fiche (Rangement). Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
@@ -6410,6 +6508,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
     '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
     '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
     '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
@@ -6419,7 +6518,6 @@ const HELP = [
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
     '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
     '{book-open-text} TTB : une adresse gardée dans tes lieux ne montre plus que ta goutte (plus deux icônes l\'une sur l\'autre). En l\'ajoutant, la catégorie suit la rubrique quand une des tiennes correspond ; sinon, c\'est à toi de la choisir.',
-    '{calendar-days} Trouver une sortie, en bas de Mon planning : l\'agenda de la Ville pour demain, samedi ou dimanche, par heure, autour du centre de la carte. « Prévoir » la met dans ton planning à la bonne heure.',
   ]],
 ];
 
