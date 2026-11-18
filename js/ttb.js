@@ -182,3 +182,21 @@ export function ttbCategory(rub, categories) {
   if (!re) return null;
   return (Array.isArray(categories) ? categories : []).find((c) => re.test(foldName(c?.name)))?.id ?? null;
 }
+
+/* Adresses TTB masquées ou fermées (v165) : notées par moi, gardées sur le téléphone avec la liste (hors sauvegarde),
+   et retrouvées après un nouvel import (même nom et même adresse, sans accents ni majuscules). */
+export const TTB_MARKS_KEY = 'carte-paris.ttb-masque';
+const markKey = (s) => foldName(s).replace(/[^a-z0-9]+/g, ' ').trim();
+/** La clé d'une adresse du guide : son nom et son adresse. */
+export const ttbKey = (x) => `${markKey(x?.name)}|${markKey(x?.address)}`;
+/** { clé : { n: nom, k: 'closed' | 'hidden', at } }, 500 au plus ; le reste est écarté. */
+export function cleanTtbMarks(obj) {
+  const out = {};
+  for (const [key, v] of Object.entries(obj && typeof obj === 'object' ? obj : {}).slice(0, 500)) {
+    if (!/^[a-z0-9 ]+\|[a-z0-9 ]*$/.test(key) || !['closed', 'hidden'].includes(v?.k) || !Number.isFinite(v?.at)) continue;
+    out[key] = { n: cut(v.n, 120), k: v.k, at: v.at };
+  }
+  return out;
+}
+/** Ce que j'ai noté pour cette adresse : 'closed', 'hidden' ou ''. */
+export const ttbMark = (marks, x) => marks?.[ttbKey(x)]?.k ?? '';

@@ -19,7 +19,7 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (164)';
+const VERSION = '18 novembre 2026 (165)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -406,7 +406,7 @@ function renderMarkers() {
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? ', disparue ou recouverte' : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
+      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? (canVanish(p, state.categories) ? ', disparue ou recouverte' : ', fermé définitivement') : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (!moving) openDetail(p.id); })
       .addTo(pointsLayer);
@@ -1738,23 +1738,25 @@ function openDetail(id, back = null) {
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
-    p.gone ? el('p', {}, ico('eye-off'), ` Disparue ou recouverte (noté le ${formatDate(p.gone)})`) : null,
+    p.gone ? el('p', {}, ico('eye-off'), ` ${vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'} (noté le ${formatDate(p.gone)})`) : null,
     el('p', { class: 'muted' }, seenAt ? `${p.gone ? 'Vue pour la dernière fois' : 'Vue'} le ${formatDate(seenAt)}` : ageLine(p)));
 
   // Actions, version A « Sommaire » : trois rubriques nommées, tout à un appui (plus de « Plus »).
   const row = (icon, label, sub, onclick, cls = '') => el('button', { type: 'button', class: `fiche-row ${cls}`.trim(), onclick },
     typeof icon === 'string' ? ico(icon) : icon, el('span', {}, label, sub ? el('small', {}, sub) : null), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
   const tidy = el('div', { class: 'fiche-toc' });
+  // Une œuvre « Disparue ou recouverte » (v161) ; tout autre lieu « Fermé définitivement » (v165) : gris, plus proposé, réversible
   const setGone = (on) => {
     if (on) p.gone = Date.now();
-    else { delete p.gone; p.passages = addPassage(p.passages, { at: Date.now() }); } // revue aujourd'hui : un passage
+    else { delete p.gone; if (vanish) p.passages = addPassage(p.passages, { at: Date.now() }); } // œuvre revue aujourd'hui : un passage
     persist(); renderMarkers(); openDetail(id, back);
-    if (on) toast('Notée disparue : l\'appli ne la propose plus', false, { label: 'Annuler', fn: () => { delete p.gone; persist(); renderMarkers(); openDetail(id, back); } });
-    else toast('De nouveau là : vue aujourd\'hui');
+    if (on) toast(vanish ? 'Notée disparue : l\'appli ne la propose plus' : 'Noté fermé : l\'appli ne le propose plus', false, { label: 'Annuler', fn: () => { delete p.gone; persist(); renderMarkers(); openDetail(id, back); } });
+    else toast(vanish ? 'De nouveau là : vue aujourd\'hui' : 'De nouveau ouvert : l\'appli le propose à nouveau');
   };
   const showTidy = () => fill(tidy,
-    !vanish ? null : p.gone ? row('eye', 'Elle est de nouveau là', 'L\'appli la propose à nouveau', () => setGone(false))
-      : row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true)),
+    p.gone ? row('eye', vanish ? 'Elle est de nouveau là' : 'De nouveau ouvert', 'L\'appli le propose à nouveau', () => setGone(false))
+      : vanish ? row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true))
+        : row('store', 'Fermé définitivement', 'Constaté sur place ou dans Google Maps ; gris sur la carte', () => setGone(true)),
     row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
     row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
   const askDelete = () => fill(tidy,
@@ -2208,7 +2210,7 @@ function openSearch(initial = '') {
     const q = input.value.trim();
     const hit = (xs, ...keys) => near((xs ?? []).filter((x) => textMatch(q, ...keys.map((k) => x[k]))));
     fill(moreBox,
-      ...block('TTB', hit(ttbList(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
+      ...block('TTB', hit(ttbOpen(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
       ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
       ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
       ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))));
@@ -4616,7 +4618,18 @@ function ttbList() {
 const navigoKinds = new Set(); // disciplines choisies dans Sorties → Navigo (le temps de la session ; aucune = tout)
 const ttbRubs = new Set(); // filtres de la liste et de la carte (le temps de la session)
 const ttbBudgets = new Set();
-const ttbShown = () => ttbList().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
+/** Adresses TTB masquées ou fermées (v165), notées par moi : plus sur la carte ni dans les listes. Hors sauvegarde, comme la liste. */
+let ttbMarks;
+const ttbMarksNow = () => { if (ttbMarks === undefined) { try { ttbMarks = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { ttbMarks = {}; } } return ttbMarks; };
+function setTtbMark(x, k) {
+  const m = { ...ttbMarksNow() };
+  if (k) m[ttbKey(x)] = { n: x.name, k, at: Date.now() }; else delete m[ttbKey(x)];
+  ttbMarks = cleanTtbMarks(m);
+  try { storage.setItem(TTB_MARKS_KEY, JSON.stringify(ttbMarks)); } catch { toast('Le téléphone n\'a pas pu le garder (plus de place).', true); }
+  drawTtb();
+}
+const ttbOpen = () => ttbList().filter((x) => !ttbMark(ttbMarksNow(), x)); // ni masquées ni fermées
+const ttbShown = () => ttbOpen().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
 /** Le bouton du haut : un rond terre cuite marqué « TTB » (ailleurs, le rond porte l'icône de la rubrique).
  * Pour changer la marque, ne modifier que TTB_MARK (3 lettres au plus pour tenir dans le rond). */
 const TTB_MARK = 'TTB';
@@ -4716,12 +4729,33 @@ function openTtbPlace(x, back = null) {
     x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon TTB') : null,
     x.hours.length ? el('div', { class: 'fiche-lines' }, x.hours.map((h, i) => el('p', {}, el('b', {}, `${TTB_DAYS[i]} `), h))) : null,
     el('p', { class: 'help' }, `Adresse du guide TTB${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}. Les horaires viennent du guide et peuvent avoir changé : vérifie avant d'y aller.`),
+    // Rangement (v165) : fermé définitivement (constaté sur place ou dans Google Maps), ou simplement masqué ; réversible
+    el('h3', { class: 'fiche-sec' }, 'Rangement'),
+    ttbMark(ttbMarksNow(), x) ? el('div', { class: 'stack' },
+      el('p', {}, ico('eye-off'), ttbMark(ttbMarksNow(), x) === 'closed' ? ' Noté fermé définitivement : plus sur la carte ni dans les listes.' : ' Masquée : plus sur la carte ni dans les listes.'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => { setTtbMark(x, ''); again(); toast('Remise sur la carte'); } }, ico('eye'), 'Remettre sur la carte'))
+      : el('div', { class: 'fiche-toc' },
+        el('button', { type: 'button', class: 'fiche-row', onclick: () => { setTtbMark(x, 'closed'); again(); toast('Noté fermé : l\'appli ne la propose plus', false, { label: 'Annuler', fn: () => { setTtbMark(x, ''); again(); } }); } },
+          ico('store'), el('span', {}, 'Fermé définitivement', el('small', {}, 'Constaté sur place ou dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+        el('button', { type: 'button', class: 'fiche-row', onclick: () => { setTtbMark(x, 'hidden'); again(); toast('Masquée', false, { label: 'Annuler', fn: () => { setTtbMark(x, ''); again(); } }); } },
+          ico('eye-off'), el('span', {}, 'Masquer cette adresse', el('small', {}, 'Elle ne m\'intéresse pas ; gardée masquée après un nouvel import')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     back ? backBtn(back) : null,
   ), { name: `ttb:${x.lat},${x.lng}`, again });
   if (!back) centerOn(x.lat, x.lng, Math.max(map.getZoom(), 16));
 }
 
 /** Réglages → TTB : importer ou mettre à jour la liste, la retirer. */
+/** Réglages → TTB (v165) : les adresses masquées ou notées fermées ; un appui ouvre la fiche, qui permet de les remettre. */
+function ttbMarkedSection(again) {
+  const marks = ttbMarksNow();
+  const list = ttbList().filter((x) => ttbMark(marks, x)).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  if (!list.length) return [];
+  return [el('h3', { class: 'ring-title' }, el('span', {}, 'Masquées ou fermées'), el('span', {}, String(list.length))),
+    el('ul', { class: 'items' }, list.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('TTB', again)) },
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, ttbMark(marks, x) === 'closed' ? 'Fermé définitivement' : 'Masquée')))))),
+    el('p', { class: 'help' }, 'Elles restent masquées après un nouvel import (même nom et même adresse). Comme la liste, elles ne sont pas dans ta sauvegarde.')];
+}
+
 function openTtb(back = named('Réglages', () => openSettings()), confirm = false) {
   const n = ttbList().length;
   const again = () => openTtb(back, confirm);
@@ -4730,6 +4764,7 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
   openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide TTB, sur ta carte.'),
     n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('TTB', again)) }, ico('list'), 'Voir la liste') : null,
+    ...ttbMarkedSection(again),
     el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
     el('ol', { class: 'steps' },
       el('li', {}, 'Ouvre la page Adresses du guide dans Chrome, en mode liste (bouton ci-dessous).'),
@@ -6441,10 +6476,11 @@ const HELP = [
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
-    '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou recouverte.',
+    '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
+    '{store} **Fermé définitivement** : en bas de la fiche (Rangement), pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, en bas de la fiche (Rangement). Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
@@ -6551,6 +6587,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
     '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
@@ -6560,7 +6597,6 @@ const HELP = [
     '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
     '{landmark} Bientôt gratuit : 2 jours avant un jour gratuit (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte te prévient. La croix le cache pour la journée.',
     '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
-    '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
   ]],
 ];
 
