@@ -29,7 +29,7 @@ import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logNam
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (190)';
+const VERSION = '18 novembre 2026 (191)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3936,7 +3936,7 @@ const eventRow = (e, back, { last = false, week = false } = {}) => {
   const keep = () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null,
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
-  const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
+  const when = week ? el('b', {}, (!expo && nextSlotText(e)) || weekText(e)) /* v191 : un concert dit son prochain créneau, une expo sa date de fin */ : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
   return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
@@ -7570,6 +7570,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
     '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
     '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
@@ -7579,7 +7580,6 @@ const HELP = [
     '{save} {settings} → Sauvegarde : « ← Réglages » est maintenant tout en bas, sous Restaurer, comme sur les autres pages.',
     '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
-    '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
   ]],
 ];
 

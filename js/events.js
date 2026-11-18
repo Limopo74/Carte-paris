@@ -163,6 +163,25 @@ export function nearbyEvents(events, here, maxM = 2000) {
 
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 /**
+ * v191 : le prochain créneau d'une sortie de la semaine (Mes salles, Grands lieux, Mes artistes, recherche) :
+ * « Jusqu'à 15h », « Aujourd'hui à 19h », « Demain à 20h30 », « Samedi 21 nov. à 20h ». Créneaux de l'agenda seulement ;
+ * sans créneau connu : '' (la ligne garde sa date de fin). Un créneau qui commence à 0h n'a pas d'heure (journée entière).
+ */
+export function nextSlotText(e, now = new Date()) {
+  const s = (e?.slots ?? []).filter((x) => x.end > now).sort((a, b) => a.start - b.start)[0];
+  if (!s) return '';
+  const hm = (d) => `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`.replace('h00', 'h');
+  if (s.start <= now) return s.end.toDateString() === now.toDateString() ? `Jusqu'à ${hm(s.end)}` : 'En cours';
+  const day0 = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const n = Math.round((day0(s.start) - day0(now)) / 864e5);
+  const at = s.start.getHours() || s.start.getMinutes() ? ` à ${hm(s.start)}` : '';
+  if (n === 0) return `Aujourd'hui${at}`;
+  if (n === 1) return `Demain${at}`;
+  const jour = s.start.toLocaleDateString('fr-FR', { weekday: 'long' });
+  return `${jour[0].toUpperCase()}${jour.slice(1)} ${s.start.getDate()} ${MOIS[s.start.getMonth()]}${at}`;
+}
+
+/**
  * « à 20h30 », « jusqu'à 22h », « en cours aujourd'hui » : seulement quand le créneau du jour est connu.
  * Sans créneau connu (aucun publié, ou données de la semaine), jamais « aujourd'hui » : « jusqu'au 22 nov. »,
  * ou rien. Mieux vaut ne rien dire que dire faux (17 nov. 2026).
