@@ -79,3 +79,14 @@ test('calques : clés de filtres, réglage gardé, service worker, aucune positi
   assert.match(sw, /'js\/bus\.js'/);
   assert.doesNotMatch(src('js/calques.js'), /fetch\(|getCurrentPosition|watchPosition/);
 });
+
+test('feuille Filtres : chaque ligne qu\'on peut masquer est une clé gardée (v209)', () => {
+  const app = src('js/app.js');
+  const choice = app.slice(app.indexOf('function openFilterChoice'), app.indexOf('/** Ajoute ou retire une catégorie du filtre du haut. */'));
+  const rows = [...choice.match(/const rows = (\[\[.*\]\]);/)[1].matchAll(/\['([a-z]+)', '/g)].map((m) => m[1]);
+  assert.ok(rows.length >= 13);
+  for (const k of rows) assert.ok(FILTER_KEYS.includes(k), `ligne « ${k} » proposée mais pas gardée`);
+  const kept = [...app.matchAll(/keep\('([a-z]+)'/g)].map((m) => m[1]);
+  for (const k of kept) assert.ok(FILTER_KEYS.includes(k), `ligne « ${k} » de Filtres pas gardée`);
+  assert.deepEqual(cleanFilterKeys(['seen', 'x']), ['seen']);
+});

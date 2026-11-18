@@ -156,7 +156,7 @@ export const CHIPS_V = 2;
 export const withNewChips = (list, v) => (list === undefined || v >= CHIPS_V ? list : [...cleanChips(list), ...NEW_MORE_CHIPS.filter((k) => !cleanChips(list).includes(k))]);
 
 /** Lignes masquées de la feuille Filtres. */
-export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'covered', 'lists', 'people', 'arr'];
+export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'covered', 'seen', 'lists', 'people', 'arr'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
@@ -483,9 +483,16 @@ function checkFields({ name, color, icon = DEFAULT_ICON, log = '', did = '' }, k
   return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}), ...(cleanLog(did) ? { did: cleanLog(did) } : {}) };
 }
 
+/** v209 : deux catégories ne portent pas le même nom (majuscules et accents comptent pour rien), comme les listes. */
+function checkUnique(categories, name, id = null) {
+  const same = categories.find((c) => c.id !== id && foldName(c.name) === foldName(name));
+  if (same) throw new Error(`La catégorie « ${same.name} » existe déjà.`);
+}
+
 /** Ajoute une catégorie. Renvoie un nouvel état. */
 export function addCategory(state, fields) {
   const f = checkFields(fields);
+  checkUnique(state.categories, f.name);
   return { ...state, categories: [...state.categories, { id: makeId(), ...f }] };
 }
 
@@ -493,6 +500,8 @@ export function addCategory(state, fields) {
 export function updateCategory(state, id, fields) {
   // Une couleur déjà utilisée reste acceptée même si elle a quitté la palette.
   const f = checkFields(fields, state.categories.find((c) => c.id === id)?.color);
+  // Un nom gardé tel quel passe toujours (un doublon d'avant la v209 se modifie encore) ; un nouveau nom ne doit pas exister
+  if (foldName(f.name) !== foldName(state.categories.find((c) => c.id === id)?.name ?? '')) checkUnique(state.categories, f.name, id);
   // Nom d'historique ou de « Déjà visité » effacé (champ vide) : on revient au nom par défaut
   const clear = (c) => { const out = { ...c, ...f }; for (const k of ['log', 'did']) if (k in fields && !f[k]) delete out[k]; return out; };
   return { ...state, categories: state.categories.map((c) => (c.id === id ? clear(c) : c)) };

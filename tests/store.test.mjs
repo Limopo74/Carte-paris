@@ -244,7 +244,7 @@ test('catégories toutes prêtes : valides, sans doublon, et celles déjà prés
     assert.ok(ICONS.includes(p.icon), p.name);
     assert.ok(PALETTE.includes(p.color), p.name);
     assert.ok(p.name.length <= 20, p.name);
-    assert.doesNotThrow(() => addCategory(base(), p));
+    assert.doesNotThrow(() => addCategory({ ...base(), categories: [] }, p)); // v209 : sur une appli sans catégorie (Restos et Boutiques sont aussi celles du départ)
   }
   assert.equal(new Set(PRESETS.map((p) => p.name)).size, PRESETS.length);
   const names = suggestedPresets([{ id: 'x', name: 'cafes', color: PALETTE[0], icon: '☕' }, ...DEFAULT_CATEGORIES]).map((p) => p.name);
@@ -609,4 +609,17 @@ test('restauration sur une appli vide : mes catégories et mes listes reviennent
   assert.equal(mergeImport(used, text, '').state.categories[0].name, DEFAULT_CATEGORIES.map((c) => ({ ...c }))[0].name);
   // Les lieux d'un proche ne changent jamais mes catégories
   assert.equal(mergeImport(empty, text, 'Paul').state.categories[0].name, DEFAULT_CATEGORIES.map((c) => ({ ...c }))[0].name);
+});
+
+test('catégories : pas deux fois le même nom (v209)', () => {
+  const s0 = loadState(memStorage());
+  assert.throws(() => addCategory(s0, { name: ' restos ', color: PALETTE[3], icon: ICONS[0] }), /« Restos » existe déjà/);
+  assert.throws(() => addCategory(s0, { name: 'Bôutiques', color: PALETTE[3], icon: ICONS[0] }), /existe déjà/);
+  const s1 = addCategory(s0, { name: 'Cafés', color: PALETTE[3], icon: ICONS[0] });
+  const id = s1.categories.at(-1).id;
+  assert.throws(() => updateCategory(s1, id, { name: 'Culture', color: PALETTE[3], icon: ICONS[0] }), /« Culture » existe déjà/);
+  assert.equal(updateCategory(s1, id, { name: 'CAFÉS', color: PALETTE[3], icon: ICONS[0] }).categories.at(-1).name, 'CAFÉS');
+  // un doublon d'avant la v209 se modifie encore sans changer de nom
+  const old = { ...s1, categories: [...s1.categories, { id: 'x2', name: 'Cafés', color: PALETTE[4], icon: ICONS[0] }] };
+  assert.equal(updateCategory(old, 'x2', { name: 'Cafés', color: PALETTE[5], icon: ICONS[0] }).categories.at(-1).color, PALETTE[5]);
 });

@@ -48,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (208)';
+const VERSION = '18 novembre 2026 (209)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -929,7 +929,9 @@ function toggleCat(id) {
 function emptyHint() {
   if (!state.points.length || visible().length) return;
   const cats = [...filterCats].map((id) => catOf(id).name).join(', ');
-  toast(favOnly && cats ? `Aucun favori dans ${cats}. « Tout » remet tout.` : favOnly ? 'Aucun favori pour l\'instant : ★ dans la fiche d\'un lieu.' : 'Aucun lieu avec ces filtres. « Tout » remet tout.');
+  // v209 : « Tout » n'enlève que les catégories et Favoris ; avec un filtre de la feuille Filtres allumé, le dire
+  const all = activeFilters() ? 'Touche « Tout », puis Filtres.' : '« Tout » remet tout.';
+  toast(favOnly && cats ? `Aucun favori dans ${cats}. ${all}` : favOnly && !state.points.some((p) => p.fav) ? 'Aucun favori pour l\'instant : ★ dans la fiche d\'un lieu.' : favOnly ? `Aucun favori avec ces filtres. ${all}` : `Aucun lieu avec ces filtres. ${all}`);
 }
 
 /** Redessine ce qui dépend des lieux et des filtres. */
@@ -2544,7 +2546,11 @@ function openSearch(initial = '') {
     const res = searchPoints(visible(), state.categories, input.value, pos);
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
-      : res.length ? `${plural(res.length, 'de tes lieux', 'de tes lieux')}${pos ? ', du plus proche au plus loin' : ''}` : 'Aucun de tes lieux ne correspond.';
+      : res.length ? `${plural(res.length, 'de tes lieux', 'de tes lieux')}${pos ? ', du plus proche au plus loin' : ''}`
+        : (() => { // v209 : un filtre allumé peut cacher le lieu cherché, le dire
+          const hid = visible().length === state.points.length ? 0 : searchPoints(state.points, state.categories, input.value, pos).length;
+          return hid ? `Aucun avec les filtres actuels. Sans eux : ${plural(hid, 'de tes lieux', 'de tes lieux')}.` : 'Aucun de tes lieux ne correspond.';
+        })();
     fill(list, ...res.slice(0, 100).map(({ point: p, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Recherche', () => openSearch(input.value))) },
         catDot(p.cat),
@@ -2737,13 +2743,11 @@ function renderNear(fit = false) {
         : tool('locate', 'Où suis-je\u00a0?', openWhereAmI), /* espace insécable : le « ? » ne passe pas seul à la ligne */
     tool('map', 'Mon Paris', () => openMyParis('near'), null, 'c-disc'),
   ));
-  if (pts.length) {
+  if (inside) { /* v209 : rien dans les cercles, c'est le message du bas qui le dit, une seule fois */
     const t = todoSummary(groups);
-    const msg = !t.last.n
-      ? `Aucun lieu à moins de ${ringText(t.last.ring)}.`
-      : t.first.ring === t.last.ring || t.first.n === t.last.n
-        ? `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}.`
-        : `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
+    const msg = t.first.ring === t.last.ring || t.first.n === t.last.n
+      ? `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}.`
+      : `${plural(t.first.n, 'lieu', 'lieux')} à moins de ${ringText(t.first.ring)}, ${t.last.n} à moins de ${ringText(t.last.ring)}.`;
     body.push(el('p', { class: 'summary' }, msg));
   }
   if (meteo && !meteo.rain && meteo.temp >= 28 && origin.kind !== 'station') {
@@ -2788,7 +2792,7 @@ function renderNear(fit = false) {
   if (!inside) {
     const what = [!filterCats.size ? 'lieu' : `lieu « ${[...filterCats].map((id) => catOf(id).name).join(' », « ')} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
     body.push(el('p', { class: 'empty' }, state.points.length
-      ? `Aucun ${what} à moins de ${ringText(maxRing)}.`
+      ? `Aucun ${what} à moins de ${ringText(maxRing)}${activeFilters() ? ' avec les filtres actuels' : ''}.`
       : 'Tu n\'as encore aucun lieu. Appuie sur « + Ajouter » pour commencer.'));
   }
   if (farther > 0 && inside) {
@@ -8036,7 +8040,7 @@ const HELP = [
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
     '**Favori** : son icône et sa couleur dans {settings} → Favoris. Un cœur évite la confusion avec les étoiles.',
-    '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, tes listes et les lieux de tes proches.',
+    '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, Vu en passant, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
@@ -8120,6 +8124,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
     '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
     '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
     '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
@@ -8129,7 +8134,6 @@ const HELP = [
     '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
     '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Modifier la liste »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
     '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an.',
-    '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ».',
   ]],
 ];
 
