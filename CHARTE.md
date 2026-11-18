@@ -50,7 +50,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 6. Listes et informations
 - Une liste = des lignes séparées par un filet fin `--line`, sans cadre ni ombre, sous un intertitre souligné d'un filet encre (`.ring-title`, `.fiche-sec`). Pas de filet fin juste avant un intertitre.
-- Une ligne de liste n'a pas de boutons (v136) : toute la ligne s'ouvre sur une page qui porte les actions (Y aller, Boussole, Métro, Ajouter), toujours dans cet ordre et au même endroit. La distance (minutes à pied, puis mètres) est toujours à droite.
+- Une ligne de liste n'a pas de boutons (v136) : toute la ligne s'ouvre sur une page qui porte les actions (Y aller, Boussole, Métro, Ajouter), toujours dans cet ordre et au même endroit. La distance (minutes à pied, puis mètres) est toujours à droite. **Exception** : les lignes d'Autour de moi gardent Boussole et Y aller, pour aller à un lieu en un appui depuis la liste (décision du 18 novembre 2026).
 - Une rubrique longue montre ses 3 premières lignes puis un lien « Tous les … (N) » qui déroule la suite (`.ev-more`), pas plus d'une rangée de filtres par écran (`.chips-scroll`, qui défile de côté).
 - Onglets d'un écran : texte souligné (`.tabs-line`), pas de boutons en plaque.
 

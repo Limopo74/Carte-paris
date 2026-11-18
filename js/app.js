@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (175)';
+const VERSION = '18 novembre 2026 (176)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1837,16 +1837,27 @@ function openDetail(id, back = null) {
         if (back) back(); else closeSheet();
         toast('Lieu supprimé');
       } }, 'Oui, supprimer')));
-  showTidy();
+  // Rangement replié en une ligne (v176) : la fiche reste courte, les trois actions rares sont à deux appuis.
+  const openTidy = () => {
+    showTidy();
+    openSheet([ico('wrench'), ' Rangement'], el('div', { class: 'stack' },
+      el('p', { class: 'muted' }, p.name),
+      tidy,
+      foot(backBtn(named(p.name, () => openDetail(id, back)))),
+    ), { name: `rangement:${id}`, again: openTidy });
+  };
+  const tidySub = [p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].join(', ');
 
   const kick = [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ');
   openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
     goBox,
+    // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
+    facts2,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
-    planBtn,
-    el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'J\'y suis passé'),
-    facts2,
+    el('div', { class: 'row' },
+      planBtn,
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'J\'y suis passé')),
     starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
     photoWide(p, back),
     facts,
@@ -1856,7 +1867,8 @@ function openDetail(id, back = null) {
       p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
       row('pencil', 'Modifier', vanish ? 'Nom, catégorie, commentaire, artiste, listes' : 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
       row('share-2', 'Partager', 'Envoyer à un proche', () => sharePlace(p)),
-      row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back))),
+      row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back)),
+      row('wrench', 'Rangement', tidySub, openTidy)),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
@@ -1866,8 +1878,6 @@ function openDetail(id, back = null) {
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
       el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
         ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Ouvre Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
-    el('h3', { class: 'fiche-sec' }, 'Rangement'),
-    tidy,
     back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
@@ -2418,19 +2428,20 @@ function renderNear(fit = false) {
   const tool = (icon, label, onclick, pressed = null, family = 'c-guide') => el('button', {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
+  // 8 outils en 2 rangées de 4 (v176) : Où suis-je et Mon Paris rejoignent la grille, la liste commence plus haut.
+  const pickStation = () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() });
   body.push(el('div', { class: 'tools' },
     tool('route', 'Itinéraire', () => openRoutes()),
     tool('calendar-days', 'Sorties', () => openEvents('near'), null, 'c-disc'),
     tool('shuffle', 'Surprise', () => surprise(), null, 'c-disc'),
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-disc'),
     tool('landmark', 'Monuments', () => openMonuments(), null, 'c-disc'),
-    tool(el('b', { class: 'm-badge' }), 'Station', () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() }), null, 'c-metro'),
+    tool(el('b', { class: 'm-badge' }), 'Station', pickStation, null, 'c-metro'),
+    origin.kind === 'station' ? tool(el('b', { class: 'm-badge' }), 'Autre station', pickStation, null, 'c-metro')
+      : origin.kind === 'last' ? tool('refresh-cw', 'Réessayer', openNear)
+        : tool('locate', 'Où suis-je\u00a0?', openWhereAmI), /* espace insécable : le « ? » ne passe pas seul à la ligne */
+    tool('map', 'Mon Paris', () => openMyParis('near'), null, 'c-disc'),
   ));
-  body.push(el('div', { class: 'near-bar' },
-    origin.kind === 'station' ? el('button', { type: 'button', class: 'btn where-btn c-metro', onclick: () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() }) }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Autre station')
-      : origin.kind === 'last' ? el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openNear }, ico('refresh-cw'), 'Réessayer ma position')
-        : el('button', { type: 'button', class: 'btn where-btn c-guide', onclick: openWhereAmI }, ico('locate'), 'Où suis-je ?'),
-    el('button', { type: 'button', class: 'btn where-btn c-disc', onclick: () => openMyParis('near') }, ico('map'), 'Mon Paris'))); // visible sans défiler (avant : tout en bas)
   if (pts.length) {
     const t = todoSummary(groups);
     const msg = !t.last.n
@@ -6240,6 +6251,14 @@ function openSettings(section = null) {
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
+    // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
+    el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.startOnMe !== false), onclick: () => {
+      state.startOnMe = state.startOnMe === false; persist(); openSettings();
+      toast(state.startOnMe ? 'La carte s\'ouvrira sur ta position, dans Paris' : 'La carte s\'ouvrira sur tous tes lieux');
+    } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
+    el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
     row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
@@ -6921,6 +6940,7 @@ const HELP = [
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche.',
     '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
+    '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, sinon le lieu ouvert le plus proche. La croix le cache.',
@@ -7001,9 +7021,9 @@ const HELP = [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles.',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Cercles.',
-    '{locate} **Où suis-je ?**, en haut : ton adresse, l\'arrondissement, la station la plus proche et le quartier en 3 lignes.',
+    '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
-    '{map} **Mon Paris**, à côté : tes 20 arrondissements, ta marche du jour et Mon planning.',
+    '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord.',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
@@ -7032,8 +7052,8 @@ const HELP = [
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
     '{search} **En écrivant l\'artiste**, « Vouliez-vous dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
-    '{store} **Fermé définitivement** : en bas de la fiche (Rangement), pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
-    '{eye-off} **Disparue ou recouverte** : pour une œuvre, en bas de la fiche (Rangement). Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
+    '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
+    '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
@@ -7044,9 +7064,9 @@ const HELP = [
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
-    '**Aujourd\'hui** : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour.',
+    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour ; la station la plus proche.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
-    '{alarm-clock} **Prévoir une visite** : juste en dessous. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
+    '{alarm-clock} **Prévoir une visite** : sous Favori, à côté de J\'y suis passé. Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **J\'y suis passé** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
@@ -7054,7 +7074,7 @@ const HELP = [
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche** : Modifier, Partager, QR code, Horaires, Avis Google, Uber jusqu\'ici, Déplacer, Supprimer.',
+    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique et celui de « Déjà visité ».',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
@@ -7080,7 +7100,7 @@ const HELP = [
     '**La fiche** : cuisine, budget, horaires selon le guide, station, site, Avis Google et + Ajouter.',
     '{plus} **Ajouter** garde l\'adresse dans tes lieux, pour Favori, Déjà visité, étoiles, photos ou Prévoir. Sa goutte remplace alors le rond TTB.',
     '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
-    '**Mauvaise catégorie** : touche la goutte → Modifier. **Pas voulu** : touche la goutte → Supprimer ce lieu. Le rond TTB revient.',
+    '**Mauvaise catégorie** : touche la goutte → Modifier. **Pas voulu** : touche la goutte → Rangement → Supprimer ce lieu. Le rond TTB revient.',
     '**La fiche d\'un de tes lieux** dit s\'il est dans le guide. L\'icône du rond TTB vient du guide : elle ne se change pas.',
     '**La liste reste sur ce téléphone.** Elle n\'est pas dans ta sauvegarde. {trash-2} {settings} → TTB → Retirer la liste.',
   ]],
@@ -7141,6 +7161,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
     '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
@@ -7150,7 +7171,6 @@ const HELP = [
     '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
     '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
     '{signpost} Circuits de visite : des balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
-    '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
   ]],
 ];
 
@@ -7244,9 +7264,27 @@ updatePlanningCount();
 refreshParkHours().catch(() => {}); // horaires de la Ville pour mes parcs (liste sans position, gardée un jour)
 // Fichiers de l'appli (rien n'est envoyé) : Navigo pour les fiches ; une fois toutes les dates connues, le rappel groupé
 Promise.all([stationsReady, loadNavigo(), loadRatpToilets(), loadMerimee()]).then(remindData).catch(() => {});
+// Ouvrir sur ma position (v176, Réglages → La carte, allumé au départ) : seulement si la position est déjà autorisée
+// (rien n'est demandé), récente, précise, dans Paris, arrivée dans les 2 s, et si je n'ai ni touché la carte ni ouvert
+// un lien. Le point bleu s'efface au bout de 2 min : il ne suit pas mes pas, il ne doit jamais montrer une position fausse.
+const startedAt = Date.now();
+let mapTouched = false;
+map.getContainer().addEventListener('pointerdown', () => { mapTouched = true; }, { once: true });
+function startOnMe(fix, age) {
+  if (state.startOnMe === false || mapTouched || launched || following || Date.now() - startedAt > 2000) return;
+  if (age > 30000 || !(fix.acc <= 150) || !(fix.lat > 48.80 && fix.lat < 48.92 && fix.lng > 2.22 && fix.lng < 2.48)) return;
+  centerOn(fix.lat, fix.lng, 16);
+  meShown = fix;
+  drawMe();
+  setTimeout(() => { if (!following && meShown === fix) { meShown = null; drawMe(); } }, 120000);
+}
 if (navigator.permissions && 'geolocation' in navigator) {
   navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
-    if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => remember({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() }), () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });
+    if (perm.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => {
+      const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
+      remember(fix);
+      startOnMe(fix, Date.now() - (pos.timestamp || 0));
+    }, () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 });
   }).catch(() => {});
 }
 // Tes lieux n'existent que sur ce téléphone : on demande qu'ils ne soient jamais effacés automatiquement (manque de place).

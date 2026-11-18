@@ -90,8 +90,8 @@
   --float: 0 1px 4px rgba(0, 0, 0, .6);
 }
 /* Taille du texte (Réglages, v144) : l'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26 multipliée par --ts. */
-:root[data-text="grand"] { --ts: 1.15; }
-:root[data-text="tresgrand"] { --ts: 1.3; }
+:root[data-text="grand"] { --ts: 1.15; --tools-cols: 3; }
+:root[data-text="tresgrand"] { --ts: 1.3; --tools-cols: 3; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
@@ -627,12 +627,6 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .compass-guide { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; flex-wrap: wrap; justify-content: center; }
 .compass-step { font-weight: 700; font-size: var(--t16); }
 .compass-next { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 0; background: var(--compass-ink); color: var(--compass-bg); font: inherit; font-weight: 700; font-size: var(--t16); }
-.near-bar { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
-.near-bar .where-btn { flex: 1 1 auto; min-height: 44px; }
-.near-bar .seg.unit { flex: 0 0 auto; flex-wrap: nowrap; gap: 0; }
-.near-bar .seg.unit button { flex: none; min-height: 44px; padding: 0 10px; font-size: var(--t14); border-radius: 0; }
-.near-bar .seg.unit button:first-child { border-radius: var(--r) 0 0 var(--r); }
-.near-bar .seg.unit button:last-child { border-radius: 0 var(--r) var(--r) 0; border-left: 0; }
 .where-big { margin: 0; font-size: var(--t18); font-weight: 700; line-height: 1.3; }
 .qr-box { background: #fff; border-radius: var(--r); padding: 10px; width: min(78vw, 300px); align-self: center; }
 .qr-box svg { width: 100%; height: auto; display: block; }
@@ -771,12 +765,12 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
 .tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
   --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--fam); border-radius: var(--r);
-  min-height: 82px; gap: 6px; font-size: var(--t13); font-weight: 700; box-shadow: none; background: transparent;
+  min-height: 64px; gap: 2px; font-size: var(--t13); font-weight: 700; box-shadow: none; background: transparent;
 }
 .tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
 .tool.c-info { --fam: var(--info); } .tool.c-disc { --fam: var(--disc); }
 .tool .tool-ico {
-  width: 38px; height: 38px; color: var(--fam);
+  width: 30px; height: 30px; color: var(--fam);
   display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800;
 }
 .tool .tool-ico .ico svg { width: 26px; height: 26px; }
@@ -918,7 +912,7 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip:not([aria-pressed="true"]) { background: var(--bg); }
 .btn.danger.solid { background: var(--danger); --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
-.tools { display: grid; gap: 6px; margin-bottom: 10px; grid-template-columns: repeat(3, 1fr); } /* 6 outils : 2 rangées de 3 */
+.tools { display: grid; gap: 6px; margin-bottom: 10px; grid-template-columns: repeat(var(--tools-cols, 4), minmax(0, 1fr)); } /* 8 outils : 2 rangées de 4, 3 colonnes en Grand et Très grand (v176) */
 /* Pastilles de lignes (Rentrer) */
 .lines { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
 .line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
