@@ -98,3 +98,8 @@ test('charte : jamais d\'opacité sur un texte de l\'interface (une couleur att�
   const bad = rules.filter((r) => TEXT.test(r.sel) && decls(r, 'opacity').length).map((r) => r.sel);
   assert.deepEqual(bad, [], `Remplace l'opacité par var(--muted) : ${bad.join(' | ')}`);
 });
+
+test('charte : dans une barre du bas, le retour « ← … » est toujours le dernier bouton (v185)', () => {
+  const bad = [...app.matchAll(/foot\((el\('button'[^\n]*?'← [^']*'\)|backBtn\([^\n]*?\)), *(el|ico)\(/g)].map((m) => m[0].slice(0, 80));
+  assert.deepEqual(bad, [], `Mets le bouton de retour en dernier dans foot(...) :\n${bad.join('\n')}`);
+});

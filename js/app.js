@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (184)';
+const VERSION = '18 novembre 2026 (185)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5925,7 +5925,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
       el('p', { class: 'help' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements, et si tu perds ton téléphone il part avec. De temps en temps, envoie-le aussi sur ton mail ou ton Drive. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
-      foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'), el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer')),
+      foot(el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer'), el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')), // v185 : le retour toujours en dernier
     ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
     return;
   }
@@ -7508,6 +7508,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} {settings} → Sauvegarde : « ← Réglages » est maintenant tout en bas, sous Restaurer, comme sur les autres pages.',
     '{map} Ajouter avec un nom ou une adresse : quand il y a plusieurs réponses (un Monoprix, une « rue de Paris »…), « Voir sur la carte » les montre en ronds. Touche un rond pour voir son nom et son adresse, puis le bandeau pour l\'ajouter ; « Annuler » sur la fiche te ramène aux ronds pour en choisir un autre.',
     '{share-2} Partager un seul lieu (lien, QR code, invitation) : ton commentaire ne part plus sans ton accord. Quand le lieu en a un, coche « Avec ma note » (décochée à chaque fois) ; sans commentaire, Partager envoie tout de suite comme avant.',
     '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
@@ -7517,7 +7518,6 @@ const HELP = [
     '{map-pin} Carte plus lisible avec beaucoup de lieux : de loin, les lieux proches se regroupent en une goutte noire qui porte leur nombre ; touche-la pour zoomer. Tes favoris restent toujours visibles, et à la vue « rue » chaque lieu a sa goutte.',
     '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
     '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
-    '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
   ]],
 ];
 
