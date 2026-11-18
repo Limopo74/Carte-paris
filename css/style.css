@@ -658,6 +658,15 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 
 /* Badge météo et air, sous la barre du haut */
 .wx-badge b { font-size: var(--t16); }
+.wx-badge .wx-sep { color: var(--muted); }
+/* Numéros des arrondissements (v193) : de loin seulement (zoom 14 et moins), gris, sous tout le reste ; limites en trait fin */
+#map:not(.z-far) .leaflet-arrNums-pane, #map.arr-nums-off .leaflet-arrNums-pane { display: none; }
+.leaflet-arrNums-pane { pointer-events: none; }
+.arr-limit { stroke: var(--muted); stroke-opacity: .55; }
+.arr-num { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 800; font-size: var(--t26); line-height: 1; color: var(--muted); white-space: nowrap;
+  text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+.arr-num small { font-size: .5em; vertical-align: super; }
+#map.z-11 .arr-num { display: none; }
 /* Calques Vélib' et Fontaines et WC (v150) : sous la météo, « Zoome pour voir… » ou l'heure des Vélib' (un appui : mettre à jour) */
 .layer-note { position: fixed; z-index: 499; left: 10px; top: 66px; max-width: calc(100vw - 90px); min-height: var(--h-s); padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;
   color: var(--ink); background: var(--bg); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);

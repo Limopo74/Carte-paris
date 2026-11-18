@@ -34,14 +34,14 @@ import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMar
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
-import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (192)';
+const VERSION = '18 novembre 2026 (193)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -330,6 +330,7 @@ const mapEl = document.getElementById('map');
 const scalePins = () => {
   const z = map.getZoom();
   mapEl.classList.toggle('z-far', z < 15);
+  mapEl.classList.toggle('z-11', z <= 11); // Paris tout petit : limites des arrondissements sans leurs numéros (v193)
   mapEl.classList.toggle('z-st', z >= 15); // stations des lignes
   mapEl.classList.toggle('z-name', z >= 16); // et leurs noms
 };
@@ -1061,6 +1062,7 @@ function remember(fix) {
   here = fix;
   try { storage.setItem(LAST_KEY, JSON.stringify(fix)); } catch { /* facultatif */ }
   updateNow();
+  try { drawWx(); } catch { /* pastille pas encore prête au démarrage */ }
 }
 
 /** Moment de la journée pour « Maintenant » (types de lieux mis en avant), ou null. */
@@ -1953,7 +1955,7 @@ function openDetail(id, back = null) {
   };
   const tidySub = [p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].join(', ');
 
-  const kick = [catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ');
+  const kick = [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ');
   openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
     goBox,
     // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
@@ -1994,6 +1996,13 @@ function arrondissement(address) {
   if (!m) return null;
   const n = m[1] === '116' ? 16 : Number(m[1]);
   return n >= 1 && n <= 20 ? (n === 1 ? '1er' : `${n}e`) : null;
+}
+
+/** Arrondissement d'un lieu (« 3e ») d'après sa position et les contours officiels, comme Filtres et Mon Paris (v193) ;
+ * le code postal de l'adresse seulement tant que les contours ne sont pas lus. Hors de Paris : rien. */
+function arrLabel(p) {
+  if (arrData && Number.isFinite(p?.lat) && Number.isFinite(p?.lng)) { const a = arrOfPoint(p); return a ? arrOrd(a) : null; }
+  return arrondissement(p?.address);
 }
 
 /** Station la plus proche, en morceaux pour la fiche : nom, lignes, minutes à pied (ou null au-delà de 2 km). */
@@ -3231,7 +3240,26 @@ const loadBus = async () => (busData ??= await fetch('data/bus.json').then((r) =
 const busReady = () => Boolean(busData?.stops?.length);
 const loadArr = async () => (arrData ??= await fetch('data/arrondissements.json').then((r) => (r.ok ? r.json() : null))
   .then((j) => { arrUpdated = typeof j?.updated === 'string' ? j.updated : ''; return j; }).catch(() => null));
-loadArr();
+loadArr().then(() => { drawArrNums(); drawWx(); });
+setInterval(() => { if (!document.hidden) drawWx(); }, 60000); // l'arrondissement de la pastille s'efface quand la position vieillit
+
+/* ---------- Numéros des arrondissements sur la carte (v193) : de loin (zoom 14 et moins), pour apprendre où ils sont ---------- */
+
+map.createPane('arrNums').style.zIndex = 390; // sous les gouttes et les calques, au-dessus du fond de carte
+const arrNumsLayer = L.layerGroup().addTo(map);
+function drawArrNums() {
+  arrNumsLayer.clearLayers();
+  mapEl.classList.toggle('arr-nums-off', state.showArrNums === false);
+  if (!Array.isArray(arrData?.arr)) return;
+  const renderer = L.svg({ pane: 'arrNums' });
+  for (const a of arrData.arr) {
+    const rings = (a.rings ?? []).map((r) => r.map(([x, y]) => [y, x]));
+    L.polygon(rings, { renderer, pane: 'arrNums', className: 'arr-limit', weight: 1.5, fill: false, interactive: false }).addTo(arrNumsLayer);
+    const at = arrLabelPoint(a.rings);
+    if (at) L.marker(at, { pane: 'arrNums', interactive: false, keyboard: false,
+      icon: L.divIcon({ className: 'arr-num-wrap', html: `<span class="arr-num">${a.n}<small>${a.n === 1 ? 'er' : 'e'}</small></span>`, iconSize: [0, 0] }) }).addTo(arrNumsLayer);
+  }
+}
 
 /* ---------- Filtres → Arrondissement (v182) : un appui sur une case ne garde que mes lieux de cet arrondissement ---------- */
 
@@ -3442,7 +3470,7 @@ function openPlanning(from = null) {
           el('span', { class: 'plan-time' }, planClock(p.ticket)),
           el('span', { class: 'item-text' },
             el('span', { class: 'item-name' }, p.name),
-            el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrondissement(p.address)].filter(Boolean).join(' · ')),
+            el('span', { class: 'item-sub' }, [p.by ? `Prévu par ${p.by}` : '', p.ticket.with ? `avec ${p.ticket.with}` : '', p.plan ? (p.place || 'Sortie de l\'agenda') : catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ')),
             ...planInfo(p)),
           /* v192 : la ligne n'a plus de boutons (charte) ; la flèche dit qu'elle s'ouvre. Boussole : sur la page ; invitation : Prévu → Copier le lien d'invitation */
           el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))),
@@ -4865,17 +4893,22 @@ function openMyStations() {
 
 let air = null;
 const wxBadge = document.getElementById('wxBadge');
+/** Arrondissement où je suis, seulement s'il est sûr (position de moins de 10 min, assez précise, loin d'une limite). */
+const arrHere = () => (arrData ? arrSure(here, arrData) : null);
 function drawWx() {
   const day = dayNote();
-  if (!meteo && !air && !day) { wxBadge.hidden = true; return; }
+  const a = arrHere();
+  if (!meteo && !air && !day && !a) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
   fill(wxBadge,
+    a ? el('b', { class: 'wx-arr' }, arrOrd(a)) : null,
+    a && (day || meteo || air) ? el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·') : null,
     day ? el('span', { class: 'day-tag' }, day.short) : null,
     meteo?.temp != null ? el('b', {}, `${meteo.temp}°`) : null,
     meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
     air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
     air ? `Air ${air.label.toLowerCase()}` : null);
-  wxBadge.setAttribute('aria-label', [day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -4885,7 +4918,9 @@ const AIR_ADVICE = {
 function openWeather() {
   track('Météo et air');
   const day = dayNote();
+  const a = arrHere();
   openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
+    a ? el('p', { class: 'where-big' }, `Tu es dans le ${arrOrd(a)} arrondissement`) : null,
     day ? el('p', { class: 'warn day-note' }, day.long) : null,
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
     air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
@@ -6469,6 +6504,15 @@ function openSettings(section = null) {
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Vibrer quand « Maintenant » a du nouveau'), el('span', { class: 'menu-sub' }, 'Seulement appli ouverte, écran allumé')),
   el('span', { class: `switch${buzzOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
+  // Numéros des arrondissements sur la carte vue de loin (v193), allumés au départ
+  const arrNumsSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.showArrNums !== false), onclick: () => {
+    state.showArrNums = state.showArrNums === false; persist(); drawArrNums(); openSettings();
+    toast(state.showArrNums ? 'Numéros des arrondissements affichés de loin' : 'Numéros des arrondissements masqués');
+  } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Numéros des arrondissements'), el('span', { class: 'menu-sub' }, 'Sur la carte vue de loin, avec leurs limites')),
+  el('span', { class: `switch${state.showArrNums !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages'], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
@@ -6509,6 +6553,7 @@ function openSettings(section = null) {
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     voiceSwitch,
     vibrateSwitch,
+    arrNumsSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
     row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton caché', 'boutons cachés') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
@@ -7363,6 +7408,8 @@ const HELP = [
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\' et Fontaines et toilettes. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Caché. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
+    '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
+    '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\' et Rentrer.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le lieu frais les plus proches. Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
@@ -7570,6 +7617,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} Les arrondissements sur la carte : de loin, leurs numéros et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
     '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
     '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
     '{heart} Mes salles, Grands lieux et Mes artistes : un concert ou un spectacle dit maintenant quand il a lieu (« Aujourd\'hui à 19h », « Samedi 21 nov. à 20h »), plus « Dernier jour » ; une expo garde sa date de fin. Le petit titre du bandeau « Maintenant » et « Aujourd\'hui », « Métro 2 » de la fiche sont plus grands, en lettres normales.',
@@ -7579,7 +7627,6 @@ const HELP = [
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
     '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
     '{save} Restaurer ta sauvegarde sur un téléphone vide remet aussi tes catégories telles que tu les avais (nom, couleur, icône, « Déjà goûté »…) et tes listes, même vides. Avant, une catégorie d\'origine revenait avec son nom d\'origine.',
-    '{save} {settings} → Sauvegarde : « ← Réglages » est maintenant tout en bas, sous Restaurer, comme sur les autres pages.',
   ]],
 ];
 

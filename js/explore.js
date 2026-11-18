@@ -225,6 +225,55 @@ export function arrAt(lat, lng, data) {
   }
   return null;
 }
+/**
+ * Arrondissement d'une position seulement s'il est sûr (v193) : le cercle d'incertitude (précision du GPS, contours simplifiés
+ * à 4 m, marche possible depuis la mesure à 1,4 m/s) doit tenir entier dans l'arrondissement. Sinon null : pas d'info plutôt
+ * qu'une info fausse. Position de plus de 10 min : null. fix = { lat, lng, acc, time }.
+ */
+export function arrSure(fix, data, now = Date.now()) {
+  if (!fix || !Number.isFinite(fix.time) || now - fix.time > 10 * 60 * 1000 || now < fix.time - 60000) return null;
+  const n = arrAt(fix.lat, fix.lng, data);
+  if (!n) return null;
+  const a = data.arr.find((x) => x.n === n);
+  const kx = 111320 * Math.cos((fix.lat * Math.PI) / 180); const ky = 110540;
+  let d = Infinity;
+  for (const ring of a.rings ?? []) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = (ring[j][0] - fix.lng) * kx; const ay = (ring[j][1] - fix.lat) * ky;
+      const bx = (ring[i][0] - fix.lng) * kx; const by = (ring[i][1] - fix.lat) * ky;
+      const dx = bx - ax; const dy = by - ay; const l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+      d = Math.min(d, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+  }
+  const acc = Number.isFinite(fix.acc) && fix.acc >= 0 ? fix.acc : Infinity;
+  const margin = acc + 4 + 1.4 * Math.max(0, now - fix.time) / 1000;
+  return d > margin ? n : null;
+}
+
+/** Point où poser le numéro d'un arrondissement : le point intérieur le plus éloigné des limites (grille 24 × 24). */
+export function arrLabelPoint(rings) {
+  const ring = rings?.[0];
+  if (!Array.isArray(ring) || ring.length < 3) return null;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, y] of ring) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const kx = Math.cos((((y0 + y1) / 2) * Math.PI) / 180);
+  let best = null; let bestD = -1;
+  for (let i = 1; i < 24; i++) for (let k = 1; k < 24; k++) {
+    const x = x0 + ((x1 - x0) * i) / 24; const y = y0 + ((y1 - y0) * k) / 24;
+    if (!inRing(x, y, ring)) continue;
+    let d = Infinity;
+    for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
+      const ax = (ring[b][0] - x) * kx; const ay = ring[b][1] - y; const bx = (ring[a][0] - x) * kx; const by = ring[a][1] - y;
+      const dx = bx - ax; const dy = by - ay; const l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+      d = Math.min(d, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    if (d > bestD) { bestD = d; best = [y, x]; }
+  }
+  return best; // [lat, lng]
+}
+
 /** Point dans un polygone (règle pair-impair), coordonnées [lng, lat]. */
 function inRing(x, y, ring) {
   let inside = false;
