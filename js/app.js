@@ -31,7 +31,7 @@ import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, A
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
-import { metroPlan, lineName, linesOf } from './metroplan.js';
+import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
@@ -48,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (210)';
+const VERSION = '19 novembre 2026 (211)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5186,7 +5186,7 @@ async function openHomePlan(home) {
   const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
   const walk = walkMinutes(distanceM(from, dest));
   const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
-  const best = opts.reduce((a, o) => (!a || o.plan.minutes < a.plan.minutes ? o : a), null);
+  const best = opts.reduce((a, o) => (o.plan.noMetro ? a : !a || o.plan.minutes < a.plan.minutes ? o : a), null);
   const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
   // Bus (v148) : les lignes qui vont jusqu'à mon arrêt maison, depuis un arrêt à moins de 8 min à pied
   if (home.bus) await loadBus();
@@ -5217,7 +5217,7 @@ async function openHomePlan(home) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, lineBadges(o.st), o === best && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
-          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
+          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
     best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
@@ -7536,7 +7536,12 @@ function renderMetroPlan(p, from, back, start = null) {
   const step = (icon, text) => el('li', { class: 'plan-step' }, el('span', { class: 'plan-ico', 'aria-hidden': 'true' }, icon), el('span', {}, text));
   let steps;
   let firstTarget = null;
-  if (plan.type === 'walk') {
+  /* v211 : aucun métro trouvé et lieu à 1 km ou plus : la marche n'a été comparée à rien, on ne dit pas qu'elle est « le plus simple ». */
+  const none = plan.type === 'walk' && !!plan.noMetro;
+  const onFoot = plan.type === 'walk' && !none;
+  if (none) {
+    steps = [step(el('b', { class: 'm-badge', 'aria-hidden': 'true' }), noMetroText(plan, start))];
+  } else if (onFoot) {
     steps = [step(ico('footprints'), `À pied, c'est le plus simple : ≈ ${plan.minutes} min.`)];
   } else {
     firstTarget = { name: `Ⓜ ${plan.start.n}`, lat: plan.start.lat, lng: plan.start.lng };
@@ -7549,14 +7554,14 @@ function renderMetroPlan(p, from, back, start = null) {
     ];
   }
   openSheet(`Vers ${p.name}`, el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, plan.type === 'walk' ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
+    el('p', { class: 'summary' }, none ? 'Pas de trajet simple en métro' : onFoot ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
     el('ol', { class: 'plan' }, steps),
-    plan.type === 'walk' ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
+    onFoot ? null : el('p', { class: 'help' }, none ? 'Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.' : 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
-      el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${plan.type === 'walk' ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
-    plan.type === 'walk' ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
-    plan.type === 'walk' ? null : trafficLink(),
+      el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
+    onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
+    onFoot ? null : trafficLink(),
     back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
   nearLayer.clearLayers();
@@ -8022,7 +8027,7 @@ const HELP = [
     '**Le formulaire** : catégorie, commentaire, état, Favori, étoiles, listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
-    '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
+    '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
@@ -8124,6 +8129,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
     '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
     '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
@@ -8133,7 +8139,6 @@ const HELP = [
     '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
     '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
     '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
-    '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Modifier la liste »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
   ]],
 ];
 

@@ -16,7 +16,8 @@ export function setWalkSpeed(kmh) {
 export const walkMinPerM = () => (minPerKm / 1000) * DETOUR;
 // À Paris, le trajet à pied réel est en moyenne 1,2 à 1,4 fois plus long que la ligne droite.
 const DETOUR = 1.3;
-const WALK_LIMIT_M = 1000;
+/** Sous 1 km à vol d'oiseau, on va à pied (lien Google Maps, et page Métro quand aucun métro n'est trouvé, v211). */
+export const WALK_LIMIT_M = 1000;
 
 /** Distance à vol d'oiseau en mètres entre deux positions {lat, lng}. */
 export function distanceM(a, b) {

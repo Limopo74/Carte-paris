@@ -177,6 +177,18 @@ const ECRANS = {
   memeauteur: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.locator('#sheet button', { hasText: 'Du même auteur' }).first().click(); await p.waitForSelector('#sheet .items .item-main'); await p.waitForTimeout(300); },
   respire: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Itinéraire' }).click(); await p.locator('#sheet button', { hasText: 'Rues sans voitures' }).click(); await p.waitForSelector('#sheet .items .plan-time'); await p.waitForTimeout(300); },
   respirecarte: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Itinéraire' }).click(); await p.locator('#sheet button', { hasText: 'Rues sans voitures' }).click(); await p.locator('#sheet .items .item-main').first().click(); await p.waitForSelector('.respire-zone'); await p.waitForTimeout(400); },
+  // v211 : page Métro d'un lieu. « metroplan » : tout près, à pied. « metrosans » : aucun métro trouvé (position simulée loin de toute station, relue après un rechargement, puis remise).
+  metroplan: async (p) => { await ECRANS.fiche(p); await feuille(p).locator('button.c-metro', { hasText: 'Métro' }).first().click(); await p.waitForSelector('#sheet .plan'); await p.waitForTimeout(400); },
+  metrosans: async (p) => {
+    await p.context().setGeolocation({ latitude: 48.8014, longitude: 2.1301 });
+    try {
+      await p.goto(URL_APPLI); await p.waitForTimeout(600);
+      if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click();
+      await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar');
+      await feuille(p).locator('button.c-metro', { hasText: 'Métro' }).first().click();
+      await p.waitForSelector('#sheet .summary:has-text("Pas de trajet simple en métro")');
+    } finally { await p.context().setGeolocation({ latitude: 48.8812, longitude: 2.3361 }); }
+  },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
   sauvegarde: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Sauvegarde' }).first().click(); await p.waitForTimeout(300); },
   envoyerproche: async (p) => { await ECRANS.sauvegarde(p); await feuille(p).locator('button', { hasText: 'Envoyer à un proche' }).click(); await p.waitForTimeout(300); }, // v180

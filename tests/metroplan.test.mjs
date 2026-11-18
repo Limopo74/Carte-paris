@@ -61,3 +61,52 @@ test('RER entre stations du métro, départ imposé, stations les plus proches',
   const fixed = metroPlan(st, { lat: 48.8574, lng: 2.352 }, { lat: 48.8484, lng: 2.3961 }, 3, C);
   assert.equal(fixed.start.n, 'Hôtel de Ville');
 });
+
+// v211 : « À pied, c'est le plus simple » ne se dit que quand la marche a vraiment été comparée au métro, ou que le lieu est tout près.
+test('aucune station près de moi et lieu loin : pas de métro trouvé, raison « from »', () => {
+  const r = metroPlan(stations, { lat: 48.70, lng: 2.10 }, { lat: 48.8586, lng: 2.3470 });
+  assert.equal(r.type, 'walk');
+  assert.equal(r.noMetro, 'from');
+});
+
+test('aucune station près du lieu et lieu loin : raison « to »', () => {
+  const r = metroPlan(stations, { lat: 48.8586, lng: 2.3470 }, { lat: 48.70, lng: 2.10 });
+  assert.equal(r.type, 'walk');
+  assert.equal(r.noMetro, 'to');
+});
+
+test('des stations des deux côtés mais ni ligne directe ni correspondance unique : raison « route »', () => {
+  const X = { n: 'X', l: ['3bis'], lat: 48.8700, lng: 2.4050 };
+  const Y = { n: 'Y', l: ['7bis'], lat: 48.8800, lng: 2.3000 };
+  const r = metroPlan([X, Y], { lat: 48.8701, lng: 2.4051 }, { lat: 48.8801, lng: 2.3001 });
+  assert.equal(r.type, 'walk');
+  assert.equal(r.noMetro, 'route');
+});
+
+test('pas de métro trouvé mais lieu à moins de 1 km : à pied, sans réserve', () => {
+  const r = metroPlan([], { lat: 48.8600, lng: 2.3300 }, { lat: 48.8640, lng: 2.3330 });
+  assert.equal(r.type, 'walk');
+  assert.equal(r.noMetro, undefined);
+});
+
+test('marche comparée au métro et plus rapide : à pied, sans réserve', () => {
+  const r = metroPlan(stations, { lat: 48.8660, lng: 2.3340 }, { lat: 48.8700, lng: 2.3320 });
+  assert.equal(r.type, 'walk');
+  assert.equal(r.noMetro, undefined);
+});
+
+test('départ imposé sans trajet trouvé : raison « route »', () => {
+  const X = { n: 'X', l: ['3bis'], lat: 48.8700, lng: 2.4050 };
+  const Y = { n: 'Y', l: ['7bis'], lat: 48.8800, lng: 2.3000 };
+  const r = metroPlan([X, Y], { lat: 48.8701, lng: 2.4051 }, { lat: 48.8801, lng: 2.3001 }, 3, X);
+  assert.equal(r.noMetro, 'route');
+});
+
+test('texte de la page quand aucun métro n\'est trouvé', async () => {
+  const { noMetroText } = await import('../js/metroplan.js');
+  assert.match(noMetroText({ noMetro: 'from' }), /Aucune station de métro à moins de 1,2 km de toi/);
+  assert.match(noMetroText({ noMetro: 'to' }), /Aucune station de métro à moins de 1,2 km de ce lieu/);
+  assert.match(noMetroText({ noMetro: 'route' }), /plus d'une correspondance/);
+  assert.match(noMetroText({ noMetro: 'route' }, { n: 'Blanche' }), /^Depuis Ⓜ Blanche/);
+  assert.equal(noMetroText({ type: 'walk', minutes: 5 }), '');
+});

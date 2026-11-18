@@ -1,6 +1,6 @@
 // Quel métro prendre ? Estimation simple à partir des stations et de leurs lignes
 // (pas d'horaires ni de sens de circulation : c'est une aide, le trajet exact est dans Google Maps).
-import { distanceM, walkMinutes } from './geo.js';
+import { distanceM, walkMinutes, WALK_LIMIT_M } from './geo.js';
 
 const MAX_WALK_M = 1200; // on ne propose pas une station à plus de 1,2 km
 const RIDE_MIN_PER_KM = 2.6; // métro, arrêts compris, à vol d'oiseau
@@ -23,6 +23,9 @@ const near = (stations, p, k) => stations
  * Meilleure façon d'aller de `from` à `to` : à pied, métro direct, ou métro avec une correspondance.
  * Renvoie { type: 'walk', minutes } | { type: 'direct', start, line, end, minutes, walkIn, walkOut }
  * | { type: 'transfer', start, line1, via, line2, end, minutes, walkIn, walkOut }.
+ * v211 : quand aucun métro n'a été trouvé et que le lieu est à 1 km ou plus, la réponse 'walk' porte `noMetro` :
+ * 'from' (aucune station près du départ), 'to' (aucune près du lieu) ou 'route' (ni ligne directe ni correspondance unique).
+ * La marche n'a alors été comparée à rien : on ne dit pas qu'elle est « le plus simple ».
  */
 export function metroPlan(stations, from, to, k = 3, start = null) {
   const walkAll = walkMinutes(distanceM(from, to));
@@ -60,6 +63,18 @@ export function metroPlan(stations, from, to, k = 3, start = null) {
       }
     }
   }
-  if (!best || (!start && walkAll <= best.minutes)) return { type: 'walk', minutes: walkAll };
+  if (!best) {
+    if (distanceM(from, to) < WALK_LIMIT_M) return { type: 'walk', minutes: walkAll };
+    return { type: 'walk', minutes: walkAll, noMetro: !A.length ? 'from' : !B.length ? 'to' : 'route' };
+  }
+  if (!start && walkAll <= best.minutes) return { type: 'walk', minutes: walkAll };
   return best;
+}
+
+/** Phrase de la page Métro quand aucun métro n'a été trouvé (`plan.noMetro`) ; '' sinon. `start` : station de départ imposée. */
+export function noMetroText(plan, start = null) {
+  if (plan?.noMetro === 'from') return 'Aucune station de métro à moins de 1,2 km de toi.';
+  if (plan?.noMetro === 'to') return 'Aucune station de métro à moins de 1,2 km de ce lieu.';
+  if (plan?.noMetro === 'route') return `${start ? `Depuis Ⓜ ${start.n}, il` : 'Il'} faut sans doute plus d'une correspondance : l'appli ne sait pas le calculer.`;
+  return '';
 }
