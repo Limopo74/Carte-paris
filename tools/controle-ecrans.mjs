@@ -107,6 +107,10 @@ const ECRANS = {
   circuitetape: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('.item-main', { hasText: 'Bateau-Lavoir' }).click(); await p.waitForTimeout(300); },
   circuitcarte: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   circuitfait: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('button', { hasText: 'Je l\'ai fait' }).click(); await p.waitForTimeout(400); },
+  // v171 : deux circuits de plus (court et long)
+  circuitscourt: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('button', { hasText: 'Moins de 45 min' }).click(); await p.waitForTimeout(400); },
+  circuitcoulee: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'Coulée verte' }).click(); await p.waitForTimeout(400); },
+  circuitcouleecarte: async (p) => { await ECRANS.circuitcoulee(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   // v168 : passages couverts
   circuitpassages: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'passages couverts' }).click(); await p.waitForTimeout(400); await feuille(p).locator('h3', { hasText: 'Autres passages' }).scrollIntoViewIfNeeded(); },
   passagecouvert: async (p) => { await ECRANS.circuitpassages(p); await feuille(p).locator('.item-main', { hasText: 'Choiseul' }).click(); await p.waitForTimeout(300); },

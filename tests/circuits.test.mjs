@@ -103,3 +103,12 @@ test('« Je l\'ai fait » : une ligne de Mon journal qui garde son identifiant',
   assert.equal(circuitDone(outings, 'marais').length, 0);
   assert.deepEqual(circuitDone(null, 'x'), []);
 });
+
+test('durées (v171) : au pas Normal, chaque puce de durée a au moins un circuit', () => {
+  setWalkSpeed(5);
+  const list = cleanCircuits(raw);
+  assert.equal(list.length, 8);
+  for (const [k] of [['court'], ['heure'], ['long']]) assert.ok(list.some((c) => durationClass(circuitTimes(c).total) === k), k);
+  assert.equal(durationClass(circuitTimes(list.find((c) => c.id === 'butte')).total), 'court');
+  assert.equal(durationClass(circuitTimes(list.find((c) => c.id === 'coulee')).total), 'long');
+});

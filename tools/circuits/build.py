@@ -64,6 +64,22 @@ S = {  # textes vérifiés le 18 nov. 2026 et leur source
   ('Le jardin créé pour Marie de Médicis, inspiré du jardin Boboli de Florence.', 'https://secure.webpublication.fr/42102/1020942/index-34.html', False),
   ('La maison-atelier du sculpteur Ossip Zadkine. Musée de la Ville, collections gratuites ; fermé le lundi.', 'https://www.laculturegenerale.com/?p=79693', False),
   ('Ligne 12.', None, True)]),
+ 'butte': dict(titre='La Butte-aux-Cailles', quartier='rive-gauche', themes=['histoire', 'art'], depart='Corvisart', arrivee='Place d\'Italie', confort='Quelques rues en pente douce.', note='', t=[
+  ('Ligne 6.', None, True),
+  ('40 maisons à colombages autour d\'une cour arborée, bâties en 1912 par l\'architecte Jean Walter pour loger des ouvriers. La cour est privée : on la regarde depuis l\'entrée.', 'https://parisjetaime.com/transport/la-petite-alsace-p2040', False),
+  ('Son nom rappelle que la Butte-aux-Cailles fut une place forte des fédérés pendant la Commune de Paris, en 1871.', 'https://www.paris.fr/pages/les-150-ans-de-la-commune-les-lieux-emblematiques-2-5-16972', False),
+  ('La rue du « village » : petites maisons, cafés, et des œuvres de street art, dont certaines rendent hommage à la Commune.', 'https://www.pariszigzag.fr/insolite/histoire-insolite-paris/butte-aux-cailles/', False),
+  ('La piscine de briques rouges, ouverte en 1924, est classée monument historique depuis 1990. Devant elle, la fontaine est alimentée par le puits artésien qui alimentait autrefois la piscine.', 'https://www.paris.fr/pages/plongee-dans-la-piscine-de-la-butte-aux-cailles-27903', False),
+  ('Lignes 5, 6 et 7.', None, True)]),
+ 'coulee': dict(titre='La Coulée verte', quartier='est', themes=['nature', 'histoire'], depart='Bastille', arrivee='Porte Dorée', confort='On monte sur l\'ancien viaduc par un escalier (la Ville indique aussi des ascenseurs, 34 rue de Lyon et rue Jacques-Hillairet). Plus loin, la promenade passe par des tunnels et des tranchées.', note='', t=[
+  ('Lignes 1, 5 et 8.', None, True),
+  ('Une ancienne voie ferrée, fermée en 1969, devenue une promenade de 4,5 km. En dessous, les 71 arcades du viaduc, réhabilitées à partir de 1989, forment le Viaduc des Arts.', 'https://www.paris.fr/lieux/coulee-verte-rene-dumont-1772', False),
+  ('En face, en haut de l\'immeuble du commissariat, 13 copies de l\'Esclave mourant de Michel-Ange, dont l\'original est au Louvre. L\'immeuble a été bâti au début des années 1990.', 'https://www.pariszigzag.fr/insolite/lieux-insolites/le-commissariat-de-police-le-plus-insolite-de-paris/', False),
+  ('La promenade le traverse sur une passerelle en bois, au-dessus d\'une pelouse de 4 200 m². Jardin créé de 1992 à 1998 à la place d\'une gare de marchandises.', 'https://www.paris.fr/lieux/jardin-de-reuilly-paul-pernin-2573', False),
+  ('L\'ancienne gare de voyageurs de la ligne est devenue la maison des associations du 12e, avec un jardin partagé.', 'https://www.paris.fr/pages/terminus-jardin-apres-les-trains-de-grands-parcs-urbains-18883', False),
+  ('Le dernier des jardins de la Coulée verte, avant le bois de Vincennes.', 'https://www.paris.fr/lieux/coulee-verte-rene-dumont-1772', False),
+  ('Bâti en style Art déco pour l\'Exposition coloniale de 1931. Il abrite le Musée national de l\'histoire de l\'immigration et un aquarium tropical.', 'https://www.visitparisregion.com/fr/musee-national-de-l-histoire-de-l-immigration-palais-de-la-porte-doree', False),
+  ('Ligne 8.', None, True)]),
 }
 out = []
 for cid, d in S.items():

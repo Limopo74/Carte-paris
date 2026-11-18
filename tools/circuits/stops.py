@@ -1,4 +1,4 @@
-# Étapes des 6 circuits : (nom, lat, lng)
+# Étapes des circuits : (nom, lat, lng)
 C = {
  'marais': [('Métro Saint-Paul',48.85521,2.36086),('Enceinte de Philippe Auguste',48.85340,2.36060),('Hôtel de Sully',48.85441,2.36370),('Place des Vosges',48.85482,2.36613),('Musée Carnavalet',48.85706,2.36285),('Musée Cognacq-Jay',48.85820,2.36147),('Rue des Rosiers',48.85708,2.35969),('Archives nationales',48.85996,2.35727),('Métro Rambuteau',48.86119,2.35343)],
  'iles': [('Métro Pont Marie',48.85329,2.35762),('Hôtel de Lauzun',48.85167,2.35917),('Église Saint-Louis-en-l\'Île',48.85127,2.35757),('Square Jean-XXIII',48.85250,2.35139),('Point zéro',48.85340,2.34879),('Tour de l\'Horloge',48.85568,2.34592),('Place Dauphine',48.85654,2.34243),('Pont Neuf',48.85750,2.34167),('Square du Vert-Galant',48.85733,2.34072),('Métro Pont Neuf',48.85868,2.34149)],
@@ -6,6 +6,9 @@ C = {
  'montmartre': [('Métro Abbesses',48.88485,2.33869),('Bateau-Lavoir',48.88611,2.33761),('Le Passe-Muraille',48.88772,2.33768),('Place du Tertre',48.88667,2.34083),('Sacré-Cœur',48.88665,2.34295),('La Maison Rose',48.88799,2.33960),('Vigne du Clos Montmartre',48.88845,2.33935),('Au Lapin Agile',48.88873,2.33999),('Métro Lamarck-Caulaincourt',48.88914,2.33816)],
  'canal': [('Métro République',48.86750,2.36381),('Square Frédérick-Lemaître',48.86930,2.36686),('Hôtel du Nord',48.87347,2.36413),('Jardin Villemin',48.87559,2.36202),('Rotonde de la Villette',48.88364,2.36967),('Métro Jaurès',48.88292,2.37067)],
  'luxembourg': [('Métro Odéon',48.85194,2.33889),('Cour du Commerce-Saint-André',48.85300,2.33908),('Église Saint-Sulpice',48.85083,2.33559),('Théâtre de l\'Odéon',48.84950,2.33875),('Palais du Luxembourg',48.84790,2.33750),('Fontaine Médicis',48.84806,2.33917),('Jardin du Luxembourg',48.84694,2.33722),('Musée Zadkine',48.84299,2.33416),('Métro Notre-Dame-des-Champs',48.84457,2.32879)],
+ # coulee : le tracé passe aussi par 2.39990,48.84104 (sur la promenade, avant Bel-Air), sinon le calcul quitte la Coulée verte.
+ 'coulee': [('Métro Bastille',48.85308,2.36908),('Coulée verte et Viaduc des Arts',48.84877,2.37279),('Les statues du commissariat',48.84446,2.38176),('Jardin de Reuilly',48.84208,2.38851),('Jardin de la gare de Reuilly',48.84098,2.39239),('Square Charles-Péguy',48.83915,2.40662),('Palais de la Porte Dorée',48.83527,2.40936),('Métro Porte Dorée',48.83548,2.40610)],
+ 'butte': [('Métro Corvisart',48.82981,2.35051),('La Petite Alsace',48.82781,2.34633),('Place de la Commune-de-Paris',48.82750,2.34870),('Rue de la Butte-aux-Cailles',48.82783,2.35040),('Place Paul-Verlaine',48.82743,2.35248),('Métro Place d\'Italie',48.83148,2.35569)],
 }
 if __name__ == '__main__':
     for k, s in C.items():

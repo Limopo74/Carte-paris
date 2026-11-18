@@ -461,6 +461,136 @@
    ],
    "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@Rr@SDf@DX?BBNL@CN?DD?NDJBD?B?z@?~@l@BH??DBFB@@D?LH@N@?D@D@@@AP@`@B|@BfA@LB??@?H?F?@?FH|APrC?B@B?F?@B?TCD?JAd@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@A?B@bA?T?B?@?@?@?F?H?@@B@?D@H@HBJg@BBFLj@@pBDF@R@NDAPDDDFFFDJBJ@F@HCxAByAAIAGCKEKGGEGEE@QOESAQs@FUDU?_@CIBH?^ETGTPr@R@NDJFPTHXDZ?j@J@zABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@???@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
    "note": "Le jardin du Luxembourg ferme la nuit. Le musée Zadkine ferme le lundi."
+  },
+  {
+   "id": "butte",
+   "titre": "La Butte-aux-Cailles",
+   "quartier": "rive-gauche",
+   "themes": [
+    "histoire",
+    "art"
+   ],
+   "depart": "Corvisart",
+   "arrivee": "Place d'Italie",
+   "m": 1859,
+   "confort": "Quelques rues en pente douce.",
+   "etapes": [
+    {
+     "n": "Métro Corvisart",
+     "lat": 48.82981,
+     "lng": 2.35051,
+     "t": "Ligne 6.",
+     "m": true
+    },
+    {
+     "n": "La Petite Alsace",
+     "lat": 48.82781,
+     "lng": 2.34633,
+     "t": "40 maisons à colombages autour d'une cour arborée, bâties en 1912 par l'architecte Jean Walter pour loger des ouvriers. La cour est privée : on la regarde depuis l'entrée.",
+     "s": "https://parisjetaime.com/transport/la-petite-alsace-p2040"
+    },
+    {
+     "n": "Place de la Commune-de-Paris",
+     "lat": 48.8275,
+     "lng": 2.3487,
+     "t": "Son nom rappelle que la Butte-aux-Cailles fut une place forte des fédérés pendant la Commune de Paris, en 1871.",
+     "s": "https://www.paris.fr/pages/les-150-ans-de-la-commune-les-lieux-emblematiques-2-5-16972"
+    },
+    {
+     "n": "Rue de la Butte-aux-Cailles",
+     "lat": 48.82783,
+     "lng": 2.3504,
+     "t": "La rue du « village » : petites maisons, cafés, et des œuvres de street art, dont certaines rendent hommage à la Commune.",
+     "s": "https://www.pariszigzag.fr/insolite/histoire-insolite-paris/butte-aux-cailles/"
+    },
+    {
+     "n": "Place Paul-Verlaine",
+     "lat": 48.82743,
+     "lng": 2.35248,
+     "t": "La piscine de briques rouges, ouverte en 1924, est classée monument historique depuis 1990. Devant elle, la fontaine est alimentée par le puits artésien qui alimentait autrefois la piscine.",
+     "s": "https://www.paris.fr/pages/plongee-dans-la-piscine-de-la-butte-aux-cailles-27903"
+    },
+    {
+     "n": "Métro Place d'Italie",
+     "lat": 48.83148,
+     "lng": 2.35569,
+     "t": "Lignes 5, 6 et 7.",
+     "m": true
+    }
+   ],
+   "trace": "{``iH_bjMDV\\xA@LHb@BBHCHA@?D?BZCxACZe@dCAHRLr@f@VP@@@A@@B@BD@A@DHDNLRFPHADADAH?@b@PhC~@^NHDADa@rCU~AGAFGBUBOBIHo@In@CHCNCTGFF@T_B`@sC@EIE_@O?C@I@I@EAE?Ez@wDR_ADE?EEEEEAHICEAC?A@E@OsB@I?CIKC??AA?ACAAA?CK?A@C@C@IFEAM@KKoACCCQ?C?IAG?EGk@SkCKwA?C?EDCHCr@QVGFCFIBO@GDFB?E}@AGKmAA?EBE@C?C?{@XEDCCEEEEACACCCAACCUMQOADCFADAFOIE?CAACGCqByAMIsB_Bw@m@KGQOa@YCECCECCA?AUQm@g@KIKIIFBNA?C@GDEDA?A@CBC@CB?EI[Ic@EMAI??Kc@A@ABI[E@E?CAEACECEAGAG?G@G@GBE@A"
+  },
+  {
+   "id": "coulee",
+   "titre": "La Coulée verte",
+   "quartier": "est",
+   "themes": [
+    "nature",
+    "histoire"
+   ],
+   "depart": "Bastille",
+   "arrivee": "Porte Dorée",
+   "m": 4617,
+   "confort": "On monte sur l'ancien viaduc par un escalier (la Ville indique aussi des ascenseurs, 34 rue de Lyon et rue Jacques-Hillairet). Plus loin, la promenade passe par des tunnels et des tranchées.",
+   "etapes": [
+    {
+     "n": "Métro Bastille",
+     "lat": 48.85308,
+     "lng": 2.36908,
+     "t": "Lignes 1, 5 et 8.",
+     "m": true
+    },
+    {
+     "n": "Coulée verte et Viaduc des Arts",
+     "lat": 48.84877,
+     "lng": 2.37279,
+     "t": "Une ancienne voie ferrée, fermée en 1969, devenue une promenade de 4,5 km. En dessous, les 71 arcades du viaduc, réhabilitées à partir de 1989, forment le Viaduc des Arts.",
+     "s": "https://www.paris.fr/lieux/coulee-verte-rene-dumont-1772"
+    },
+    {
+     "n": "Les statues du commissariat",
+     "lat": 48.84446,
+     "lng": 2.38176,
+     "t": "En face, en haut de l'immeuble du commissariat, 13 copies de l'Esclave mourant de Michel-Ange, dont l'original est au Louvre. L'immeuble a été bâti au début des années 1990.",
+     "s": "https://www.pariszigzag.fr/insolite/lieux-insolites/le-commissariat-de-police-le-plus-insolite-de-paris/"
+    },
+    {
+     "n": "Jardin de Reuilly",
+     "lat": 48.84208,
+     "lng": 2.38851,
+     "t": "La promenade le traverse sur une passerelle en bois, au-dessus d'une pelouse de 4 200 m². Jardin créé de 1992 à 1998 à la place d'une gare de marchandises.",
+     "s": "https://www.paris.fr/lieux/jardin-de-reuilly-paul-pernin-2573"
+    },
+    {
+     "n": "Jardin de la gare de Reuilly",
+     "lat": 48.84098,
+     "lng": 2.39239,
+     "t": "L'ancienne gare de voyageurs de la ligne est devenue la maison des associations du 12e, avec un jardin partagé.",
+     "s": "https://www.paris.fr/pages/terminus-jardin-apres-les-trains-de-grands-parcs-urbains-18883"
+    },
+    {
+     "n": "Square Charles-Péguy",
+     "lat": 48.83915,
+     "lng": 2.40662,
+     "t": "Le dernier des jardins de la Coulée verte, avant le bois de Vincennes.",
+     "s": "https://www.paris.fr/lieux/coulee-verte-rene-dumont-1772"
+    },
+    {
+     "n": "Palais de la Porte Dorée",
+     "lat": 48.83527,
+     "lng": 2.40936,
+     "t": "Bâti en style Art déco pour l'Exposition coloniale de 1931. Il abrite le Musée national de l'histoire de l'immigration et un aquarium tropical.",
+     "s": "https://www.visitparisregion.com/fr/musee-national-de-l-histoire-de-l-immigration-palais-de-la-porte-doree"
+    },
+    {
+     "n": "Métro Porte Dorée",
+     "lat": 48.83548,
+     "lng": 2.4061,
+     "t": "Ligne 8.",
+     "m": true
+    }
+   ],
+   "trace": "krdiHmumM@C@Ul@V`APBWBk@?GCWAQt@WAOd@WLGBAtAa@r@Wj@O~CiAXOZOr@m@BERUJKHOVc@Xq@Xs@@C@EBG?CCCIE?A\\}@L[N_@Na@l@}An@}AJYzBcGPc@Ri@v@yBBGn@_B@EJWn@eBJSl@aBtCsHdE{K@K@INa@Z}@Zw@JABCb@mAAUL[HWBEDO^{@GGn@cBn@eBFH`@eAFQF]PsANmA\\_CFe@PgAl@uE@C@KBO`@wC@C?G@G@GB@F@B?B@B@BO^qCNeAXsBDY\\mCHm@@ED]?CFc@AAE?A?EC?ECC@G@I@G?I@KAAACAC?C@E@C@A@AB?@@Hk@Ay@AE?AAu@QqGAg@Ac@Mu@BaBE??a@?_@DCJyI@c@?{@@qAB{@@k@DwBDwBBa@E]?[H]BmB?CB?@A@A@C?C?C?CAABUt@iJBOTgAH[HURg@Vi@DIHKTa@DIn@c@n@[PoBB@B?BABA@C@E@E\\FJBD@JBH@LB@C@CBAB?@@@B@B@D@?N@NDBC@C?EAY@IDC@?HCFCoAeHFCjAV`Dr@`AVF@D?D@B@BCRF?E@G?G@C?E@G?C@E?I@E@I?E??@GzAZH@DOn@kC@MNHB@@@DFJBB@|AhAVPPZHODKBM@C^E@Q\\eBIGIGMI??LHHFHF]dBAPJFDBJHDD@@@@@?@@@VBLHLELADCHER]xAK^YjAA@C?A?C@@TARMNCBCBABA@EFA@ABABCDCBGL@B@B"
   }
  ]
 }
