@@ -100,6 +100,7 @@ const ECRANS = {
   artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },
   oeuvre: async (p) => { await ECRANS.artrue(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney' }).click(); await p.waitForTimeout(400); },
+  chercherplaques: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('colette'); await p.waitForSelector('#sheet .ring-title:has-text("Plaques")'); await p.waitForTimeout(400); },
   chercherpartout: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('test'); await p.waitForTimeout(1500); await feuille(p).locator('button', { hasText: 'agenda de la semaine' }).click(); await p.waitForTimeout(1200); },
   sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   joursortie: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button', { hasText: 'Trouver une sortie' }).click(); await p.waitForTimeout(1200); },

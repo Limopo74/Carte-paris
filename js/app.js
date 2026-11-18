@@ -1,7 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busHome, searchBusStops, busPlace, busLines } from './bus.js';
-import { plaquesOf, plaquesNear, plaqueStart } from './plaques.js';
+import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -2433,7 +2433,10 @@ function openSearch(initial = '') {
       ...block('TTB', hit(ttbOpen(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
       ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
       ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
-      ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))));
+      ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))),
+      /* v198 : les plaques qui portent ce nom (mots entiers), le titre d'abord ; le fichier n'est lu qu'à la première recherche */
+      ...block('Plaques commémoratives', plaquesFor(plaquesOf(plaquesData), q, from()).map((x) => plaqueRow(x, back))));
+    if (!plaquesData && !updateMore.asked && q.replace(/\s/g, '').length >= 3) { updateMore.asked = true; loadPlaques().then((d) => { if (d) updateMore(); }); }
     toAgenda.hidden = q.replace(/\s/g, '').length < 3;
     fill(toAgenda, ico('calendar-days'), ` Chercher « ${q} » dans l'agenda de la semaine`);
     fill(agendaBox);
@@ -7483,7 +7486,7 @@ const HELP = [
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
-    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire.',
+    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, un arrondissement. La rubrique Filtres explique tout.',

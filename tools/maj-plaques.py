@@ -13,11 +13,14 @@ import json, re, sys
 SRC, TODAY = sys.argv[1], sys.argv[2]
 S, N, W, E = 48.80, 48.91, 2.22, 2.48
 SMALL = {'d', 'l', 'de', 'du', 'des', 'la', 'le', 'les', 'et', 'sur', 'sous', 'en', 'aux', 'au', 'à', "d'", "l'"}
+def quotes(v):
+    """La source double ou quadruple les guillemets (« """"Lorraine"""" ») : un seul suffit (18 nov. 2026, 71 plaques)."""
+    return re.sub(r'"{2,}', '"', str(v or ''))
 def clean(v, n):
-    return re.sub(r'\s+', ' ', str(v or '')).strip()[:n]
+    return re.sub(r'\s+', ' ', quotes(v)).strip()[:n]
 def lines(v):
     """Le texte gravé : la source marque les retours à la ligne par « / » ou « | » ; on les rend en vrais retours."""
-    t = str(v or '').replace('\r', '')
+    t = quotes(v).replace('\r', '')
     t = re.sub(r'\s*\|\s*|\s+/\s*|\s*/\s+', '\n', t)
     t = re.sub(r'/(?=[A-ZÀ-Ý])', '\n', t)          # « ISRAELITES/ET LA » : barre collée devant une majuscule
     t = '\n'.join(re.sub(r'[ \t]+', ' ', l).strip() for l in t.split('\n'))
