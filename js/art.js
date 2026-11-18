@@ -60,11 +60,14 @@ export function endText(end, now = new Date()) {
   return `Finit ${shortDate(end)}`;
 }
 
-/* ---------- 3. Galeries : liste de Paris téléchargée une fois (OpenStreetMap) ---------- */
+/* ---------- 3. Galeries : liste de tout Paris (OpenStreetMap) ---------- */
+// v170 : le téléphone ne demande plus rien à OpenStreetMap. Le robot des données (tools/maj-art.mjs) envoie ces
+// demandes une fois par mois et range la réponse dans data/galeries.json et data/oeuvres.json, lus par l'appli.
 
 const BBOX = '48.815,2.224,48.902,2.470'; // tout Paris : la même demande pour tout le monde
-export const GALLERIES_QUERY = `[out:json][timeout:30];(nwr["tourism"="gallery"](${BBOX});nwr["shop"="art"](${BBOX});nwr["amenity"="arts_centre"](${BBOX}););out center tags;`;
-export const galleriesUrl = () => `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(GALLERIES_QUERY)}`;
+export const GALLERIES_QUERY = `[out:json][timeout:180];(nwr["tourism"="gallery"](${BBOX});nwr["shop"="art"](${BBOX});nwr["amenity"="arts_centre"](${BBOX}););out center tags;`;
+/** Les étiquettes OpenStreetMap lues par `parseGalleries` (le robot ne garde qu'elles). */
+export const GALLERY_TAGS = ['name', 'opening_hours', 'amenity', 'website', 'contact:website', 'addr:housenumber', 'addr:street'];
 
 /** [{ id, name, lat, lng, hours, kind, site, address }] ; ce qui n'a ni nom ni position est écarté. */
 export function parseGalleries(json) {
@@ -426,10 +429,11 @@ export function lateTonight(date = new Date(), places = ART_PLACES, holiday = nu
 
 /* ---------- 16. Art dans la rue (v158) : statues, sculptures, installations (OpenStreetMap), liste de tout Paris ---------- */
 // Seulement des œuvres durables et nommées : les fresques, graffitis et mosaïques (Invader…) disparaissent trop souvent
-// pour être annoncées sans erreur. Liste téléchargée une fois par mois, la même pour tout le monde (aucune position envoyée).
+// pour être annoncées sans erreur. Liste rangée dans l'appli par le robot une fois par mois (data/oeuvres.json, v170).
 export const STREET_ART_TYPES = { statue: 'Statue', sculpture: 'Sculpture', bust: 'Buste', installation: 'Installation', relief: 'Bas-relief', fountain: 'Fontaine sculptée', stone: 'Pierre sculptée' };
-export const STREET_ART_QUERY = `[out:json][timeout:60];nwr["tourism"="artwork"]["name"]["artwork_type"~"^(${Object.keys(STREET_ART_TYPES).join('|')})$"](${BBOX});out center tags;`;
-export const streetArtUrl = () => `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(STREET_ART_QUERY)}`;
+export const STREET_ART_QUERY = `[out:json][timeout:180];nwr["tourism"="artwork"]["name"]["artwork_type"~"^(${Object.keys(STREET_ART_TYPES).join('|')})$"](${BBOX});out center tags;`;
+/** Les étiquettes OpenStreetMap lues par `parseStreetArt` (le robot ne garde qu'elles). */
+export const STREET_ART_TAGS = ['name', 'artwork_type', 'artist_name', 'start_date', 'wikipedia'];
 
 /** [{ id, name, lat, lng, type, artist, year, wiki }] ; sans nom, sans position ou d'un autre type : écarté. */
 export function parseStreetArt(json) {

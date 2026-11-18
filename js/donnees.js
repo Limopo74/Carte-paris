@@ -43,6 +43,8 @@ export const FIXED_DATA = [
   { id: 'arrondissements', name: 'Contours des arrondissements (Mon Paris)', every: 45, robot: true, lazy: true }, // date connue une fois le fichier lu
   { id: 'bus', name: 'Arrêts de bus et leurs lignes (Rentrer)', every: 45, robot: true, lazy: true }, // v148 ; date connue une fois le fichier lu
   { id: 'plaques', name: 'Plaques commémoratives (Curiosités)', every: 45, robot: true, lazy: true }, // v159 ; Ville de Paris, licence ODbL
+  { id: 'oeuvres', name: 'Œuvres dans la rue (Art dans la rue)', every: 45, robot: true, lazy: true }, // v170 ; OpenStreetMap, licence ODbL
+  { id: 'galeries', name: 'Galeries d\'art (Expos, Parcours des galeries)', every: 45, robot: true, lazy: true }, // v170 ; OpenStreetMap, licence ODbL
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre

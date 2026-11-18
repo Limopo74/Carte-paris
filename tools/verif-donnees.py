@@ -17,8 +17,11 @@ FILES = {  # fichier : (clé de la liste, minimum absolu)
     'data/bus.json': ('stops', 1500),          # v148 : Paris et petite couronne (plusieurs milliers attendus)
     'data/plaques.json': ('items', 2000),      # v159 : plaques commémoratives de la Ville (2 619 en novembre 2026)
 }
+# v170 : listes d'OpenStreetMap, vides tant que le robot n'a jamais réussi à les obtenir (tools/maj-art.mjs garde
+# l'ancienne liste quand le serveur ne répond pas) : vides avant et après = pas encore là, ce n'est pas un échec.
+OPTIONAL = {'data/oeuvres.json': ('elements', 100), 'data/galeries.json': ('elements', 100)}
 ok = True
-for path, (key, floor) in FILES.items():
+for path, (key, floor) in {**FILES, **OPTIONAL}.items():
     try:
         new = json.load(open(path, encoding='utf8'))
         n = len(new[key])
@@ -29,7 +32,9 @@ for path, (key, floor) in FILES.items():
         old = len(json.load(open(old_path, encoding='utf8'))[key])
     except Exception:  # noqa: BLE001
         old = 0
-    if n < floor:
+    if path in OPTIONAL and n == 0 and old == 0:
+        print(f'ok {path} : encore vide (OpenStreetMap n\'a pas encore répondu au robot)')
+    elif n < floor:
         print(f'ÉCHEC {path} : {n} éléments (au moins {floor} attendus)'); ok = False
     elif old and n < old * 0.8:
         print(f'ÉCHEC {path} : {n} éléments contre {old} avant (perte de plus de 20 %)'); ok = False

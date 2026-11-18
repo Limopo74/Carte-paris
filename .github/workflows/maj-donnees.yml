@@ -1,5 +1,6 @@
 # Robot de mise à jour des données figées : lignes et gares (IDFM), avantages Navigo (IDFM), toilettes RATP,
-# contours des arrondissements (Paris Data, pour Mon Paris), arrêts de bus et leurs lignes (IDFM, pour Rentrer).
+# contours des arrondissements (Paris Data, pour Mon Paris), arrêts de bus et leurs lignes (IDFM, pour Rentrer),
+# plaques commémoratives (Paris Data), œuvres dans la rue et galeries (OpenStreetMap, v170).
 # Tourne seul le 1er de chaque mois, ou à la demande (« Run workflow »). Il télécharge les exports officiels,
 # relance les scripts de tools/, contrôle les données et les tests, et publie seulement si tout passe.
 # Rien ne concerne le téléphone ni la position : il ne lit que des données publiques.
@@ -32,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
-          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json /tmp/avant/
+          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json /tmp/avant/
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
           PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
@@ -51,6 +52,23 @@ jobs:
           python3 -I -c "import json,sys; print(sys.argv[1], len(json.load(open(sys.argv[1],encoding='utf8'))), 'couples arrêt-ligne')" /tmp/src/bus.json
           for f in /tmp/src/*.geojson; do python3 -I -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf8')); print(sys.argv[1], len(d['features']), 'éléments')" "$f"; done
 
+      - name: Demander les œuvres et les galeries à OpenStreetMap
+        # Jamais bloquant : si aucun serveur ne répond, tools/maj-art.mjs garde les listes d'avant.
+        run: |
+          set -u
+          node tools/maj-art.mjs demandes /tmp/src
+          UA='Carte-paris, robot mensuel (https://github.com/Limopo74/Carte-paris)'
+          for k in oeuvres galeries; do
+            for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+              if curl -fsS --compressed --max-time 240 -A "$UA" --data-urlencode "data@/tmp/src/q-$k.txt" -o "/tmp/src/$k.json" "$server"; then
+                echo "$k : $(wc -c < "/tmp/src/$k.json") octets depuis $server"; break
+              fi
+              echo "$k : $server ne répond pas"; rm -f "/tmp/src/$k.json"; sleep 30
+            done
+            sleep 10
+          done
+          exit 0
+
       - name: Refaire les données
         run: |
           set -euo pipefail
@@ -61,6 +79,7 @@ jobs:
           python3 -I tools/maj-arrondissements.py /tmp/src/arrondissements.geojson "$TODAY"
           python3 -I tools/maj-bus.py /tmp/src/bus.json "$TODAY"
           python3 -I tools/maj-plaques.py /tmp/src/plaques.geojson "$TODAY"
+          node tools/maj-art.mjs /tmp/src/oeuvres.json /tmp/src/galeries.json "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
         run: |
@@ -72,8 +91,8 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json
+          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json
           if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
           git diff --cached --stat
-          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques (robot)"
+          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries (robot)"
           git push

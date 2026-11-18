@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isExpo, lastChance, endText, parseGalleries, galleriesNear, galleriesUrl, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith, findArtPlaces,
+  isExpo, lastChance, endText, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, KIOSQUES, ART_PLACES, artPlaceOf, artPlacesWith, findArtPlaces,
   highlightsSoon, highlightText, listsStale, pickQuarter, quarterSearchUrl, extractUrl, readExtract, leaveAt, ticketToday, HIGHLIGHTS, spotHours, spotRank, FREE_PLACES,
 } from '../js/art.js';
 
@@ -44,8 +44,6 @@ test('galeries : lecture OpenStreetMap, ouvertes d\'abord', () => {
   assert.equal(list[2].kind, 'Centre d\'art');
   const near = galleriesNear(list, { lat: 48.86, lng: 2.36 }, now);
   assert.deepEqual(near.map((g) => g.name), ['Galerie Ouverte', 'Centre sans horaires', 'Galerie Fermée']);
-  assert.match(galleriesUrl(), /^https:\/\/overpass-api\.de\/api\/interpreter\?data=/);
-  assert.ok(!/48\.86\d/.test(decodeURIComponent(galleriesUrl())), 'la position n\'est pas dans la demande');
 });
 
 test('gratuit aujourd\'hui : toujours, 1er dimanche, 1er vendredi soir hors été', () => {

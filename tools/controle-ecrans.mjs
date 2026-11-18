@@ -92,6 +92,7 @@ const ECRANS = {
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
+  donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
   artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },
   oeuvre: async (p) => { await ECRANS.artrue(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney' }).click(); await p.waitForTimeout(400); },
@@ -187,7 +188,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/velib-disponibilite/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(VELIB) }));
   await page.route(/fontaines-a-boire/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FONTAINES) }));
   await page.route(/sanisettesparis/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SANISETTES) }));
-  await page.route(/overpass/, (r) => (decodeURIComponent(r.request().url()).includes('artwork') ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ART_RUE) }) : r.abort()));
+  await page.route(/data\/oeuvres\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'OpenStreetMap', updated: '2026-11-18', ...ART_RUE }) })); // v170 : liste rangée dans l'appli
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie

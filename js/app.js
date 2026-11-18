@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (174)';
+const VERSION = '18 novembre 2026 (175)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -135,7 +135,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -1550,10 +1550,11 @@ function starPicker(value, onPick) {
 }
 
 /** Champ « Artiste » (v161) : les noms déjà connus (mes lieux, Mes artistes) sont proposés pendant la saisie. */
-/** Les noms d'artistes que l'appli connaît sans rien demander : mes lieux, Mes artistes, et Art dans la rue si sa liste est déjà gardée. */
+/** Les noms d'artistes que l'appli connaît sans rien demander : mes lieux, Mes artistes, et Art dans la rue (liste rangée dans l'appli). */
 function artistNames() {
-  let rue = streetArt;
-  if (!rue) { try { rue = JSON.parse(storage.getItem(ART_KEY) ?? 'null')?.items ?? []; } catch { rue = []; } }
+  // v175 : la liste d'Art dans la rue est un fichier de l'appli ; lue en arrière-plan, ses noms servent dès l'appui suivant
+  if (!streetArt) loadStreetArt().catch(() => {});
+  const rue = streetArt ?? [];
   return [...knownArtists(state.points, state.artists), ...(Array.isArray(rue) ? rue.map((a) => a?.artist).filter((x) => typeof x === 'string') : [])];
 }
 /**
@@ -3542,26 +3543,41 @@ const metroBtn = (t, back) => el('button', { type: 'button', class: 'go-compass 
 el('b', { class: 'm-badge', 'aria-hidden': 'true' }));
 const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: nameOf(t), lat: t.lat, lng: t.lng }), 'aria-label': `Boussole vers ${nameOf(t)}` }, ico('compass'));
 
-/* Galeries d'art (OpenStreetMap) : la liste de tout Paris, téléchargée une fois par mois, triée sur le téléphone. */
-const GAL_KEY = 'carte-paris.galeries';
+/* Galeries d'art et œuvres dans la rue (OpenStreetMap) : listes de tout Paris rangées dans l'appli par le robot des données
+   une fois par mois (data/galeries.json, data/oeuvres.json, v170). Le téléphone ne demande plus rien à OpenStreetMap. */
+let artCacheGone = false;
+const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
+/** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]);
+/** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
+function dropOldArtCache() {
+  if (artCacheGone) return;
+  artCacheGone = true;
+  try { storage.removeItem('carte-paris.galeries'); storage.removeItem('carte-paris.art-rue'); } catch { /* rien */ }
+}
+/** Lit une liste de l'appli : { items, updated, time } ; erreur « vide » si le robot ne l'a pas encore remplie. */
+async function readArtFile(read, parse) {
+  dropOldArtCache();
+  const r = await read();
+  if (!r.ok) throw new Error(String(r.status));
+  const json = await r.json();
+  const items = parse(json);
+  if (!items.length) throw new Error('vide');
+  const updated = /^\d{4}-\d{2}-\d{2}$/.test(json?.updated ?? '') ? json.updated : '';
+  return { items, updated, time: Date.parse(updated) || 0 };
+}
+/** Le message quand une liste manque : pas encore remplie par le robot, ou illisible. */
+const artFileWarn = (what, e) => (e?.message === 'vide'
+  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Appli → Données de l'appli).`
+  : `La liste ${what} n'a pas pu être lue. Réessaie plus tard.`);
 let galleries = null;
 let galleriesTime = 0;
+let galleriesUpdated = '';
 let galleriesLoading = null;
 function loadGalleries(force = false) {
   if (galleries && !force) return Promise.resolve(galleries);
-  if (!force) {
-    try { const c = JSON.parse(storage.getItem(GAL_KEY) ?? 'null'); if (c?.items?.length && Date.now() - c.time < 30 * 864e5) { galleries = c.items; galleriesTime = c.time; return Promise.resolve(galleries); } } catch { /* rien */ }
-  }
-  if (galleriesLoading) return galleriesLoading;
-  galleriesLoading = net(galleriesUrl()).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-    .then((json) => {
-      const items = parseGalleries(json);
-      if (!items.length) throw new Error('vide');
-      galleries = items; galleriesTime = Date.now();
-      try { storage.setItem(GAL_KEY, JSON.stringify({ time: galleriesTime, items })); } catch { /* trop gros */ }
-      return galleries;
-    })
-    .catch((e) => { try { const c = JSON.parse(storage.getItem(GAL_KEY) ?? 'null'); if (c?.items?.length) { galleries = c.items; galleriesTime = c.time; return galleries; } } catch { /* rien */ } throw e; })
+  galleriesLoading ??= readArtFile(() => fetch('data/galeries.json'), parseGalleries)
+    .then(({ items, updated, time }) => { galleries = items; galleriesUpdated = updated; galleriesTime = time; return galleries; })
     .finally(() => { galleriesLoading = null; });
   return galleriesLoading;
 }
@@ -4205,14 +4221,14 @@ async function openEvents(start = null) {
     const expos = all.filter((e) => isExpo(e) && !lastIds.has(e)).slice(0, 15);
     const galBox = el('div', { class: 'stack' });
     const drawGal = () => {
-      if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Chargement de la liste des galeries de Paris (une fois par mois)…')); return; }
+      if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Lecture de la liste des galeries de Paris…')); return; }
       const g = galleriesNear(galleries, o).slice(0, 15);
       fill(galBox, ...section('galeries', 'Galeries à moins de 1,5 km', g.map((x) => galleryRow(x, back)), 'Toutes les galeries'),
         g.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => openGalleryWalk(openEvents) }, 'Parcours des galeries ouvertes', ico('chevron-right')) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'));
     };
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
-      .catch(() => fill(galBox, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.')));
+      .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e))));
     else onMap(galleriesNear(galleries, o).slice(0, 15), (g) => openGalleryCard(g));
     onMap([...last, ...expos], (e) => openEventPage(e, back));
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
@@ -4365,25 +4381,16 @@ function showPeek({ kicker, label, items, icon, open, off = () => false, back, f
   map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
-/* Art dans la rue (v158) : statues, sculptures, installations nommées (OpenStreetMap), liste de tout Paris gardée un mois. */
-const ART_KEY = 'carte-paris.art-rue';
+/* Art dans la rue (v158) : statues, sculptures, installations nommées (OpenStreetMap) ; liste de tout Paris rangée
+   dans l'appli par le robot (data/oeuvres.json, v170). */
 let streetArt = null;
 let streetArtTime = 0;
+let streetArtUpdated = '';
 let streetArtLoading = null;
 function loadStreetArt(force = false) {
   if (streetArt && !force) return Promise.resolve(streetArt);
-  const cached = () => { try { const c = JSON.parse(storage.getItem(ART_KEY) ?? 'null'); return c?.items?.length ? c : null; } catch { return null; } };
-  const c0 = force ? null : cached();
-  if (c0 && Date.now() - c0.time < 30 * 864e5) { streetArt = c0.items; streetArtTime = c0.time; return Promise.resolve(streetArt); }
-  streetArtLoading ??= net(streetArtUrl()).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-    .then((json) => {
-      const items = parseStreetArt(json);
-      if (!items.length) throw new Error('vide');
-      streetArt = items; streetArtTime = Date.now();
-      try { storage.setItem(ART_KEY, JSON.stringify({ time: streetArtTime, items })); } catch { /* trop gros */ }
-      return streetArt;
-    })
-    .catch((e) => { const c = cached(); if (c) { streetArt = c.items; streetArtTime = c.time; return streetArt; } throw e; })
+  streetArtLoading ??= readArtFile(() => fetch('data/oeuvres.json'), parseStreetArt)
+    .then(({ items, updated, time }) => { streetArt = items; streetArtUpdated = updated; streetArtTime = time; return streetArt; })
     .finally(() => { streetArtLoading = null; });
   return streetArtLoading;
 }
@@ -4400,9 +4407,9 @@ async function openStreetArt() {
   const o = evFrom ?? origin;
   if (!o) { openNear(); return; }
   if (!streetArt) {
-    openSheet(title, el('p', { class: 'help' }, 'Chargement de la liste des œuvres de Paris (une fois par mois)…'), { name: 'art-rue' });
-    try { await loadStreetArt(); } catch {
-      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'La liste des œuvres (OpenStreetMap) ne répond pas. Réessaie plus tard.'), backExpos), { name: 'art-rue' });
+    openSheet(title, el('p', { class: 'help' }, 'Lecture de la liste des œuvres de Paris…'), { name: 'art-rue' });
+    try { await loadStreetArt(); } catch (e) {
+      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, artFileWarn('des œuvres', e)), backExpos), { name: 'art-rue' });
       return;
     }
   }
@@ -4414,7 +4421,7 @@ async function openStreetArt() {
       open: (x) => openStreetArtCard(x, back), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
     near.length ? el('ul', { class: 'items ev-list' }, near.map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d,
       tags: [a.mine ? el('span', { class: 'tag open' }, 'Tes artistes') : null] }))) : null,
-    el('p', { class: 'help' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris${streetArtTime ? ` du ${new Date(streetArtTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}, ta position n'est pas envoyée). Les fresques, graffitis et mosaïques ne sont pas montrés : ils disparaissent trop souvent. La liste n'est pas complète.`),
+    el('p', { class: 'help' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris rangée dans l'appli${streetArtUpdated ? ` le ${frenchDate(streetArtUpdated)}` : ''}, rien n'est envoyé). Les fresques, graffitis et mosaïques ne sont pas montrés : ils disparaissent trop souvent. La liste n'est pas complète.`),
     backExpos,
   ), { tall: true, name: 'art-rue', again: openStreetArt });
 }
@@ -4436,8 +4443,8 @@ async function openGalleryWalk(from = null) {
   if (!origin0) { openNear(); return; }
   if (!galleries) {
     openSheet([ico('palette'), ' Parcours galeries'], el('p', { class: 'help' }, 'Chargement de la liste des galeries…'), { name: 'galwalk' });
-    try { await loadGalleries(); } catch {
-      openSheet([ico('palette'), ' Parcours galeries'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'La liste des galeries (OpenStreetMap) ne répond pas. Réessaie plus tard.'), foot(el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire'))), { name: 'galwalk' });
+    try { await loadGalleries(); } catch (e) {
+      openSheet([ico('palette'), ' Parcours galeries'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, artFileWarn('des galeries', e)), foot(el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire'))), { name: 'galwalk' });
       return;
     }
   }
@@ -6029,6 +6036,8 @@ function openSettings(section = null) {
 
   if (section === 'transports') section = 'donnee:lignes'; // ancien nom
   if (section === 'donnees') {
+    // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore »)
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
     const live = (kind) => { try { return JSON.parse(storage.getItem(`${PRATIQUE_KEY}.${kind}`) ?? 'null')?.time ?? 0; } catch { return 0; } };
@@ -6044,8 +6053,8 @@ function openSettings(section = null) {
       el('h3', { class: 'ring-title' }, el('span', {}, 'Mises à jour par le robot, chaque 1er du mois'), el('span', {}, '')),
       el('div', { class: 'menu' }, FIXED_DATA.filter((d) => d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, d.name),
-          el('span', { class: 'menu-sub' }, `${frenchDate(dates[d.id]) || 'date inconnue'} · ${everyText(d.every)}`)),
-        el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
+          el('span', { class: 'menu-sub' }, `${frenchDate(dates[d.id]) || (artNotYet(d.id, dates) ? 'pas encore dans l\'appli' : 'date inconnue')} · ${everyText(d.every)}`)),
+        artNotYet(d.id, dates) ? el('span', { class: 'tag' }, 'Pas encore') : el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
       el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
       el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('download'), 'Mettre à jour l\'appli (après le robot)'),
@@ -6066,7 +6075,6 @@ function openSettings(section = null) {
         autoRow('Agenda « Que faire à Paris ? » (sorties, photos, grands lieux)', `Chaque jour · ${eventsCache ? 'aujourd\'hui' : 'à l\'ouverture de Sorties'}`, 'que-faire-a-paris-'),
         autoRow('Marchés découverts', `Tous les 7 jours · ${when(marketsTime)}`, 'marches-decouverts'),
         autoRow('Vélib\'', 'En temps réel, quand tu le demandes', 'velib-disponibilite-en-temps-reel'),
-        autoRow('Galeries (OpenStreetMap)', `Tous les 30 jours · ${when(galleriesTime)}`),
         autoRow('Monuments historiques (Wikidata)', `Tous les 30 jours · ${when((() => { try { return JSON.parse(localStorage.getItem(HIST_KEY) ?? 'null')?.t ?? 0; } catch { return 0; } })())}`),
         autoRow('Curiosités (Wikipédia)', 'En direct, position arrondie à 100 m ; les plaques sont dans l\'appli'),
         autoRow('Annuaire et adresses (OpenStreetMap, IGN)', 'En direct, quand tu cherches ou ajoutes un lieu'),
@@ -6087,8 +6095,17 @@ function openSettings(section = null) {
     // Fichiers lus à part : on les lit pour connaître leur date, puis la page se rouvre
     if (id === 'plaques' && !plaquesData) { loadPlaques().then(() => openSettings(section)); return; }
     if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
+    // Œuvres et galeries : lues une fois pour connaître leur date (une liste encore vide ne relance pas la lecture)
+    if (id === 'oeuvres' && !streetArt && !artFilesRead.has(id)) { artFilesRead.add(id); loadStreetArt().catch(() => {}).finally(() => openSettings(section)); return; }
+    if (id === 'galeries' && !galleries && !artFilesRead.has(id)) { artFilesRead.add(id); loadGalleries().catch(() => {}).finally(() => openSettings(section)); return; }
     const date = dataDates()[id];
-    const late = dataDue({ [id]: date }).includes(id);
+    const notYet = artNotYet(id, dataDates());
+    // Œuvres et galeries (v170) : à quoi sert la liste et combien elle en compte, en tête de page
+    const about = {
+      oeuvres: () => `Sert à Art dans la rue : statues, sculptures et installations nommées de tout Paris, d'après OpenStreetMap (licence ODbL).${streetArt?.length ? ` ${plural(streetArt.length, 'œuvre', 'œuvres')} dans l'appli.` : ''}`,
+      galeries: () => `Sert aux galeries de Sorties → Expos et au Parcours des galeries : galeries et centres d'art de tout Paris, avec leurs horaires quand ils sont connus, d'après OpenStreetMap (licence ODbL).${galleries?.length ? ` ${plural(galleries.length, 'galerie', 'galeries')} dans l'appli.` : ''}`,
+    }[id];
+    const late = !notYet && dataDue({ [id]: date }).includes(id);
     const link = (f) => el('a', { class: 'menu-row c-metro', href: f.url, target: '_blank', rel: 'noopener' },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.xlsx') ? 'Excel' : f.file.endsWith('.json') ? 'JSON' : 'GeoJSON'} · fichier « ${f.file} »`)),
@@ -6135,6 +6152,10 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, 'Sert à Curiosités : les plaques commémoratives posées par la Ville de Paris, avec leur texte gravé. Tri sur ton téléphone. Direction des Affaires Culturelles, licence ODbL.'),
         el('div', { class: 'menu' }, link(PLAQUES_FILE)),
         say('Mets à jour les plaques commémoratives', 'tools/maj-plaques.py')],
+      oeuvres: () => [
+        el('p', { class: 'help' }, 'Le serveur d\'OpenStreetMap n\'a sans doute pas répondu ce jour-là : la liste d\'avant reste dans l\'appli. Relance le robot un autre jour. Rien à faire à la main.')],
+      galeries: () => [
+        el('p', { class: 'help' }, 'Le serveur d\'OpenStreetMap n\'a sans doute pas répondu ce jour-là : la liste d\'avant reste dans l\'appli. Relance le robot un autre jour. Rien à faire à la main.')],
       marches: () => [
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
@@ -6146,7 +6167,8 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openArtPlaces('', named(d.name, () => openSettings(section))) }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Grands lieux'), el('span', { class: 'menu-sub' }, 'Chaque lieu a le lien de son programme officiel')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))],
     }[id]();
     openSheet([ico('database'), ` ${d.name}`], el('div', { class: 'stack' },
-      el('p', { class: late ? 'warn' : 'help' }, `${date ? `Version du ${frenchDate(date)}` : 'Date inconnue'}.${late ? ' À mettre à jour.' : ''}`),
+      el('p', { class: late ? 'warn' : 'help' }, notYet ? 'Pas encore dans l\'appli : le robot ne l\'a pas encore obtenue.' : `${date ? `Version du ${frenchDate(date)}` : 'Date inconnue'}.${late ? ' À mettre à jour.' : ''}`),
+      about ? el('p', { class: 'help' }, about()) : null,
       ...robot,
       ...body,
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('donnees') }, '← Données de l\'appli')), // (backBtn est masqué dans openSettings)
@@ -6176,7 +6198,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la liste des galeries d\'art (OpenStreetMap, tout Paris, sans ta position), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Avis Google et Uber ne reçoivent que le lieu choisi, et seulement quand tu appuies sur leur lien. Pour Mon Paris, la position de tes lieux sans code postal est envoyée une fois à l\'IGN pour trouver leur arrondissement. Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -6957,7 +6979,7 @@ const HELP = [
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. Horaires habituels, vérifiés sur leurs sites ; rien un jour férié.',
     '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris.',
-    '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap). Pas de fresques : elles disparaissent trop vite.',
+    '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
     '**Dernière chance** : les expos qui ferment dans moins de 7 jours.',
@@ -7108,7 +7130,7 @@ const HELP = [
     '**Dans Messages ou WhatsApp**, désactive « Ouvrir les liens dans l\'appli » s\'il existe. Les noms varient selon les téléphones.',
     '**Style Épuré vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
     '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Voix.',
-    '**Vélib\', Curiosités, galeries ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, elles, sont dans l\'appli.',
+    '**Vélib\', Curiosités ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, les galeries et Art dans la rue, eux, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
     '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
@@ -7119,6 +7141,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
@@ -7128,7 +7151,6 @@ const HELP = [
     '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
     '{signpost} Circuits de visite : des balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
     '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
-    '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
   ]],
 ];
 
