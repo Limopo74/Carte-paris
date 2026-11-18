@@ -22,5 +22,19 @@ export function exitFor(acces, station, place) {
     const d = distanceM(place, a);
     if (!best || d < best.d) best = { a, d };
   }
-  return best ? { label: `Sortie ${best.a.s}, ${best.a.n}`, d: best.d } : null;
+  if (!best) return null;
+  const label = exitLabel(best.a);
+  return label ? { label, d: best.d } : null;
+}
+
+// Noms qui ne disent rien de la rue (« Entrée / Sortie ») et numéro 0 (accès sans numéro sur place, v202) :
+// on ne les affiche pas, et sans nom ni numéro la sortie la plus proche n'est pas dite du tout.
+const GENERIC = /^(entr[ée]e|sortie|acc[eè]s)(\s*\/\s*(entr[ée]e|sortie))?$/i;
+
+/** « Sortie 7, pl. de la Bastille », « Sortie, place des Abbesses », « Sortie 3 », ou '' si rien d'utile. */
+export function exitLabel(a) {
+  const num = a.s && a.s !== '0' ? a.s : '';
+  const name = GENERIC.test(a.n.trim()) ? '' : a.n;
+  if (!num && !name) return '';
+  return num ? (name ? `Sortie ${num}, ${name}` : `Sortie ${num}`) : `Sortie, ${name}`;
 }

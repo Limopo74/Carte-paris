@@ -40,3 +40,14 @@ test('une expo prévue garde sa date de fin et « pas allé »', () => {
   const [q] = cleanPlans([{ id: 'a2', name: 'Expo', lat: 48.86, lng: 2.35, plan: true, until: 'demain', missed: 'oui', ticket: { at: now } }], now);
   assert.equal('until' in q, false); assert.equal('missed' in q, false);
 });
+
+test('sortie de métro : ni numéro 0 ni nom vide de sens (v202)', async () => {
+  const { exitLabel, exitFor } = await import('../js/acces.js');
+  assert.equal(exitLabel({ n: 'bd de Clichy', s: '1' }), 'Sortie 1, bd de Clichy');
+  assert.equal(exitLabel({ n: 'Place des Abbesses', s: '0' }), 'Sortie, Place des Abbesses');
+  assert.equal(exitLabel({ n: 'Entrée / Sortie', s: '2' }), 'Sortie 2');
+  assert.equal(exitLabel({ n: 'Entrée / Sortie', s: '0' }), '');
+  assert.equal(exitLabel({ n: 'Sortie', s: '0' }), '');
+  const st = { lat: 48.8, lng: 2.3 };
+  assert.equal(exitFor([{ n: 'Entrée', s: '0', lat: 48.8, lng: 2.3 }], st, st), null);
+});

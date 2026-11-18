@@ -47,7 +47,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (203)';
+const VERSION = '18 novembre 2026 (204)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -8058,6 +8058,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
     '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
     '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
     '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Changer l\'ordre »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
@@ -8067,7 +8068,6 @@ const HELP = [
     '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
     '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
     '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
-    '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
   ]],
 ];
 
