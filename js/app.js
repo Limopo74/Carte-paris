@@ -15,11 +15,12 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
+import { voieOrigin } from './voies.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
@@ -138,7 +139,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -3257,6 +3258,9 @@ let arrUpdated = '';
 /** Contours des secteurs « Paris Respire » (data/respire.json, robot ; v197) : lus à la demande. */
 let respireData = null;
 const loadRespire = async () => (respireData ??= await fetch('data/respire.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
+/** Origine du nom des voies (data/voies.json, robot ; v198) : lue à la demande par « Où suis-je ? ». */
+let voiesData = null;
+const loadVoies = async () => (voiesData ??= await fetch('data/voies.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 let plaquesData = null;
 const loadPlaques = async () => (plaquesData ??= await fetch('data/plaques.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 let busData = null;
@@ -3735,12 +3739,14 @@ async function openWhereAmI() {
   const body = el('div', { class: 'stack' });
   const addr = el('p', { class: 'where-big' }, 'Recherche de l\'adresse…');
   const arrLine = el('p', { class: 'help' }, '');
+  const origLine = el('p', { class: 'help', hidden: true }, ''); /* v198 : l'origine du nom de la rue, quand la Ville la donne */
   const quarter = el('div', { class: 'quarter', 'aria-live': 'polite' }, el('p', { class: 'help' }, 'Le quartier : recherche dans Wikipédia…'));
   const coords = `${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`;
   let addrText = '';
   fill(body,
     el('div', { class: 'copy-row' }, addr, copyBtn(() => addrText || coords, 'l\'adresse', () => (addrText ? 'Adresse copiée' : 'Adresse inconnue : coordonnées copiées'))),
     arrLine,
+    origLine,
     near ? el('p', { class: 'badge' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
     el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${coords}`), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
@@ -3771,6 +3777,7 @@ async function openWhereAmI() {
     addr.textContent = r?.label ?? 'Adresse introuvable';
     addrText = r?.label ?? '';
     arrLine.textContent = a ? `${a === 1 ? '1er' : `${a}e`} arrondissement` : '';
+    if (r?.street) loadVoies().then((d) => { const o = voieOrigin(d, r.street); if (o) { fill(origLine, el('b', {}, `${r.street} : `), o); origLine.hidden = false; } });
   } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
 }
 
@@ -3793,7 +3800,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -6374,7 +6381,7 @@ function openSettings(section = null) {
   if (section === 'donnees') {
     // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore ») ;
     // arrêts de bus et plaques aussi (v187) : sans eux, leur date restait inconnue et la ligne disait « À jour » à tort
-    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire()]).finally(() => openSettings(section)); return; }
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire(), loadVoies()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
     // Date inconnue (fichier illisible, hors réseau et jamais gardé) : ni « À jour » ni « En retard » (v187 : pas d'info plutôt qu'une info fausse)
@@ -6495,6 +6502,10 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, 'Sert à Curiosités : les plaques commémoratives posées par la Ville de Paris, avec leur texte gravé. Tri sur ton téléphone. Direction des Affaires Culturelles, licence ODbL.'),
         el('div', { class: 'menu' }, link(PLAQUES_FILE)),
         say('Mets à jour les plaques commémoratives', 'tools/maj-plaques.py')],
+      voies: () => [
+        el('p', { class: 'help' }, 'Sert à « Où suis-je ? » : une phrase sur l\'origine du nom de la rue où tu es. Seuls le nom de la voie et cette phrase sont gardés. Direction de l\'Urbanisme, licence ODbL.'),
+        el('div', { class: 'menu' }, link(VOIES_FILE)),
+        say('Mets à jour l\'origine du nom des voies', 'tools/maj-voies.py')],
       respire: () => [
         el('p', { class: 'help' }, `Sert à « Rues sans voitures » : les contours des secteurs Paris Respire. Les jours et les heures ne viennent pas de ce fichier (il les donne en codes) : ils sont tenus à la main d'après ${RESPIRE_PAGE}, lus le ${RESPIRE_CHECKED}. Tri sur ton téléphone. Direction de la Voirie et des Déplacements, licence ODbL.`),
         el('div', { class: 'menu' }, link(RESPIRE_FILE)),
@@ -7548,7 +7559,7 @@ const HELP = [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Cercles.',
-    '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, la station la plus proche et le quartier en 3 lignes.',
+    '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite.',

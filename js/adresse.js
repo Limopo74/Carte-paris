@@ -29,7 +29,9 @@ export function parseFeatures(json) {
     if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const type = typeof f.properties.type === 'string' ? f.properties.type : 'housenumber';
     const citycode = f.properties.citycode;
-    out.push({ label, lat, lng, type, ...(typeof citycode === 'string' ? { citycode } : {}) });
+    // Le nom de la rue seule (v198) : champ street d'une adresse, name d'un résultat de type « rue »
+    const street = typeof f.properties.street === 'string' ? f.properties.street : type === 'street' && typeof f.properties.name === 'string' ? f.properties.name : '';
+    out.push({ label, lat, lng, type, ...(typeof citycode === 'string' ? { citycode } : {}), ...(street ? { street } : {}) });
   }
   return out;
 }

@@ -25,6 +25,8 @@ export const MERIMEE_FILES = [
 export const BUS_FILE = { name: 'Arrêts et lignes associées', file: 'arrets-lignes.json', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/arrets-lignes/export/' };
 /** Plaques commémoratives (data/plaques.json, refait par le robot avec tools/maj-plaques.py, v159). */
 export const PLAQUES_FILE = { name: 'Plaques commémoratives', file: 'plaques_commemoratives.geojson', url: 'https://opendata.paris.fr/explore/dataset/plaques_commemoratives/export/' };
+/** Origine du nom des voies (data/voies.json, refait par le robot avec tools/maj-voies.py, v198). */
+export const VOIES_FILE = { name: 'Dénominations des emprises des voies actuelles', file: 'denominations-emprises-voies-actuelles.json', url: 'https://opendata.paris.fr/explore/dataset/denominations-emprises-voies-actuelles/export/' };
 /** Contours des secteurs « Paris Respire » (data/respire.json, refait par le robot avec tools/maj-respire.py, v197). */
 export const RESPIRE_FILE = { name: 'Paris Respire – Secteurs', file: 'secteurs-paris-respire.geojson', url: 'https://opendata.paris.fr/explore/dataset/secteurs-paris-respire/export/' };
 /** Contours des arrondissements (data/arrondissements.json, refait par le robot avec tools/maj-arrondissements.py). */
@@ -48,6 +50,7 @@ export const FIXED_DATA = [
   { id: 'oeuvres', name: 'Œuvres dans la rue (Art dans la rue)', every: 45, robot: true, lazy: true }, // v170 ; OpenStreetMap, licence ODbL
   { id: 'galeries', name: 'Galeries d\'art (Expos, Parcours des galeries)', every: 45, robot: true, lazy: true }, // v170 ; OpenStreetMap, licence ODbL
   { id: 'respire', name: 'Rues sans voitures (Paris Respire)', every: 45, robot: true, lazy: true }, // v197 ; contours seulement, Ville de Paris, licence ODbL
+  { id: 'voies', name: 'Origine du nom des rues (Où suis-je ?)', every: 45, robot: true, lazy: true }, // v198 ; Ville de Paris, licence ODbL
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre

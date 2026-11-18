@@ -8,7 +8,7 @@ const FRESH = 7 * 864e5; // une tuile de moins de 7 jours n'est pas redemandée
 const FILES = [
   './', 'index.html', 'css/style.css', 'js/app.js', 'js/geo.js', 'js/store.js', 'js/adresse.js', 'js/search.js', 'js/annuaire.js', 'js/stats.js', 'js/move.js', 'js/share.js', 'js/pratique.js', 'js/hours.js', 'js/holidays.js', 'js/journal.js', 'js/metroplan.js', 'js/photos.js', 'js/icons.js', 'js/explore.js', 'js/events.js', 'js/markets.js', 'js/art.js', 'js/planning.js', 'js/passage.js', 'js/plaques.js', 'vendor/qrcode.mjs', 'vendor/fonts/archivo-wdth.woff2', 'vendor/fonts/inter-latin-wght.woff2',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'data/stations.json', 'data/lignes.json', 'data/sanitaires-ratp.json', 'js/donnees.js', 'data/navigo.json', 'js/navigo.js', 'data/merimee.json', 'js/ttb.js', 'data/arrondissements.json', 'js/calques.js', 'js/bus.js', 'js/soleil.js', 'js/respire.js', 'js/circuits.js', 'js/passages.js', 'js/groupes.js', 'data/circuits.json', 'data/passages.json', 'data/oeuvres.json', 'data/galeries.json',
+  'icons/icon-192.png', 'icons/icon-512.png', 'data/stations.json', 'data/lignes.json', 'data/sanitaires-ratp.json', 'js/donnees.js', 'data/navigo.json', 'js/navigo.js', 'data/merimee.json', 'js/ttb.js', 'data/arrondissements.json', 'js/calques.js', 'js/bus.js', 'js/soleil.js', 'js/respire.js', 'js/voies.js', 'js/circuits.js', 'js/passages.js', 'js/groupes.js', 'data/circuits.json', 'data/passages.json', 'data/oeuvres.json', 'data/galeries.json',
 ];
 
 self.addEventListener('install', (e) => {
