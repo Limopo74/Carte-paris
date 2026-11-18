@@ -52,7 +52,9 @@ const AGENDA = [
   ['Brocante de la rue des Martyrs', 48.8790, 2.3390, 'Brocante'], ['Atelier dessin en famille', 48.8770, 2.3320, 'Enfants'],
   ['Balade commentée Pigalle', 48.8820, 2.3370, 'Balade urbaine'],
 ].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3), occurrences: `${wall(now - 3600e3)}_${wall(now + (2 + i) * 3600e3)}`, date_description: 'Le mardi 17 novembre 2026<br />de 14h00 à 18h00<br />',
-  address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, cover_url: `https://cdn.paris.fr/qfapv4/2026/11/17/huge-test${i}.jpg`, cover_credit: 'Photo de test', cover_alt: title, qfap_tags: tags, url: 'https://quefaire.paris.fr/' }));
+  address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, cover_url: `https://cdn.paris.fr/qfapv4/2026/11/17/huge-test${i}.jpg`, cover_credit: 'Photo de test', cover_alt: title, qfap_tags: tags, url: 'https://quefaire.paris.fr/',
+  // v164 : réserver et s'informer (une sortie sur deux, réservation obligatoire)
+  ...(i % 2 ? {} : { access_type: 'obligatoire', access_link: 'https://philharmoniedeparis.fr/fr/activite/test', access_link_text: 'Infos et réservations', contact_url: 'https://www.orchestrehelios.com/', contact_organisation_name: 'Orchestre de test au nom un peu long' }) }));
 
 // Monuments : réponse Wikidata simulée (un musée, un immeuble protégé en façade seulement).
 const WIKIDATA = { results: { bindings: [

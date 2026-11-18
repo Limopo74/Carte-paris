@@ -22,11 +22,11 @@ import { holidayOn } from './holidays.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, streetKind, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (163)';
+const VERSION = '18 novembre 2026 (164)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1558,6 +1558,9 @@ function openForm(draft, existing = null) {
   const note = el('textarea', { maxlength: '1000', placeholder: 'Pourquoi tu l\'as gardé, quoi y prendre…' });
   note.value = v.note;
   const artist = artistInput(v.artist ?? draft.artist ?? ''); // l'artiste d'une œuvre (v161)
+  // Le champ Artiste ne sert qu'aux œuvres (v164) : ma catégorie street art, Vu en passant, ou un lieu qui a déjà un artiste
+  const artistField = el('label', { class: 'field' }, 'Artiste (facultatif)', artist);
+  const syncArtist = () => { artistField.hidden = !(isStreetCat(catOf(cat)) || cat === SEEN_CAT.id || artist.value.trim()); };
   // Modifier : l'adresse se corrige à la main (v162) ; le point ne bouge pas (Rangement → Déplacer le point pour cela)
   const addr = existing ? el('input', { type: 'text', value: v.address ?? '', maxlength: '200', autocomplete: 'off', enterkeyhint: 'next', placeholder: 'Ex. : 16 rue Chaptal, 75009 Paris' }) : null;
   const err = el('div', { class: 'error', role: 'alert' });
@@ -1566,7 +1569,7 @@ function openForm(draft, existing = null) {
   // Nouveau lieu : les catégories sur une seule ligne qui défile, pour laisser de la place à la carte.
   const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
-    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); })), // le nom de « Déjà visité » suit la catégorie
+    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
@@ -1645,7 +1648,7 @@ function openForm(draft, existing = null) {
   // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
   const details = [
     el('label', { class: 'field' }, 'Note (facultatif)', note),
-    el('label', { class: 'field' }, 'Artiste (facultatif)', artist),
+    artistField,
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
     el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
@@ -1654,6 +1657,7 @@ function openForm(draft, existing = null) {
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
     momentBox,
   ];
+  syncArtist();
   const filled = Boolean(v.note || v.artist || draft.artist || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
@@ -1667,7 +1671,7 @@ function openForm(draft, existing = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
       : el('details', { class: 'help-item form-more', open: filled },
-        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, artiste, état, listes…')),
+        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, état, listes…')),
         el('div', { class: 'stack' }, ...details)),
     err,
     foot(el('div', { class: 'row' },
@@ -1781,7 +1785,7 @@ function openDetail(id, back = null) {
     el('h3', { class: 'fiche-sec' }, 'Sur ce lieu'),
     el('div', { class: 'fiche-toc' },
       p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
-      row('pencil', 'Modifier', 'Nom, catégorie, commentaire, artiste, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
+      row('pencil', 'Modifier', vanish ? 'Nom, catégorie, commentaire, artiste, listes' : 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
       row('share-2', 'Partager', 'Envoyer à un proche', () => sharePlace(p)),
       row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back))),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
@@ -3570,6 +3574,11 @@ function eventWhen(e, now = new Date()) {
 }
 
 /** La page d'une sortie de l'agenda : photo officielle, quand, où, résumé, et les mêmes actions qu'un lieu. */
+/** Un lien vers un site, en ligne de fiche (v164) : une icône de l'appli, ce qu'on y trouve, et le nom du site écrit en clair. */
+const linkRow = (icon, label, href) => el('a', { class: 'fiche-row', href, target: '_blank', rel: 'noopener noreferrer' },
+  ico(icon), el('span', {}, label, el('small', {}, siteName(href))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+const BOOKING_TEXT = { required: 'Réservation obligatoire', advised: 'Réservation conseillée', none: 'Sans réservation' };
+
 function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
   const expo = isExpo(e);
   const genre = genreOf(e, { expo });
@@ -3588,8 +3597,14 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Sortie', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => planEvent(e, again) }, ico('alarm-clock'), planOfEvent(state.plans, e) ? 'Prévu' : 'Prévoir')),
     planOfEvent(state.plans, e) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Dans Mon planning : ${planText(planOfEvent(state.plans, e).ticket)}.`) : null,
-    e.url ? el('a', { class: 'btn c-disc', href: e.url, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Voir dans « Que faire à Paris »') : null,
-    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo fournie par l\'organisateur, avec son crédit. Horaires et prix : vérifie sur la page de l\'événement.'),
+    // Réserver et s'informer (v164) : ce que l'organisateur a écrit dans l'agenda, les sites nommés en clair
+    e.booking || e.book || e.site || e.url ? el('h3', { class: 'fiche-sec' }, 'Réserver et s\'informer') : null,
+    e.booking ? el('p', { class: e.booking === 'required' ? 'warn' : 'help' }, ico('ticket'), ` ${BOOKING_TEXT[e.booking]}, selon l'organisateur.`) : null,
+    e.book || e.site || e.url ? el('div', { class: 'fiche-toc' },
+      e.book ? linkRow('ticket', e.bookText || (e.booking === 'none' ? 'Plus d\'infos' : 'Infos et réservations'), e.book) : null,
+      e.site && e.site !== e.book ? linkRow('external-link', e.org ? `Site : ${e.org}` : 'Site de l\'organisateur', e.site) : null,
+      e.url ? linkRow('external-link', 'Voir dans « Que faire à Paris »', e.url) : null) : null,
+    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur. Horaires et prix : vérifie sur son site.'),
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'sortie', again });
@@ -3601,7 +3616,7 @@ const eventRow = (e, back, { last = false, week = false, feat = false, kicker = 
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
   const when = week ? el('b', {}, weekText(e)) : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
-  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null], feat, kicker, photo: feat ? evPhoto(e, 'feat-photo') : null,
+  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null], feat, kicker, photo: feat ? evPhoto(e, 'feat-photo') : null,
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
 };
@@ -4026,16 +4041,16 @@ async function openEvents(start = null) {
     ctx,
     filters ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': mode === 'navigo' ? 'Disciplines' : 'Dehors ou à l\'abri' }, ...filters) : null,
     ...body,
+    // Les sites utiles (v164) : visibles en bas de Sorties, et non plus cachés dans l'aide ; le nom du site est écrit en clair
+    el('h3', { class: 'fiche-sec' }, 'Pour aller plus loin'),
+    el('div', { class: 'fiche-toc' }, SORTIES_LINKS.map(([title, sub, href]) => el('a', { class: 'fiche-row', href, target: '_blank', rel: 'noopener noreferrer' },
+      ico('external-link'), el('span', {}, title, el('small', {}, sub)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
     el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Aide, sources et mise à jour'),
       el('div', { class: 'stack sources-body' },
         el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de 2 km ${fromMap ? 'du centre de la carte' : 'de toi'}. Touche une ligne pour Y aller, la Boussole, le Métro ou l'ajouter à ta carte.`),
         el('p', { class: 'help' }, 'Mise à jour automatique : l\'agenda se recharge chaque jour à la première ouverture, les marchés tous les 7 jours, les galeries tous les 30 jours. Le bouton recharge tout de suite (utile si une sortie vient d\'être annoncée ou si le réseau a manqué).'),
         el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'), 'Mettre à jour maintenant'),
         el('p', { class: 'help' }, [`Agenda : aujourd'hui`, marketsTime ? `marchés : liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : '', mode === 'art' && galleriesTime ? `galeries : liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''].filter(Boolean).join(' · ') + '.'),
-        el('h3', { class: 'ring-title menu-group' }, 'Pour aller plus loin'),
-        el('div', { class: 'menu' }, SORTIES_LINKS.map(([title, sub, href]) => el('a', { class: 'menu-row c-disc', href, target: '_blank', rel: 'noopener noreferrer' },
-          el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
-          el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '↗')))),
         el('p', { class: 'help' }, `Sources : marchés et agenda « Que faire à Paris ? » de la Ville de Paris${mode === 'art' ? ', galeries OpenStreetMap' : ''}. Dernière chance : expos de l'agenda qui ferment dans moins de 7 jours. Les fermetures exceptionnelles ne sont pas dans ces données. Ta position n'est pas envoyée : l'appli trie sur le téléphone.${soon.length ? ` Temps forts vérifiés le ${HIGHLIGHTS_CHECKED}.` : ''}`),
         mode === 'art' ? el('p', { class: 'help' }, 'Galeries : la plupart ferment le dimanche et le lundi ; sans horaires connus, vérifie avant d\'y aller.') : null,
         ...notes.map((t) => el('p', { class: 'help' }, t)))),
@@ -6372,6 +6387,8 @@ const HELP = [
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Tous les… » déroule la suite.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
+    '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
+    '{external-link} **Pour aller plus loin**, en bas de Sorties : paris.fr, Paris Musées, les galeries (Offi), l\'office du tourisme, Sortir à Paris.',
     '**Les dates** viennent de l\'agenda de la Ville. Une sortie sans créneau aujourd\'hui n\'est pas dans la liste du jour.',
     '**Une sortie sans adresse sur la carte** n\'apparaît pas : l\'agenda la place au centre de Paris, ce qui donnerait une fausse distance.',
     '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
@@ -6427,7 +6444,7 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou recouverte.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
-    '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste. Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
+    '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, en bas de la fiche (Rangement). Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
@@ -6534,6 +6551,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
     '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
     '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
@@ -6543,7 +6561,6 @@ const HELP = [
     '{landmark} Bientôt gratuit : 2 jours avant un jour gratuit (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte te prévient. La croix le cache pour la journée.',
     '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
     '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
-    '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
   ]],
 ];
 

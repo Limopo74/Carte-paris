@@ -10,7 +10,17 @@ const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const onDays = (days) => `(${days.map((d) => `occurrences like "*${dayKey(d)}T*"`).join(' OR ')} OR occurrences is null)`;
 
 /** Champs utiles seulement : la semaine entière de tout Paris reste légère (sans les longues descriptions ni les créneaux). */
-export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,date_description,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor,cover_url,cover_credit,cover_alt';
+export const EVENT_FIELDS = 'title,lat_lon,date_start,date_end,date_description,address_name,address_street,address_zipcode,address_city,price_type,qfap_tags,url,event_indoor,cover_url,cover_credit,cover_alt,access_type,access_link,access_link_text,contact_url,contact_organisation_name';
+
+/** Une adresse de site donnée par l'organisateur : https seulement (jamais http, javascript: ni data:), sinon ''. */
+export function safeLink(u) {
+  try { const x = new URL(String(u ?? '').trim()); return x.protocol === 'https:' && x.hostname.includes('.') ? x.href : ''; } catch { return ''; }
+}
+/** Le nom du site écrit en clair à côté d'un lien : « philharmoniedeparis.fr » (sans www). */
+export const siteName = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+/** Réservation selon l'organisateur (v164) : 'required' (obligatoire), 'advised' (conseillée), 'none' (sans), ou '' si rien n'est dit. */
+const BOOKING = { obligatoire: 'required', conseillee: 'advised', non: 'none' };
+export const bookingOf = (v) => BOOKING[String(v ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()] ?? '';
 
 /**
  * Événements d'aujourd'hui : ceux qui ont un créneau aujourd'hui, ou aucun créneau publié (todayOnly décide ensuite).
@@ -131,6 +141,12 @@ export function parseEvents(json, now = new Date()) {
       cover: /^https:\/\/cdn\.paris\.fr\/[\w./-]+\.(?:jpe?g|png|webp)$/i.test(r.cover_url ?? '') ? r.cover_url : '',
       coverCredit: str(r.cover_credit).slice(0, 100),
       coverAlt: str(r.cover_alt).slice(0, 150),
+      // Réserver et s'informer (v164), tel que l'organisateur l'a écrit dans l'agenda
+      booking: bookingOf(r.access_type),
+      book: safeLink(r.access_link),
+      bookText: str(r.access_link_text).slice(0, 40),
+      site: safeLink(r.contact_url),
+      org: str(r.contact_organisation_name).slice(0, 80),
     });
   }
   return out;
