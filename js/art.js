@@ -572,3 +572,41 @@ export function favCategory(kind, categories) {
   }
   return cats.find((c) => c.id === 'culture')?.id ?? null;
 }
+
+/* ---------- 20. « Vouliez-vous dire… ? » sous le champ Artiste (v172) ---------- */
+
+/** Distance d'édition (lettres ajoutées, retirées ou changées) entre deux clés courtes. */
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/**
+ * Les noms connus proches de ce que j'écris (3 au plus) : même nom écrit autrement (« invader » → « Invader »),
+ * début d'un nom (« miss » → « Miss.Tic »), ou une à trois fautes de frappe selon la longueur. Rien si le nom tapé
+ * est déjà écrit comme un nom connu, ou s'il fait moins de 3 lettres. Une proposition, jamais une correction.
+ */
+export function artistSuggest(text, names) {
+  const typed = String(text ?? '').replace(/\s+/g, ' ').trim();
+  const k = artistKey(typed);
+  if (k.replace(/ /g, '').length < 3) return [];
+  const list = cleanArtists(names);
+  if (list.some((n) => n === typed)) return [];
+  const allowed = k.length <= 5 ? 1 : k.length <= 10 ? 2 : 3;
+  const scored = [];
+  for (const n of list) {
+    const kn = artistKey(n);
+    // le nom entier, ou un de ses mots (« Mesnager » pour « Jérôme Mesnager »)
+    const words = kn.split(' ').filter((w) => w.length >= 4 && w !== kn);
+    const d = kn === k ? 0 : kn.startsWith(k) ? 1 : Math.min(editDistance(k, kn), ...words.map((w) => Math.max(1, editDistance(k, w))));
+    if (d <= allowed || (kn !== k && kn.startsWith(k))) scored.push({ n, d });
+  }
+  return scored.sort((a, b) => a.d - b.d || a.n.localeCompare(b.n, 'fr')).slice(0, 3).map((x) => x.n);
+}
+/** « Chercher ce nom » : une recherche Google « nom + street art », ouverte seulement par mon appui (un lien, rien n'est envoyé avant). */
+export const artistSearchUrl = (name) => `https://www.google.com/search?q=${encodeURIComponent(`${String(name ?? '').trim()} street art`)}`;

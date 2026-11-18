@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, TRANSPORT_EVERY_DAYS, transportsDue, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone } from './circuits.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (171)';
+const VERSION = '18 novembre 2026 (172)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1269,7 +1269,7 @@ function openSeenForm(blob, where) {
   // Ranger une nouvelle note (v161) : Vu en passant, ou Street art avec son artiste (facultatif)
   let street = seenStreet;
   const artist = artistInput();
-  const artistBox = el('label', { class: 'field' }, 'Artiste (facultatif)', artist);
+  const artistBox = el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Artiste (facultatif)', artist), artistHelp(artist));
   const sortBox = el('div', { class: 'field' });
   const drawSort = () => {
     fill(sortBox, 'Ranger dans', el('div', { class: 'seg', role: 'group', 'aria-label': 'Ranger dans' },
@@ -1550,6 +1550,35 @@ function starPicker(value, onPick) {
 }
 
 /** Champ « Artiste » (v161) : les noms déjà connus (mes lieux, Mes artistes) sont proposés pendant la saisie. */
+/** Les noms d'artistes que l'appli connaît sans rien demander : mes lieux, Mes artistes, et Art dans la rue si sa liste est déjà gardée. */
+function artistNames() {
+  let rue = streetArt;
+  if (!rue) { try { rue = JSON.parse(storage.getItem(ART_KEY) ?? 'null')?.items ?? []; } catch { rue = []; } }
+  return [...knownArtists(state.points, state.artists), ...(Array.isArray(rue) ? rue.map((a) => a?.artist).filter((x) => typeof x === 'string') : [])];
+}
+/**
+ * Sous le champ Artiste (v172) : « Vouliez-vous dire… ? » (des noms connus proches, un appui remplit le champ ; rien
+ * si aucun n'est proche, jamais « inconnu ») et « Chercher « nom » sur Google » (un lien, ouvert seulement par mon appui).
+ */
+function artistHelp(input) {
+  const box = el('div', { class: 'stack artist-help', style: 'gap:8px', 'aria-live': 'polite' });
+  let names = null;
+  const draw = () => {
+    const t = input.value.trim();
+    names ??= artistNames();
+    const sugg = artistSuggest(t, names);
+    fill(box,
+      sugg.length ? el('p', { class: 'legend' }, 'Vouliez-vous dire ?') : null,
+      sugg.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Vouliez-vous dire' },
+        ...sugg.map((n) => el('button', { type: 'button', class: 'chip', onclick: () => { input.value = n; input.dispatchEvent(new Event('input')); } }, n))) : null,
+      t.replace(/\s/g, '').length >= 2 ? el('a', { class: 'btn c-guide', href: artistSearchUrl(t), target: '_blank', rel: 'noopener noreferrer' }, ico('search'), `Chercher « ${t.slice(0, 30)} » sur Google`) : null);
+  };
+  let timer = 0;
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 250); });
+  draw();
+  return box;
+}
+
 function artistInput(value = '') {
   const id = 'artist-names';
   document.getElementById(id)?.remove();
@@ -1596,7 +1625,7 @@ function openForm(draft, existing = null) {
   note.value = v.note;
   const artist = artistInput(v.artist ?? draft.artist ?? ''); // l'artiste d'une œuvre (v161)
   // Le champ Artiste ne sert qu'aux œuvres (v164) : ma catégorie street art, Vu en passant, ou un lieu qui a déjà un artiste
-  const artistField = el('label', { class: 'field' }, 'Artiste (facultatif)', artist);
+  const artistField = el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Artiste (facultatif)', artist), artistHelp(artist));
   const syncArtist = () => { artistField.hidden = !(isStreetCat(catOf(cat)) || cat === SEEN_CAT.id || artist.value.trim()); };
   // Modifier : l'adresse se corrige à la main (v162) ; le point ne bouge pas (Rangement → Déplacer le point pour cela)
   const addr = existing ? el('input', { type: 'text', value: v.address ?? '', maxlength: '200', autocomplete: 'off', enterkeyhint: 'next', placeholder: 'Ex. : 16 rue Chaptal, 75009 Paris' }) : null;
@@ -6884,6 +6913,7 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
+    '{search} **En écrivant l\'artiste**, « Vouliez-vous dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{store} **Fermé définitivement** : en bas de la fiche (Rangement), pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, en bas de la fiche (Rangement). Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
@@ -6994,6 +7024,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
     '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
     '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
     '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
@@ -7003,7 +7034,6 @@ const HELP = [
     '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
     '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
     '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
-    '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
   ]],
 ];
 

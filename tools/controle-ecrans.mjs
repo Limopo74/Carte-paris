@@ -132,6 +132,8 @@ const ECRANS = {
   gratuitjour: async (p) => { await ECRANS.gratuit(p); const b = feuille(p).locator('.item-main', { hasText: /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i }).first(); await b.scrollIntoViewIfNeeded(); await b.click(); await p.waitForSelector('#sheet .ev-list'); await p.waitForTimeout(300); },
   gratuitlieu: async (p) => { await ECRANS.gratuitjour(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
   gratuitprevoir: async (p) => { await ECRANS.gratuitlieu(p); await feuille(p).locator('button', { hasText: /^\s*Prévoir ce/ }).click(); await p.waitForTimeout(400); },
+  // v172 : « Vouliez-vous dire » sous le champ Artiste (Invader est déjà dans mes lieux)
+  artisteaide: async (p) => { await ECRANS.vuenstreet(p); await feuille(p).locator('input[list="artist-names"]').fill('Invadr'); await p.waitForTimeout(500); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
   passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'J\'y suis passé' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /passages/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
