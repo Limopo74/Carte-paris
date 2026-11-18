@@ -38,6 +38,8 @@ const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng
   { id: 'ev2', name: 'Exposition photo : Paris la nuit', lat: 48.8810, lng: 2.3290, place: 'Galerie du 9e', until: now + 40 * 864e5, ticket: { at: new Date(now - 864e5).setHours(15, 0, 0, 0), part: 'aprem' } }]; // v199 : expo encore à l'affiche
 // v158 : mon carnet de sorties (Mon journal) et mes artistes
 const OUTINGS = [{ id: 'o1', at: now - 10 * 864e5, name: 'Hockney 25', lat: 48.8766, lng: 2.2633, place: 'Fondation Louis Vuitton', text: 'Les arbres en grand format, salle 5', stars: 5 }];
+// v205 : une Note du jour d'il y a 4 jours (Mon journal)
+const NOTES = [{ day: (() => { const d = new Date(now - 4 * 864e5); const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; })(), at: now - 4 * 864e5, text: 'Expo Hockney : y retourner avant janvier' }];
 const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle'];
 const VENUES = ['Paris 9e']; // v166 : Mes salles (le lieu des sorties simulées)
 // v158 : œuvres dans la rue (OpenStreetMap simulé)
@@ -106,6 +108,10 @@ const ECRANS = {
   donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
   artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },
   oeuvre: async (p) => { await ECRANS.artrue(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
+  // v205 : Note du jour (⋯ Plus → Note du jour), la page remplie, et la note rouverte depuis Mon journal
+  notesplus: async (p) => { await p.locator('#btnMore').click(); await p.waitForTimeout(300); },
+  notedujour: async (p) => { await p.locator('#btnMore').click(); await p.waitForTimeout(300); await p.locator('#morePanel button', { hasText: 'Note du jour' }).click(); await p.waitForTimeout(400); await feuille(p).locator('textarea').fill('Librairie conseillée rue des Martyrs, côté pair.\nRevenir au square d\'Anvers au printemps.'); },
+  journalnote: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney : y retourner' }).click(); await p.waitForTimeout(400); },
   sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney' }).click(); await p.waitForTimeout(400); },
   chercherplaques: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('colette'); await p.waitForSelector('#sheet .ring-title:has-text("Plaques")'); await p.waitForTimeout(400); },
   chercherpartout: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('test'); await p.waitForTimeout(1500); await feuille(p).locator('button', { hasText: 'agenda de la semaine' }).click(); await p.waitForTimeout(1200); },
@@ -250,7 +256,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
-  await page.evaluate(([pts, plans, textSize, outings, artists, venues]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES]);
+  await page.evaluate(([pts, plans, textSize, outings, artists, venues, notes]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, notes, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES, NOTES]);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

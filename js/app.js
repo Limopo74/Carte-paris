@@ -30,6 +30,7 @@ import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
+import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
@@ -47,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (205)';
+const VERSION = '18 novembre 2026 (206)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -576,9 +577,41 @@ function openPassage(p, back, at = null) {
     el('p', { class: 'help' }, `Tes passages restent sur ce téléphone et partent dans ta sauvegarde. Le nom « ${logName(catOf(p.cat))} » se change dans Réglages → Catégories et listes → la catégorie.`),
   ), { name: `passage:${p.id}:${at ?? 'new'}` });
 }
+/* ---------- Note du jour (v205) : une page de texte par jour, sans lieu ni position ; Mon journal la range à sa date ---------- */
+const noteDayTitle = (day) => { const [y, m, d] = day.split('-').map(Number); const s = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: y === new Date().getFullYear() ? undefined : 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); };
+/** Écrire ou compléter la note d'un jour (aujourd'hui par défaut). Enregistrer un texte vide l'efface. */
+function openDayNote(back = null, day = dayKey()) {
+  track('Note du jour');
+  const old = noteOf(state.notes, day);
+  const today = day === dayKey();
+  const text = el('textarea', { rows: '7', maxlength: String(NOTE_MAX), placeholder: 'Ex. : la librairie dont on m\'a parlé, rue des Martyrs' });
+  text.value = old?.text ?? '';
+  const leave = () => (back ? back() : closeSheet());
+  const save = () => {
+    const had = !!old;
+    state.notes = setNote(state.notes, day, text.value);
+    persist();
+    const now = noteOf(state.notes, day);
+    leave();
+    if (!now) { if (had) toast('Note effacée'); return; }
+    toast(had ? 'Note enregistrée' : 'Note gardée dans Mon journal', false, back ? null : { label: 'Voir', fn: () => openJournal() });
+  };
+  openSheet([ico('notebook-pen'), ' Note du jour'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, noteDayTitle(day)),
+    el('label', { class: 'field' }, old ? 'À noter (tu peux compléter)' : 'À noter', text),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Enregistrer')),
+    today ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openJournal(named('Note du jour', () => openDayNote(back))) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mes notes des autres jours'), el('span', { class: 'menu-sub' }, 'Dans Mon journal, à leur date')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))) : null,
+    el('p', { class: 'help' }, old && !today ? 'Pour l\'effacer : vide le texte, puis Enregistrer.' : 'Du texte seulement, sans position. Une page par jour : rouvre-la pour la compléter. Elle reste sur ce téléphone et part dans ta sauvegarde, jamais chez un proche.'),
+  ), { name: `note:${day}`, again: () => openDayNote(back, day) });
+}
 /** Mon journal : tous mes passages, toutes adresses, par mois. */
 /** Mon journal : mes passages et mon carnet de sorties de l'agenda (v158), du plus récent au plus ancien. */
-const journalItems = () => [...allPassages(state.points), ...cleanOutings(state.outings).map((o) => ({ o, at: o.at, text: o.text || o.place || '', photo: o.photo, stars: o.stars }))]
+const journalItems = () => [...allPassages(state.points), ...cleanOutings(state.outings).map((o) => ({ o, at: o.at, text: o.text || o.place || '', photo: o.photo, stars: o.stars })), ...cleanNotes(state.notes).map((n) => ({ n, at: n.at, text: n.text }))]
   .sort((a, b) => b.at - a.at);
 function openJournal(back = named('Mon Paris', () => openMyParis())) {
   const again = () => openJournal(back);
@@ -591,10 +624,10 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucun passage noté.'),
-    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allé ? ».'),
+    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allé ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
-      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
+      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.n ? passageRow(x, () => openDayNote(named('Mon journal', again), x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
         : passageRow(x, () => openDetail(x.p.id, named('Mon journal', again)), x.p.name)))),
     ]),
     foot(backBtn(back)),
@@ -3504,7 +3537,7 @@ async function openMyParis(from = null) {
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openJournal() },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const n = journalItems().length; return n ? plural(n, 'passage noté', 'passages notés') : 'Tes passages et tes sorties'; })())),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const k = cleanNotes(state.notes).length; const n = journalItems().length - k; return [n ? plural(n, 'passage noté', 'passages notés') : '', k ? plural(k, 'note', 'notes') : ''].filter(Boolean).join(' · ') || 'Tes passages, tes sorties et tes notes'; })())),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
@@ -7713,6 +7746,7 @@ document.getElementById('btnVelib').addEventListener('click', () => showVelib())
 document.getElementById('btnHome').addEventListener('click', goHome);
 document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
+document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -7725,6 +7759,7 @@ const TOOL_INFO = {
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
   circuits: { el: 'btnCircuits', icon: 'signpost', name: 'Circuits de visite', short: 'Circuits' },
+  notes: { el: 'btnNotes', icon: 'notebook-pen', name: 'Note du jour (sans lieu)', short: 'Note du jour' },
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
 function applyEssential() {
@@ -7982,6 +8017,7 @@ const HELP = [
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
+    '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; vide le texte pour l\'effacer. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
@@ -8077,6 +8113,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
     '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
     '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
     '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
@@ -8086,7 +8123,6 @@ const HELP = [
     '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ». Les sorties du métro arrivent avec la prochaine mise à jour des données.',
     '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ». Les origines et les auteurs arrivent avec la prochaine mise à jour des données.',
     '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
-    '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
   ]],
 ];
 
