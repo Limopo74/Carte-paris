@@ -6241,10 +6241,13 @@ function openSettings(section = null) {
 
   if (section === 'transports') section = 'donnee:lignes'; // ancien nom
   if (section === 'donnees') {
-    // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore »)
-    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries()]).finally(() => openSettings(section)); return; }
+    // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore ») ;
+    // arrêts de bus et plaques aussi (v187) : sans eux, leur date restait inconnue et la ligne disait « À jour » à tort
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
+    // Date inconnue (fichier illisible, hors réseau et jamais gardé) : ni « À jour » ni « En retard » (v187 : pas d'info plutôt qu'une info fausse)
+    const unknown = new Set(FIXED_DATA.filter((d) => d.robot && !dates[d.id] && !artNotYet(d.id, dates)).map((d) => d.id));
     const live = (kind) => { try { return JSON.parse(storage.getItem(`${PRATIQUE_KEY}.${kind}`) ?? 'null')?.time ?? 0; } catch { return 0; } };
     const when = (t) => (!t ? 'pas encore chargé' : new Date(t).toDateString() === new Date().toDateString() ? 'aujourd\'hui' : `le ${new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`);
     // Une donnée en direct : sa page sur opendata.paris.fr (pour voir sa date de mise à jour côté Ville), ou une simple ligne.
@@ -6254,12 +6257,13 @@ function openSettings(section = null) {
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '↗'))
       : el('div', { class: 'menu-row c-info' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub))));
     openSheet([ico('database'), ' Données de l\'appli'], el('div', { class: 'stack' },
-      el('p', { class: due.size ? 'warn' : 'help' }, due.size ? `${plural(due.size, 'donnée à mettre à jour', 'données à mettre à jour')}.` : 'Tout est à jour.'),
+      el('p', { class: due.size ? 'warn' : 'help' }, due.size ? `${plural(due.size, 'donnée à mettre à jour', 'données à mettre à jour')}.`
+        : unknown.size ? `${plural(unknown.size, 'date inconnue', 'dates inconnues')} : rouvre cette page avec du réseau.` : 'Tout est à jour.'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'Mises à jour par le robot, chaque 1er du mois'), el('span', {}, '')),
       el('div', { class: 'menu' }, FIXED_DATA.filter((d) => d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, d.name),
           el('span', { class: 'menu-sub' }, `${frenchDate(dates[d.id]) || (artNotYet(d.id, dates) ? 'pas encore dans l\'appli' : 'date inconnue')} · ${everyText(d.every)}`)),
-        artNotYet(d.id, dates) ? el('span', { class: 'tag' }, 'Pas encore') : el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
+        artNotYet(d.id, dates) ? el('span', { class: 'tag' }, 'Pas encore') : unknown.has(d.id) ? null : el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
       el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
       el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('download'), 'Mettre à jour l\'appli (après le robot)'),
