@@ -847,6 +847,11 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 }
 .z-far .pin { transform: rotate(-45deg) scale(.72); }
 .pin.gone { filter: grayscale(1); opacity: .6; } /* œuvre disparue ou recouverte (v161) : grise, toujours touchable */
+/* Plusieurs de mes lieux vus de loin (v178) : goutte encre un peu plus grande, avec leur nombre ; jamais réduite de loin. */
+.pin.pin-group { width: 36px; height: 36px; background: var(--ink); box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); cursor: pointer; }
+.pin.pin-group .pin-in { color: var(--bg); font: 800 15px/1 var(--display); }
+.pin.pin-group.big .pin-in { font-size: 13px; }
+.z-far .pin.pin-group { transform: rotate(-45deg); }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
 /* Bandeaux */
