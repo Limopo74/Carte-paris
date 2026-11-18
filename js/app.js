@@ -47,7 +47,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (204)';
+const VERSION = '18 novembre 2026 (205)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3676,7 +3676,7 @@ function openPlanning(from = null) {
     timed.length ? el('ul', { class: 'items' }, timed.map(planLine)) : null,
     list.length >= 2 && list.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(list), target: '_blank', rel: 'noopener' }, ico('route'), 'Tout le parcours · Google Maps') : null,
     el('button', { type: 'button', class: 'btn c-add', onclick: () => openDayPicker() }, ico('plus'), 'Ajouter des lieux'),
-    list.length >= 2 ? el('button', { type: 'button', class: 'btn', onclick: () => openDayOrder() }, ico('arrow-up-down'), 'Changer l\'ordre') : null,
+    list.length ? el('button', { type: 'button', class: 'btn', onclick: () => openDayOrder() }, ico('pencil'), 'Modifier la liste') : null, /* v205 : l'ordre et Retirer, dès un lieu */
   ];
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
     ...todayBlock,
@@ -3783,24 +3783,43 @@ function openDayPicker(selected = null, query = '') {
   ), { tall: true, name: 'jourlieux', again: () => openDayPicker(sel, input.value) });
 }
 
-/** Changer l'ordre de la liste du jour : les flèches de Réglages, sur une page à part (une ligne de liste n'a pas de boutons). */
+/** Modifier la liste du jour (v201 : « Changer l'ordre » ; v205 : Retirer) : les flèches de Réglages et un ×, sur une page à part
+    (une ligne de Mon planning n'a pas de boutons). Retirer laisse le lieu sur la carte ; « Annuler » dans le message le remet à sa place. */
+function dayRemove(p, list) {
+  const i = list.findIndex((x) => x.id === p.id);
+  const old = p.ticket;
+  delete p.ticket;
+  rankDayList(dayList(state.points));
+  persist(); renderMarkers(); updateNow(true);
+  if (dayList(state.points).length) openDayOrder(); else openPlanning();
+  const short = p.name.length > 28 ? `${p.name.slice(0, 27)}…` : p.name;
+  toast(`« ${short} » retiré d'aujourd'hui`, false, { label: 'Annuler', fn: () => {
+    if (p.ticket) return;
+    p.ticket = old;
+    const rest = dayList(state.points).filter((x) => x.id !== p.id);
+    rankDayList([...rest.slice(0, i), p, ...rest.slice(i)]);
+    persist(); renderMarkers(); updateNow(true);
+    if (view === 'jourordre') openDayOrder(); else if (view === 'planning') openPlanning();
+  } });
+}
 function openDayOrder(focus = null) {
   const list = dayList(state.points);
-  if (list.length < 2) { openPlanning(); return; }
+  if (!list.length) { openPlanning(); return; }
   const apply = (next, f = null) => { rankDayList(next); persist(); openDayOrder(f); };
   const start = freshHere();
   const shortest = () => {
     apply(start ? orderRoute(start, list) : [list[0], ...orderRoute(list[0], list.slice(1))]);
     toast(start ? 'Parcours le plus court depuis ta position' : 'Parcours le plus court depuis le premier lieu');
   };
-  openSheet([ico('arrow-up-down'), ' Changer l\'ordre'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Le n° 1 est le prochain lieu, celui de « Y aller ». Range à ta façon.'),
+  openSheet([ico('pencil'), ' Modifier la liste'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, list.length > 1 ? 'Le n° 1 est le prochain lieu, celui de « Y aller ». Range à ta façon ; × le retire d\'aujourd\'hui, il reste sur ta carte.' : '× retire le lieu d\'aujourd\'hui ; il reste sur ta carte.'),
     el('div', {}, list.map((p, i) => el('div', { class: 'cat-row' },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'cat-name' }, p.name),
       el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${p.id}:-1`, onclick: () => apply(moveInList(list, p.id, -1), `${p.id}:-1`), 'aria-label': `Monter ${p.name}` }, '↑'),
-      el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${p.id}:1`, onclick: () => apply(moveInList(list, p.id, 1), `${p.id}:1`), 'aria-label': `Descendre ${p.name}` }, '↓')))),
-    el('button', { type: 'button', class: 'btn', onclick: shortest }, ico('route'), 'Remettre le plus court'),
+      el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${p.id}:1`, onclick: () => apply(moveInList(list, p.id, 1), `${p.id}:1`), 'aria-label': `Descendre ${p.name}` }, '↓'),
+      el('button', { type: 'button', class: 'btn move remove', onclick: () => dayRemove(p, list), 'aria-label': `Retirer ${p.name} d'aujourd'hui` }, ico('x'))))),
+    list.length > 1 ? el('button', { type: 'button', class: 'btn', onclick: shortest }, ico('route'), 'Remettre le plus court') : null,
     foot(backBtn(named('Mon planning', () => openPlanning()))),
   ), { name: 'jourordre', again: () => openDayOrder() });
   if (focus) requestAnimationFrame(() => (document.querySelector(`[data-move="${focus}"]:not(:disabled)`) ?? document.querySelector(`[data-move^="${focus.split(':')[0]}:"]:not(:disabled)`))?.focus());
@@ -7899,7 +7918,7 @@ const HELP = [
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda. Le lendemain, « Tu y es allé ? » : « Non » sur une expo encore à l\'affiche la garde, avec « Prévoir un autre jour » ou « Retirer ».',
     '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom. Depuis une fiche : Prévoir une visite → Aujourd\'hui → Enregistrer, sans choisir de moment.',
-    '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Changer l\'ordre » : des flèches pour ranger à ta façon. « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
+    '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit au-dessus d\'« Enregistrer ».',
@@ -8058,16 +8077,16 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
     '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
     '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
     '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
-    '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Changer l\'ordre »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
+    '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Modifier la liste »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
     '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an. Les gares arrivent avec la prochaine mise à jour des données.',
     '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ». Les sorties du métro arrivent avec la prochaine mise à jour des données.',
     '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ». Les origines et les auteurs arrivent avec la prochaine mise à jour des données.',
     '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
     '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
-    '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
   ]],
 ];
 

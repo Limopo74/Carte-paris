@@ -99,7 +99,7 @@ const ECRANS = {
   // v201 : liste du jour (Mon planning → Aujourd'hui). La liste est posée le temps de l'écran, puis le stockage est remis : les écrans suivants ne la voient pas.
   jour: async (p) => { await avecListe(p, ['d', 'c', 'f']); await p.locator('#btnPlanning').click(); await p.waitForSelector('#sheet .go-bar'); },
   jourlieux: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Ajouter des lieux' }).click(); await p.waitForSelector('#sheet input[type="search"]'); },
-  jourordre: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Changer l\'ordre' }).click(); await p.waitForSelector('#sheet .btn.move'); },
+  jourordre: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Modifier la liste' }).click(); await p.waitForSelector('#sheet .btn.move'); },
   prevoirjour: async (p) => { await ECRANS.prevoir(p); await feuille(p).locator('.seg button', { hasText: 'Aujourd\'hui' }).click(); await p.waitForTimeout(300); },
   ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
