@@ -6,14 +6,33 @@ import { loadState, saveState, exportJSON, readSettings, KEY, cleanChips, cleanM
 
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 
-test('Plus du haut : au départ Vélib\' et Fontaines et toilettes, rien d\'autre ne bouge', () => {
-  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'pratique']);
-  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'pratique']);
+test('Plus du haut : au départ Vélib\', Fontaines et toilettes, Passages couverts, rien d\'autre ne bouge', () => {
+  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'pratique', 'passages']);
+  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'pratique', 'passages']);
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav'] })); // appli d'avant la v151
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'pratique']);
+  assert.deepEqual(s.moreChips, ['velib', 'pratique', 'passages']);
   assert.deepEqual(s.hiddenChips, ['fav']);
+});
+
+test('Plus du haut (v168) : Passages couverts arrive sous ⋯ Plus, pas dans la barre, et reste où on le met ensuite', () => {
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [] })); // réglages de la v167
+  const s = loadState(st);
+  assert.deepEqual(s.moreChips, ['velib', 'passages']);
+  assert.equal(s.showPassages, false, 'calque éteint au départ');
+  const st2 = memStorage();
+  st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['passages'], chipsV: 1 }));
+  assert.deepEqual(loadState(st2).moreChips, [], 'caché : pas aussi dans Plus');
+  saveState(st, { ...s, moreChips: ['velib'], showPassages: true }); // remis dans la barre, calque allumé
+  const r = loadState(st);
+  assert.deepEqual(r.moreChips, ['velib'], 'la migration ne se refait pas');
+  assert.equal(r.showPassages, true);
+  const back = readSettings(JSON.parse(exportJSON(r)));
+  assert.deepEqual(back.moreChips, ['velib']);
+  assert.equal(back.showPassages, true);
+  assert.deepEqual(readSettings({ settings: { moreChips: ['lines'] } }).moreChips, ['lines', 'passages'], 'une sauvegarde d\'avant la v167 aussi');
 });
 
 test('Plus du haut : nettoyé, gardé, jamais en même temps caché', () => {

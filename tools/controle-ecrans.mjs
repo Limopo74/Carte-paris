@@ -101,6 +101,16 @@ const ECRANS = {
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
   modifier: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.legend', { hasText: 'Le bon moment' }).scrollIntoViewIfNeeded(); },
   vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: 'Vu en passant' }).click(); await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
+  // v168 : circuits de visite
+  circuits: async (p) => { await p.evaluate(() => document.getElementById('btnCircuits').click()); await p.waitForSelector('#sheet .ev-list'); await p.waitForTimeout(300); },
+  circuit: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'Montmartre' }).click(); await p.waitForTimeout(400); },
+  circuitetape: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('.item-main', { hasText: 'Bateau-Lavoir' }).click(); await p.waitForTimeout(300); },
+  circuitcarte: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
+  circuitfait: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('button', { hasText: 'Je l\'ai fait' }).click(); await p.waitForTimeout(400); },
+  // v168 : passages couverts
+  circuitpassages: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'passages couverts' }).click(); await p.waitForTimeout(400); await feuille(p).locator('h3', { hasText: 'Autres passages' }).scrollIntoViewIfNeeded(); },
+  passagecouvert: async (p) => { await ECRANS.circuitpassages(p); await feuille(p).locator('.item-main', { hasText: 'Choiseul' }).click(); await p.waitForTimeout(300); },
+  passagecarte: async (p) => { await ECRANS.passagecouvert(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   // v161 : street art
   ficheoeuvre: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque jaune"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Disparue ou recouverte' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   fichedisparue: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque bleue"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'de nouveau là' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },

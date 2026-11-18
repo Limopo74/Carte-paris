@@ -388,10 +388,10 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'paris', 'pratique', 'metro', 'velib', 'sorties', 'planning', 'locate']); // l'ancien bouton zoom disparaît
-  assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
-  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'paris', 'velib', 'sorties', 'planning', 'locate'], 'bouton manquant juste avant Ma position');
-  assert.deepEqual(moveTool(MAP_TOOLS, 'home', -1), ['paris', 'pratique', 'metro', 'home', 'velib', 'sorties', 'planning', 'locate']);
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['home', 'paris', 'pratique', 'metro', 'velib', 'sorties', 'planning', 'circuits', 'locate']); // l'ancien bouton zoom disparaît
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'circuits', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
+  assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['pratique', 'metro', 'home', 'paris', 'velib', 'sorties', 'planning', 'circuits', 'locate'], 'bouton manquant juste avant Ma position');
+  assert.deepEqual(moveTool(MAP_TOOLS, 'home', -1), ['paris', 'pratique', 'metro', 'home', 'velib', 'sorties', 'planning', 'circuits', 'locate']);
   assert.deepEqual(moveTool(MAP_TOOLS, 'paris', -1), MAP_TOOLS);
 });
 
@@ -568,17 +568,24 @@ test('boutons de la carte (v124) : Paris à la place de Fontaine, et « Plus » 
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   const fresh = loadState(mem(null));
   assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t)), ['paris', 'metro', 'sorties', 'planning', 'locate']);
-  assert.deepEqual(fresh.moreTools, ['pratique', 'velib', 'home']);
+  assert.deepEqual(fresh.moreTools, ['pratique', 'velib', 'home', 'circuits']);
   // Mes réglages de la v123 : Paris caché en 5e place, Fontaine en tête
   const v3 = mem(JSON.stringify({ points: [], layoutV: 3, mapTools: ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], hiddenTools: ['paris', 'velib'] }));
   const st = loadState(v3);
-  assert.deepEqual(st.mapTools, ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'locate']);
+  assert.deepEqual(st.mapTools, ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'locate']);
   assert.deepEqual(st.hiddenTools, ['velib']);
-  assert.deepEqual(st.moreTools, ['pratique', 'home'], 'un bouton caché ne va pas dans Plus');
+  assert.deepEqual(st.moreTools, ['pratique', 'home', 'circuits'], 'un bouton caché ne va pas dans Plus');
   // Mon choix tient ensuite (pas de seconde migration)
   st.moreTools = ['sorties']; saveState(v3, st);
   assert.deepEqual(loadState(v3).moreTools, ['sorties']);
   assert.deepEqual(cleanMore(['x', 'home', 'home', 'velib'], ['velib']), ['home']);
   assert.deepEqual(layoutV4(['metro', 'paris'], []).mapTools.slice(0, 2), ['metro', 'paris'], 'sans Fontaine avant Paris, l\'ordre ne change pas');
-  assert.deepEqual(cleanSettings({ hiddenTools: ['home'] }).moreTools, ['pratique', 'velib']);
+  assert.deepEqual(cleanSettings({ hiddenTools: ['home'] }).moreTools, ['pratique', 'velib', 'circuits']);
+  // v168 : chez qui avait déjà ses boutons, Circuits arrive dans Plus, jamais sur la carte ; ensuite mon choix tient
+  const v165 = mem(JSON.stringify({ points: [], layoutV: 4, mapTools: ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'locate'], hiddenTools: [], moreTools: ['velib'] }));
+  const s5 = loadState(v165);
+  assert.deepEqual(s5.moreTools, ['velib', 'circuits']);
+  assert.deepEqual(s5.mapTools.at(-2), 'circuits');
+  s5.moreTools = ['velib']; saveState(v165, s5);
+  assert.deepEqual(loadState(v165).moreTools, ['velib'], 'sorti de Plus, il reste sur la carte');
 });

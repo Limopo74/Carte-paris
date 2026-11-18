@@ -142,18 +142,22 @@ const clean = (p) => ({
 });
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
-export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|velib|pratique|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
-/** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib' et Fontaines et toilettes. Un bouton caché n'est pas aussi dans Plus. */
-export const DEFAULT_MORE_CHIPS = ['velib', 'pratique'];
+export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|velib|pratique|passages|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
+/** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib', Fontaines et toilettes, Passages couverts. Un bouton caché n'est pas aussi dans Plus. */
+export const DEFAULT_MORE_CHIPS = ['velib', 'pratique', 'passages'];
 export const cleanMoreChips = (list, hidden = []) => (list === undefined ? [...DEFAULT_MORE_CHIPS] : cleanChips(list)).filter((k) => !hidden.includes(k));
+/** Un bouton du haut ajouté après coup arrive sous ⋯ Plus, pas dans la barre (chipsV 2, v168 : Passages couverts). */
+export const NEW_MORE_CHIPS = ['passages'];
+export const CHIPS_V = 2;
+export const withNewChips = (list, v) => (list === undefined || v >= CHIPS_V ? list : [...cleanChips(list), ...NEW_MORE_CHIPS.filter((k) => !cleanChips(list).includes(k))]);
 
 /** Lignes masquées de la feuille Filtres. */
-export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'covered', 'lists', 'people'];
+export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'covered', 'lists', 'people'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], artistLinks: {}, venues: [], outings: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
+  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], artistLinks: {}, venues: [], outings: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, showPassages: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -171,7 +175,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    const st = { points, plans: cleanPlans(obj.plans), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(obj.moreChips, cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
+    const st = { points, plans: cleanPlans(obj.plans), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, showPassages: obj.showPassages === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(withNewChips(obj.moreChips, obj.chipsV), cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
       essentials: cleanEssentials(obj.essentials), layoutBefore: cleanLayout(obj.layoutBefore),
@@ -179,7 +183,7 @@ export function loadState(storage) {
       ok: true };
     // v124 : Paris prend la place de Fontaine et WC ; Fontaine, Vélib' et Rentrer passent dans « Plus » (une seule fois)
     if (!(obj.layoutV >= 4)) Object.assign(st, layoutV4(st.mapTools, st.hiddenTools));
-    else st.moreTools = cleanMore(obj.moreTools, st.hiddenTools);
+    else st.moreTools = cleanMore(withNewInMore(obj.moreTools, obj.mapTools), st.hiddenTools);
     // Avant la v119, seuls les lieux ajoutés étaient comptés : on repart de ce compte, avec l'empreinte actuelle.
     st.backup = cleanBackup(obj.backup) ?? (() => {
       const fresh = st.points.filter((p) => p.created > (lastExport ?? 0));
@@ -196,7 +200,7 @@ export function cleanSettings(o = {}) {
   return {
     rings: normalizeRings(o.rings ?? []), minuteRings: normalizeMinuteRings(o.minuteRings ?? []), ringUnit: o.ringUnit === 'min' ? 'min' : 'm',
     voice: o.voice !== false, fav: cleanFav(o.fav), chipIcons: o.chipIcons === true,
-    mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(o.moreTools ?? DEFAULT_MORE, cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
+    mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(withNewInMore(o.moreTools ?? DEFAULT_MORE, o.mapTools), cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
     toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, pace: cleanPace(o.pace), textSize: cleanTextSize(o.textSize), essentials: cleanEssentials(o.essentials),
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
@@ -236,7 +240,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -249,7 +253,7 @@ export function readSettings(obj) {
   if (!o) return null;
   const base = cleanSettings(o);
   if (!obj.settings) return { fav: base.fav, rings: base.rings }; // version 2 sans réglages : seulement ce qu'elle contenait
-  return { ...base, showMarkets: o.showMarkets === true, showLines: o.showLines === true, showTtb: o.showTtb === true, showPratique: o.showPratique === true, hiddenChips: cleanChips(o.hiddenChips), moreChips: cleanMoreChips(o.moreChips, cleanChips(o.hiddenChips)), hiddenFilters: cleanFilterKeys(o.hiddenFilters) };
+  return { ...base, showMarkets: o.showMarkets === true, showLines: o.showLines === true, showTtb: o.showTtb === true, showPratique: o.showPratique === true, showPassages: o.showPassages === true, hiddenChips: cleanChips(o.hiddenChips), moreChips: cleanMoreChips(withNewChips(o.moreChips, o.chipsV), cleanChips(o.hiddenChips)), hiddenFilters: cleanFilterKeys(o.hiddenFilters) };
 }
 
 /** Texte du fichier de sauvegarde. */
@@ -260,7 +264,7 @@ export function exportJSON(state) {
     mySettings: cleanMySettings(state.mySettings),
     myStations: cleanMyStations(state.myStations),
     // Mes réglages du moment (affichage, cercles, favori…), remis tels quels quand je restaure sur une appli vide
-    settings: { ...cleanSettings(state), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), hiddenFilters: cleanFilterKeys(state.hiddenFilters) },
+    settings: { ...cleanSettings(state), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) },
     // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
     points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
     // Sorties de l'agenda prévues (gardées à part de mes lieux)
@@ -393,9 +397,18 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-export const MAP_TOOLS = ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'locate'];
+export const MAP_TOOLS = ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'locate'];
 /** Boutons rangés au départ dans « Plus » (un appui sur ⋯ les montre, avec leur nom). */
-export const DEFAULT_MORE = ['pratique', 'velib', 'home'];
+export const DEFAULT_MORE = ['pratique', 'velib', 'home', 'circuits'];
+/** Boutons arrivés après coup et rangés d'office dans « Plus » chez qui avait déjà ses boutons (v168 : Circuits). */
+export const NEW_IN_MORE = ['circuits'];
+/** Ajoute à « Plus » les boutons nouveaux que la disposition gardée ne connaissait pas encore (rien ne s'ajoute sur la carte tout seul). */
+export function withNewInMore(more, savedTools) {
+  const list = Array.isArray(more) ? [...more] : [];
+  if (!Array.isArray(savedTools)) return list;
+  for (const t of NEW_IN_MORE) if (!savedTools.includes(t) && !list.includes(t)) list.push(t);
+  return list;
+}
 /** Boutons dans « Plus » : noms connus, sans doublon, jamais un bouton caché. */
 export function cleanMore(list, hidden = []) {
   return Array.isArray(list) ? MAP_TOOLS.filter((t) => list.includes(t) && !hidden.includes(t)) : [];
@@ -411,7 +424,7 @@ export function cleanEssentials(list) {
 export function cleanLayout(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const hiddenTools = cleanHidden(o.hiddenTools);
-  return { mapTools: normalizeTools(o.mapTools), hiddenTools, moreTools: cleanMore(o.moreTools, hiddenTools) };
+  return { mapTools: normalizeTools(o.mapTools), hiddenTools, moreTools: cleanMore(withNewInMore(o.moreTools, o.mapTools), hiddenTools) };
 }
 /** Ne garder que l'essentiel : les boutons choisis sur la carte, tous les autres dans Plus (aucun caché). L'ordre ne change pas. */
 export function essentialLayout(s) {

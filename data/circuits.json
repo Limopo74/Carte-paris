@@ -1,0 +1,466 @@
+{
+ "source": "Étapes vérifiées le 18 novembre 2026 ; tracés à pied calculés avec OpenStreetMap (routing.openstreetmap.de, ODbL).",
+ "updated": "2026-11-18",
+ "items": [
+  {
+   "id": "marais",
+   "titre": "Le Marais",
+   "quartier": "centre",
+   "themes": [
+    "histoire",
+    "art"
+   ],
+   "depart": "Saint-Paul",
+   "arrivee": "Rambuteau",
+   "m": 2897,
+   "confort": "Plat, sans escalier.",
+   "etapes": [
+    {
+     "n": "Métro Saint-Paul",
+     "lat": 48.85521,
+     "lng": 2.36086,
+     "t": "Ligne 1.",
+     "m": true
+    },
+    {
+     "n": "Enceinte de Philippe Auguste",
+     "lat": 48.8534,
+     "lng": 2.3606,
+     "t": "La plus longue portion conservée du mur bâti autour de Paris à la fin du XIIe siècle : près de 60 m et deux tours.",
+     "s": "https://www.pariszigzag.fr/insolite/histoire-insolite-paris/vestiges-enceinte-philippe-auguste/"
+    },
+    {
+     "n": "Hôtel de Sully",
+     "lat": 48.85441,
+     "lng": 2.3637,
+     "t": "Hôtel particulier bâti de 1624 à 1630. On traverse la cour et le jardin, aux heures d'ouverture, pour rejoindre la place des Vosges.",
+     "s": "https://parisjetaime.com/musee-monument-paris/71312/Hotel-de-B%c3%a9thune-Sully"
+    },
+    {
+     "n": "Place des Vosges",
+     "lat": 48.85482,
+     "lng": 2.36613,
+     "t": "Inaugurée en 1612 sous le nom de place Royale. Victor Hugo a vécu au n° 6 de 1832 à 1848 : sa maison est un musée de la Ville.",
+     "s": "https://www.lonelyplanet.com/france/paris/attractions/hotel-de-sully/a/poi-sig/372489/359279"
+    },
+    {
+     "n": "Musée Carnavalet",
+     "lat": 48.85706,
+     "lng": 2.36285,
+     "t": "Le musée de l'histoire de Paris. Collections permanentes gratuites ; fermé le lundi.",
+     "s": "https://www.carnavalet.paris.fr/sites/default/files/2026-08/plan_guide_carnavalet_2026_vweb_1.pdf"
+    },
+    {
+     "n": "Musée Cognacq-Jay",
+     "lat": 48.8582,
+     "lng": 2.36147,
+     "t": "L'art du XVIIIe siècle réuni par Ernest Cognacq, fondateur de la Samaritaine, et son épouse Marie-Louise Jay. Musée de la Ville, gratuit ; fermé le lundi.",
+     "s": "https://pro.visitparisregion.com/offre-loisirs-et-affaires/offre-de-la-destination/une-activite/musees-monuments-chateaux/musees/musee-cognacq-jay"
+    },
+    {
+     "n": "Rue des Rosiers",
+     "lat": 48.85708,
+     "lng": 2.35969,
+     "t": "Le cœur du Pletzl (« petite place » en yiddish), le quartier juif historique du Marais.",
+     "s": "https://www.evous.fr/paris/le-marais/Visiter-le-Marais/Quartiers-du-Marais/Le-Marais-Juif/Histoire-de-la-rue-des-Rosiers,1175205/"
+    },
+    {
+     "n": "Archives nationales",
+     "lat": 48.85996,
+     "lng": 2.35727,
+     "t": "L'hôtel de Soubise, au décor rocaille de Germain Boffrand, abrite les Archives nationales depuis 1808.",
+     "s": "https://www.offi.fr/expositions-musees/archives-nationales-3615.html"
+    },
+    {
+     "n": "Métro Rambuteau",
+     "lat": 48.86119,
+     "lng": 2.35343,
+     "t": "Ligne 11.",
+     "m": true
+    }
+   ],
+   "trace": "e`eiHmblM@I@G@GVaB@EFYJm@JDB@@@RmABB\\mABE@@??VVZXDBb@`@^XHF?@@?@@B@?@C^Aj@CJIf@GX?DB@ZXVTb@^\\Z][c@_@WU[YCA?EFYHg@BK@k@B_@?ACAAAA??AIG_@Yc@a@EC[YWW??@G?C@C?AAA?C?A?ARw@CCAACCCCEEAA^uABMBICAA?KGc@W?AA?ACOGCAOIA?A?Je@[M[KAAAAA?A?CA\\qD@I?A?E@I^qDBCAPAJ@K@QCBCBA?C@?@@??@E`@CRSnBIAGAA?AJAJ??StBIJCByAc@sA_@GKCBGNEN??A?ADAJGt@CPBHEHADCF?BGAA?AAAAAAs@jDCBETQx@CB?BAFABABSMAD?@?A@ERLBDAHg@vBSz@A@A@AFABAB@BCFeAdDED?Ea@g@CEADMQMQKOIIACKMJL@BHHJNLPLP@EBD`@f@?DDEdAeD@@@B@@@BBG@?DAjAx@DDJPFJd@hA?@AJA@_A|BEFGPQ`@?JIR[fA_@p@[l@c@pAEIUa@CAAAC@ABw@tAECA@AAA?ABA@KK?AA?A???A@CAEEAAEEg@k@IIGCACCGCG}A~B}A~Bg@r@AAGMAA@@FL[h@?@@@BB@@?FA@@@CJAHABGFS|@ENA@?@ADAB?@EP}@rDAP?@CDADABCFs@|Cm@dCBBBBA@?BAHGA?D",
+   "note": "Carnavalet et Cognacq-Jay ferment le lundi."
+  },
+  {
+   "id": "iles",
+   "titre": "Les îles",
+   "quartier": "centre",
+   "themes": [
+    "histoire",
+    "nature"
+   ],
+   "depart": "Pont Marie",
+   "arrivee": "Pont Neuf",
+   "m": 2796,
+   "confort": "Plat. Un escalier pour descendre au square du Vert-Galant, et le même pour remonter.",
+   "etapes": [
+    {
+     "n": "Métro Pont Marie",
+     "lat": 48.85329,
+     "lng": 2.35762,
+     "t": "Ligne 7.",
+     "m": true
+    },
+    {
+     "n": "Hôtel de Lauzun",
+     "lat": 48.85167,
+     "lng": 2.35917,
+     "t": "Hôtel particulier construit en 1658, 17 quai d'Anjou. Baudelaire et Théophile Gautier y ont habité au XIXe siècle.",
+     "s": "https://parisjetaime.com/article/au-coeur-des-iles-parisiennes-a702"
+    },
+    {
+     "n": "Église Saint-Louis-en-l'Île",
+     "lat": 48.85127,
+     "lng": 2.35757,
+     "t": "Construite de 1664 à 1726. Son horloge est posée perpendiculairement à la façade, comme une enseigne.",
+     "s": "https://parisjetaime.com/article/au-coeur-des-iles-parisiennes-a702"
+    },
+    {
+     "n": "Square Jean-XXIII",
+     "lat": 48.8525,
+     "lng": 2.35139,
+     "t": "Le jardin derrière Notre-Dame, avec la vue sur le chevet de la cathédrale."
+    },
+    {
+     "n": "Point zéro",
+     "lat": 48.8534,
+     "lng": 2.34879,
+     "t": "Sur le parvis de Notre-Dame, une rose des vents en laiton : c'est d'ici que sont comptées les distances entre Paris et les autres villes.",
+     "s": "https://www.paris.fr/pages/le-point-zero-reinstalle-sur-le-parvis-de-notre-dame-de-paris-31306"
+    },
+    {
+     "n": "Tour de l'Horloge",
+     "lat": 48.85568,
+     "lng": 2.34592,
+     "t": "Au coin du palais de la Cité, la première horloge publique de Paris, réalisée vers 1370 par Henri de Vic.",
+     "s": "https://www.pariszigzag.fr/insolite/histoire-insolite-paris/tour-de-lhorloge-palais-de-la-cite/"
+    },
+    {
+     "n": "Place Dauphine",
+     "lat": 48.85654,
+     "lng": 2.34243,
+     "t": "Place en triangle décidée par Henri IV en 1606, quand s'achevait le Pont Neuf.",
+     "s": "https://www.techno-science.net/fr/definitions/pont-neuf"
+    },
+    {
+     "n": "Pont Neuf",
+     "lat": 48.8575,
+     "lng": 2.34167,
+     "t": "Malgré son nom, le plus ancien pont de Paris : Henri IV l'a inauguré en 1607. Sa statue est au milieu.",
+     "s": "https://www.bonjour-ratp.fr/en/lieux/pont-neuf/"
+    },
+    {
+     "n": "Square du Vert-Galant",
+     "lat": 48.85733,
+     "lng": 2.34072,
+     "t": "À la pointe de l'île, au ras de l'eau. On y descend par l'escalier derrière la statue d'Henri IV.",
+     "s": "https://bonjourparis.com/paris-neighbourhoods/flaneries-in-paris-a-riverside-loop-from-chatelet/"
+    },
+    {
+     "n": "Métro Pont Neuf",
+     "lat": 48.85868,
+     "lng": 2.34149,
+     "t": "Ligne 7.",
+     "m": true
+    }
+   ],
+   "trace": "atdiHankMBA@EDMFS@ElC|BDB@?BCR}@^kBd@eB?@B@DB??@C??@A?C@A@CA??A@C@C@C`@aBa@`BABABAB?@@?ABA@??pB~A?B?@???@?@??B@BB@?Oh@ADGTEL?DcAzD?D?D?BEHAFABAAA@i@rB??@@?@ABAB?@A???cAxD?B??ADAD???@ENADCF?BCLENA@AB?BA@ENCJEN?@?@ADADA@??e@dBDf@J??D@D?B?BA@CB?@AB?@d@jDBBB@AJ?H?JAT?JF`@??Ga@C@CDCBACCACACCAB?Dg@|BA@CBA@AACFAHADCLYvAA@AFAD@@@@?@?Bo@vCCHUhACDDBBBB@AD?B@BHTEPER_AlEADBFABAHCFCNCDMPEAEACAICKEGA?@CLALqAo@ADMCq@lCk@_@ABw@fDECCNELAFADABABAHGEFDv@j@BBRLh@j@hBlBBJETgA~COQcB`EGFC@C@CHWXSTI@A@AFCD?Am@c@A?A?A@A?A@AACCA?Mh@CDc@[ADCH??BI@Eo@e@ECc@lECPQl@?CIGGEA?AAEACCECC@KHC?CDCLc@]b@\\CLADXTDDADUz@BBPNB@CJCD?BCHAAA@A@?@A?A?A?A?AA??AA?A?A???A?A?????@?@???@?@@@??@@@?@?@?@??A@A@A@@BI?CBEBKCAQOCCT{@@EEEYUkEcDGAGJEEKCMEURIp@@j@?HRH?DCN"
+  },
+  {
+   "id": "passages",
+   "titre": "Les passages couverts",
+   "quartier": "centre",
+   "themes": [
+    "passages",
+    "histoire"
+   ],
+   "depart": "Grands Boulevards",
+   "arrivee": "Palais-Royal",
+   "m": 2094,
+   "confort": "Plat, en partie à l'abri de la pluie.",
+   "etapes": [
+    {
+     "n": "Métro Grands Boulevards",
+     "lat": 48.87143,
+     "lng": 2.34434,
+     "t": "Lignes 8 et 9.",
+     "m": true
+    },
+    {
+     "n": "Passage Jouffroy",
+     "lat": 48.87255,
+     "lng": 2.34214,
+     "t": "Inauguré en 1847, le premier passage bâti entièrement en fer et en verre.",
+     "s": "https://www.paris.fr/en/pages/discover-the-magic-of-parisian-galleries-and-arcades-29672"
+    },
+    {
+     "n": "Passage Verdeau",
+     "lat": 48.87353,
+     "lng": 2.34232,
+     "t": "Construit en 1847 dans le prolongement du passage Jouffroy : livres anciens, cartes postales, objets de collection.",
+     "s": "https://www.visitparisregion.com/fr/parcours/parcours-tops/passage-couvert-paris"
+    },
+    {
+     "n": "Passage des Panoramas",
+     "lat": 48.87154,
+     "lng": 2.34179,
+     "t": "Ouvert en 1799 : le plus ancien passage couvert de Paris.",
+     "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+    },
+    {
+     "n": "Galerie Vivienne",
+     "lat": 48.86667,
+     "lng": 2.33972,
+     "t": "Construite en 1823 : mosaïques au sol et décor néoclassique sous une verrière.",
+     "s": "https://www.evous.fr/paris/2eme-Arrondissement/Guide-Paris-2e/Ce-qu-il-faut-visiter-dans-le-2e/Galerie-Colbert-et-Galerie-Vivienne-a-Paris,1119386/"
+    },
+    {
+     "n": "Galerie Colbert",
+     "lat": 48.86683,
+     "lng": 2.33936,
+     "t": "La rivale de la galerie Vivienne : une grande rotonde sous une coupole de verre. Elle abrite l'Institut national d'histoire de l'art.",
+     "s": "https://parisjetaime.com/culture/galerie-colbert-p1585"
+    },
+    {
+     "n": "Jardin du Palais-Royal",
+     "lat": 48.865,
+     "lng": 2.33775,
+     "t": "Le jardin entouré d'arcades du Palais-Royal."
+    },
+    {
+     "n": "Colonnes de Buren",
+     "lat": 48.86361,
+     "lng": 2.33778,
+     "t": "« Les Deux Plateaux », les colonnes rayées noir et blanc de Daniel Buren, dans la cour d'honneur."
+    },
+    {
+     "n": "Métro Palais-Royal",
+     "lat": 48.86264,
+     "lng": 2.33658,
+     "t": "Lignes 1 et 7.",
+     "m": true
+    }
+   ],
+   "trace": "iehiHa{hMS|BE`@Gt@AFAD?BALCPAB?B?FIt@UtCGAkCw@MECZkAYAAA?EAC?AAC?sAOrANB?@@B?D@@?@@jAXB[xC|@F@F@B@LBHB@?F@DBECEh@~BdA@@fBt@??@A?AB@DBB@?@?@@B@@@?|@`@@?@A@?DBD@?@@B?@HD@??ABI@@F@DBB?BN|@^XJZL\\L@A@C@DDBFBFBD@AB@D@DFBTP~CtA`CfA@??A^iCfAd@gAe@_@hC?@v@^jBx@B@?CB@@?DB@@?BTJBA@A@?B@@@@?AL@@\\NB?FD?@l@VO~@rAj@`@PDJDFFDB?B@F?HE\\NtAj@d@RL}@Fe@BSLD?@@?B@d@RFc@Gb@@@v@ZLu@@C?CRJt@Zb@RHD?BB@FDHD@@@?AFAFAFFzAF^",
+   "note": "La plupart des passages ferment le soir : fais ce circuit en journée."
+  },
+  {
+   "id": "montmartre",
+   "titre": "Montmartre",
+   "quartier": "nord",
+   "themes": [
+    "histoire",
+    "art"
+   ],
+   "depart": "Abbesses",
+   "arrivee": "Lamarck-Caulaincourt",
+   "m": 1706,
+   "confort": "Fortes pentes jusqu'au Sacré-Cœur, puis une descente. Le chemin peut passer par des escaliers.",
+   "etapes": [
+    {
+     "n": "Métro Abbesses",
+     "lat": 48.88485,
+     "lng": 2.33869,
+     "t": "Ligne 12. La station la plus profonde de Paris (36 m) : prends l'ascenseur. Son entrée est un des deux édicules d'Hector Guimard encore en place.",
+     "s": "https://www.ratp.fr/decouvrir/patrimoine/histoire-station-abbesses",
+     "m": true
+    },
+    {
+     "n": "Bateau-Lavoir",
+     "lat": 48.88611,
+     "lng": 2.33761,
+     "t": "Picasso y a vécu de 1904 à 1909 et y a peint Les Demoiselles d'Avignon (1907). Incendié en 1970, reconstruit en 1978 : des ateliers privés, à voir de la place.",
+     "s": "https://www.routard.com/fr/guide/france/ile-de-france/paris/18eme-arrondissement/montmartre/bateau-lavoir"
+    },
+    {
+     "n": "Le Passe-Muraille",
+     "lat": 48.88772,
+     "lng": 2.33768,
+     "t": "Un homme qui sort du mur : statue de Jean Marais (1989) d'après la nouvelle de Marcel Aymé, qui habitait l'immeuble.",
+     "s": "https://www.lonelyplanet.com/points-of-interest/le-passe-muraille/1535927"
+    },
+    {
+     "n": "Place du Tertre",
+     "lat": 48.88667,
+     "lng": 2.34083,
+     "t": "La place du village de Montmartre, où les peintres installent leurs chevalets."
+    },
+    {
+     "n": "Sacré-Cœur",
+     "lat": 48.88665,
+     "lng": 2.34295,
+     "t": "Commencée en 1875, achevée en 1914, consacrée en 1919. Entrée gratuite ; vue sur Paris depuis le parvis.",
+     "s": "https://www.lonelyplanet.fr/destinations/france/paris/que-faire/le-sacre-coeur"
+    },
+    {
+     "n": "La Maison Rose",
+     "lat": 48.88799,
+     "lng": 2.3396,
+     "t": "Le café rose au coin de la rue de l'Abreuvoir, peint par Maurice Utrillo.",
+     "s": "https://worldcitytrail.com/2025/04/26/le-passe-muraille-in-montmartre/"
+    },
+    {
+     "n": "Vigne du Clos Montmartre",
+     "lat": 48.88845,
+     "lng": 2.33935,
+     "t": "Plantée en 1933, fermée au public : on la voit depuis la rue des Saules. Les vendanges sont fêtées chaque année en octobre.",
+     "s": "https://www.sortiraparis.com/arts-culture/balades/articles/298016-en-balade-au-vignoble-du-clos-montmartre-les-plus-anciennes-vignes-de-paris"
+    },
+    {
+     "n": "Au Lapin Agile",
+     "lat": 48.88873,
+     "lng": 2.33999,
+     "t": "Le cabaret de la butte, fréquenté par les artistes, dont Picasso.",
+     "s": "https://www.untappedcities.com/clos-montmartre/"
+    },
+    {
+     "n": "Métro Lamarck-Caulaincourt",
+     "lat": 48.88914,
+     "lng": 2.33816,
+     "t": "Ligne 12.",
+     "m": true
+    }
+   ],
+   "trace": "iyjiHywgMSKK@WBC??@A@AD?B@@Kb@ECGTCJADECEECCCCCCEECACEAAYrA?ACACPGDGFIZSNMHEEGGAAGGIIBGQQACCCCEAACF{BnDC@u@g@?EAACAC?CAABE?o@c@?CCCAACAAAOEIG?AFC@?VsAHDHD@?TkAP{@Nm@DEBGFs@FS@M?]@?B??QFm@H{@Nm@JOLS@MD[Fc@@OGCAEECEAQIAA?C?G@EQC[GEACGCCXkD?O?U@QDBJAd@CPAQ@e@BK@ECAP?T?NYjDAJAHcAYECAACBCDA`@?x@AZATCZCFGv@K|AA?A?C?C?ABS??B?DAF?@?BIPHQ?C_A?o@?E@ERGb@Fc@DSCCCACAA?AI@C@G?E?C_@I^H?B?DAFAB@H@?B@MxAG`@]fBIt@ENCEACABE@C?WKEC}@]A@?JAD?@?BH?THb@N"
+  },
+  {
+   "id": "canal",
+   "titre": "Le canal Saint-Martin",
+   "quartier": "est",
+   "themes": [
+    "nature",
+    "histoire"
+   ],
+   "depart": "République",
+   "arrivee": "Jaurès",
+   "m": 2768,
+   "confort": "Presque plat. Les passerelles en fer ont des marches.",
+   "etapes": [
+    {
+     "n": "Métro République",
+     "lat": 48.8675,
+     "lng": 2.36381,
+     "t": "Lignes 3, 5, 8, 9 et 11.",
+     "m": true
+    },
+    {
+     "n": "Square Frédérick-Lemaître",
+     "lat": 48.8693,
+     "lng": 2.36686,
+     "t": "Le canal sort ici de sa voûte. Inauguré en 1825, il fait 4,5 km, dont plus de 2 km sous terre, avec neuf écluses et deux ponts tournants.",
+     "s": "https://www.paris.fr/services-et-infos-pratiques/environnement-et-espaces-verts/nature-et-espaces-verts/les-canaux-90"
+    },
+    {
+     "n": "Hôtel du Nord",
+     "lat": 48.87347,
+     "lng": 2.36413,
+     "t": "102 quai de Jemmapes : l'hôtel qui a donné son nom au film de Marcel Carné (1938), tourné surtout en studio.",
+     "s": "https://www.pariszigzag.fr/insolite/histoire-insolite-paris/histoire-hotel-du-nord"
+    },
+    {
+     "n": "Jardin Villemin",
+     "lat": 48.87559,
+     "lng": 2.36202,
+     "t": "Un jardin public au bord du canal, pour une pause."
+    },
+    {
+     "n": "Rotonde de la Villette",
+     "lat": 48.88364,
+     "lng": 2.36967,
+     "t": "Bâtie de 1784 à 1788 par Claude-Nicolas Ledoux : un bureau d'octroi, où l'on payait l'impôt sur les marchandises qui entraient dans Paris.",
+     "s": "https://www.techno-science.net/fr/definitions/rotonde-de-la-villette"
+    },
+    {
+     "n": "Métro Jaurès",
+     "lat": 48.88292,
+     "lng": 2.37067,
+     "t": "Lignes 2, 5 et 7 bis.",
+     "m": true
+    }
+   ],
+   "trace": "mmgiHqulMZk@e@]MEGEIUAEKa@q@eCAACKCGAEk@cCo@aDACEBC@C@ACAEEMCC@KAMAI?CC@@@@F?H?DABA?AD@@ADCFCBqA`AAE??EB@DaAr@AEED@BEDCA?@C@@BID{DlCCFC@C@A@EBEBA@?DA@KHI?cCdBGLOJC@I?o@`@a@Z{BdBCBE@SQKSQYACEDCBAAC@A?A@ACEI?AAA[TcBjA@BBL?B@@A@@@A@A@?@KFDNBHHZBLBJGDA@@BC@_@NQBUBO??BY?QA[E[MSMQKKIYW?FAF?BADAf@@b@Bv@EFGHCHENCHCHANAL?L?TIAGACAB@F@H@?U?M@M@OBIBIDOBIFIDGCw@Ac@@g@@EMIu@o@oAcAeA}@UQKKs@m@oDuCGEE@AAEECCCA?GqAeA_Ay@[YGGGCkAaAUQEGGEy@o@sAAC@A@?AEECC?A?A@C?AACAC}LgKAGAGACAEAICKAAEGKi@G_@KFEBA@C@C@A?IBC?CQAEAEAKOg@CKCIACEIA[INOX]Vw@Ei@r@?V?Wh@s@v@D\\WNYHOHMB?CI?AHEAECOAI"
+  },
+  {
+   "id": "luxembourg",
+   "titre": "Saint-Germain et le Luxembourg",
+   "quartier": "rive-gauche",
+   "themes": [
+    "histoire",
+    "nature",
+    "art"
+   ],
+   "depart": "Odéon",
+   "arrivee": "Notre-Dame-des-Champs",
+   "m": 3048,
+   "confort": "Plat, sans escalier.",
+   "etapes": [
+    {
+     "n": "Métro Odéon",
+     "lat": 48.85194,
+     "lng": 2.33889,
+     "t": "Lignes 4 et 10.",
+     "m": true
+    },
+    {
+     "n": "Cour du Commerce-Saint-André",
+     "lat": 48.853,
+     "lng": 2.33908,
+     "t": "Un passage pavé qui garde un vestige de l'enceinte de Philippe Auguste. Le Procope, l'un des plus anciens cafés de Paris, y a une entrée.",
+     "s": "https://parisjetaime.com/transport/quartier-de-l-odeon-p1993"
+    },
+    {
+     "n": "Église Saint-Sulpice",
+     "lat": 48.85083,
+     "lng": 2.33559,
+     "t": "À droite en entrant, la chapelle des Saints-Anges, peinte par Delacroix de 1849 à 1861. Entrée libre.",
+     "s": "https://www.paris.fr/pages/retrouvez-les-splendeurs-de-delacroix-a-la-chapelle-des-saints-anges-de-saint-sulpice-4241"
+    },
+    {
+     "n": "Théâtre de l'Odéon",
+     "lat": 48.8495,
+     "lng": 2.33875,
+     "t": "Le théâtre de l'Odéon, aujourd'hui Odéon-Théâtre de l'Europe, au centre de sa place.",
+     "s": "https://parisjetaime.com/transports/93224/Quartier-de-l-Odeon"
+    },
+    {
+     "n": "Palais du Luxembourg",
+     "lat": 48.8479,
+     "lng": 2.3375,
+     "t": "Bâti dans les années 1620 pour Marie de Médicis ; c'est aujourd'hui le Sénat.",
+     "s": "https://www.lonelyplanet.com/france/paris/st-germain-and-les-invalides/attractions/eglise-st-sulpice/a/poi-sig/372411/1322788"
+    },
+    {
+     "n": "Fontaine Médicis",
+     "lat": 48.84806,
+     "lng": 2.33917,
+     "t": "Une grotte à l'italienne élevée vers 1630 pour Marie de Médicis.",
+     "s": "https://jardin.senat.fr/en/history-heritage/heritage.html"
+    },
+    {
+     "n": "Jardin du Luxembourg",
+     "lat": 48.84694,
+     "lng": 2.33722,
+     "t": "Le jardin créé pour Marie de Médicis, inspiré du jardin Boboli de Florence.",
+     "s": "https://secure.webpublication.fr/42102/1020942/index-34.html"
+    },
+    {
+     "n": "Musée Zadkine",
+     "lat": 48.84299,
+     "lng": 2.33416,
+     "t": "La maison-atelier du sculpteur Ossip Zadkine. Musée de la Ville, collections gratuites ; fermé le lundi.",
+     "s": "https://www.laculturegenerale.com/?p=79693"
+    },
+    {
+     "n": "Métro Notre-Dame-des-Champs",
+     "lat": 48.84457,
+     "lng": 2.32879,
+     "t": "Ligne 12.",
+     "m": true
+    }
+   ],
+   "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@Rr@SDf@DX?BBNL@CN?DD?NDJBD?B?z@?~@l@BH??DBFB@@D?LH@N@?D@D@@@AP@`@B|@BfA@LB??@?H?F?@?FH|APrC?B@B?F?@B?TCD?JAd@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@A?B@bA?T?B?@?@?@?F?H?@@B@?D@H@HBJg@BBFLj@@pBDF@R@NDAPDDDFFFDJBJ@F@HCxAByAAIAGCKEKGGEGEE@QOESAQs@FUDU?_@CIBH?^ETGTPr@R@NDJFPTHXDZ?j@J@zABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@???@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
+   "note": "Le jardin du Luxembourg ferme la nuit. Le musée Zadkine ferme le lundi."
+  }
+ ]
+}

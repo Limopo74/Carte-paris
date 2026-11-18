@@ -1,0 +1,12 @@
+# Étapes des 6 circuits : (nom, lat, lng)
+C = {
+ 'marais': [('Métro Saint-Paul',48.85521,2.36086),('Enceinte de Philippe Auguste',48.85340,2.36060),('Hôtel de Sully',48.85441,2.36370),('Place des Vosges',48.85482,2.36613),('Musée Carnavalet',48.85706,2.36285),('Musée Cognacq-Jay',48.85820,2.36147),('Rue des Rosiers',48.85708,2.35969),('Archives nationales',48.85996,2.35727),('Métro Rambuteau',48.86119,2.35343)],
+ 'iles': [('Métro Pont Marie',48.85329,2.35762),('Hôtel de Lauzun',48.85167,2.35917),('Église Saint-Louis-en-l\'Île',48.85127,2.35757),('Square Jean-XXIII',48.85250,2.35139),('Point zéro',48.85340,2.34879),('Tour de l\'Horloge',48.85568,2.34592),('Place Dauphine',48.85654,2.34243),('Pont Neuf',48.85750,2.34167),('Square du Vert-Galant',48.85733,2.34072),('Métro Pont Neuf',48.85868,2.34149)],
+ 'passages': [('Métro Grands Boulevards',48.87143,2.34434),('Passage Jouffroy',48.87255,2.34214),('Passage Verdeau',48.87353,2.34232),('Passage des Panoramas',48.87154,2.34179),('Galerie Vivienne',48.86667,2.33972),('Galerie Colbert',48.86683,2.33936),('Jardin du Palais-Royal',48.86500,2.33775),('Colonnes de Buren',48.86361,2.33778),('Métro Palais-Royal',48.86264,2.33658)],
+ 'montmartre': [('Métro Abbesses',48.88485,2.33869),('Bateau-Lavoir',48.88611,2.33761),('Le Passe-Muraille',48.88772,2.33768),('Place du Tertre',48.88667,2.34083),('Sacré-Cœur',48.88665,2.34295),('La Maison Rose',48.88799,2.33960),('Vigne du Clos Montmartre',48.88845,2.33935),('Au Lapin Agile',48.88873,2.33999),('Métro Lamarck-Caulaincourt',48.88914,2.33816)],
+ 'canal': [('Métro République',48.86750,2.36381),('Square Frédérick-Lemaître',48.86930,2.36686),('Hôtel du Nord',48.87347,2.36413),('Jardin Villemin',48.87559,2.36202),('Rotonde de la Villette',48.88364,2.36967),('Métro Jaurès',48.88292,2.37067)],
+ 'luxembourg': [('Métro Odéon',48.85194,2.33889),('Cour du Commerce-Saint-André',48.85300,2.33908),('Église Saint-Sulpice',48.85083,2.33559),('Théâtre de l\'Odéon',48.84950,2.33875),('Palais du Luxembourg',48.84790,2.33750),('Fontaine Médicis',48.84806,2.33917),('Jardin du Luxembourg',48.84694,2.33722),('Musée Zadkine',48.84299,2.33416),('Métro Notre-Dame-des-Champs',48.84457,2.32879)],
+}
+if __name__ == '__main__':
+    for k, s in C.items():
+        print(k, 'https://routing.openstreetmap.de/routed-foot/route/v1/driving/' + ';'.join(f'{g},{a}' for _, a, g in s) + '?overview=full&geometries=polyline')

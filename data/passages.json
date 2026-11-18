@@ -1,0 +1,120 @@
+{
+ "source": "Liste établie à la main ; textes : Ville de Paris (paris.fr) et offices de tourisme. Entrées géocodées par l'IGN, chemins à pied calculés par OSRM (routing.openstreetmap.de, données OpenStreetMap).",
+ "updated": "2026-11-18",
+ "items": [
+  {
+   "id": "vero-dodat",
+   "nom": "Galerie Véro-Dodat",
+   "lat": 48.8629,
+   "lng": 2.34005,
+   "rues": "rue Jean-Jacques-Rousseau et rue du Bouloi",
+   "t": "Ouverte en 1826 par deux charcutiers, Véro et Dodat. Son sol en damier de marbre noir et blanc est posé en diagonale.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+  },
+  {
+   "id": "vivienne",
+   "nom": "Galerie Vivienne",
+   "lat": 48.86667,
+   "lng": 2.33972,
+   "rues": "rue des Petits-Champs, rue de la Banque et rue Vivienne",
+   "t": "Inaugurée en 1826, dessinée par l'architecte Delannoy. Sol en mosaïque de l'atelier Facchina. Vidocq a habité au n° 13 en 1840.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+  },
+  {
+   "id": "colbert",
+   "nom": "Galerie Colbert",
+   "lat": 48.86683,
+   "lng": 2.33936,
+   "rues": "rue des Petits-Champs et rue Vivienne",
+   "t": "La rivale de la galerie Vivienne : une grande rotonde sous une coupole de verre. Elle abrite l'Institut national d'histoire de l'art.",
+   "s": "https://parisjetaime.com/culture/galerie-colbert-p1585"
+  },
+  {
+   "id": "panoramas",
+   "nom": "Passage des Panoramas",
+   "lat": 48.87096,
+   "lng": 2.34128,
+   "rues": "boulevard Montmartre et rue Saint-Marc",
+   "t": "Ouvert en 1799 : le plus ancien passage couvert de Paris. Son nom vient des deux tours où l'on montrait des panoramas peints.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "efhiHclhMCREh@~BdA@@FB"
+  },
+  {
+   "id": "choiseul",
+   "nom": "Passage Choiseul",
+   "lat": 48.86807,
+   "lng": 2.33556,
+   "rues": "rue des Petits-Champs et rue Saint-Augustin",
+   "t": "Long d'environ 190 m. Le premier éditeur de Verlaine y était installé, et Céline y a passé son enfance.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "gkgiHqagMsCmAQGwCkA"
+  },
+  {
+   "id": "jouffroy",
+   "nom": "Passage Jouffroy",
+   "lat": 48.87263,
+   "lng": 2.34209,
+   "rues": "boulevard Montmartre et rue de la Grange-Batelière",
+   "t": "Ouvert en 1847 : le premier passage bâti tout en fer et en verre. Le musée Grévin y est installé depuis 1882.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "ahhiH_lhMwC}@CZiAY"
+  },
+  {
+   "id": "verdeau",
+   "nom": "Passage Verdeau",
+   "lat": 48.87353,
+   "lng": 2.34232,
+   "rues": "rue de la Grange-Batelière et rue du Faubourg-Montmartre",
+   "t": "Construit en 1847 dans le prolongement du passage Jouffroy : livres anciens, cartes postales, objets de collection.",
+   "s": "https://www.visitparisregion.com/fr/parcours/parcours-tops/passage-couvert-paris"
+  },
+  {
+   "id": "grand-cerf",
+   "nom": "Passage du Grand-Cerf",
+   "lat": 48.86495,
+   "lng": 2.34858,
+   "rues": "rue Saint-Denis et rue Dussoubs",
+   "t": "Près de 12 m sous verrière : le plus haut des passages de Paris. Construit avant 1827, rénové en 1990.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "e{fiHe_jMo@jGGd@IC?A"
+  },
+  {
+   "id": "bourg-labbe",
+   "nom": "Passage du Bourg-l'Abbé",
+   "lat": 48.86455,
+   "lng": 2.35079,
+   "rues": "rue Saint-Denis et rue de Palestro",
+   "t": "Ouvert en 1828, raccourci par le percement du boulevard de Sébastopol. Ses couleurs d'origine ont été retrouvées.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "wzfiHk`jMHaBDY"
+  },
+  {
+   "id": "caire",
+   "nom": "Passage du Caire",
+   "lat": 48.86833,
+   "lng": 2.34972,
+   "rues": "place du Caire, rue Saint-Denis, rue d'Alexandrie et rue Sainte-Foy",
+   "t": "Environ 370 m : le plus long des passages de Paris. Son nom rappelle la mode de l'Égypte après l'expédition de 1798.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+  },
+  {
+   "id": "brady",
+   "nom": "Passage Brady",
+   "lat": 48.87126,
+   "lng": 2.35511,
+   "rues": "rue du Faubourg-Saint-Denis et boulevard de Strasbourg",
+   "t": "Ouvert en 1828 par le marchand Brady, coupé en deux en 1854 par le boulevard de Strasbourg. Boutiques et restaurants indiens et pakistanais.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "ofhiHcvjMbAiG"
+  },
+  {
+   "id": "prado",
+   "nom": "Passage du Prado",
+   "lat": 48.87003,
+   "lng": 2.35383,
+   "rues": "rue du Faubourg-Saint-Denis et boulevard Saint-Denis",
+   "t": "Couvert en 1925 : le plus récent des passages de Paris.",
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+  }
+ ]
+}

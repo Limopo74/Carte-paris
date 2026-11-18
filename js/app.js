@@ -19,6 +19,8 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, galleriesUrl, parseGalleries, galleriesNear, freeToday, freeNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, lateOn, lateTonight, lateHour, LATE_CHECKED, streetArtUrl, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
+import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone } from './circuits.js';
+import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
@@ -38,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (167)';
+const VERSION = '18 novembre 2026 (168)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -239,7 +241,7 @@ const hideToast = () => { document.getElementById('toast').hidden = true; };
 
 /* Retour visible : toujours « ← nom de l'écran d'avant », jamais un « Retour » sans destination. */
 const named = (label, fn) => Object.assign(fn, { label });
-const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine'], [openArtPlaces, 'Grands lieux']]);
+const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine'], [openArtPlaces, 'Grands lieux'], [openCircuits, 'Circuits']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
 /** Barre collée en bas de la feuille : le retour (et Enregistrer) reste sous le pouce même sur une page longue. */
@@ -652,6 +654,7 @@ function chipItems(chip = null, catChip = null) {
   };
   const toggleVelib = () => { setVelibLayer(!velibOn); refresh(); toast(velibOn ? 'Vélib\' : les stations sur la carte (en zoomant)' : 'Vélib\' : masqué'); };
   const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
+  const toggleArc = () => { setArcadeLayer(!state.showPassages); refresh(); toast(state.showPassages ? 'Passages couverts sur la carte (le trait en zoomant)' : 'Passages couverts : masqués'); };
   const fixed = [
     { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: () => { filterCats.clear(); favOnly = false; refresh(); },
       make: () => chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) },
@@ -673,6 +676,8 @@ function chipItems(chip = null, catChip = null) {
       make: () => chip(ico('bike'), velibOn, toggleVelib, { class: 'velib', aria: 'Vélib\' : les stations sur la carte' }) },
     { key: 'pratique', name: 'Fontaines et toilettes', icon: ico('droplets'), active: Boolean(state.showPratique), act: togglePrat,
       make: () => chip(ico('droplets'), Boolean(state.showPratique), togglePrat, { class: 'pratique', aria: 'Fontaines et toilettes sur la carte' }) },
+    { key: 'passages', name: 'Passages couverts', icon: ico('door-open'), active: Boolean(state.showPassages), act: toggleArc,
+      make: () => chip(ico('door-open'), Boolean(state.showPassages), toggleArc, { class: 'pratique', aria: 'Passages couverts sur la carte' }) },
   ];
   return [...fixed, ...state.categories.map((c) => ({ key: `cat:${c.id}`, name: c.name, icon: catDot(c.id), cat: c.id, active: filterCats.has(c.id), act: () => toggleCat(c.id), make: () => catChip(c) }))];
 }
@@ -682,7 +687,7 @@ function openChipsMore() {
   const where = chipPlace();
   const list = chipItems().filter((x) => where(x.key) === 'more');
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant' }[x.key] ?? '');
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
@@ -770,12 +775,13 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
+    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\'', 'Les stations visibles en zoomant, avec leurs vélos (ou leurs places). S\'éteint quand tu fermes l\'appli', () => { setVelibLayer(!velibOn); }),
     !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et toilettes', 'Celles de la zone, visibles en zoomant', () => { setPratLayer(!state.showPratique); }),
+    !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
@@ -822,7 +828,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -2412,6 +2418,9 @@ function renderNear(fit = false) {
     body.push(el('div', { class: 'rain' }, ico('cloud-rain'),
       el('span', {}, `Il pleut${meteo.temp != null ? ` (${meteo.temp}°)` : ''}. ${n ? plural(n, 'lieu abrité', 'lieux abrités') : 'Aucun lieu coché « abrité »'}.`),
       n ? el('button', { type: 'button', class: 'btn c-guide', 'aria-pressed': String(filt.covered), onclick: () => { filt.covered = !filt.covered; refresh(); renderNear(); } }, filt.covered ? 'Tout voir' : 'Abrités') : null));
+    const arcs = arcadesNear(arcadesData ?? [], origin, ARCADE_RAIN_MIN);
+    if (arcs.length) body.push(el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArcadeList(arcs, ARCADE_RAIN_MIN, named('Autour de moi', renderNear)) },
+      ico('door-open'), arcs.length === 1 ? `1 passage couvert à moins de ${ARCADE_RAIN_MIN} min` : `${arcs.length} passages couverts à moins de ${ARCADE_RAIN_MIN} min`));
   }
   if (following) {
     body.push(el('p', { class: 'help' }, ico('footprints', { size: 15 }), ` Cette balade : ${walkText(walkSession)} · aujourd'hui : ${walkText(todayWalk())}`));
@@ -3529,8 +3538,8 @@ function loadGalleries(force = false) {
 
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
-const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes' };
-const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue' };
+const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes', circuit: 'signpost' };
+const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue', circuit: 'Circuit' };
 const walkTxt = (d) => `${walkMinutes(d)}\u00a0min · ${fmtDist(d).replace(' ', '\u00a0')}`; // peut passer à la ligne après « · », jamais au milieu d'une mesure
 /**
  * Une ligne de sortie (v136) : icône du genre, nom, quand et où, et le temps à pied à droite. Aucun bouton dans la ligne :
@@ -4226,6 +4235,15 @@ async function eventsFromMe() {
     openEvents({ lat: pos.lat, lng: pos.lng, kind: 'here' });
   } catch (e) { toast(e.message, true); }
 }
+/** Le bandeau de « Voir sur la carte » : ce qui est montré, un appui pour revenir, la croix pour tout retirer. */
+function showPeekCard(kicker, label, back, sub = 'Touche ici pour revenir à la liste') {
+  peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': `${kicker} sur la carte` },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); back(); } },
+      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, kicker), el('span', { class: 'now-name' }, label), el('span', { class: 'now-sub' }, sub)),
+      el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
+    el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
+  document.body.append(peekCard);
+}
 /** items : { name, lat, lng } ; open(x) ouvre la fiche d'un lieu ; off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste. */
 function showPeek({ kicker, label, items, icon, open, off = () => false, back, from = null }) {
   closeSheet();
@@ -4240,12 +4258,7 @@ function showPeek({ kicker, label, items, icon, open, off = () => false, back, f
   }
   if (from) L.marker([from.lat, from.lng], { interactive: false, keyboard: false, zIndexOffset: 350, // point de départ des distances
     icon: L.divIcon({ className: 'pin-wrap', html: `<span class="from-pin" title="Point de départ">${svgIcon(from.kind === 'map' ? 'plus' : 'locate-fixed', { size: 14, stroke: 2.6 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(peekLayer);
-  peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': `${kicker} sur la carte` },
-    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); back(); } },
-      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, kicker), el('span', { class: 'now-name' }, label), el('span', { class: 'now-sub' }, 'Touche ici pour revenir à la liste')),
-      el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
-    el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
-  document.body.append(peekCard);
+  showPeekCard(kicker, label, back);
   map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
@@ -5051,11 +5064,12 @@ async function openCuriosities() {
   let list = wikiCache.get(key);
   if (!list || !plaquesData) openSheet([ico('book-open-text'), ' Curiosités'], el('p', { class: 'help' }, 'Recherche des plaques et des articles…'), { name: 'wiki' });
   // Les plaques sont dans l'appli : elles s'affichent même si Wikipédia ne répond pas.
-  const [, wiki] = await Promise.all([loadPlaques(),
+  const [, , wiki] = await Promise.all([loadPlaques(), loadArcades(),
     list ? Promise.resolve(list) : net(wikiUrl(here.lat, here.lng, 1000)).then((r) => r.json()).then(parseWiki).catch(() => null)]);
   if (wiki && !list) { list = wiki; wikiCache.set(key, list); }
   if (origin !== here) return; // la position a changé pendant la recherche : la nouvelle ouverture s'en charge
   const near = plaquesNear(plaquesOf(plaquesData), here, minutesToMeters(5), Infinity);
+  const arcs = arcadesNear(arcadesData ?? [], here, ARCADE_NEAR_MIN);
   const items = (list ?? []).map((w) => ({ ...w, d: distanceM(here, w) })).sort((a, b) => a.d - b.d);
   const have = (w) => findDuplicate(state.points, { name: w.title, lat: w.lat, lng: w.lng });
   const back = named('Curiosités', openCuriosities);
@@ -5065,6 +5079,9 @@ async function openCuriosities() {
       : near.length ? el('ul', { class: 'items' }, near.slice(0, 3).map((x) => plaqueRow(x, back)))
         : el('p', { class: 'help' }, 'Aucune plaque commémorative à moins de 5 min à pied.'),
     near.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openAllPlaques(near) }, `Toutes les plaques (${near.length})`) : null,
+    arcs.length ? el('h3', { class: 'ring-title' }, `Passages couverts à moins de ${ARCADE_NEAR_MIN} min`) : null,
+    arcs.length ? el('ul', { class: 'items' }, arcs.slice(0, 3).map((x) => arcadeRow(x, back))) : null,
+    arcs.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openArcadeList(arcs, ARCADE_NEAR_MIN, back) }, `Tous les passages (${arcs.length})`) : null,
     el('h3', { class: 'ring-title' }, 'Wikipédia à moins de 1 km'),
     !list ? el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.')
       : el('p', { class: 'help' }, `${plural(items.length, 'article', 'articles')} : monuments, rues, histoire. « + » pour en faire un lieu.`),
@@ -5081,6 +5098,7 @@ async function openCuriosities() {
   if (!following) meMarker(here.lat, here.lng).addTo(nearLayer);
   for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   for (const x of near) L.circleMarker([x.plaque.lat, x.plaque.lng], { radius: 5, color: PLAQUE_COLOR, weight: 2, fillColor: PLAQUE_COLOR, fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  for (const x of arcs) L.circleMarker([x.a.lat, x.a.lng], { radius: 6, color: discInk(), weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
 /* ---------- Itinéraire : un seul outil pour les trois façons de tracer un trajet ---------- */
@@ -5095,8 +5113,180 @@ function openRoutes() {
     row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
     row('route', 'Relier des lieux', '2 à 4 de tes lieux dans le meilleur ordre', () => openRoutePicker()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
+    row('signpost', 'Circuits de visite', 'Des balades d\'un métro à l\'autre, avec leur tracé', () => openCircuits(openRoutes)),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { name: 'routes', again: openRoutes });
+}
+
+/* ---------- Circuits de visite (v168) : étapes vérifiées, tracé calculé une fois et rangé dans l'appli (data/circuits.json) ---------- */
+
+let circuitsData = null;
+const loadCircuits = async () => (circuitsData ??= await fetch('data/circuits.json').then((r) => (r.ok ? r.json() : null)).then((j) => (j ? cleanCircuits(j) : null)).catch(() => null));
+let circuitTheme = '';
+let circuitDur = '';
+/** Couleur du tracé d'un circuit : terre cuite (découvrir), lisible sur le fond clair comme sombre. */
+const discInk = () => (isDark() ? '#FFB08A' : '#A54A28');
+/** D'où trier les circuits : ma position si elle est fraîche, sinon le centre de la carte (aucune demande de GPS). */
+const circuitFrom = () => freshHere() ?? { ...map.getCenter(), kind: 'map' };
+const dayText = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const circuitDoneTag = (c) => { const d = circuitDone(state.outings, c.id)[0]; return d ? el('span', { class: 'tag open' }, `Fait le ${dayText(d.at)}`) : null; };
+const stepStops = (c) => c.etapes.map((e) => ({ name: e.n, lat: e.lat, lng: e.lng }));
+
+async function openCircuits(back = null) {
+  track('Circuits');
+  const again = () => openCircuits(back);
+  if (!circuitsData) openSheet([ico('signpost'), ' Circuits'], el('p', { class: 'help' }, 'Chargement des circuits…'), { name: 'circuits' });
+  const [list] = await Promise.all([loadCircuits(), loadArcades()]);
+  if (!list?.length) {
+    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Appli → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
+    return;
+  }
+  const from = circuitFrom();
+  const shown = circuitsFor(list, { theme: circuitTheme, dur: circuitDur }, from);
+  const chip = (on, label, fn) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick: fn }, label);
+  openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(list.length, 'balade', 'balades')} à pied, d'un métro à l'autre. ${from.kind === 'map' ? 'La plus proche du centre de la carte d\'abord.' : 'La plus proche de toi d\'abord.'}`),
+    el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Thème et durée' },
+      ...CIRCUIT_THEMES.map(([k, label]) => chip(circuitTheme === k, label, () => { circuitTheme = circuitTheme === k ? '' : k; again(); })),
+      ...CIRCUIT_DURATIONS.map(([k, label]) => chip(circuitDur === k, label, () => { circuitDur = circuitDur === k ? '' : k; again(); }))),
+    shown.length ? el('ul', { class: 'items ev-list' }, shown.map((c) => sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(c, named('Circuits', again)),
+      sub: [`${c.depart} → ${c.arrivee}`, `environ ${minText(circuitTimes(c).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(c)] })))
+      : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
+    el('p', { class: 'help' }, `La durée suit ton pas : la marche, plus ${STOP_MIN} min pour regarder chaque étape. Les visites de musée sont en plus. Le temps à droite : pour aller au départ.`),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'circuits', again });
+}
+
+/** La page d'un circuit : durée à mon pas, confort, Balade guidée, le tracé sur la carte, les étapes, mes lieux près du tracé. */
+function openCircuit(c, back) {
+  const again = () => openCircuit(c, back);
+  const t = circuitTimes(c);
+  const done = circuitDone(state.outings, c.id);
+  const mine = pointsNearTrace(offered().filter((p) => !p.owner), c.trace, minutesToMeters(NEAR_TRACE_MIN));
+  const showAll = openCircuit.all === c.id;
+  const mineShown = showAll || mine.length <= 4 ? mine : mine.slice(0, 3);
+  const stopNames = new Set(c.etapes.map((e) => e.n));
+  const arcs = arcadesNearTrace(arcadesData ?? [], c.trace, minutesToMeters(ARCADE_TRACE_MIN)).filter((x) => !stopNames.has(x.a.nom));
+  const self = named(c.titre, again);
+  openSheet([ico('signpost'), ` ${c.titre}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
+    el('p', { class: 'help' }, ico('footprints'), ` ${minText(t.walk)} de marche à ton pas, environ ${minText(t.total)} avec les arrêts.`),
+    c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.confort}`) : null,
+    c.note ? el('p', { class: 'help' }, ico('info'), ` ${c.note}`) : null,
+    done.length ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openOuting(done[0].id, self) }, ico('check'), el('span', {}, `Fait le ${dayText(done[0].at)}`, el('small', {}, done.length > 1 ? `${plural(done.length, 'fois', 'fois')} en tout · ce que j'en retiens` : 'Ce que j\'en retiens')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))) : null,
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(stepStops(c), c.titre) }, ico('navigation'), 'Balade guidée'),
+    el('button', { type: 'button', class: 'btn c-disc', onclick: () => showCircuitOnMap(c, back) }, ico('map'), 'Voir sur la carte'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => markCircuitDone(c, self) }, ico('check'), 'Je l\'ai fait'),
+    el('h3', { class: 'fiche-sec' }, `Les ${c.etapes.length} étapes`),
+    el('ol', { class: 'items' }, c.etapes.map((e, i) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCircuitStep(c, i, self) },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.n), e.t ? el('span', { class: 'item-sub' }, e.t) : null))))),
+    mine.length ? el('h3', { class: 'fiche-sec' }, `Mes lieux à ${NEAR_TRACE_MIN} min du tracé`) : null,
+    mine.length ? el('ul', { class: 'items' }, mineShown.map(({ p, d }) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, self) },
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${catOf(p.cat).name} · à ${Math.max(10, Math.round(d / 10) * 10)} m du tracé`)))))) : null,
+    mineShown.length < mine.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { openCircuit.all = c.id; again(); } }, `Tous mes lieux près du tracé (${mine.length})`, ico('chevron-down')) : null,
+    arcs.length ? el('h3', { class: 'fiche-sec' }, `Autres passages à ${ARCADE_TRACE_MIN} min du tracé`) : null,
+    arcs.length ? el('ul', { class: 'items' }, arcs.map((x) => arcadeRow(x, self, `${walkMinutes(x.d)} min du tracé · ${x.a.rues}`))) : null,
+    el('p', { class: 'help' }, 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: `circuit:${c.id}`, again });
+}
+
+/** Une étape : son texte et sa source, puis les mêmes actions qu'un lieu de Sorties (Y aller, Boussole, Métro, Ajouter). */
+function openCircuitStep(c, i, back) {
+  const e = c.etapes[i];
+  openSpot({ icon: e.m ? 'train-front' : 'signpost', title: e.n, kicker: `Étape ${i + 1} sur ${c.etapes.length} · ${c.titre}`, lines: [e.t], place: e,
+    link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}` });
+}
+
+/** Le tracé et les étapes numérotées sur la carte ; le bandeau ramène au circuit. Rien n'est demandé au GPS. */
+function showCircuitOnMap(c, back) {
+  closeSheet();
+  endPeek();
+  L.polyline(c.trace, { color: discInk(), weight: 5, opacity: 0.85, interactive: false }).addTo(peekLayer);
+  const self = named(c.titre, () => openCircuit(c, back));
+  c.etapes.forEach((e, i) => L.marker([e.lat, e.lng], { keyboard: true, title: e.n, zIndexOffset: 420,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin circuit">${i + 1}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+    .on('add', (ev) => ev.target.getElement()?.setAttribute('aria-label', `Étape ${i + 1} : ${e.n}`))
+    .on('click', () => openCircuitStep(c, i, self))
+    .addTo(peekLayer));
+  showPeekCard('Circuit', c.titre, () => openCircuit(c, back), 'Touche ici pour revenir au circuit');
+  map.fitBounds(L.latLngBounds(c.trace), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 17, animate: false });
+}
+
+/** « Je l'ai fait » : une ligne dans Mon journal (jamais le trajet suivi), puis « Ce que j'en retiens ». */
+function markCircuitDone(c, back) {
+  const id = circuitOutingId(c.id);
+  const end = c.etapes.at(-1);
+  state.outings = cleanOutings([{ id, at: Date.now(), name: `Circuit ${c.titre}`, lat: end.lat, lng: end.lng, place: `${c.depart} → ${c.arrivee}` }, ...(state.outings ?? [])]);
+  persist();
+  toast('Noté dans Mon journal');
+  openOuting(id, back);
+}
+
+/* ---------- Passages couverts (v168) : liste fixe dans l'appli (data/passages.json), triée sur le téléphone ----------
+   Calque : de loin un petit point (le toucher zoome), de près un pictogramme ; en zoomant encore (ARCADE_LINE_ZOOM), un trait d'une entrée à l'autre,
+   seulement pour les passages dont le chemin calculé est sûr. Aucun horaire : ils varient d'un passage à l'autre. */
+let arcadesData = null;
+const loadArcades = async () => (arcadesData ??= await fetch('data/passages.json').then((r) => (r.ok ? r.json() : null)).then((j) => (j ? cleanArcades(j) : null)).catch(() => null));
+const arcadeLayer = L.layerGroup().addTo(map);
+/** De loin (sous LAYER_ZOOM), un petit point : les passages sont proches les uns des autres et se recouvriraient ; le toucher zoome dessus. */
+const arcadePin = (a, z = -60, far = false) => {
+  const label = far ? `Passage couvert : ${a.nom} (touche pour zoomer)` : `Passage couvert : ${a.nom}`;
+  return L.marker([a.lat, a.lng], { keyboard: true, title: label, alt: label, zIndexOffset: z,
+    icon: L.divIcon({ className: 'pin-wrap', html: far ? '<span class="arc-pin far"></span>' : `<span class="arc-pin">${svgIcon('door-open', { size: 15 })}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] }) });
+};
+const arcadeLine = (a, interactive = true) => L.polyline(a.trace, { color: discInk(), weight: 9, opacity: 0.45, lineCap: 'butt', interactive });
+
+function drawArcadeLayer() {
+  arcadeLayer.clearLayers();
+  if (!state.showPassages || !arcadesData) return;
+  const z = map.getZoom();
+  for (const a of arcadesData) {
+    if (z >= ARCADE_LINE_ZOOM && a.trace) arcadeLine(a).on('click', () => openArcade(a)).addTo(arcadeLayer);
+    if (z < LAYER_ZOOM) arcadePin(a, -60, true).on('click', () => map.setView([a.lat, a.lng], ARCADE_LINE_ZOOM + 1)).addTo(arcadeLayer);
+    else arcadePin(a).on('click', () => openArcade(a)).addTo(arcadeLayer);
+  }
+}
+async function setArcadeLayer(on) {
+  state.showPassages = on; persist();
+  if (!on) { arcadeLayer.clearLayers(); return; }
+  if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Appli → Mettre à jour l\'appli.', true); return; }
+  drawArcadeLayer();
+}
+map.on('zoomend', drawArcadeLayer);
+
+/** La page d'un passage : ce qu'il a de particulier, ses entrées, sa source ; puis les actions d'un lieu (ajouté, il est déjà coché « abrité »). */
+function openArcade(a, back = null) {
+  openSpot({ icon: 'door-open', title: a.nom, kicker: 'Passage couvert', place: a,
+    lines: [a.t, a.rues ? el('p', { class: 'where' }, ico('map-pin'), `Entrées : ${a.rues}`) : null, ARCADE_HOURS],
+    extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => showArcadeOnMap(a, back) }, ico('map'), 'Voir sur la carte'),
+    link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add: { covered: true }, back, key: `passage:${a.id}` });
+}
+
+/** Le passage seul sur la carte, de près : son trait s'il est sûr, sinon son pictogramme. Le bandeau ramène à sa page. */
+function showArcadeOnMap(a, back) {
+  closeSheet();
+  endPeek();
+  if (a.trace) arcadeLine(a, false).addTo(peekLayer);
+  arcadePin(a, 420).on('click', () => openArcade(a, back)).addTo(peekLayer);
+  showPeekCard('Passage couvert', a.nom, () => openArcade(a, back), 'Touche ici pour revenir au passage');
+  map.setView([a.lat, a.lng], 17, { animate: false });
+}
+
+const arcadeRow = (x, back, sub = '') => el('li', { class: 'item' },
+  el('button', { type: 'button', class: 'item-main', onclick: () => openArcade(x.a, back) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('door-open', { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a.nom), el('span', { class: 'item-sub' }, sub || `${walkMinutes(x.d)} min · ${x.a.rues}`))));
+
+/** Les passages couverts à moins de N min, du plus proche. */
+function openArcadeList(near, min, back) {
+  const self = named('Passages', () => openArcadeList(near, min, back));
+  openSheet([ico('door-open'), ` Passages à moins de ${min} min`], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${plural(near.length, 'passage couvert', 'passages couverts')}, du plus proche. ${ARCADE_HOURS}`),
+    el('ul', { class: 'items' }, near.map((x) => arcadeRow(x, self))),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'passages', again: () => openArcadeList(near, min, back) });
 }
 
 /* ---------- Monuments historiques (Wikidata, protégés MH) ---------- */
@@ -6081,7 +6271,7 @@ function importText(text, owner) {
       let at = Date.now();
       try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
       if (!state.me) state.me = fileOwner(text);
-      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
+      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
       state.backup = savedBackup(state);
     }
@@ -6377,6 +6567,7 @@ document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
 document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
+document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -6388,6 +6579,7 @@ const TOOL_INFO = {
   home: { el: 'btnHome', icon: 'house', name: 'Rentrer (mes stations)', short: 'Rentrer' },
   sorties: { el: 'btnSorties', icon: 'calendar-days', name: 'Sorties là où regarde la carte', short: 'Sorties' },
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
+  circuits: { el: 'btnCircuits', icon: 'signpost', name: 'Circuits de visite', short: 'Circuits' },
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
 function applyEssential() {
@@ -6592,13 +6784,16 @@ const HELP = [
     '{locate} **Où suis-je ?**, en haut : ton adresse, l\'arrondissement, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, à côté : tes 20 arrondissements, ta marche du jour et Mon planning.',
-    '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries.',
+    '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite.',
+    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord.',
+    '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
+    '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Relier des lieux** : 2 à 4 lieux dans le meilleur ordre.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
-    '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
+    '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
     '{landmark} **Monuments** : les monuments protégés à moins de 1 km, avec leur site, la fiche du ministère et Wikipédia.',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
@@ -6649,6 +6844,8 @@ const HELP = [
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Ajouter sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
+    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Ajouter sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
+    '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min. Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
     '**TTB** : les adresses d\'un guide de bonnes tables, en ronds terre cuite sur la carte. La source est citée dans {settings} → TTB.',
@@ -6722,6 +6919,8 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{door-open} Passages couverts : les 12 passages de Paris sur la carte (⋯ Plus en haut ou Filtres), un trait d\'une entrée à l\'autre en zoomant, une page pour chacun ; dans Curiosités, sous « Il pleut » et sur la page des circuits.',
+    '{signpost} Circuits de visite : 6 balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
     '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
     '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
     '{store} « Fermé définitivement » en bas de la fiche de tes lieux (gris, plus proposé). Dans TTB : « Fermé définitivement » ou « Masquer cette adresse » ; elles restent masquées après un nouvel import, et se remettent dans {settings} → TTB.',
@@ -6730,8 +6929,6 @@ const HELP = [
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
     '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
     '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
-    '{palette} Expos : Ouvert tard (les nocturnes de ce soir et de la semaine), Mes artistes (les noms que tu suis, cherchés dans l\'agenda) et Art dans la rue (statues et sculptures près de toi).',
-    '{book-open-text} « Tu y es allé ? » vaut aussi pour une sortie de l\'agenda : Oui la garde dans Mon journal. « Écrire un mot » : ce que tu retiens, une note, une photo du cartel.',
   ]],
 ];
 
@@ -6762,6 +6959,7 @@ document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 drawMarkets();
 if (state.showPratique) loadPratLayer();
+loadArcades().then(drawArcadeLayer); // petit fichier de l'appli : prêt pour Curiosités et le bandeau « Il pleut »
 drawLayerNote();
 drawTtb();
 // « Dans la rue, à 5 min » (v158) : l'agenda du jour est chargé une fois par jour à l'ouverture (aucune position envoyée)

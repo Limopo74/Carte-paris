@@ -28,6 +28,11 @@ export function distanceM(a, b) {
   return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** Minutes de marche pour un chemin déjà mesuré dans les rues (circuits, v166) : sans détour ajouté. 1 minute au minimum. */
+export function routeMinutes(m) {
+  return Math.max(1, Math.round((m / 1000) * minPerKm));
+}
+
 /** Minutes de marche estimées depuis une distance à vol d'oiseau, détours compris. 1 minute au minimum. */
 export function walkMinutes(m) {
   return Math.max(1, Math.ceil((m * DETOUR / 1000) * minPerKm - 1e-9));
