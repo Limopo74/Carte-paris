@@ -22,7 +22,7 @@ import { holidayOn } from './holidays.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { metroPlan, lineName, linesOf } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, STREET_CAT, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (178)';
+const VERSION = '18 novembre 2026 (179)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4898,7 +4898,7 @@ function ttbList() {
 const navigoKinds = new Set(); // disciplines choisies dans Sorties → Navigo (le temps de la session ; aucune = tout)
 const ttbRubs = new Set(); // filtres de la liste et de la carte (le temps de la session)
 const ttbBudgets = new Set();
-/** Adresses TTB masquées ou fermées (v165), notées par moi : plus sur la carte ni dans les listes. Hors sauvegarde, comme la liste. */
+/** Adresses TTB masquées ou fermées (v165), notées par moi : plus sur la carte ni dans les listes. Gardées à part (localStorage), comme la liste ; elles partent dans le fichier de sauvegarde avec la case « Avec la liste TTB » (v179). */
 let ttbMarks;
 const ttbMarksNow = () => { if (ttbMarks === undefined) { try { ttbMarks = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { ttbMarks = {}; } } return ttbMarks; };
 function setTtbMark(x, k) {
@@ -5033,7 +5033,7 @@ function ttbMarkedSection(again) {
   return [el('h3', { class: 'ring-title' }, el('span', {}, 'Masquées ou fermées'), el('span', {}, String(list.length))),
     el('ul', { class: 'items' }, list.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('TTB', again)) },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, ttbMark(marks, x) === 'closed' ? 'Fermé définitivement' : 'Masquée')))))),
-    el('p', { class: 'help' }, 'Elles restent masquées après un nouvel import (même nom et même adresse). Comme la liste, elles ne sont pas dans ta sauvegarde.')];
+    el('p', { class: 'help' }, 'Elles restent masquées après un nouvel import (même nom et même adresse). Comme la liste, elles partent dans ta sauvegarde si la case « Avec la liste TTB » est cochée.')];
 }
 
 function openTtb(back = named('Réglages', () => openSettings()), confirm = false) {
@@ -5053,7 +5053,7 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
     el('a', { class: 'btn c-guide', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Ouvrir la page Adresses'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => input.click() }, ico('download'), 'Choisir le fichier'),
     input,
-    el('p', { class: 'help' }, 'Source : le guide Très Très Bon (trestresbon.fr). Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone : elle n\'est pas dans ta sauvegarde et rien n\'est envoyé.'),
+    el('p', { class: 'help' }, 'Source : le guide Très Très Bon (trestresbon.fr). Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone et rien n\'est envoyé ; elle part seulement dans ta sauvegarde (case « Avec la liste TTB », cochée au départ).'),
     n ? (confirm
       ? el('div', { class: 'stack' }, el('p', { class: 'warn', role: 'alert' }, `Retirer les ${n} adresses TTB ? Tes lieux ne sont pas touchés.`),
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openTtb(back) }, 'Annuler'),
@@ -5084,6 +5084,24 @@ async function importTtbFile(file, back) {
   state.showTtb = true; persist(); drawTtb(); refresh();
   openTtb(back);
   toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
+}
+
+/** TTB d'un fichier de sauvegarde (v179) : la liste dont la page est la plus récente gagne, mes marques restent et
+ * celles du fichier s'ajoutent. Renvoie un bout de phrase pour le message (« liste TTB remise »…) ou ''. */
+function importTtb(text) {
+  let file = null;
+  try { file = JSON.parse(text)?.ttb ?? null; } catch { return ''; }
+  if (!file) return '';
+  ttbList();
+  const r = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, file);
+  try {
+    if (r.list) storage.setItem(TTB_KEY, JSON.stringify(ttbStore(r.data.items, r.data.date)));
+    if (r.newMarks) storage.setItem(TTB_MARKS_KEY, JSON.stringify(r.marks));
+  } catch { return 'la liste TTB n\'a pas pu être gardée (plus de place)'; }
+  if (r.list) ttbData = { items: r.data.items, date: r.data.date };
+  ttbMarks = r.marks;
+  drawTtb();
+  return [r.list ? `liste TTB remise (${plural(r.data.items.length, 'adresse', 'adresses')})` : '', r.newMarks ? plural(r.newMarks, 'marque TTB ajoutée', 'marques TTB ajoutées') : ''].filter(Boolean).join(', ');
 }
 
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
@@ -5731,6 +5749,10 @@ function openSettings(section = null) {
   // Les photos partent avec la sauvegarde par défaut : une restauration rend aussi les photos.
   const withPhotos = el('input', { type: 'checkbox', class: 'check', checked: true });
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
+  // La liste TTB et mes marques partent aussi, case cochée au départ (v179) : après une remise à zéro, plus besoin de réimporter la page du guide.
+  const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
+  const nbTtb = ttbList().length;
+  const nbTtbMarks = Object.keys(ttbMarksNow()).length;
   const canShareFile = (() => {
     try { return Boolean(navigator.canShare?.({ files: [new File(['{}'], 'x.json', { type: 'application/json' })] })); } catch { return false; }
   })();
@@ -5755,11 +5777,14 @@ function openSettings(section = null) {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
           el('p', { class: 'help' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
-      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (mail, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (mail, Drive…)') : null,
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Fichier plus lourd, mais une restauration rend aussi les photos'))) : null,
+      nbTtb || nbTtbMarks ? el('label', { class: 'item-main check-row' }, withTtb,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
+          el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
       el('p', { class: 'help' }, 'Le fichier va dans tes Téléchargements. Si tu perds ton téléphone, il part avec : de temps en temps, envoie-le aussi sur ton mail ou ton Drive. Pour partager tes lieux, envoie le fichier : ton proche fait « Importer les lieux d\'un proche ».'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
       foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'), el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer')),
@@ -6443,9 +6468,10 @@ function backupSummary() {
 
 /* ---------- Sauvegarde : un fichier dans Téléchargements, toujours sur décision de la personne ---------- */
 
-/** Le texte du fichier de sauvegarde, avec les photos si demandé. */
-async function backupText(withPhotos) {
+/** Le texte du fichier de sauvegarde, avec les photos et la liste TTB si demandé. */
+async function backupText(withPhotos, withTtb = false) {
   const obj = JSON.parse(exportJSON(state));
+  if (withTtb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) obj.ttb = t; } /* v179 : la liste et mes marques */
   if (withPhotos) {
     obj.photos = {};
     for (const id of [...state.points.flatMap((p) => photoIds(p)), ...cleanOutings(state.outings).map((o) => o.photo).filter(Boolean)]) {
@@ -6458,8 +6484,8 @@ async function backupText(withPhotos) {
 function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
 function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(state); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
-async function saveBackup(withPhotos = true) {
-  const f = backupFile(await backupText(withPhotos));
+async function saveBackup(withPhotos = true, withTtb = true) {
+  const f = backupFile(await backupText(withPhotos, withTtb));
   const url = URL.createObjectURL(f);
   const a = el('a', { href: url, download: f.name });
   document.body.append(a); a.click(); a.remove();
@@ -6468,8 +6494,8 @@ async function saveBackup(withPhotos = true) {
   toast(`« ${f.name} » enregistré dans tes Téléchargements`);
 }
 /** Envoyer le fichier (mail, Drive…) par le menu de partage du téléphone. */
-async function sendBackup(withPhotos = true) {
-  const f = backupFile(await backupText(withPhotos));
+async function sendBackup(withPhotos = true, withTtb = true) {
+  const f = backupFile(await backupText(withPhotos, withTtb));
   try {
     await navigator.share({ files: [f], title: 'Ma carte de Paris' });
     markSaved();
@@ -6518,6 +6544,7 @@ function importText(text, owner) {
     const r = mergeImport(state, text, owner);
     state = { ...r.state, ok: state.ok };
     importPhotos(text, state);
+    const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
       let at = Date.now();
@@ -6532,7 +6559,7 @@ function importText(text, owner) {
       closeSheet();
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
-    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}.`);
+    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`);
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
   }
@@ -7116,14 +7143,14 @@ const HELP = [
     '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
     '**Mauvaise catégorie** : touche la goutte → Modifier. **Pas voulu** : touche la goutte → Rangement → Supprimer ce lieu. Le rond TTB revient.',
     '**La fiche d\'un de tes lieux** dit s\'il est dans le guide. L\'icône du rond TTB vient du guide : elle ne se change pas.',
-    '**La liste reste sur ce téléphone.** Elle n\'est pas dans ta sauvegarde. {trash-2} {settings} → TTB → Retirer la liste.',
+    '**La liste reste sur ce téléphone.** Avec tes marques (fermées, masquées), elle part dans ta sauvegarde si la case « Avec la liste TTB » est cochée (elle l\'est au départ) : après une remise à zéro, plus besoin de réimporter la page. {trash-2} {settings} → TTB → Retirer la liste.',
   ]],
   ['save', 'Garder et partager', [
     '**Tes lieux ne sont que sur ce téléphone.** Sauvegarde-les souvent.',
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes.',
     '**Le fichier** va dans Téléchargements. Envoie-le aussi sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux, photos, sorties prévues, catégories, listes, stations et réglages. Pas la liste TTB, ni la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux, photos, sorties prévues, catégories, listes, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
@@ -7175,6 +7202,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
     '{map-pin} Carte plus lisible avec beaucoup de lieux : de loin, les lieux proches se regroupent en une goutte noire qui porte leur nombre ; touche-la pour zoomer. Tes favoris restent toujours visibles, et à la vue « rue » chaque lieu a sa goutte.',
     '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
     '{locate} Plus court pour te repérer et y aller : la carte s\'ouvre sur ta position quand tu es dans Paris ({settings} → La carte → Ouvrir sur ma position) ; dans la fiche, « Aujourd\'hui » et « Métro » sont juste sous Y aller, Prévoir et J\'y suis passé côte à côte, Fermé définitivement, Déplacer et Supprimer dans {wrench} Rangement (Sur ce lieu) ; Autour de moi : 8 boutons en 2 rangées, la liste commence plus haut.',
@@ -7184,7 +7212,6 @@ const HELP = [
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
     '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
     '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
-    '{calendar-days} Bientôt gratuit s\'ouvre : touche un jour (Sorties → Gratuit, ou le bandeau « Maintenant ») pour voir les lieux gratuits ce jour-là, leurs heures, « Sur réservation », ★ Favori et « Prévoir ce dimanche ».',
   ]],
 ];
 

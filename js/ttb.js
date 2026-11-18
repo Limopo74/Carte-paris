@@ -200,3 +200,32 @@ export function cleanTtbMarks(obj) {
 }
 /** Ce que j'ai noté pour cette adresse : 'closed', 'hidden' ou ''. */
 export const ttbMark = (marks, x) => marks?.[ttbKey(x)]?.k ?? '';
+
+/* TTB dans ma sauvegarde (v179, choix du 18 nov.) : la liste et mes marques partent dans le fichier quand la case
+   « Avec la liste TTB » est cochée (cochée au départ). Le fichier reste sur le téléphone ou là où je l'envoie ;
+   rien ne va dans le dépôt. */
+/** Ce qui part dans le fichier : { ttb: 1, date, items, marks }, ou null s'il n'y a ni liste ni marque. */
+export function ttbExport(data, marks) {
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const m = cleanTtbMarks(marks);
+  if (!items.length && !Object.keys(m).length) return null;
+  return { ttb: 1, date: /^\d{4}-\d{2}-\d{2}$/.test(data?.date ?? '') ? data.date : '', items, marks: m };
+}
+/**
+ * Fusion à la restauration ou à l'import : la liste dont la page est la plus récente gagne (à date égale, ou sans
+ * date, celle du téléphone reste) ; les marques du téléphone restent et celles du fichier s'ajoutent.
+ * `mine` = { data: { items, date } | null, marks } ; `file` = l'objet `ttb` du fichier.
+ * Renvoie { data, marks, list: true si la liste du fichier a été prise, newMarks: nombre de marques ajoutées }.
+ */
+export function ttbMerge(mine, file) {
+  const a = mine?.data?.items?.length ? mine.data : null;
+  const b = readTtb(file);
+  const list = Boolean(b?.items.length) && (!a || (Boolean(b.date) && (!a.date || b.date > a.date)));
+  const marks = cleanTtbMarks(mine?.marks);
+  let newMarks = 0;
+  for (const [k, v] of Object.entries(cleanTtbMarks(file?.marks))) {
+    if (k in marks || Object.keys(marks).length >= 500) continue;
+    marks[k] = v; newMarks++;
+  }
+  return { data: list ? b : (a ?? null), marks, list, newMarks };
+}
