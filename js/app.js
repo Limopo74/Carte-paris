@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, LATE_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (194)';
+const VERSION = '18 novembre 2026 (195)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4130,7 +4130,7 @@ async function openArtPlaces(focus = '', from = null) {
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 /** « Nocturne : mercredi et vendredi jusqu'à 21 h » pour la page d'un grand lieu ('' sans nocturne connue). */
 function lateLine(p) {
-  const parts = (p.late ?? []).map((r) => `${r.first ? '1er ' : ''}${r.d.length === 5 ? 'tous les jours d\'ouverture' : r.d.map((d) => DAY_NAMES[d]).join(' et ')}${r.first ? ' du mois' : ''} jusqu'à ${lateHour(r.to)}${r.note ? ` (${r.note})` : ''}`);
+  const parts = (p.late ?? []).map((r) => `${r.first ? '1er ' : ''}${r.d.length === 5 ? 'tous les jours d\'ouverture' : r.d.map((d) => DAY_NAMES[d]).join(' et ')}${r.first ? ' du mois' : ''} jusqu'à ${lateHour(r.to)}${lateBefore(r.to, p.last) ? `, arriver avant ${lateHour(lateBefore(r.to, p.last))}` : ''}${r.note ? ` (${r.note})` : ''}`);
   return parts.length ? `Ouvert tard : ${parts.join(' ; ')}${p.lateNote ? ` — ${p.lateNote}` : ''}.` : '';
 }
 /**
@@ -4146,7 +4146,7 @@ function openLate() {
   const row = (p, back) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, back) },
     el('span', { class: 'plan-time' }, lateHour(p.to)),
     el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
-      el('span', { class: 'item-sub' }, [p.note, o ? fmtDist(distanceM(o, p)) : ''].filter(Boolean).join(' · ')))));
+      el('span', { class: 'item-sub' }, [p.before ? `arriver avant ${lateHour(p.before)}` : '', p.note, o ? fmtDist(distanceM(o, p)) : ''].filter(Boolean).join(' · ')))));
   const back = named('Ouvert tard', () => openLate());
   const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, list: lateOn(d) }; });
   openSheet([ico('moon'), ' Ouvert tard'], el('div', { class: 'stack' },
@@ -4158,7 +4158,7 @@ function openLate() {
       el('summary', {}, el('span', { class: 'week-arr-name' }, DAY_NAMES[w.k].charAt(0).toUpperCase() + DAY_NAMES[w.k].slice(1)),
         el('span', { class: 'week-arr-sub' }, w.list.map((p) => p.name).join(', '))),
       el('ul', { class: 'items' }, w.list.map((p) => row(p, back)))))),
-    el('p', { class: 'help' }, `Horaires habituels, vérifiés le ${LATE_CHECKED} sur le site de chaque lieu. Dernière entrée souvent 45 min avant la fermeture : un lieu disparaît de « Ce soir » 30 min avant. Fermetures exceptionnelles et 1er samedi : vérifie sur le site. Liste remise à jour avec les listes annuelles.`),
+    el('p', { class: 'help' }, `À gauche, la fermeture. « Arriver avant » : fermeture du guichet ou dernière entrée, lue le ${LAST_CHECKED} sur le site du lieu ; le lieu quitte alors « Ce soir ». Sans cette ligne (Orsay, Art moderne) : heure non trouvée, le lieu quitte « Ce soir » une heure avant sa fermeture. Horaires habituels, vérifiés le ${LATE_CHECKED}. Fermetures exceptionnelles et 1er samedi : vérifie sur le site. Liste remise à jour avec les listes annuelles.`),
     foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); }))),
   ), { tall: true, name: 'ouvert-tard', again: openLate });
 }
@@ -7450,7 +7450,7 @@ const HELP = [
     '**Bientôt gratuit** : 2 jours avant (musées nationaux, Louvre le soir, Bourse de Commerce), « Maintenant » sur la carte le dit. Le jour même, s\'il y en a un à 15 min, il te donne ce lieu et son heure ; sinon, touche-le pour Gratuit, autour de toi. La croix le cache pour la journée.',
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
-    '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. Horaires habituels, vérifiés sur leurs sites ; rien un jour férié.',
+    '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
     '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris.',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
@@ -7617,6 +7617,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
     '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
     '{alarm-clock} Mon planning : chaque ligne s\'ouvre d\'un appui (une flèche › le dit), sans les petits boutons copier et boussole. La boussole est sur la page du lieu ; le lien d\'invitation, sous « Prévu ». Et dans Filtres, « Ajouter sur la carte » s\'appelle « Afficher aussi sur la carte », pour ne plus se confondre avec Ajouter un lieu.',
     '{footprints} Fiche d\'un lieu : « J\'y suis passé » s\'appelle maintenant « Écrire une impression », pour ne plus se confondre avec « Déjà visité ». Même page qu\'avant : le jour, ce que tu as vu, tes étoiles, une photo. Dans Mon planning, « Écrire un mot » prend le même nom. En Grand et Très grand texte, « Prévoir une visite » et « Écrire une impression » sont l\'un sous l\'autre.',
@@ -7626,7 +7627,6 @@ const HELP = [
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
     '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
     '{users} Lieux d\'un proche : tes favoris et tes « Déjà visité » ne partent plus dans le fichier (tes étoiles, si). Chez toi, un lieu reçu n\'est jamais un de tes favoris : mets ta propre étoile si tu veux.',
-    '{save} Restaurer ta sauvegarde sur un téléphone vide remet aussi tes catégories telles que tu les avais (nom, couleur, icône, « Déjà goûté »…) et tes listes, même vides. Avant, une catégorie d\'origine revenait avec son nom d\'origine.',
   ]],
 ];
 

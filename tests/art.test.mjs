@@ -248,7 +248,7 @@ test('Mes artistes : noms nettoyés sans limite, cités mot pour mot', async () 
 });
 
 test('Ouvert tard : nocturnes du jour, jamais finies, rien un jour férié', async () => {
-  const { lateOn, lateTonight, lateHour, ART_PLACES } = await import('../js/art.js');
+  const { lateOn, lateTonight, lateHour, lateBefore, ART_PLACES } = await import('../js/art.js');
   assert.equal(lateHour('21:45'), '21 h 45');
   assert.equal(lateHour('21:00'), '21 h');
   assert.equal(lateHour('24:00'), 'minuit');
@@ -257,7 +257,21 @@ test('Ouvert tard : nocturnes du jour, jamais finies, rien un jour férié', asy
   assert.equal(names[0], 'Palais de Tokyo'); // minuit
   assert.ok(names.includes('Musée d\'Orsay') && names.includes('Musée du quai Branly') && !names.includes('Musée du Louvre'));
   const at21 = lateTonight(new Date(2026, 10, 19, 21, 20)).map((p) => p.name);
-  assert.ok(at21.includes('Palais de Tokyo') && !at21.includes('Musée d\'Orsay')); // Orsay ferme à 21 h 45 : dernière demi-heure
+  assert.ok(at21.includes('Palais de Tokyo') && !at21.includes('Musée d\'Orsay')); // Orsay ferme à 21 h 45 : heure d'entrée non vérifiée, 1 h de marge
+  // v195 : chaque lieu quitte « Ce soir » à l'heure où l'on n'entre plus (guichet ou dernière entrée), pas 30 min avant pour tous
+  const at2010 = lateTonight(new Date(2026, 10, 19, 20, 10)).map((p) => p.name);
+  assert.ok(!at2010.includes('Musée Marmottan Monet'), 'Marmottan : dernière entrée 20 h');
+  assert.ok(at2010.includes('Cité de l\'architecture'), 'Cité : billetterie jusqu\'à 20 h 20');
+  assert.ok(at2010.includes('Musée d\'Orsay') && at2010.includes('Musée du quai Branly') && at2010.includes('Maison européenne de la photographie'));
+  const at2050 = lateTonight(new Date(2026, 10, 19, 20, 50)).map((p) => p.name);
+  assert.ok(!at2050.includes('Musée d\'Orsay') && at2050.includes('Musée du quai Branly'), 'Orsay : 21 h 45 moins 1 h ; Branly : guichets à 21 h');
+  const fri = lateTonight(new Date(2026, 10, 20, 19, 50));
+  assert.equal(fri.find((p) => p.name === 'Musée du Louvre').before, '20:00');
+  assert.equal(lateTonight(new Date(2026, 10, 20, 20, 5)).some((p) => p.name === 'Musée du Louvre'), false, 'Louvre : dernière admission 1 h avant');
+  assert.equal(lateBefore('24:00', 45), '23:15');
+  assert.equal(lateBefore('21:45', undefined), '');
+  assert.equal(lateOn(thu).find((p) => p.name === 'Musée d\'Orsay').before, '', 'pas d\'heure affichée sans source');
+  for (const p of ART_PLACES) if (p.last !== undefined) assert.ok(p.late && p.last >= 30 && p.last <= 60, p.name);
   assert.deepEqual(lateOn(new Date(2026, 11, 25, 12), ART_PLACES, 'Noël'), []);
   const sat1 = lateOn(new Date(2026, 11, 5, 12)).map((p) => p.name); // 1er samedi
   const sat2 = lateOn(new Date(2026, 11, 12, 12)).map((p) => p.name);
