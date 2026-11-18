@@ -110,6 +110,8 @@ const ECRANS = {
   // v171 : deux circuits de plus (court et long)
   circuitscourt: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('button', { hasText: 'Moins de 45 min' }).click(); await p.waitForTimeout(400); },
   circuitcoulee: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'Coulée verte' }).click(); await p.waitForTimeout(400); },
+  // v173 : tracés sans aller-retour (la Petite Alsace vue depuis la rue Daviel)
+  circuitbuttecarte: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'Butte-aux-Cailles' }).click(); await p.waitForTimeout(400); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   circuitcouleecarte: async (p) => { await ECRANS.circuitcoulee(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   // v172 : un souci sur un circuit (signaler, problèmes notés, masquer) — Canal seulement pour masquer : les autres écrans en ont besoin
   circuitsignaler: async (p) => { await ECRANS.circuit(p); await feuille(p).locator('.fiche-row', { hasText: 'Signaler un problème sur le chemin' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.chip', { hasText: 'Escalier' }).click(); await feuille(p).locator('textarea').fill('Escalier raide après le Bateau-Lavoir'); },

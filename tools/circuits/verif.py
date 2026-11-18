@@ -20,7 +20,7 @@ def dist(a,b):
     R=6371008.8; p1,p2=math.radians(a[0]),math.radians(b[0]); dp=p2-p1; dl=math.radians(b[1]-a[1])
     return 2*R*math.asin(math.sqrt(math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2))
 def check(name):
-    raw=open(os.path.join(HERE, 'traces', f'{name}.txt')).read().split('\n')
+    raw=open(os.path.join(os.environ.get('TRACE_DIR', os.path.join(HERE, 'traces')), f'{name}.txt')).read().split('\n')
     want=float(raw[0]); poly=raw[1].strip().replace('\\'*4,'\\')
     pts=decode(poly)
     L=sum(dist(pts[i],pts[i+1]) for i in range(len(pts)-1))

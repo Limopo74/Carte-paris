@@ -12,7 +12,7 @@
    ],
    "depart": "Saint-Paul",
    "arrivee": "Rambuteau",
-   "m": 2897,
+   "m": 2731,
    "confort": "Plat, sans escalier.",
    "etapes": [
     {
@@ -38,8 +38,8 @@
     },
     {
      "n": "Place des Vosges",
-     "lat": 48.85482,
-     "lng": 2.36613,
+     "lat": 48.8556,
+     "lng": 2.3648,
      "t": "Inaugurée en 1612 sous le nom de place Royale. Victor Hugo a vécu au n° 6 de 1832 à 1848 : sa maison est un musée de la Ville.",
      "s": "https://www.lonelyplanet.com/france/paris/attractions/hotel-de-sully/a/poi-sig/372489/359279"
     },
@@ -79,7 +79,7 @@
      "m": true
     }
    ],
-   "trace": "e`eiHmblM@I@G@GVaB@EFYJm@JDB@@@RmABB\\mABE@@??VVZXDBb@`@^XHF?@@?@@B@?@C^Aj@CJIf@GX?DB@ZXVTb@^\\Z][c@_@WU[YCA?EFYHg@BK@k@B_@?ACAAAA??AIG_@Yc@a@EC[YWW??@G?C@C?AAA?C?A?ARw@CCAACCCCEEAA^uABMBICAA?KGc@W?AA?ACOGCAOIA?A?Je@[M[KAAAAA?A?CA\\qD@I?A?E@I^qDBCAPAJ@K@QCBCBA?C@?@@??@E`@CRSnBIAGAA?AJAJ??StBIJCByAc@sA_@GKCBGNEN??A?ADAJGt@CPBHEHADCF?BGAA?AAAAAAs@jDCBETQx@CB?BAFABABSMAD?@?A@ERLBDAHg@vBSz@A@A@AFABAB@BCFeAdDED?Ea@g@CEADMQMQKOIIACKMJL@BHHJNLPLP@EBD`@f@?DDEdAeD@@@B@@@BBG@?DAjAx@DDJPFJd@hA?@AJA@_A|BEFGPQ`@?JIR[fA_@p@[l@c@pAEIUa@CAAAC@ABw@tAECA@AAA?ABA@KK?AA?A???A@CAEEAAEEg@k@IIGCACCGCG}A~B}A~Bg@r@AAGMAA@@FL[h@?@@@BB@@?FA@@@CJAHABGFS|@ENA@?@ADAB?@EP}@rDAP?@CDADABCFs@|Cm@dCBBBBA@?BAHGA?D",
+   "trace": "e`eiHmblM@I@G@GVaB@EFYJm@JDB@@@RmABB\\mABE@@??VVZXDBb@`@^XHF?@@?@@B@?@C^Aj@CJIf@GX?DB@ZXVTb@^\\Z][@?FUNu@DKECEGICAG????Ea@BMFO?ABG??EEBI?A}@w@WQc@_@?CAAEGEEAA[WMBa@_@EGT}@b@eBAACCCAAAECEEAABICAA?KGc@W?AA?ACOGCAOIA?A?Je@[M[KAAAAA?A?CAEA?GwBm@@A@M????ALA@gBi@A?ADAJGt@CPBHEHADCF?BGAA?AAAAAAs@jDCBETQx@CB?BAFABABSMAD?@?A@EgBgAiAs@MGs@a@ID[v@c@fB?D?@EHAF?@C@_@xA?B?B?@??LP~@lA?A@A@BFH\\d@JL??JL@BHHJNLPLP@EBD`@f@?DDEdAeD@@@B@@@BBG@?DAjAx@DDJPFJd@hA?@AJA@_A|BEFGPQ`@?JIR[fA_@p@[l@c@pAEIUa@CAAAC@ABw@tAECA@AAA?ABA@KK?AA?A???A@CAEEAAEEg@k@IIGCACCGCG}A~B}A~Bg@r@AAGMAA@@FL[h@?@@@BB@@?FA@@@CJAHABGFS|@ENA@?@ADAB?@EP}@rDAP?@CDADABCFs@|Cm@dCBBBBA@?BAHGA?D",
    "note": "Carnavalet et Cognacq-Jay ferment le lundi."
   },
   {
@@ -92,8 +92,8 @@
    ],
    "depart": "Pont Marie",
    "arrivee": "Pont Neuf",
-   "m": 2796,
-   "confort": "Plat. Un escalier pour descendre au square du Vert-Galant, et le même pour remonter.",
+   "m": 2963,
+   "confort": "Plat, sauf pour descendre au square du Vert-Galant, au bord de l'eau, et remonter sur le Pont Neuf par un escalier.",
    "etapes": [
     {
      "n": "Métro Pont Marie",
@@ -144,18 +144,18 @@
      "s": "https://www.techno-science.net/fr/definitions/pont-neuf"
     },
     {
+     "n": "Square du Vert-Galant",
+     "lat": 48.85733,
+     "lng": 2.34072,
+     "t": "À la pointe de l'île, au ras de l'eau. On remonte sur le Pont Neuf par l'escalier derrière la statue d'Henri IV.",
+     "s": "https://bonjourparis.com/paris-neighbourhoods/flaneries-in-paris-a-riverside-loop-from-chatelet/"
+    },
+    {
      "n": "Pont Neuf",
      "lat": 48.8575,
      "lng": 2.34167,
      "t": "Malgré son nom, le plus ancien pont de Paris : Henri IV l'a inauguré en 1607. Sa statue est au milieu.",
      "s": "https://www.bonjour-ratp.fr/en/lieux/pont-neuf/"
-    },
-    {
-     "n": "Square du Vert-Galant",
-     "lat": 48.85733,
-     "lng": 2.34072,
-     "t": "À la pointe de l'île, au ras de l'eau. On y descend par l'escalier derrière la statue d'Henri IV.",
-     "s": "https://bonjourparis.com/paris-neighbourhoods/flaneries-in-paris-a-riverside-loop-from-chatelet/"
     },
     {
      "n": "Métro Pont Neuf",
@@ -165,7 +165,7 @@
      "m": true
     }
    ],
-   "trace": "atdiHankMBA@EDMFS@ElC|BDB@?BCR}@^kBd@eB?@B@DB??@C??@A?C@A@CA??A@C@C@C`@aBa@`BABABAB?@@?ABA@??pB~A?B?@???@?@??B@BB@?Oh@ADGTEL?DcAzD?D?D?BEHAFABAAA@i@rB??@@?@ABAB?@A???cAxD?B??ADAD???@ENADCF?BCLENA@AB?BA@ENCJEN?@?@ADADA@??e@dBDf@J??D@D?B?BA@CB?@AB?@d@jDBBB@AJ?H?JAT?JF`@??Ga@C@CDCBACCACACCAB?Dg@|BA@CBA@AACFAHADCLYvAA@AFAD@@@@?@?Bo@vCCHUhACDDBBBB@AD?B@BHTEPER_AlEADBFABAHCFCNCDMPEAEACAICKEGA?@CLALqAo@ADMCq@lCk@_@ABw@fDECCNELAFADABABAHGEFDv@j@BBRLh@j@hBlBBJETgA~COQcB`EGFC@C@CHWXSTI@A@AFCD?Am@c@A?A?A@A?A@AACCA?Mh@CDc@[ADCH??BI@Eo@e@ECc@lECPQl@?CIGGEA?AAEACCECC@KHC?CDCLc@]b@\\CLADXTDDADUz@BBPNB@CJCD?BCHAAA@A@?@A?A?A?A?AA??AA?A?A???A?A?????@?@???@?@@@??@@@?@?@?@??A@A@A@@BI?CBEBKCAQOCCT{@@EEEYUkEcDGAGJEEKCMEURIp@@j@?HRH?DCN"
+   "trace": "atdiHankMBA@EDMFS@ElC|BDB@?BCR}@^kBd@eB?@B@DB??@C??@A?C@A@CA??A@C@C@C`@aB@El@{ADI`@_@ZYNGF?`AH@A@EF@LG@H?BE@E@W`Ai@rB?@?@ADABABCHy@bD???@???@ADAB?@A?????Oh@ADGTEL?DcAzD?D?D?BEHAFABAAA@i@rB??@@?@ABAB?@A???cAxD?B??ADAD???@ENADCF?BCLENA@AB?BA@ENCJEN?@?@ADADA@??e@dBDf@J??D@D?B?BA@CB?@AB?@d@jDBBB@AJ?H?JAT?JF`@??Ga@C@CDCBACCACACCAB?Dg@|BA@CBA@AACFAHADCLYvAA@AFAD@@@@?@?Bo@vCCHUhACDDBBBB@AD?B@BHTEPER_AlEADBFABAHCFCNCDMPEAEACAICKEGA?@CLALqAo@ADMCq@lCk@_@ABw@fDECCNELAFADABABAHGEFDv@j@BBRLh@j@hBlBBJETgA~COQcB`EGFC@C@CHWXSTI@A@AFCD?Am@c@A?A?A@A?A@AACCA?Mh@CDc@[ADCH??BI@Eo@e@ECc@lECPQl@@@@@B@?@RN@@DFFH@CHBAJ?Fc@p@[z@GJ[YCHAAA@A@?@A?A?A?A?AA??AA?A?A???A?A?????@?@???@?@@@??@@@?@?@?@??A@A@A@@BI?CBEBKCAQOCCT{@@EEEYU@EBMc@]s@i@kBwAECELAAA?AAA@KD??A@A@?@KCMEURIp@@j@?HRH?DCN"
   },
   {
    "id": "passages",
@@ -177,7 +177,7 @@
    ],
    "depart": "Grands Boulevards",
    "arrivee": "Palais-Royal",
-   "m": 2094,
+   "m": 2326,
    "confort": "Plat, en partie à l'abri de la pluie.",
    "etapes": [
     {
@@ -242,7 +242,7 @@
      "m": true
     }
    ],
-   "trace": "iehiHa{hMS|BE`@Gt@AFAD?BALCPAB?B?FIt@UtCGAkCw@MECZkAYAAA?EAC?AAC?sAOrANB?@@B?D@@?@@jAXB[xC|@F@F@B@LBHB@?F@DBECEh@~BdA@@fBt@??@A?AB@DBB@?@?@@B@@@?|@`@@?@A@?DBD@?@@B?@HD@??ABI@@F@DBB?BN|@^XJZL\\L@A@C@DDBFBFBD@AB@D@DFBTP~CtA`CfA@??A^iCfAd@gAe@_@hC?@v@^jBx@B@?CB@@?DB@@?BTJBA@A@?B@@@@?AL@@\\NB?FD?@l@VO~@rAj@`@PDJDFFDB?B@F?HE\\NtAj@d@RL}@Fe@BSLD?@@?B@d@RFc@Gb@@@v@ZLu@@C?CRJt@Zb@RHD?BB@FDHD@@@?AFAFAFFzAF^",
+   "trace": "iehiHa{hMS|BE`@Gt@AFAD?BALCPAB?B?FIt@UtCGAkCw@MECZkAYAAA?EAC?AAC?sAOi@GIUCGHGp@s@`AW^K@??B@AF?DA@?@A@Ax@I@?\\Cv@Ef@FB?t@JD@@@?@?B?FF@B@LD??@?FBD@D@Ed@CTSvBCREh@~BdA@@DB`Bp@??@A?AB@DBB@?@?@@B@@@?|@`@@?@A@?DBD@?@@B?@HD@??ABI@@F@DBB?BN|@^XJZL\\L@A@C@DDBFBFBD@B]`@{CDUBApCnAXND@rD`Bf@THDD@EAA@QnAGAgAe@_@hC?@v@^jBx@B@?CB@@?DB@@?BTJBA@A@?B@@@@?AL@@\\NB?FD?@l@VO~@rAj@`@PDJDFFDB?B@F?HE\\NtAj@d@RL}@Fe@BSLD?@@?B@d@RFc@Gb@@@v@ZLu@@C?CRJt@Zb@RHD?BB@FDHD@@@?AFAFAFFzAF^",
    "note": "La plupart des passages ferment le soir : fais ce circuit en journée."
   },
   {
@@ -254,9 +254,9 @@
     "art"
    ],
    "depart": "Abbesses",
-   "arrivee": "Lamarck-Caulaincourt",
-   "m": 1706,
-   "confort": "Fortes pentes jusqu'au Sacré-Cœur, puis une descente. Le chemin peut passer par des escaliers.",
+   "arrivee": "Anvers",
+   "m": 1839,
+   "confort": "Ça monte fort. Après le Lapin Agile, on remonte jusqu'à la place du Tertre. Du Sacré-Cœur, le chemin descend vers Anvers et peut passer par des escaliers.",
    "etapes": [
     {
      "n": "Métro Abbesses",
@@ -281,19 +281,6 @@
      "s": "https://www.lonelyplanet.com/points-of-interest/le-passe-muraille/1535927"
     },
     {
-     "n": "Place du Tertre",
-     "lat": 48.88667,
-     "lng": 2.34083,
-     "t": "La place du village de Montmartre, où les peintres installent leurs chevalets."
-    },
-    {
-     "n": "Sacré-Cœur",
-     "lat": 48.88665,
-     "lng": 2.34295,
-     "t": "Commencée en 1875, achevée en 1914, consacrée en 1919. Entrée gratuite ; vue sur Paris depuis le parvis.",
-     "s": "https://www.lonelyplanet.fr/destinations/france/paris/que-faire/le-sacre-coeur"
-    },
-    {
      "n": "La Maison Rose",
      "lat": 48.88799,
      "lng": 2.3396,
@@ -302,8 +289,8 @@
     },
     {
      "n": "Vigne du Clos Montmartre",
-     "lat": 48.88845,
-     "lng": 2.33935,
+     "lat": 48.8884,
+     "lng": 2.3396,
      "t": "Plantée en 1933, fermée au public : on la voit depuis la rue des Saules. Les vendanges sont fêtées chaque année en octobre.",
      "s": "https://www.sortiraparis.com/arts-culture/balades/articles/298016-en-balade-au-vignoble-du-clos-montmartre-les-plus-anciennes-vignes-de-paris"
     },
@@ -315,14 +302,27 @@
      "s": "https://www.untappedcities.com/clos-montmartre/"
     },
     {
-     "n": "Métro Lamarck-Caulaincourt",
-     "lat": 48.88914,
-     "lng": 2.33816,
-     "t": "Ligne 12.",
+     "n": "Place du Tertre",
+     "lat": 48.8866,
+     "lng": 2.34095,
+     "t": "La place du village de Montmartre, où les peintres installent leurs chevalets."
+    },
+    {
+     "n": "Sacré-Cœur",
+     "lat": 48.88615,
+     "lng": 2.34255,
+     "t": "Commencée en 1875, achevée en 1914, consacrée en 1919. Entrée gratuite ; vue sur Paris depuis le parvis.",
+     "s": "https://www.lonelyplanet.fr/destinations/france/paris/que-faire/le-sacre-coeur"
+    },
+    {
+     "n": "Métro Anvers",
+     "lat": 48.88301,
+     "lng": 2.34485,
+     "t": "Ligne 2.",
      "m": true
     }
    ],
-   "trace": "iyjiHywgMSKK@WBC??@A@AD?B@@Kb@ECGTCJADECEECCCCCCEECACEAAYrA?ACACPGDGFIZSNMHEEGGAAGGIIBGQQACCCCEAACF{BnDC@u@g@?EAACAC?CAABE?o@c@?CCCAACAAAOEIG?AFC@?VsAHDHD@?TkAP{@Nm@DEBGFs@FS@M?]@?B??QFm@H{@Nm@JOLS@MD[Fc@@OGCAEECEAQIAA?C?G@EQC[GEACGCCXkD?O?U@QDBJAd@CPAQ@e@BK@ECAP?T?NYjDAJAHcAYECAACBCDA`@?x@AZATCZCFGv@K|AA?A?C?C?ABS??B?DAF?@?BIPHQ?C_A?o@?E@ERGb@Fc@DSCCCACAA?AI@C@G?E?C_@I^H?B?DAFAB@H@?B@MxAG`@]fBIt@ENCEACABE@C?WKEC}@]A@?JAD?@?BH?THb@N"
+   "trace": "iyjiHywgMSKK@WBC??@A@AD?B@@Kb@ECGTCJADECEECCCCCCEECACEAAYrA?ACACPGDGFIZSNMHEEGGAAGGIIBGQQACCCCEAACF{BnDC@u@g@?EAACAC?CAABE?o@c@?CCCAACAAAOEIG?AFCGB?@MGKKMIIGIC??QMOKa@MBKCKIOCCLUTiA??\\wAp@_BC?C?IPHQ?C?A@G?E?Cu@AUAEASAG??IE?C?E?AAC@_@I^HBA@@D?DsG??ZkB@?DBBQn@TJB@@HBB@HBB@HBZH@BCJFBJBBC@@DBbAXp@P@?@C@?DB?B@@PHD@DB@DFBANHBIC@O@GEm@LGH???p@B?E@CD?BCB@F?LcAPuA@UF?@ANANA@?D?H?D?nAIDADAhAGB?B?LAhAGDAGg@BAB?DA@@A]Ae@Aa@@G?A?GfBg@FCHC?C?AhCu@@G@?@ABAMiABA@?BA??AKAKAI@GIy@"
   },
   {
    "id": "canal",
@@ -334,7 +334,7 @@
    ],
    "depart": "République",
    "arrivee": "Jaurès",
-   "m": 2768,
+   "m": 2612,
    "confort": "Presque plat. Les passerelles en fer ont des marches.",
    "etapes": [
     {
@@ -360,8 +360,8 @@
     },
     {
      "n": "Jardin Villemin",
-     "lat": 48.87559,
-     "lng": 2.36202,
+     "lat": 48.875,
+     "lng": 2.3629,
      "t": "Un jardin public au bord du canal, pour une pause."
     },
     {
@@ -379,7 +379,7 @@
      "m": true
     }
    ],
-   "trace": "mmgiHqulMZk@e@]MEGEIUAEKa@q@eCAACKCGAEk@cCo@aDACEBC@C@ACAEEMCC@KAMAI?CC@@@@F?H?DABA?AD@@ADCFCBqA`AAE??EB@DaAr@AEED@BEDCA?@C@@BID{DlCCFC@C@A@EBEBA@?DA@KHI?cCdBGLOJC@I?o@`@a@Z{BdBCBE@SQKSQYACEDCBAAC@A?A@ACEI?AAA[TcBjA@BBL?B@@A@@@A@A@?@KFDNBHHZBLBJGDA@@BC@_@NQBUBO??BY?QA[E[MSMQKKIYW?FAF?BADAf@@b@Bv@EFGHCHENCHCHANAL?L?TIAGACAB@F@H@?U?M@M@OBIBIDOBIFIDGCw@Ac@@g@@EMIu@o@oAcAeA}@UQKKs@m@oDuCGEE@AAEECCCA?GqAeA_Ay@[YGGGCkAaAUQEGGEy@o@sAAC@A@?AEECC?A?A@C?AACAC}LgKAGAGACAEAICKAAEGKi@G_@KFEBA@C@C@A?IBC?CQAEAEAKOg@CKCIACEIA[INOX]Vw@Ei@r@?V?Wh@s@v@D\\WNYHOHMB?CI?AHEAECOAI"
+   "trace": "mmgiHqulMZk@e@]MEGEIUAEKa@q@eCAACKCGAEk@cCo@aDACEBC@C@ACAEEMCC@KAMAI?CC@@@@F?H?DABA?AD@@ADCFCBqA`AAE??EB@DaAr@AEED@BEDCA?@C@@BID{DlCCFC@C@A@EBEBA@?DA@KHI?cCdBGLOJC@I?o@`@a@Z{BdBCBE@SQKSQYACEDCBAAC@A?A@ACEI?AAA[TcBjA@BBL?B@@A@@@A@A@?@KFDNBHHZBLBJGDACDAAIKIEVIBIBODO@O@M?UAWC[KYKIGs@k@qC}BgByACDADJHA@mEqDKOA?GBEBIBGEE@AAEECCCA?GqAeA_Ay@[YGGGCkAaAUQEGGEy@o@sAAC@A@?AEECC?A?A@C?AACAC}LgKAGAGACAEAICKAAEGKi@G_@KFEBA@C@C@A?IBC?CQAEAEC@A@EBOXe@r@W^[ZIDMFgADI@EKGKCSp@y@@i@?[h@s@v@D\\WNYHOHMB?CI?AHEAECOAI"
   },
   {
    "id": "luxembourg",
@@ -392,7 +392,7 @@
    ],
    "depart": "Odéon",
    "arrivee": "Notre-Dame-des-Champs",
-   "m": 3048,
+   "m": 2988,
    "confort": "Plat, sans escalier.",
    "etapes": [
     {
@@ -424,18 +424,18 @@
      "s": "https://parisjetaime.com/transports/93224/Quartier-de-l-Odeon"
     },
     {
+     "n": "Fontaine Médicis",
+     "lat": 48.84806,
+     "lng": 2.33929,
+     "t": "Une grotte à l'italienne élevée vers 1630 pour Marie de Médicis.",
+     "s": "https://jardin.senat.fr/en/history-heritage/heritage.html"
+    },
+    {
      "n": "Palais du Luxembourg",
-     "lat": 48.8479,
+     "lat": 48.8476,
      "lng": 2.3375,
      "t": "Bâti dans les années 1620 pour Marie de Médicis ; c'est aujourd'hui le Sénat.",
      "s": "https://www.lonelyplanet.com/france/paris/st-germain-and-les-invalides/attractions/eglise-st-sulpice/a/poi-sig/372411/1322788"
-    },
-    {
-     "n": "Fontaine Médicis",
-     "lat": 48.84806,
-     "lng": 2.33917,
-     "t": "Une grotte à l'italienne élevée vers 1630 pour Marie de Médicis.",
-     "s": "https://jardin.senat.fr/en/history-heritage/heritage.html"
     },
     {
      "n": "Jardin du Luxembourg",
@@ -459,7 +459,7 @@
      "m": true
     }
    ],
-   "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@Rr@SDf@DX?BBNL@CN?DD?NDJBD?B?z@?~@l@BH??DBFB@@D?LH@N@?D@D@@@AP@`@B|@BfA@LB??@?H?F?@?FH|APrC?B@B?F?@B?TCD?JAd@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@A?B@bA?T?B?@?@?@?F?H?@@B@?D@H@HBJg@BBFLj@@pBDF@R@NDAPDDDFFFDJBJ@F@HCxAByAAIAGCKEKGGEGEE@QOESAQs@FUDU?_@CIBH?^ETGTPr@R@NDJFPTHXDZ?j@J@zABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@???@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
+   "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@RKBc@LA?o@NE@A?KpA?BB?ABAJAJ?@rA]v@[@?FB\\MPDD?NDJBD?B?z@?~@l@BH??DBFB@@D?LH@N@?D@D@@@AP@`@B|@BfA@LB??@?H?F?@?FH|APrC?B@B?F?@B?TCD?JAd@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@AD@?ADGDI?AHO@?D@F?@@NBBF@F@B@B@DBHBH^_@@DBBtAiATQUP@X?NHZ?^ETGTPr@R@NDJFPTHXDZ?j@J@?R?N?O?SzABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@???@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
    "note": "Le jardin du Luxembourg ferme la nuit. Le musée Zadkine ferme le lundi."
   },
   {
@@ -472,7 +472,7 @@
    ],
    "depart": "Corvisart",
    "arrivee": "Place d'Italie",
-   "m": 1859,
+   "m": 2256,
    "confort": "Quelques rues en pente douce.",
    "etapes": [
     {
@@ -484,8 +484,8 @@
     },
     {
      "n": "La Petite Alsace",
-     "lat": 48.82781,
-     "lng": 2.34633,
+     "lat": 48.82792,
+     "lng": 2.3458,
      "t": "40 maisons à colombages autour d'une cour arborée, bâties en 1912 par l'architecte Jean Walter pour loger des ouvriers. La cour est privée : on la regarde depuis l'entrée.",
      "s": "https://parisjetaime.com/transport/la-petite-alsace-p2040"
     },
@@ -518,7 +518,7 @@
      "m": true
     }
    ],
-   "trace": "{``iH_bjMDV\\xA@LHb@BBHCHA@?D?BZCxACZe@dCAHRLr@f@VP@@@A@@B@BD@A@DHDNLRFPHADADAH?@b@PhC~@^NHDADa@rCU~AGAFGBUBOBIHo@In@CHCNCTGFF@T_B`@sC@EIE_@O?C@I@I@EAE?Ez@wDR_ADE?EEEEEAHICEAC?A@E@OsB@I?CIKC??AA?ACAAA?CK?A@C@C@IFEAM@KKoACCCQ?C?IAG?EGk@SkCKwA?C?EDCHCr@QVGFCFIBO@GDFB?E}@AGKmAA?EBE@C?C?{@XEDCCEEEEACACCCAACCUMQOADCFADAFOIE?CAACGCqByAMIsB_Bw@m@KGQOa@YCECCECCA?AUQm@g@KIKIIFBNA?C@GDEDA?A@CBC@CB?EI[Ic@EMAI??Kc@A@ABI[E@E?CAEACECEAGAG?G@G@GBE@A"
+   "trace": "{``iH_bjMDV\\xA@LHb@BBHCHA@?D?BZCxACZe@dCAHAD?BA??DELi@|CADCLAJ?@GH?Fc@hCWxAAB?BAFCHAHCJOt@d@Tf@TlB|@`Ad@LF?DMt@?BAJADA@If@WhBRHADECAHCL?@CNAJTJLDb@VJNF@BADAFBDCBG@EBGLFJQT_BDBRyAT{AAAEADYRqARaB?K@CBK@GBI?A@GA?@?T_B`@sC@EIE_@O?C@I@I@EAE?Ez@wDR_ADE?EEEEEAHICEAC?A@E@OsB@I?CIKC??AA?ACAAA?CK?A@C@C@IFEAM@KKoACCCQ?C?IAG?EGk@SkCKwA?C?EDCHCr@QVGFCFIBO@GDFB?E}@AGKmAA?EBE@C?C?{@XEDCCEEEEACACCCAACCUMQOADCFADAFOIE?CAACGCqByAMIsB_Bw@m@KGQOa@YCECCECCA?AUQm@g@KIKIIFBNA?C@GDEDA?A@CBC@CB?EI[Ic@EMAI??Kc@A@ABI[E@E?CAEACECEAGAG?G@G@GBE@A"
   },
   {
    "id": "coulee",
@@ -530,7 +530,7 @@
    ],
    "depart": "Bastille",
    "arrivee": "Porte Dorée",
-   "m": 4617,
+   "m": 4414,
    "confort": "On monte sur l'ancien viaduc par un escalier (la Ville indique aussi des ascenseurs, 34 rue de Lyon et rue Jacques-Hillairet). Plus loin, la promenade passe par des tunnels et des tranchées.",
    "etapes": [
     {
@@ -577,8 +577,8 @@
     },
     {
      "n": "Palais de la Porte Dorée",
-     "lat": 48.83527,
-     "lng": 2.40936,
+     "lat": 48.8352,
+     "lng": 2.4088,
      "t": "Bâti en style Art déco pour l'Exposition coloniale de 1931. Il abrite le Musée national de l'histoire de l'immigration et un aquarium tropical.",
      "s": "https://www.visitparisregion.com/fr/musee-national-de-l-histoire-de-l-immigration-palais-de-la-porte-doree"
     },
@@ -590,7 +590,7 @@
      "m": true
     }
    ],
-   "trace": "krdiHmumM@C@Ul@V`APBWBk@?GCWAQt@WAOd@WLGBAtAa@r@Wj@O~CiAXOZOr@m@BERUJKHOVc@Xq@Xs@@C@EBG?CCCIE?A\\}@L[N_@Na@l@}An@}AJYzBcGPc@Ri@v@yBBGn@_B@EJWn@eBJSl@aBtCsHdE{K@K@INa@Z}@Zw@JABCb@mAAUL[HWBEDO^{@GGn@cBn@eBFH`@eAFQF]PsANmA\\_CFe@PgAl@uE@C@KBO`@wC@C?G@G@GB@F@B?B@B@BO^qCNeAXsBDY\\mCHm@@ED]?CFc@AAE?A?EC?ECC@G@I@G?I@KAAACAC?C@E@C@A@AB?@@Hk@Ay@AE?AAu@QqGAg@Ac@Mu@BaBE??a@?_@DCJyI@c@?{@@qAB{@@k@DwBDwBBa@E]?[H]BmB?CB?@A@A@C?C?C?CAABUt@iJBOTgAH[HURg@Vi@DIHKTa@DIn@c@n@[PoBB@B?BABA@C@E@E\\FJBD@JBH@LB@C@CBAB?@@@B@B@D@?N@NDBC@C?EAY@IDC@?HCFCoAeHFCjAV`Dr@`AVF@D?D@B@BCRF?E@G?G@C?E@G?C@E?I@E@I?E??@GzAZH@DOn@kC@MNHB@@@DFJBB@|AhAVPPZHODKBM@C^E@Q\\eBIGIGMI??LHHFHF]dBAPJFDBJHDD@@@@@?@@@VBLHLELADCHER]xAK^YjAA@C?A?C@@TARMNCBCBABA@EFA@ABABCDCBGL@B@B"
+   "trace": "krdiHmumM@C@Ul@V`APBWBk@?GCWAQt@WAOd@WLGBAtAa@r@Wj@O~CiAXOZOr@m@BERUJKHOVc@Xq@Xs@@C@EBG?CCCIE?A\\}@L[N_@Na@l@}An@}AJYzBcGPc@Ri@v@yBBGn@_B@EJWn@eBJSl@aBtCsHdE{K@K@INa@Z}@Zw@JABCb@mAAUL[HWBEDO^{@GGn@cBn@eBFH`@eAFQF]PsANmA\\_CFe@PgAl@uE@C@KBO`@wC@C?G@G@GB@F@B?B@B@BO^qCNeAXsBDY\\mCHm@@ED]?CFc@AAE?A?EC?ECC@G@I@G?I@KAAACAC?C@E@C@A@AB?@@Hk@Ay@AE?AAu@QqGAg@Ac@Mu@BaBE??a@?_@DCJyI@c@?{@@qAB{@@k@DwBDwBBa@E]?[H]BmB?CB?@A@A@C?C?C?CAABUt@iJBOTgAH[HURg@Vi@DIHKTa@DIn@c@n@[PoBB@B?BABA@C@E@E\\FJBD@JBH@LB@C@CBAB?@@@B@B@D@?N@NDBC@C?EAY@IDC@?HCFCoAeHFCjAV`Dr@`AVF@D?D@B@BCRF?E@G?G@C?E@G?C@E?I@E@I?E??@GzAZH@DOn@kC@MNHB@@@DFJBB@|AhAVPNV@BMVu@zCGD?F?D?@ERADAFABCFAHCFAFCDCJDFFNAPCJPJDDB@BBDBDDFP@?F@@B@B"
   }
  ]
 }

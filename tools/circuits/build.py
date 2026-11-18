@@ -16,7 +16,7 @@ S = {  # textes vérifiés le 18 nov. 2026 et leur source
   ('Le cœur du Pletzl (« petite place » en yiddish), le quartier juif historique du Marais.', 'https://www.evous.fr/paris/le-marais/Visiter-le-Marais/Quartiers-du-Marais/Le-Marais-Juif/Histoire-de-la-rue-des-Rosiers,1175205/', False),
   ('L\'hôtel de Soubise, au décor rocaille de Germain Boffrand, abrite les Archives nationales depuis 1808.', 'https://www.offi.fr/expositions-musees/archives-nationales-3615.html', False),
   ('Ligne 11.', None, True)]),
- 'iles': dict(titre='Les îles', quartier='centre', themes=['histoire', 'nature'], depart='Pont Marie', arrivee='Pont Neuf', confort='Plat. Un escalier pour descendre au square du Vert-Galant, et le même pour remonter.', note='', t=[
+ 'iles': dict(titre='Les îles', quartier='centre', themes=['histoire', 'nature'], depart='Pont Marie', arrivee='Pont Neuf', confort='Plat, sauf pour descendre au square du Vert-Galant, au bord de l\'eau, et remonter sur le Pont Neuf par un escalier.', note='', t=[
   ('Ligne 7.', None, True),
   ('Hôtel particulier construit en 1658, 17 quai d\'Anjou. Baudelaire et Théophile Gautier y ont habité au XIXe siècle.', 'https://parisjetaime.com/article/au-coeur-des-iles-parisiennes-a702', False),
   ('Construite de 1664 à 1726. Son horloge est posée perpendiculairement à la façade, comme une enseigne.', 'https://parisjetaime.com/article/au-coeur-des-iles-parisiennes-a702', False),
@@ -24,8 +24,8 @@ S = {  # textes vérifiés le 18 nov. 2026 et leur source
   ('Sur le parvis de Notre-Dame, une rose des vents en laiton : c\'est d\'ici que sont comptées les distances entre Paris et les autres villes.', 'https://www.paris.fr/pages/le-point-zero-reinstalle-sur-le-parvis-de-notre-dame-de-paris-31306', False),
   ('Au coin du palais de la Cité, la première horloge publique de Paris, réalisée vers 1370 par Henri de Vic.', 'https://www.pariszigzag.fr/insolite/histoire-insolite-paris/tour-de-lhorloge-palais-de-la-cite/', False),
   ('Place en triangle décidée par Henri IV en 1606, quand s\'achevait le Pont Neuf.', 'https://www.techno-science.net/fr/definitions/pont-neuf', False),
+  ('À la pointe de l\'île, au ras de l\'eau. On remonte sur le Pont Neuf par l\'escalier derrière la statue d\'Henri IV.', 'https://bonjourparis.com/paris-neighbourhoods/flaneries-in-paris-a-riverside-loop-from-chatelet/', False),
   ('Malgré son nom, le plus ancien pont de Paris : Henri IV l\'a inauguré en 1607. Sa statue est au milieu.', 'https://www.bonjour-ratp.fr/en/lieux/pont-neuf/', False),
-  ('À la pointe de l\'île, au ras de l\'eau. On y descend par l\'escalier derrière la statue d\'Henri IV.', 'https://bonjourparis.com/paris-neighbourhoods/flaneries-in-paris-a-riverside-loop-from-chatelet/', False),
   ('Ligne 7.', None, True)]),
  'passages': dict(titre='Les passages couverts', quartier='centre', themes=['passages', 'histoire'], depart='Grands Boulevards', arrivee='Palais-Royal', confort='Plat, en partie à l\'abri de la pluie.', note='La plupart des passages ferment le soir : fais ce circuit en journée.', t=[
   ('Lignes 8 et 9.', None, True),
@@ -37,16 +37,16 @@ S = {  # textes vérifiés le 18 nov. 2026 et leur source
   ('Le jardin entouré d\'arcades du Palais-Royal.', None, False),
   ('« Les Deux Plateaux », les colonnes rayées noir et blanc de Daniel Buren, dans la cour d\'honneur.', None, False),
   ('Lignes 1 et 7.', None, True)]),
- 'montmartre': dict(titre='Montmartre', quartier='nord', themes=['histoire', 'art'], depart='Abbesses', arrivee='Lamarck-Caulaincourt', confort='Fortes pentes jusqu\'au Sacré-Cœur, puis une descente. Le chemin peut passer par des escaliers.', note='', t=[
+ 'montmartre': dict(titre='Montmartre', quartier='nord', themes=['histoire', 'art'], depart='Abbesses', arrivee='Anvers', confort='Ça monte fort. Après le Lapin Agile, on remonte jusqu\'à la place du Tertre. Du Sacré-Cœur, le chemin descend vers Anvers et peut passer par des escaliers.', note='', t=[
   ('Ligne 12. La station la plus profonde de Paris (36 m) : prends l\'ascenseur. Son entrée est un des deux édicules d\'Hector Guimard encore en place.', 'https://www.ratp.fr/decouvrir/patrimoine/histoire-station-abbesses', True),
   ('Picasso y a vécu de 1904 à 1909 et y a peint Les Demoiselles d\'Avignon (1907). Incendié en 1970, reconstruit en 1978 : des ateliers privés, à voir de la place.', 'https://www.routard.com/fr/guide/france/ile-de-france/paris/18eme-arrondissement/montmartre/bateau-lavoir', False),
   ('Un homme qui sort du mur : statue de Jean Marais (1989) d\'après la nouvelle de Marcel Aymé, qui habitait l\'immeuble.', 'https://www.lonelyplanet.com/points-of-interest/le-passe-muraille/1535927', False),
-  ('La place du village de Montmartre, où les peintres installent leurs chevalets.', None, False),
-  ('Commencée en 1875, achevée en 1914, consacrée en 1919. Entrée gratuite ; vue sur Paris depuis le parvis.', 'https://www.lonelyplanet.fr/destinations/france/paris/que-faire/le-sacre-coeur', False),
   ('Le café rose au coin de la rue de l\'Abreuvoir, peint par Maurice Utrillo.', 'https://worldcitytrail.com/2025/04/26/le-passe-muraille-in-montmartre/', False),
   ('Plantée en 1933, fermée au public : on la voit depuis la rue des Saules. Les vendanges sont fêtées chaque année en octobre.', 'https://www.sortiraparis.com/arts-culture/balades/articles/298016-en-balade-au-vignoble-du-clos-montmartre-les-plus-anciennes-vignes-de-paris', False),
   ('Le cabaret de la butte, fréquenté par les artistes, dont Picasso.', 'https://www.untappedcities.com/clos-montmartre/', False),
-  ('Ligne 12.', None, True)]),
+  ('La place du village de Montmartre, où les peintres installent leurs chevalets.', None, False),
+  ('Commencée en 1875, achevée en 1914, consacrée en 1919. Entrée gratuite ; vue sur Paris depuis le parvis.', 'https://www.lonelyplanet.fr/destinations/france/paris/que-faire/le-sacre-coeur', False),
+  ('Ligne 2.', None, True)]),
  'canal': dict(titre='Le canal Saint-Martin', quartier='est', themes=['nature', 'histoire'], depart='République', arrivee='Jaurès', confort='Presque plat. Les passerelles en fer ont des marches.', note='', t=[
   ('Lignes 3, 5, 8, 9 et 11.', None, True),
   ('Le canal sort ici de sa voûte. Inauguré en 1825, il fait 4,5 km, dont plus de 2 km sous terre, avec neuf écluses et deux ponts tournants.', 'https://www.paris.fr/services-et-infos-pratiques/environnement-et-espaces-verts/nature-et-espaces-verts/les-canaux-90', False),
@@ -59,8 +59,8 @@ S = {  # textes vérifiés le 18 nov. 2026 et leur source
   ('Un passage pavé qui garde un vestige de l\'enceinte de Philippe Auguste. Le Procope, l\'un des plus anciens cafés de Paris, y a une entrée.', 'https://parisjetaime.com/transport/quartier-de-l-odeon-p1993', False),
   ('À droite en entrant, la chapelle des Saints-Anges, peinte par Delacroix de 1849 à 1861. Entrée libre.', 'https://www.paris.fr/pages/retrouvez-les-splendeurs-de-delacroix-a-la-chapelle-des-saints-anges-de-saint-sulpice-4241', False),
   ('Le théâtre de l\'Odéon, aujourd\'hui Odéon-Théâtre de l\'Europe, au centre de sa place.', 'https://parisjetaime.com/transports/93224/Quartier-de-l-Odeon', False),
-  ('Bâti dans les années 1620 pour Marie de Médicis ; c\'est aujourd\'hui le Sénat.', 'https://www.lonelyplanet.com/france/paris/st-germain-and-les-invalides/attractions/eglise-st-sulpice/a/poi-sig/372411/1322788', False),
   ('Une grotte à l\'italienne élevée vers 1630 pour Marie de Médicis.', 'https://jardin.senat.fr/en/history-heritage/heritage.html', False),
+  ('Bâti dans les années 1620 pour Marie de Médicis ; c\'est aujourd\'hui le Sénat.', 'https://www.lonelyplanet.com/france/paris/st-germain-and-les-invalides/attractions/eglise-st-sulpice/a/poi-sig/372411/1322788', False),
   ('Le jardin créé pour Marie de Médicis, inspiré du jardin Boboli de Florence.', 'https://secure.webpublication.fr/42102/1020942/index-34.html', False),
   ('La maison-atelier du sculpteur Ossip Zadkine. Musée de la Ville, collections gratuites ; fermé le lundi.', 'https://www.laculturegenerale.com/?p=79693', False),
   ('Ligne 12.', None, True)]),

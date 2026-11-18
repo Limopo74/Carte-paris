@@ -40,7 +40,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (173)';
+const VERSION = '18 novembre 2026 (174)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7119,6 +7119,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
     '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
@@ -7128,7 +7129,6 @@ const HELP = [
     '{signpost} Circuits de visite : des balades d\'un métro à l\'autre, avec leur tracé sur la carte, leurs étapes vérifiées et sourcées, la durée à ton pas et tes lieux près du tracé. Itinéraire → Circuits de visite, ou ⋯ Plus à droite de la carte.',
     '{star} ★ Favori d\'un appui sur la page d\'une expo (son lieu, l\'expo en note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit et du Kiosque : le lieu entre dans tes lieux, en favori, avec « Modifier » et « Annuler » dans le message.',
     '{chevron-down} Chaque fenêtre se réduit pour voir la carte : le bouton à côté de la croix, ou glisse la barre du titre vers le bas (vers le haut pour la rouvrir). {heart} Mes salles : « Suivre ce lieu » sur la page d\'une sortie, et son programme de la semaine arrive en tête de Sorties.',
-    '{ticket} Sorties : sur la page d\'une sortie, « Réserver et s\'informer » (réservation obligatoire ou conseillée, billetterie et site de l\'organisateur, nom du site écrit en clair) ; « Sur réservation » dans la liste ; les sites utiles visibles en bas de Sorties. Le champ Artiste n\'apparaît plus que pour le street art.',
   ]],
 ];
 
