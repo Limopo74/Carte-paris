@@ -38,7 +38,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (162)';
+const VERSION = '18 novembre 2026 (163)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -81,7 +81,18 @@ function persist() {
     return false;
   }
   updatePlanningCount();
+  updateSettingsDot();
   return true;
+}
+/** Pastille du bouton Réglages (v163) : la sauvegarde est due (5 changements, ou 3 jours après le premier). Partie dès qu'on sauvegarde. */
+function updateSettingsDot() {
+  const btn = document.getElementById('btnSettings');
+  if (!btn) return;
+  const due = state.ok !== false && backupDue(state);
+  let dot = btn.querySelector('.set-dot');
+  if (due && !dot) { dot = el('span', { class: 'set-dot', 'aria-hidden': 'true' }); btn.append(dot); }
+  if (!due && dot) dot.remove();
+  btn.setAttribute('aria-label', due ? 'Réglages, sauvegarde à faire' : 'Réglages');
 }
 
 /** Demande au navigateur de ne jamais effacer les données de l'appli quand le téléphone manque de place.
@@ -389,7 +400,7 @@ function renderMarkers() {
     const seen = p.cat === SEEN_CAT.id && p.photos?.length && !p.gone; // Vu en passant (v157) ; disparue : une goutte grise
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
-      : `<span class="pin${p.done ? ' done' : ''}${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
+      : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
@@ -5619,8 +5630,10 @@ function openSettings(section = null) {
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
   el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
+  const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages'], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
+    due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
     el('h3', { class: 'ring-title menu-group' }, 'Mes données'),
     // En tête : l'état de la sauvegarde se voit dès l'ouverture des Réglages.
@@ -6411,6 +6424,7 @@ const HELP = [
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
+    '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou recouverte.',
     '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste. Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
@@ -6466,7 +6480,7 @@ const HELP = [
   ['save', 'Garder et partager', [
     '**Tes lieux ne sont que sur ce téléphone.** Sauvegarde-les souvent.',
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
-    '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours.',
+    '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes.',
     '**Le fichier** va dans Téléchargements. Envoie-le aussi sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
     '**Il contient** tes lieux, photos, sorties prévues, catégories, listes, stations et réglages. Pas la liste TTB, ni la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
@@ -6520,6 +6534,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{check} Sur la carte, un lieu déjà visité porte une petite coche verte (sa goutte garde sa couleur). Quand il est temps de sauvegarder, une pastille apparaît sur le bouton Réglages, et « Sauvegarder maintenant » est en tête des Réglages.',
     '{pencil} Modifier un lieu : l\'adresse se corrige à la main. Et « Déjà visité » peut changer de nom selon la catégorie (« Déjà goûté », « Déjà vu »…), dans {settings} → Catégories et listes.',
     '{palette} Street art : « Ranger dans : Street art » dans Vu en passant ; l\'artiste de chaque œuvre (Modifier), avec sa page (ses œuvres, son site, ses expos) ; « Disparue ou recouverte » en bas de la fiche, et la date où tu l\'as vue.',
     '{search} La loupe cherche partout : tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. L\'agenda de la semaine, sur un appui.',
@@ -6529,7 +6544,6 @@ const HELP = [
     '{scroll-text} Plaques commémoratives, dans Autour de moi → Curiosités : les plaques posées par la Ville à moins de 5 min, avec leur texte gravé en entier et où regarder sur l\'immeuble (« 1er étage, façade »). Elles sont dans l\'appli : rien n\'est envoyé, et elles s\'affichent même si Wikipédia ne répond pas. Le robot les remet à jour chaque mois.',
     '{sun} Le bon moment (Modifier un lieu : Printemps, Week-end, Matin…) : « Maintenant » te prévient quand c\'est le moment, à moins de 10 min. Et « Dans la rue » : une brocante ou une fête à 5 min, en cours ou dans la demi-heure.',
     '{camera} Vu en passant (+ Ajouter) : une photo et une ligne, posées là où tu es. J\'y suis passé (fiche) : l\'historique de chaque adresse, et Mon journal dans Mon Paris. En repassant, « Maintenant » te rappelle ce que tu avais vu.',
-    '{landmark} Musées gratuits et Kiosque Théâtre : leurs horaires sont dans l\'appli. Le soir ou le lundi, ils sont marqués « Fermé » et passent à la fin, au lieu d\'être annoncés comme si l\'on pouvait y aller.',
   ]],
 ];
 
@@ -6586,6 +6600,7 @@ if (state.points.length) {
   ), { name: 'vide' });
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à sauvegarder tes lieux.', true);
+updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés : due même sans nouveau changement)
 
 const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
 runLaunchAction();

@@ -313,6 +313,8 @@ ol.items { padding: 0; }
   background: var(--disc); color: var(--bg); font-size: var(--t115); font-weight: 700; line-height: 20px; text-align: center;
 }
 .map-count[hidden] { display: none; }
+/* Pastille du bouton Réglages (v163) : la sauvegarde est due ; même couleur que le nombre de Mon planning */
+.set-dot { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--disc); box-shadow: 0 0 0 2px var(--bg); }
 .map-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .leaflet-bottom.leaflet-right { right: 64px; }
 
@@ -825,6 +827,12 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
   width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: #fff; color: #1f2a44; font: 800 10.5px/1 'Archivo', system-ui, sans-serif; box-shadow: 0 0 0 1.5px #1f2a44;
 }
+/* Déjà visité (v163) : une petite coche verte à droite de la goutte, à la place de l'initiale d'un proche (l'initiale passe avant) */
+.pin-done {
+  position: absolute; bottom: -7px; right: -7px; transform: rotate(45deg);
+  width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--add); color: var(--bg); box-shadow: 0 0 0 1.5px var(--bg);
+}
 /* Sortie prévue dans les 7 jours : pastille agenda terre cuite, comme le bouton Mon planning, côté gauche de la goutte */
 .pin-plan {
   position: absolute; top: -7px; left: -7px; transform: rotate(45deg);
@@ -832,7 +840,6 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
   background: var(--disc); color: var(--bg); box-shadow: 0 0 0 1.5px var(--bg);
 }
 .z-far .pin { transform: rotate(-45deg) scale(.72); }
-.pin.done { opacity: .6; }
 .pin.gone { filter: grayscale(1); opacity: .6; } /* œuvre disparue ou recouverte (v161) : grise, toujours touchable */
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
@@ -894,7 +901,7 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 .btn.c-add[aria-pressed="true"] { background: var(--add-bg); font-weight: 800; }
 
 /* Barre du bas : Réglages en contour zinc */
-.big-btn.square { flex: none; width: 52px; padding: 0; border-color: var(--info); color: var(--info); }
+.big-btn.square { flex: none; width: 52px; padding: 0; border-color: var(--info); color: var(--info); position: relative; } /* relative : pastille de sauvegarde (v163) */
 
 /* Liens et petites actions de liste */
 a.go, .item .go, .go-compass, .mini-link { background: transparent; }
