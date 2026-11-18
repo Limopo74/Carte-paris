@@ -112,7 +112,7 @@ const ECRANS = {
   notesplus: async (p) => { await p.locator('#btnMore').click(); await p.waitForTimeout(300); },
   notedujour: async (p) => { await p.locator('#btnMore').click(); await p.waitForTimeout(300); await p.locator('#morePanel button', { hasText: 'Note du jour' }).click(); await p.waitForTimeout(400); await feuille(p).locator('textarea').fill('Librairie conseillée rue des Martyrs, côté pair.\nRevenir au square d\'Anvers au printemps.'); },
   journalnote: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney : y retourner' }).click(); await p.waitForTimeout(400); },
-  sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney' }).click(); await p.waitForTimeout(400); },
+  sortiefaite: async (p) => { await ECRANS.journal(p); await feuille(p).locator('.item-main', { hasText: 'Hockney 25' }).click(); await p.waitForTimeout(400); }, // v208 : « Hockney » seul trouvait aussi la Note du jour de test (v206)
   chercherplaques: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('colette'); await p.waitForSelector('#sheet .ring-title:has-text("Plaques")'); await p.waitForTimeout(400); },
   chercherpartout: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('test'); await p.waitForTimeout(1500); await feuille(p).locator('button', { hasText: 'agenda de la semaine' }).click(); await p.waitForTimeout(1200); },
   sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
@@ -224,10 +224,10 @@ async function avecListe(p, ids) {
 }
 const choisis = (process.env.ECRANS || Object.keys(ECRANS).join(',')).split(',');
 
-const b = await chromium.launch();
+const b = await chromium.launch({ env: { ...process.env, LANG: 'fr_FR.UTF-8', LANGUAGE: 'fr' } }); // v208 : navigateur en français (heures 23:35, dates 19/11/2026)
 const lignes = []; let defauts = 0;
 for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
-  const ctx = await b.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2, geolocation: { latitude: 48.8812, longitude: 2.3361 }, permissions: ['geolocation'], colorScheme: theme, serviceWorkers: 'block', bypassCSP: true });
+  const ctx = await b.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2, geolocation: { latitude: 48.8812, longitude: 2.3361 }, permissions: ['geolocation'], locale: 'fr-FR', timezoneId: 'Europe/Paris', /* v208 : champs date et heure comme sur un téléphone en français (23:35, pas 11:35 PM) */ colorScheme: theme, serviceWorkers: 'block', bypassCSP: true });
   const page = await ctx.newPage(); const erreurs = []; page.on('pageerror', (e) => erreurs.push(e.message));
   await page.route(/opendata\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AGENDA) }));
   await page.route(/cdn\.paris\.fr/, (r) => r.fulfill({ status: 200, contentType: 'image/png', path: 'icons/icon-512.png' })); // photo de sortie simulée

@@ -48,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (207)';
+const VERSION = '18 novembre 2026 (208)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -482,7 +482,7 @@ const shortDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric
 /** Après un passage noté : si la note diffère de celle du lieu, le message propose de la reporter sur le lieu (rien d'automatique). */
 function offerStars(p, stars, msg) {
   if (!stars || stars === (p.stars ?? 0)) { toast(msg); return; }
-  toast(msg, false, { label: `Mettre ${stars} ★ au lieu`, fn: () => { p.stars = stars; persist(); renderMarkers(); toast(`Note du lieu : ${stars} étoile${stars > 1 ? 's' : ''}`); if (view?.startsWith?.('detail:')) openDetail(p.id); } });
+  toast(msg, false, { label: `Mettre ${stars} ★ au lieu`, fn: () => { p.stars = stars; persist(); renderMarkers(); toast(`Le lieu a maintenant ${stars} étoile${stars > 1 ? 's' : ''}`); if (view?.startsWith?.('detail:')) openDetail(p.id); } });
 }
 /** Une ligne de passage : date, texte, miniature de la photo ; un appui l'ouvre pour la corriger. */
 function passageRow(x, onclick, who = '') {
@@ -568,7 +568,7 @@ function openPassage(p, back, at = null) {
     el('p', { class: 'summary' }, p.name),
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
     el('label', { class: 'field' }, 'Ce que j\'ai vu (facultatif)', text),
-    el('div', { class: 'field' }, 'Ma note (facultatif)', pick),
+    el('div', { class: 'field' }, 'Mes étoiles (facultatif)', pick),
     preview, camera,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: done }, 'Annuler'),
@@ -673,7 +673,7 @@ function openOuting(id, back) {
     el('p', { class: 'summary' }, o.name),
     el('p', { class: 'help' }, [new Date(o.at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase()), o.place].filter(Boolean).join(' · ')),
     el('label', { class: 'field' }, 'Ce que je retiens (facultatif)', text),
-    el('div', { class: 'field' }, 'Ma note (facultatif)', pick),
+    el('div', { class: 'field' }, 'Mes étoiles (facultatif)', pick),
     preview, camera,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'),
@@ -827,7 +827,7 @@ function openFilters() {
       !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(hoursOf(p))?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
       !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
       !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
-      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count((p) => p.cat === SEEN_CAT.id), 'note', 'notes')}`, () => { filt.seen = !filt.seen; }),
+      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count((p) => p.cat === SEEN_CAT.id), 'lieu', 'lieux')}`, () => { filt.seen = !filt.seen; }),
       !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
       !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
         ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
@@ -1383,7 +1383,7 @@ function openSeenForm(blob, where) {
   const posLine = el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche de ta position…');
   const choice = el('div', { class: 'field', hidden: true });
   let stars = 0;
-  const starBox = el('div', { class: 'field', hidden: true }, 'Ma note (facultatif)', starPicker(0, (n) => { stars = n; }));
+  const starBox = el('div', { class: 'field', hidden: true }, 'Mes étoiles (facultatif)', starPicker(0, (n) => { stars = n; }));
   let target = 'new'; // id d'une de mes adresses proches, ou une nouvelle note
   let fix = null;
   // Ranger une nouvelle note (v161) : Vu en passant, ou Street art avec son artiste (facultatif)
@@ -1406,7 +1406,7 @@ function openSeenForm(blob, where) {
       target = near.p.id;
       let draw = () => fill(choice, 'Où la garder ?', el('div', { class: 'seg', role: 'group', 'aria-label': 'Où la garder' },
         el('button', { type: 'button', 'aria-pressed': String(target === near.p.id), onclick: () => { target = near.p.id; draw(); } }, `Ajouter à : ${near.p.name}`),
-        el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouvelle note')));
+        el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouveau lieu')));
       const drawAll = draw;
       draw = () => { drawAll(); starBox.hidden = target === 'new'; drawSort(); };
       draw();
@@ -1709,7 +1709,7 @@ function starsText(n) {
 
 /** Rangée de 5 étoiles à toucher. Toucher l'étoile déjà choisie retire la note. */
 function starPicker(value, onPick) {
-  const box = el('div', { class: 'star-pick', role: 'group', 'aria-label': 'Ma note' });
+  const box = el('div', { class: 'star-pick', role: 'group', 'aria-label': 'Mes étoiles' });
   const draw = (v) => fill(box, ...[1, 2, 3, 4, 5].map((i) => el('button', {
     type: 'button', class: i <= v ? 'on' : '', 'aria-label': `${i} étoile${i > 1 ? 's' : ''}`, 'aria-pressed': String(i === v),
     onclick: () => { const nv = i === v ? 0 : i; draw(nv); onPick(nv); },
@@ -1812,9 +1812,11 @@ function openForm(draft, existing = null) {
   const doneSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'État' });
   const drawDone = () => fill(doneSeg, 
     segBtn('À faire', !done, () => { done = false; drawDone(); }),
-    segBtn(didName(catOf(cat)), done, () => { done = true; drawDone(); }),
-    segBtn([glyph(state.fav.icon, { filled: true }), ' Favori'], fav, () => { fav = !fav; drawDone(); }));
+    segBtn(didName(catOf(cat)), done, () => { done = true; drawDone(); }));
   drawDone();
+  // v208 : Favori est indépendant de l'état : une case à part, plus deux cases noires à la fois
+  const favBox = el('input', { type: 'checkbox', class: 'check', checked: fav });
+  favBox.addEventListener('change', () => { fav = favBox.checked; });
 
   const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Endroit choisi sur la carte'));
   draft.onAddress = (label) => {
@@ -1885,10 +1887,11 @@ function openForm(draft, existing = null) {
 
   // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
   const details = [
-    el('label', { class: 'field' }, 'Note (facultatif)', note),
+    el('label', { class: 'field' }, 'Commentaire (facultatif)', note),
     artistField,
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
-    el('div', {}, el('div', { class: 'legend' }, 'Ma note (facultatif)'), starPicker(stars, (n) => { stars = n; })),
+    el('label', { class: 'item-main check-row' }, favBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Favori'))),
+    el('div', {}, el('div', { class: 'legend' }, 'Mes étoiles (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
       el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
     el('label', { class: 'item-main check-row' }, coveredBox,
@@ -1909,7 +1912,7 @@ function openForm(draft, existing = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
     existing ? el('div', { class: 'stack' }, ...details)
       : el('details', { class: 'help-item form-more', open: filled },
-        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'note, état, listes…')),
+        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'commentaire, état, étoiles, listes…')),
         el('div', { class: 'stack' }, ...details)),
     err,
     foot(el('div', { class: 'row' },
@@ -2030,7 +2033,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'row row-big' },
       planBtn,
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'Écrire une impression')),
-    starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `Note : ${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Note retirée'); }),
+    starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Étoiles retirées'); }),
     photoWide(p, back),
     facts,
     ...passageSection(p, here),
@@ -2347,8 +2350,8 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const err = el('div', { class: 'error', role: 'alert' });
   const done = doneFn ?? (() => (p.plan ? openPlanning() : back ? openDetail(p.id, back) : openDetail(p.id)));
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
-  const daySeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Quel jour' });
-  const partSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'À quel moment' });
+  const daySeg = el('div', { class: 'seg two', role: 'group', 'aria-label': 'Quel jour' }); /* v208 : 2 colonnes, plus de mot coupé */
+  const partSeg = el('div', { class: 'seg two', role: 'group', 'aria-label': 'À quel moment' });
   // v201 : aujourd'hui, pour un de mes lieux, le moment est facultatif : sans moment, le lieu va dans la liste du jour
   const partHelp = el('p', { class: 'help' }, 'Aujourd\'hui, le moment est facultatif : sans moment, le lieu va dans ta liste du jour (Mon planning).');
   const draw = () => {
@@ -2391,9 +2394,8 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
     el('div', { class: 'field' }, 'À quel moment ?', partSeg), partHelp, timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
-    err,
     freeNote(p),
-    el('button', { type: 'button', class: 'btn c-guide solid', onclick: save }, ico('alarm-clock'), 'Enregistrer'),
+    old && stored && !isDayList(old) ? el('h3', { class: 'fiche-sec' }, 'Inviter un proche') : null, /* v208 : la case et le lien vont ensemble */
     old && stored && !isDayList(old) ? inviteNote?.row : null, /* la liste du jour n'a ni heure ni moment à annoncer : pas d'invitation */
     old && stored && !isDayList(old) ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
     old && stored ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
@@ -2403,7 +2405,10 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
       if (p.plan) openPlanning(); else done();
     } }, 'Retirer de Mon planning') : null,
     el('p', { class: 'help' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
-    foot(p.plan ? (back ? backBtn(back) : null) : el('button', { type: 'button', class: 'btn', onclick: done }, '← Fiche')),
+    /* v208 : Annuler | Enregistrer en bas, comme le formulaire d'un lieu (charte § 8) ; l'erreur juste au-dessus, toujours visible */
+    foot(err, el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: p.plan && back ? back : done }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
   ), { name: `plan:${p.id}` });
 }
 
@@ -3101,7 +3106,7 @@ function noteCheck(p, onchange) {
   if (onchange) box.addEventListener('change', () => onchange(box.checked));
   const txt = String(p.note).replace(/\s+/g, ' ').trim();
   const row = el('label', { class: 'item-main check-row' }, box,
-    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma note'),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec mon commentaire'),
       el('span', { class: 'item-sub' }, `Ton commentaire : « ${txt.length > 70 ? `${txt.slice(0, 68)}…` : txt} »`)));
   return { row, box };
 }
@@ -3715,12 +3720,12 @@ function openPlanning(from = null) {
   ];
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
     ...todayBlock,
-    ...pastBlock,
     groups.length || timed.length ? null : el('p', { class: 'help' }, 'Pour prévoir un autre jour : touche un lieu sur la carte, puis Prévoir une visite.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.map(planLine)),
     ]),
+    ...pastBlock, /* v208 : après les jours à venir, pour que les jours se suivent */
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
@@ -3770,10 +3775,10 @@ function openDayPicker(selected = null, query = '') {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Chercher un de mes lieux', 'aria-label': 'Chercher un de mes lieux', value: query });
   const list = el('ul', { class: 'items' });
   const more = el('p', { class: 'help' });
-  const go = el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => save() });
+  const go = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => save() }); /* v208 : dans la barre du bas, toujours visible */
   const update = () => {
     go.disabled = !sel.size && !cur.length;
-    fill(go, ico('check'), sel.size ? `Enregistrer (${plural(sel.size, 'lieu', 'lieux')})` : cur.length ? 'Enregistrer (liste vide)' : 'Coche au moins un lieu');
+    fill(go, sel.size ? `Enregistrer (${sel.size})` : cur.length ? 'Vider la liste' : 'Enregistrer');
   };
   const row = ({ p, d }) => {
     const box = el('input', { type: 'checkbox', class: 'check', 'aria-label': p.name, disabled: busy(p) });
@@ -3813,8 +3818,8 @@ function openDayPicker(selected = null, query = '') {
   openSheet([ico('alarm-clock'), ' Lieux du jour'], el('div', { class: 'stack' },
     input,
     el('p', { class: 'help' }, `Coche les lieux d'aujourd'hui, ${DAY_MAX} au plus. ${start ? 'Les plus proches d\'abord.' : 'Par ordre alphabétique : ta position n\'est pas connue.'}`),
-    list, more, go,
-    foot(backBtn(named('Mon planning', () => openPlanning()))),
+    list, more,
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openPlanning() }, 'Annuler'), go)),
   ), { tall: true, name: 'jourlieux', again: () => openDayPicker(sel, input.value) });
 }
 
@@ -3979,7 +3984,7 @@ function myStats() {
       el('p', { class: 'warn' }, 'Que remettre à zéro ?'),
       line(walkBox, 'Marche et air', 'Minutes de marche par jour et qualité de l\'air, marche du jour comprise'),
       line(useBox, 'Fonctions utilisées', 'La liste « Ce que j\'utilise le plus »'),
-      el('p', { class: 'help' }, 'Efface les 90 jours gardés. Tes lieux, leurs « visité », favoris et notes ne changent pas. Ce n\'est pas annulable.'),
+      el('p', { class: 'help' }, 'Efface les 90 jours gardés. Tes lieux, leurs « visité », favoris, étoiles et commentaires ne changent pas. Ce n\'est pas annulable.'),
       err,
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn', onclick: showReset }, 'Annuler'),
@@ -4003,7 +4008,7 @@ function myStats() {
     svg, readout, legend, table,
     el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position (Ma position et direction, balade guidée). L\'air est une estimation du quartier, heure par heure, pas une mesure sur toi.'),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
-    el('div', { class: 'stat-tiles' }, tile(String(ps.added), 'ajoutés'), tile(String(ps.visited), 'visités'), tile(String(ps.fav), 'favoris'), tile(ps.stars != null ? `${String(ps.stars).replace('.', ',')} ★` : '–', 'note moyenne')),
+    el('div', { class: 'stat-tiles' }, tile(String(ps.added), 'ajoutés'), tile(String(ps.visited), 'visités'), tile(String(ps.fav), 'favoris'), tile(ps.stars != null ? `${String(ps.stars).replace('.', ',')} ★` : '–', 'étoiles en moyenne')),
     ps.byCat.length ? hbars(ps.byCat.slice(0, 6).map(([id, n]) => [catOf(id).name, n, catDot(id)]), 'Lieux par catégorie') : null,
     el('p', { class: 'help' }, `Ajoutés et visités : sur les ${statsDays} derniers jours. Catégories et favoris : tous tes lieux (${ps.total}).`),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mon Paris'), el('span', {}, '')),
@@ -4757,7 +4762,7 @@ async function openEvents(start = null) {
   const fromMap = o.kind === 'map';
   const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
-  const title = [ico('calendar-days'), ' Sorties du jour'];
+  const title = [ico('calendar-days'), ' Sorties'];
   if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
   else if (!eventsCache || eventsCache.day !== day) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris…'), { name: 'events' });
@@ -7933,7 +7938,7 @@ const HELP = [
     '**Chaque rubrique** montre les 3 plus proches. « Voir les … » déroule la suite. Une sortie de Mes salles, montrée en tête de Tout, n\'est pas répétée plus bas.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
     '{calendar-days} **Bientôt gratuit**, dans Sorties → Gratuit (et le bandeau « Maintenant ») : touche un jour pour voir les lieux gratuits ce jour-là, leurs heures, ceux qui sont sur réservation, et « Prévoir ce dimanche » pour le mettre dans Mon planning.',
-    '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans la note), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
+    '{star} **★ Favori, d\'un appui** : sur la page d\'une expo ou d\'une sortie (son lieu, avec l\'expo dans le commentaire), d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque. Le lieu entre dans tes lieux, en favori, dans une catégorie devinée (Musées, Culture…) : « Modifier » dans le message pour la changer, « Annuler » pour le retirer. Déjà dans tes lieux : l\'étoile s\'allume ou s\'éteint.',
     '{heart} **Mes salles** : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie, d\'un musée gratuit ou du Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui. Les prochains rendez-vous de tes salles (7 jours, agenda de la Ville) arrivent en tête de Sorties ; la liste complète et les salles suivies : « Mes salles ».',
     '{ticket} **Réserver et s\'informer**, en bas de sa page : réservation obligatoire ou conseillée, le site de l\'organisateur et sa billetterie, avec le nom du site écrit en clair. Dans la liste, « Sur réservation » le signale. C\'est l\'organisateur qui le dit : vérifie sur son site.',
     '{external-link} **Pour aller plus loin**, en bas de Sorties : paris.fr, Paris Musées, les galeries (Offi), l\'office du tourisme, Sortir à Paris.',
@@ -7958,9 +7963,9 @@ const HELP = [
     '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
-    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit au-dessus d\'« Enregistrer ».',
+    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
-    '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche. « Écrire une impression » : ce que tu retiens, une note, une photo.',
+    '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allé ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche. « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
@@ -7998,7 +8003,7 @@ const HELP = [
     '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Annuler » sur la fiche te ramène aux ronds.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
-    '**Sur la carte**, une note Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'elles : Filtres → Vu en passant.',
+    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
     '{search} **En écrivant l\'artiste**, « Vouliez-vous dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
@@ -8010,7 +8015,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
-    '**Le formulaire** : catégorie, note, étoiles, listes, « Abrité de la pluie » et « Le bon moment ».',
+    '**Le formulaire** : catégorie, commentaire, état, Favori, étoiles, listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance. {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
@@ -8022,7 +8027,7 @@ const HELP = [
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; vide le texte pour l\'effacer. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
-    '**Étoiles** : ta note de 1 à 5. Touche la même étoile pour la retirer.',
+    '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
     '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici.',
@@ -8061,11 +8066,11 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le aussi sur ton mail ou ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux (avec tes impressions), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes notes sur les circuits, catégories, listes, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux (avec tes impressions), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes problèmes notés sur les circuits, catégories, listes, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
-    '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui. Ton commentaire ne part que si tu coches « Avec ma note ». Les horaires partent avec la date où tu les as notés.',
+    '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui. Ton commentaire ne part que si tu coches « Avec mon commentaire ». Les horaires partent avec la date où tu les as notés.',
     '{copy} **Partager une sortie** : Mon planning → la sortie → « Prévu » → Copier le lien d\'invitation. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
@@ -8115,6 +8120,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
     '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
     '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
     '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
@@ -8124,7 +8130,6 @@ const HELP = [
     '{alarm-clock} Mon planning → Aujourd\'hui : note les lieux de ta journée (« Ajouter des lieux », ou Prévoir une visite → Aujourd\'hui, sans moment), range-les (« Modifier la liste »), puis va de l\'un à l\'autre : Y aller, Boussole, Métro, et « Fait » quand tu y es passé. De 2 à 4 lieux, « Tout le parcours · Google Maps ». Le lendemain, la liste se vide toute seule.',
     '{train-front} Station montre aussi les gares de RER et les arrêts de tram à moins de 1,5 km ; Rentrer dit quand l\'un d\'eux est nettement plus près que le métro. La fiche d\'un lieu dit « horaires notés en … » quand ses horaires ont plus d\'un an.',
     '{alarm-clock} Moins de déplacements ratés : la fiche dit la sortie de métro la plus proche du lieu ; Prévoir dit quand le lieu est gratuit dans les 5 semaines ; « Non » à « Tu y es allé ? » garde une expo encore à l\'affiche, avec « Prévoir un autre jour ».',
-    '{landmark} Apprendre la ville : Où suis-je ? dit l\'origine du nom de la rue ; la loupe trouve les plaques commémoratives qui portent un nom (essaie « Colette ») ; Monuments donne l\'auteur et la date d\'un édifice, et « Du même auteur ».',
   ]],
 ];
 

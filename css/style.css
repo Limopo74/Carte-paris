@@ -753,7 +753,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .item-name, .menu-title { font-weight: 700; font-stretch: 92%; }
 /* Intertitres (v186) : 15 px en minuscules, sans lettres espacées : lisibles au soleil avec des lunettes */
 .ring-title, .legend { font-family: var(--display); font-size: var(--t15); font-weight: 800; line-height: 1.3; gap: 12px; }
-.legend { margin-bottom: 6px; color: var(--muted); }
+.legend { margin-bottom: 6px; } /* v208 : en encre, comme les autres étiquettes d'un formulaire */
 
 /* Feuille : papier, coin franc */
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; flex-direction: column; border-radius: 18px 18px 0 0; padding-bottom: var(--safe-b); max-height: 58vh; background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
@@ -828,6 +828,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
 .seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); background: var(--strong); }
+.seg.two button { flex-basis: 40%; } /* v208 : 2 par rangée (Prévoir), plus de mot coupé */
 .switch.on { background: var(--add); }
 
 /* ---- Boutons de la carte (charte « Papier », v102) : papier, contour de leur famille, 4 px.
