@@ -6,7 +6,7 @@ Usage, depuis la racine du dépôt :
   python3 -I tools/maj-navigo.py lieux-avantages-cultures-navigo.geojson AAAA-MM-JJ
 
 Garde Paris et la petite couronne (même zone que les lignes), et seulement les lieux dont l'offre est connue
-(« Offre en cours d'élaboration » et « Offre à venir » sont écartées).
+(« Offre en cours d'élaboration », « Offre à venir » et « Mise en place des offres en cours » sont écartées).
 """
 import json, re, sys
 
@@ -20,7 +20,8 @@ for f in json.load(open(SRC, encoding='utf8'))['features']:
     lng, lat = g['coordinates'][:2]
     if not (S <= lat <= N and W <= lng <= E): continue
     offre = clean(p.get('offre'), 500)
-    if not offre or 'laboration' in offre.lower() or offre.lower().startswith('offre à venir'): continue  # pas encore d'offre
+    low = offre.lower()
+    if not offre or 'laboration' in low or low.startswith(('offre à venir', 'mise en place des offres')): continue  # pas encore d'offre
     url = clean(p.get('url'), 200)
     items.append({
         'n': clean(p.get('nom_du_lieu'), 80),

@@ -6,12 +6,13 @@ import { parseNavigo, navigoNear, navigoFor, nameWords, navigoGenre, navigoGroup
 const json = JSON.parse(readFileSync(new URL('../data/navigo.json', import.meta.url), 'utf8'));
 const items = parseNavigo(json);
 
-test('navigo : le fichier est daté, dans la zone de l\'appli, sans offre « en cours d\'élaboration »', () => {
+test('navigo : le fichier est daté, dans la zone de l\'appli, sans offre « en cours d\'élaboration » ni « mise en place des offres en cours »', () => {
   assert.match(json.updated ?? '', /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(items.length > 100, `${items.length} lieux`);
   for (const x of items) {
     assert.ok(x.lat > 48.72 && x.lat < 48.96 && x.lng > 2.2 && x.lng < 2.5, x.name);
     assert.ok(!/laboration/i.test(x.offer), x.name);
+    assert.ok(!/^mise en place des offres/i.test(x.offer), x.name); // pas encore d'offre : rien plutôt qu'une offre fausse
   }
   assert.match(NAVIGO_SOURCE, /^https:\/\/data\.iledefrance-mobilites\.fr\/explore\/dataset\/lieux-avantages-cultures-navigo\//);
 });
