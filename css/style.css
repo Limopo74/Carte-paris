@@ -663,8 +663,9 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #map:not(.z-far) .leaflet-arrNums-pane, #map.arr-nums-off .leaflet-arrNums-pane { display: none; }
 .leaflet-arrNums-pane { pointer-events: none; }
 .arr-limit { stroke: var(--muted); stroke-opacity: .55; }
-.arr-num { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 800; font-size: var(--t26); line-height: 1; color: var(--muted); white-space: nowrap;
-  text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+.arr-num { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 800; font-size: var(--t26); line-height: 1; color: var(--ink); white-space: nowrap;
+  -webkit-text-stroke: 8px var(--bg); paint-order: stroke fill; /* v194 : halo plein, qui cache le petit nom gris écrit par la carte dessous */
+  text-shadow: 0 0 6px var(--bg), 0 0 10px var(--bg), 0 0 14px var(--bg); }
 .arr-num small { font-size: .5em; vertical-align: super; }
 #map.z-11 .arr-num { display: none; }
 /* Calques Vélib' et Fontaines et WC (v150) : sous la météo, « Zoome pour voir… » ou l'heure des Vélib' (un appui : mettre à jour) */
