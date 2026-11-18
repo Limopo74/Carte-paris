@@ -280,6 +280,50 @@ export function exportJSON(state) {
   }, null, 2);
 }
 
+/* ---------- Envoyer à un proche (v180, décidé le 18 nov.) ----------
+   Un fichier séparé de ma sauvegarde : seulement ce que je coche, seulement mes lieux (pas ceux de mes proches),
+   jamais mes billets, mes réglages, mes stations, mon journal ni mes problèmes notés. */
+export const SEND_PARTS = ['lieux', 'notes', 'passages', 'photos', 'plans', 'artists', 'venues', 'ttb'];
+/** En arrivant sur la page : les lieux et les notes sont cochés, le reste non (la liste TTB aussi). */
+export const SEND_DEFAULT = Object.freeze({ lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false });
+/** Mes lieux qui partent : `cats` = catégories choisies (null = toutes), `lists` = listes choisies (elles s'ajoutent). */
+export function sendPoints(state, cats = null, lists = new Set()) {
+  return (state.points ?? []).filter((p) => !p.owner && (cats === null || cats.has(p.cat) || (p.lists ?? []).some((l) => lists.has(l))));
+}
+/** L'objet du fichier pour un proche (sans les photos ni TTB : l'appli les ajoute si la case est cochée). */
+export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = new Set()) {
+  const pts = sel.lieux ? sendPoints(state, cats, lists) : [];
+  const used = new Set(pts.map((p) => p.cat));
+  const points = pts.map((p) => {
+    const c = { ...p, owner: state.me || '' };
+    delete c.ticket; // mes billets restent à moi
+    if (!sel.notes) c.note = '';
+    if (!sel.photos) delete c.photos;
+    if (!sel.passages) delete c.passages;
+    else if (!sel.photos && c.passages) c.passages = c.passages.map(({ photo, ...x }) => x);
+    return c;
+  });
+  const plans = sel.plans ? cleanPlans(state.plans) : [];
+  const artists = sel.artists ? cleanArtists(state.artists) : [];
+  const venues = sel.venues ? cleanVenues(state.venues) : [];
+  const sent = [points.length ? 'lieux' : '', points.length && sel.notes ? 'notes' : '', points.length && sel.passages ? 'passages' : '',
+    plans.length ? 'plans' : '', artists.length ? 'artists' : '', venues.length ? 'venues' : ''].filter(Boolean);
+  return {
+    app: 'carte-paris', version: 2, kind: 'proche', exported: new Date().toISOString(), owner: state.me ?? '', sent,
+    categories: (state.categories ?? []).filter((c) => used.has(c.id)),
+    lists: (state.lists ?? []).filter((l) => pts.some((p) => (p.lists ?? []).includes(l.id))),
+    points,
+    ...(plans.length ? { plans } : {}),
+    ...(artists.length ? { artists } : {}),
+    ...(venues.length ? { venues } : {}),
+  };
+}
+/** Nom du fichier pour un proche. */
+export function friendFileName(date, me, count) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `Ma carte de Paris - ${me ? `lieux de ${String(me).replace(/[\\/:*?"<>|]/g, '').slice(0, 30)}` : 'lieux'} du ${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()} (${count} lieu${count > 1 ? 'x' : ''}).json`;
+}
+
 /**
  * Ajoute les catégories et les lieux d'un fichier de sauvegarde, sans doublon (même id).
  * Ne modifie pas l'état reçu. Lève une erreur si le fichier n'est pas une sauvegarde valide.

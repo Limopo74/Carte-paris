@@ -7,7 +7,7 @@ import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, map
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, DEFAULT_HIDDEN, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
-  fileOwner, owners,
+  fileOwner, owners, exportForFriend, sendPoints, friendFileName, SEND_DEFAULT,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (179)';
+const VERSION = '18 novembre 2026 (180)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5785,7 +5785,8 @@ function openSettings(section = null) {
       nbTtb || nbTtbMarks ? el('label', { class: 'item-main check-row' }, withTtb,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
-      el('p', { class: 'help' }, 'Le fichier va dans tes Téléchargements. Si tu perds ton téléphone, il part avec : de temps en temps, envoie-le aussi sur ton mail ou ton Drive. Pour partager tes lieux, envoie le fichier : ton proche fait « Importer les lieux d\'un proche ».'),
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
+      el('p', { class: 'help' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements, et si tu perds ton téléphone il part avec. De temps en temps, envoie-le aussi sur ton mail ou ton Drive. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
       foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'), el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer')),
     ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
@@ -6504,6 +6505,89 @@ async function sendBackup(withPhotos = true, withTtb = true) {
   } catch { /* annulé */ }
 }
 
+/* ---------- Envoyer à un proche (v180, maquette validée le 18 nov.) ---------- */
+// Un fichier séparé de ma sauvegarde : seulement ce que je coche (le temps de la session), seulement mes lieux.
+let sendSel = { ...SEND_DEFAULT };
+let sendCats = null; // catégories choisies ; null = toutes
+let sendLists = new Set(); // listes choisies (leurs lieux s'ajoutent)
+function openSendFriend(back = () => openSettings('sauvegarde')) {
+  const again = () => openSendFriend(back);
+  const mine = state.points.filter((p) => !p.owner);
+  const pts = sendPoints(state, sendCats, sendLists);
+  const nbPhotos = pts.reduce((n, p) => n + photoIds(p).length, 0);
+  const nbPassages = pts.reduce((n, p) => n + (p.passages?.length ?? 0), 0);
+  const nbPlans = cleanPlans(state.plans).length;
+  const nbArtists = cleanArtists(state.artists).length;
+  const nbVenues = cleanVenues(state.venues).length;
+  const nbTtb = ttbList().length;
+  const nbMarks = Object.keys(ttbMarksNow()).length;
+  const summary = el('p', { class: 'ok-line', role: 'status' });
+  const sumText = () => {
+    const parts = [sendSel.lieux && pts.length ? `${plural(pts.length, 'lieu', 'lieux')}${sendSel.notes ? ' avec leurs notes' : ''}` : '',
+      sendSel.lieux && pts.length && sendSel.passages && nbPassages ? 'leurs passages' : '', sendSel.lieux && pts.length && sendSel.photos && nbPhotos ? plural(nbPhotos, 'photo', 'photos') : '',
+      sendSel.plans && nbPlans ? plural(nbPlans, 'sortie prévue', 'sorties prévues') : '', sendSel.artists && nbArtists ? plural(nbArtists, 'artiste', 'artistes') : '',
+      sendSel.venues && nbVenues ? plural(nbVenues, 'salle', 'salles') : '', sendSel.ttb && (nbTtb || nbMarks) ? 'la liste TTB' : ''].filter(Boolean);
+    fill(summary, parts.length ? [ico('check'), ` Partiront : ${parts.join(', ')}.`] : 'Rien de coché : coche au moins une ligne.');
+    return parts.length;
+  };
+  const row = (k, name, sub, show = true) => (show ? el('li', { class: 'item' }, el('label', { class: 'item-main check-row' },
+    el('input', { type: 'checkbox', class: 'check', checked: sendSel[k], onchange: (e) => { sendSel = { ...sendSel, [k]: e.target.checked }; sumText(); } }),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, name), sub ? el('span', { class: 'item-sub' }, sub) : null))) : null);
+  const cats = state.categories.map((c) => [c, mine.filter((p) => p.cat === c.id).length]).filter(([, n]) => n);
+  const lists = (state.lists ?? []).map((l) => [l, mine.filter((p) => (p.lists ?? []).includes(l.id)).length]).filter(([, n]) => n);
+  const chip = (label, on, fn) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick: () => { fn(); again(); } }, label);
+  const toggleCat = (id) => { const c = new Set(sendCats ?? []); if (c.has(id)) c.delete(id); else c.add(id); sendCats = c; };
+  const toggleList = (id) => { if (sendCats === null) sendCats = new Set(); const l = new Set(sendLists); if (l.has(id)) l.delete(id); else l.add(id); sendLists = l; };
+  const meInput = el('input', { type: 'text', maxlength: '30', value: state.me ?? '', autocomplete: 'given-name', placeholder: 'Ton prénom ou un pseudo' });
+  const send = async () => {
+    if (!sumText()) { toast('Coche au moins une ligne.', true); return; }
+    const obj = exportForFriend(state, sendSel, sendCats, sendLists);
+    if (sendSel.photos && sendSel.lieux) {
+      obj.photos = {};
+      for (const id of obj.points.flatMap((p) => photoIds(p))) { const b = await getPhoto(id).catch(() => null); if (b) obj.photos[id] = await blobToDataUrl(b); }
+      if (Object.keys(obj.photos).length) obj.sent.push('photos'); else delete obj.photos;
+    }
+    if (sendSel.ttb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) { obj.ttb = t; obj.sent.push('ttb'); } }
+    const f = new File([JSON.stringify(obj)], friendFileName(new Date(), state.me, obj.points.length), { type: 'application/json' });
+    let shared = false;
+    try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch { return; /* annulé */ }
+    if (!shared) {
+      const url = URL.createObjectURL(f);
+      const a = el('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast(`« ${f.name} » enregistré dans tes Téléchargements : envoie-le à ton proche.`);
+    } else toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
+  };
+  openSheet([ico('users'), ' Envoyer à un proche'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Ta sauvegarde reste complète. Ici, tu choisis ce que ton proche reçoit. Il ouvre le fichier dans son appli : Réglages → Restaurer ou importer → Importer les lieux d\'un proche.'),
+    state.me ? el('div', { class: 'me-line' }, el('span', {}, 'Tes lieux partiront au nom de ', el('b', {}, state.me)),
+      el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, 'Modifier'))
+      : el('div', { class: 'me-box' }, el('label', { class: 'field' }, 'Tes lieux partiront au nom de', meInput),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => { state.me = meInput.value.trim().slice(0, 30); persist(); again(); } }, 'Enregistrer le prénom'),
+        el('p', { class: 'help' }, 'Sans prénom, ton proche ne saura pas de qui viennent ces lieux.')),
+    el('h3', { class: 'fiche-sec' }, 'Quoi envoyer'),
+    el('ul', { class: 'items' },
+      row('lieux', 'Lieux', `${plural(pts.length, 'lieu', 'lieux')} des catégories choisies plus bas`),
+      row('notes', 'Notes', 'Ton commentaire sur chaque lieu'),
+      row('passages', 'Passages', 'Tes souvenirs datés (« J\'y suis passé »)', nbPassages > 0),
+      row('photos', 'Photos', `${plural(nbPhotos, 'photo', 'photos')} · fichier plus lourd`, nbPhotos > 0),
+      row('plans', 'Sorties prévues', `${nbPlans} dans Mon planning`, nbPlans > 0),
+      row('artists', 'Artistes', plural(nbArtists, 'artiste suivi', 'artistes suivis'), nbArtists > 0),
+      row('venues', 'Salles', plural(nbVenues, 'salle suivie', 'salles suivies'), nbVenues > 0),
+      row('ttb', 'TTB', `La liste du guide${nbTtb ? ` (${plural(nbTtb, 'adresse', 'adresses')}${ttbData?.date ? `, page du ${frenchDate(ttbData.date)}` : ''})` : ''}${nbMarks ? ` et tes marques (${nbMarks})` : ''}`, nbTtb + nbMarks > 0)),
+    el('h3', { class: 'fiche-sec' }, 'Quelles catégories'),
+    el('div', { class: 'list-chips', style: 'margin-top: 8px' },
+      chip('Toutes', sendCats === null, () => { sendCats = null; sendLists = new Set(); }),
+      ...cats.map(([c, n]) => chip(`${c.name} ${n}`, sendCats === null || sendCats.has(c.id), () => toggleCat(c.id))),
+      ...lists.map(([l, n]) => chip(`Liste : ${l.name} ${n}`, sendLists.has(l.id), () => toggleList(l.id)))),
+    summary,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: send }, ico('send'), 'Envoyer le fichier'),
+    el('p', { class: 'help' }, 'Le menu de partage du téléphone s\'ouvre (SMS, mail, WhatsApp…). Rien ne passe par un serveur. Tes billets, tes réglages, ton journal et les lieux de tes proches ne partent jamais.'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Sauvegarde')),
+  ), { name: 'envoyer-proche', again });
+  sumText();
+}
+
 /* ---------- Restaurer ma sauvegarde, importer les lieux d'un proche ---------- */
 
 let importMode = 'mine';
@@ -7158,7 +7242,7 @@ const HELP = [
     '{copy} **Partager une sortie** : Mon planning, à côté de la sortie. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    '**Partager tous tes lieux** : écris ton prénom dans Sauvegarde, puis Envoyer le fichier.',
+    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, notes, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; ta sauvegarde, elle, reste complète.',
     '**Ton ami** fait Restaurer ou importer → Importer les lieux d\'un proche. Puis Filtres → « Lieux de mes proches ».',
     '**Partager l\'appli** : {settings} → Appli → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
@@ -7202,6 +7286,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
     '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
     '{map-pin} Carte plus lisible avec beaucoup de lieux : de loin, les lieux proches se regroupent en une goutte noire qui porte leur nombre ; touche-la pour zoomer. Tes favoris restent toujours visibles, et à la vue « rue » chaque lieu a sa goutte.',
     '{sun} Plus lisible au soleil : les tampons (Ouvert, Gratuit, Sur réservation…) sont droits, en lettres normales et un peu plus grands ; sur la carte, les numéros des lignes et les noms des stations grossissent avec la taille du texte. Sorties : plus de grande carte en tête, la liste « En ce moment » commence tout de suite.',
@@ -7211,7 +7296,6 @@ const HELP = [
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
     '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
     '{signpost} Deux circuits de plus : la Butte-aux-Cailles (de Corvisart à Place d\'Italie, le plus court) et la Coulée verte (de Bastille à la Porte Dorée, le plus long). Les puces « Moins de 45 min » et « Environ 1 h 30 » ne sont plus vides.',
-    '{heart} « Suivre » (Mes salles) à côté de ★ Favori sur les Grands lieux, galeries, musées gratuits et le Kiosque ; dans Mes salles, les lieux de tes sorties prévues ou faites se suivent d\'un appui.',
   ]],
 ];
 
