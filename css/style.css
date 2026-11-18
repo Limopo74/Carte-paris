@@ -561,6 +561,9 @@ ol.items { padding: 0; }
 .arr-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(5, 54px); gap: 5px; }
 .arr { border-radius: var(--r); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line); }
 .arr b { font-size: 14px; }
+.arr-pick .arr { background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+.arr-pick .arr b { font-family: var(--display); font-size: 15px; }
+.arr-pick .arr[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
 /* Aucun lieu visité : case vide en pointillés ; dès 1 : vert plein avec un bord franc. */
 .arr.l0 { background: transparent; color: var(--muted); border: 1.5px dashed var(--line); }
 .arr.l1 { background: #A9DDB6; color: #123d1b; border: 2px solid #3f9553; }

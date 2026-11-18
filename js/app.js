@@ -41,7 +41,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (181)';
+const VERSION = '18 novembre 2026 (182)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -375,16 +375,18 @@ const pointsLayer = L.layerGroup().addTo(map);
 const meLayer = L.layerGroup().addTo(map);
 const nearLayer = L.layerGroup().addTo(map);
 const draftLayer = L.layerGroup().addTo(map);
+// Contour de l'arrondissement choisi dans Filtres (v182) : seulement quand ce filtre est actif.
+const arrLayer = L.layerGroup().addTo(map);
 
 let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 // Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
-const filt = { open: false, top: false, covered: false, seen: false, lists: new Set() };
-const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all'].filter(Boolean).length;
+const filt = { open: false, top: false, covered: false, seen: false, lists: new Set(), arr: 0 }; // arr : numéro de l'arrondissement choisi (0 = tous), le temps de la session
+const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all', filt.arr > 0].filter(Boolean).length;
 const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
   && (!filt.covered || p.covered) && (!filt.seen || p.cat === SEEN_CAT.id) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
-  && (personFilter === 'all' || p.owner === personFilter);
+  && (personFilter === 'all' || p.owner === personFilter) && (!filt.arr || arrOfPoint(p) === filt.arr);
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
 /** Ce que l'appli propose (Autour de moi, Surprise, balades, alertes…) : pas une œuvre « Disparue ou recouverte » (v161). Elle reste sur la carte et dans le journal. */
@@ -789,8 +791,11 @@ function openFilters() {
         [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
           .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
             ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
+      !keep('arr', filt.arr > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Arrondissement'), el('span', {}, '')),
+      !keep('arr', filt.arr > 0) ? null : arrPicker(),
+      !keep('arr', filt.arr > 0) || !arrData ? null : el('p', { class: 'help' }, 'Le chiffre : tes lieux dans cet arrondissement. Touche une case pour ne voir qu\'eux.'),
       activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
-        filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
+        filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); filt.arr = 0; personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
     keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Ajouter sur la carte') : null,
@@ -846,7 +851,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -883,6 +888,7 @@ function emptyHint() {
 function refresh() {
   renderChips();
   renderMarkers();
+  drawArrOutline();
   updateNow(true);
   if (view === 'near' && origin) renderNear();
 }
@@ -3118,6 +3124,51 @@ const busReady = () => Boolean(busData?.stops?.length);
 const loadArr = async () => (arrData ??= await fetch('data/arrondissements.json').then((r) => (r.ok ? r.json() : null))
   .then((j) => { arrUpdated = typeof j?.updated === 'string' ? j.updated : ''; return j; }).catch(() => null));
 loadArr();
+
+/* ---------- Filtres → Arrondissement (v182) : un appui sur une case ne garde que mes lieux de cet arrondissement ---------- */
+
+const arrCache = new Map(); // arrondissement d'une position, calculé une fois sur le téléphone
+/** Arrondissement d'un lieu d'après sa position (null hors de Paris ou contours pas encore lus). */
+function arrOfPoint(p) {
+  if (!arrData) return null;
+  const k = `${p.lat},${p.lng}`;
+  if (!arrCache.has(k)) arrCache.set(k, arrAt(p.lat, p.lng, arrData));
+  return arrCache.get(k);
+}
+const arrOrd = (n) => (n === 1 ? '1er' : `${n}e`);
+const arrZone = (n) => (Array.isArray(arrData?.arr) ? arrData.arr.find((a) => a.n === n) : null);
+/** Contour pointillé de l'arrondissement choisi ; rien quand le filtre est éteint. */
+function drawArrOutline() {
+  arrLayer.clearLayers();
+  const z = filt.arr ? arrZone(filt.arr) : null;
+  if (!z) return;
+  const rings = z.rings.map((r) => r.map(([x, y]) => [y, x]));
+  // Voile gris sur tout ce qui est hors de l'arrondissement (le monde moins ses contours) : l'intérieur garde la vraie carte
+  L.polygon([[[85, -180], [85, 180], [-85, 180], [-85, -180]], ...rings], { stroke: false, fillColor: isDark() ? '#000000' : ink(), fillOpacity: isDark() ? 0.45 : 0.28, interactive: false }).addTo(arrLayer);
+  L.polygon(rings, { color: ink(), weight: 3, dashArray: '8 6', fill: false, interactive: false }).addTo(arrLayer);
+}
+/** La grille des 20 arrondissements (même plan schématique que Mon Paris), avec le nombre de mes lieux dans chacun. */
+function arrPicker() {
+  if (!arrData) { loadArr().then(() => { if (arrData && shownKey === 'filters') openFilters(); }); return el('p', { class: 'help' }, 'Les contours des arrondissements n\'ont pas pu être lus. Rouvre Filtres avec du réseau.'); }
+  const by = new Map();
+  for (const p of state.points) { const a = arrOfPoint(p); if (a) by.set(a, (by.get(a) ?? 0) + 1); }
+  return el('div', { class: 'arr-grid arr-pick' }, Object.entries(ARR_GRID).map(([k, [c, r]]) => {
+    const a = Number(k); const on = filt.arr === a; const m = by.get(a) ?? 0;
+    return el('button', { type: 'button', class: 'arr', style: `grid-column:${c + 1};grid-row:${r + 1}`, 'aria-pressed': String(on),
+      'aria-label': `${arrOrd(a)} arrondissement : ${plural(m, 'lieu', 'lieux')}`, onclick: () => pickArr(on ? 0 : a) },
+    el('b', {}, arrOrd(a)), el('span', {}, String(m)));
+  }));
+}
+/** Choisit (ou retire) l'arrondissement : la carte se place dessus et dessine son contour (exception voulue : c'est le but de l'appui). */
+function pickArr(n) {
+  filt.arr = n;
+  refresh();
+  if (!n) { openFilters(); toast('Tous les arrondissements'); return; }
+  closeSheet();
+  const z = arrZone(n);
+  if (z) map.fitBounds(L.latLngBounds(z.rings.flat().map(([x, y]) => [y, x])), { paddingTopLeft: [10, 60], paddingBottomRight: [70, 10], animate: false });
+  toast(`${arrOrd(n)}\u00a0: ${plural(visible().length, 'lieu', 'lieux')}`, false, { label: 'Tout voir', fn: () => { filt.arr = 0; refresh(); } });
+}
 
 let myParisBack = 'settings';
 async function openMyParis(from = null) {
@@ -7163,7 +7214,7 @@ const HELP = [
     '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue. Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
-    '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes. La rubrique Filtres explique tout.',
+    '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, un arrondissement. La rubrique Filtres explique tout.',
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
@@ -7294,6 +7345,7 @@ const HELP = [
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
     '**Favori** : son icône et sa couleur dans {settings} → Favoris. Un cœur évite la confusion avec les étoiles.',
     '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, tes listes et les lieux de tes proches.',
+    '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan pour ne garder que tes lieux de cet arrondissement. La carte se place dessus, le reste de Paris est voilé de gris. Le chiffre de chaque case : tes lieux. Pour tout revoir : « Tout voir » dans le message, la même case, ou « Effacer les filtres ». Calculé sur ton téléphone, même sans réseau.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
@@ -7375,6 +7427,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} Filtres → Arrondissement : touche une case du plan de Paris pour ne voir que tes lieux de cet arrondissement ; la carte se place dessus et le reste est voilé de gris.',
     '{user} Importer les lieux d\'un proche : tu choisis ce que tu gardes (tout est coché au départ) : lieux, notes, photos, liste TTB, catégories, et chaque artiste, salle ou sortie prévue. Un lieu que tu as déjà n\'est pas ajouté deux fois ; un nouvel envoi met ses lieux à jour. Ses sorties arrivent dans Mon planning avec « Prévu par ».',
     '{users} Envoyer à un proche ({settings} → Sauvegarde) : un fichier à part de ta sauvegarde, où tu coches ce qui part (lieux et notes au départ ; passages, photos, sorties prévues, artistes, salles, liste TTB si tu veux) et les catégories ou listes. Seulement tes lieux, jamais tes billets ni tes réglages.',
     '{save} Ta liste TTB et tes marques (fermées, masquées) partent dans ta sauvegarde : case « Avec la liste TTB », cochée au départ, dans {settings} → Sauvegarde. À la restauration, la liste la plus récente gagne et tes marques s\'ajoutent : plus besoin de réimporter la page du guide.',
@@ -7384,7 +7437,6 @@ const HELP = [
     '{shapes} Art dans la rue et les galeries ne dépendent plus d\'un serveur en ligne : leurs listes de tout Paris sont rangées dans l\'appli chaque mois par la mise à jour des données. Elles s\'affichent tout de suite, même sans réseau.',
     '{route} Circuits : les tracés ne repassent plus par le même chemin, sans aller-retour. Montmartre finit maintenant à Anvers (ligne 2) ; aux îles, le square du Vert-Galant vient avant le Pont Neuf ; au Luxembourg, la fontaine Médicis avant le palais.',
     '{triangle-alert} Un souci sur un circuit : « Signaler un problème » sur la page d\'une étape ou en bas du circuit (gardé sur ton téléphone, jamais envoyé), puis « Copier pour Claude » dans la liste des circuits. « Masquer ce circuit » le retire de la liste ; on le remet d\'un appui.',
-    '{search} Champ Artiste : « Vouliez-vous dire » propose les noms connus proches (une faute de frappe, un nom écrit autrement), un appui remplit le champ ; « Chercher … sur Google », seulement si tu le touches.',
   ]],
 ];
 

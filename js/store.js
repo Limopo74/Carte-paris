@@ -153,7 +153,7 @@ export const CHIPS_V = 2;
 export const withNewChips = (list, v) => (list === undefined || v >= CHIPS_V ? list : [...cleanChips(list), ...NEW_MORE_CHIPS.filter((k) => !cleanChips(list).includes(k))]);
 
 /** Lignes masquées de la feuille Filtres. */
-export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'covered', 'lists', 'people'];
+export const FILTER_KEYS = ['open', 'top', 'lines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'covered', 'lists', 'people', 'arr'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
