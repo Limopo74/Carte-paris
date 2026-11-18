@@ -45,6 +45,8 @@ jobs:
           get /tmp/src/sanitaires.geojson "$RATP/sanitaires-reseau-ratp/exports/geojson"
           get /tmp/src/arrondissements.geojson "$PARIS/arrondissements/exports/geojson"
           get /tmp/src/plaques.geojson "$PARIS/plaques_commemoratives/exports/geojson"
+          # Secteurs « Paris Respire » (v197) : jamais bloquant, et hors du contrôle des .geojson ci-dessous
+          get /tmp/src/respire.json "$PARIS/secteurs-paris-respire/exports/geojson" || rm -f /tmp/src/respire.json
           # Arrêts de bus de Paris et de la petite couronne, avec leurs lignes (environ 21 000 couples arrêt-ligne)
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/bus.json "$IDFM/arrets-lignes/exports/json" \
             --data-urlencode 'where=mode="Bus" AND (code_insee like "75*" OR code_insee like "92*" OR code_insee like "93*" OR code_insee like "94*")' \
@@ -87,6 +89,8 @@ jobs:
           python3 -I tools/maj-arrondissements.py /tmp/src/arrondissements.geojson "$TODAY"
           python3 -I tools/maj-bus.py /tmp/src/bus.json "$TODAY"
           python3 -I tools/maj-plaques.py /tmp/src/plaques.geojson "$TODAY"
+          # Jamais bloquant : si la source manque ou a changé, data/respire.json reste tel quel
+          if [ -s /tmp/src/respire.json ]; then python3 -I tools/maj-respire.py /tmp/src/respire.json "$TODAY" || echo "Paris Respire : fichier d'avant gardé"; else echo "Paris Respire : pas de réponse, fichier d'avant gardé"; fi
           node tools/maj-art.mjs /tmp/src/oeuvres.json /tmp/src/galeries.json "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
@@ -99,7 +103,7 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json"
+          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json"
           MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.

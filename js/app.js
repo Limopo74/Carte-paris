@@ -15,11 +15,12 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
+import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
@@ -42,7 +43,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '18 novembre 2026 (196)';
+const VERSION = '18 novembre 2026 (197)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -137,7 +138,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -1187,6 +1188,19 @@ function updateNow(force = false) {
         !street.street && street.booking === 'advised' ? 'réservation conseillée' : null].filter(Boolean).join(' · ')));
     buzzNow(`sortie:${street.title}:${street.lat},${street.lng}`);
     card.querySelector('.now-open').onclick = () => openEventPage(street);
+    return;
+  }
+  // Rue sans voitures (v197) : un secteur « Paris Respire » prévu en ce moment, à 10 min à pied au plus (js/respire.js).
+  // Jamais « fermé aux voitures » : la Ville peut ajourner, l'appli dit « prévu ». Contours lus seulement un jour prévu.
+  if (!respireData && pos && !nowHidden && respirePlanned(new Date())) loadRespire().then((d) => { if (d) updateNow(true); });
+  const calm = !pos || nowHidden ? null : respireNow(respireSectors(respireData), pos, new Date(), minutesToMeters(10));
+  if (calm) {
+    card.hidden = false;
+    fill(card.querySelector('.now-text'),
+      el('span', { class: 'now-kicker' }, calm.d ? `Sans voitures · ${walkMinutes(calm.d)} min à pied` : 'Sans voitures · tu y es'),
+      el('span', { class: 'now-name' }, calm.s.name),
+      el('span', { class: 'now-sub' }, `Prévu jusqu'à ${hhText(calm.to)} · Paris Respire`));
+    card.querySelector('.now-open').onclick = () => openRespire(named('Carte', () => closeSheet()));
     return;
   }
   // Bientôt gratuit (v158) : aujourd'hui, demain ou après-demain ; la croix le cache pour la journée, la suggestion revient
@@ -3240,6 +3254,9 @@ let arrData = null;
 let arrUpdated = '';
 /** Arrêts de bus et leurs lignes (data/bus.json, v148) : lus seulement pour Rentrer et Mes stations (fichier de plusieurs centaines de Ko). */
 /** Plaques commémoratives (data/plaques.json, v159) : lues seulement à l'ouverture de Curiosités (fichier de plusieurs centaines de Ko). */
+/** Contours des secteurs « Paris Respire » (data/respire.json, robot ; v197) : lus à la demande. */
+let respireData = null;
+const loadRespire = async () => (respireData ??= await fetch('data/respire.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 let plaquesData = null;
 const loadPlaques = async () => (plaquesData ??= await fetch('data/plaques.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 let busData = null;
@@ -3776,7 +3793,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -5491,8 +5508,48 @@ function openRoutes() {
     row('route', 'Relier des lieux', '2 à 4 de tes lieux dans le meilleur ordre', () => openRoutePicker()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
     row('signpost', 'Circuits de visite', 'Des balades d\'un métro à l\'autre, avec leur tracé', () => openCircuits(openRoutes)),
+    row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { name: 'routes', again: openRoutes });
+}
+
+/* ---------- Rues sans voitures (v197) : les secteurs « Paris Respire » prévus aujourd'hui, sinon le prochain jour (js/respire.js) ---------- */
+
+/** Un secteur sur la carte : son contour, et un bandeau pour revenir à la liste. Rien n'est demandé (contours dans l'appli). */
+function showRespireOnMap(x, back) {
+  closeSheet();
+  endPeek();
+  const zone = L.polygon(x.s.rings, { className: 'respire-zone', weight: 3, interactive: false }).addTo(peekLayer);
+  showPeekCard('Sans voitures · prévu', x.s.name, back, `De ${hhText(x.w.from)} à ${hhText(x.w.to)} · touche ici pour revenir à la liste`);
+  map.fitBounds(zone.getBounds(), { padding: [30, 30], maxZoom: 17, animate: false });
+}
+
+async function openRespire(back = openRoutes) {
+  const again = () => openRespire(back);
+  const title = [ico('footprints'), ' Rues sans voitures'];
+  if (!respireData) { openSheet(title, el('p', { class: 'help' }, 'Lecture des secteurs…'), { name: 'respire', again }); await loadRespire(); }
+  const sectors = respireSectors(respireData);
+  const today = new Date();
+  const from = freshHere() || origin; // jamais de GPS demandé : la dernière position connue, sinon pas de distance
+  const self = named('Rues sans voitures', again);
+  const rows = (date) => el('ul', { class: 'items' }, respireOn(sectors, date, from).map((x) => el('li', { class: 'item' },
+    el('button', { type: 'button', class: 'item-main', onclick: () => showRespireOnMap(x, self) },
+      el('span', { class: 'plan-time' }, hhText(x.w.to)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.s.name),
+        el('span', { class: 'item-sub' }, [`prévu de ${hhText(x.w.from)} à ${hhText(x.w.to)}`, x.d == null ? x.s.arr : x.d ? fmtWalk(x.d) : 'tu y es'].join(' · ')))))));
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const n = respireOn(sectors, today).length;
+  const next = n ? null : respireNextDay(sectors, today);
+  openSheet(title, el('div', { class: 'stack' },
+    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Appli → Données de l\'appli).')
+      : n ? el('p', { class: 'summary' }, `${cap(dayTitle(today))} : ${plural(n, 'secteur prévu', 'secteurs prévus')}. À gauche, l'heure de fin.`)
+        : el('p', { class: 'summary' }, 'Rien de prévu aujourd\'hui.'),
+    n ? rows(today) : null,
+    next ? el('h3', { class: 'ring-title' }, el('span', {}, `Prochain jour : ${dayTitle(next)}`)) : null,
+    next ? rows(next) : null,
+    el('p', { class: 'help' }, `Opérations « Paris Respire » de la Ville de Paris : jours et heures lus le ${RESPIRE_CHECKED} sur ${RESPIRE_PAGE}. Ce sont des prévisions : une opération peut être ajournée, et rien ici ne dit qu'elle a bien lieu. Un appui montre le secteur sur la carte. Pas dans la liste : les Champs-Élysées (1er dimanche du mois, sauf exception).`),
+    foot(backBtn(back)),
+  ), { name: 'respire', again });
 }
 
 /* ---------- Circuits de visite (v168) : étapes vérifiées, tracé calculé une fois et rangé dans l'appli (data/circuits.json) ---------- */
@@ -6317,7 +6374,7 @@ function openSettings(section = null) {
   if (section === 'donnees') {
     // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore ») ;
     // arrêts de bus et plaques aussi (v187) : sans eux, leur date restait inconnue et la ligne disait « À jour » à tort
-    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr()]).finally(() => openSettings(section)); return; }
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
     // Date inconnue (fichier illisible, hors réseau et jamais gardé) : ni « À jour » ni « En retard » (v187 : pas d'info plutôt qu'une info fausse)
@@ -6379,6 +6436,7 @@ function openSettings(section = null) {
     if (!d) { openSettings('donnees'); return; }
     // Fichiers lus à part : on les lit pour connaître leur date, puis la page se rouvre
     if (id === 'plaques' && !plaquesData) { loadPlaques().then(() => openSettings(section)); return; }
+    if (id === 'respire' && !respireData && !openSettings.respireTried) { openSettings.respireTried = true; loadRespire().then(() => openSettings(section)); return; }
     if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
     // Œuvres et galeries : lues une fois pour connaître leur date (une liste encore vide ne relance pas la lecture)
     if (id === 'oeuvres' && !streetArt && !artFilesRead.has(id)) { artFilesRead.add(id); loadStreetArt().catch(() => {}).finally(() => openSettings(section)); return; }
@@ -6437,6 +6495,10 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, 'Sert à Curiosités : les plaques commémoratives posées par la Ville de Paris, avec leur texte gravé. Tri sur ton téléphone. Direction des Affaires Culturelles, licence ODbL.'),
         el('div', { class: 'menu' }, link(PLAQUES_FILE)),
         say('Mets à jour les plaques commémoratives', 'tools/maj-plaques.py')],
+      respire: () => [
+        el('p', { class: 'help' }, `Sert à « Rues sans voitures » : les contours des secteurs Paris Respire. Les jours et les heures ne viennent pas de ce fichier (il les donne en codes) : ils sont tenus à la main d'après ${RESPIRE_PAGE}, lus le ${RESPIRE_CHECKED}. Tri sur ton téléphone. Direction de la Voirie et des Déplacements, licence ODbL.`),
+        el('div', { class: 'menu' }, link(RESPIRE_FILE)),
+        say('Mets à jour les secteurs Paris Respire', 'tools/maj-respire.py')],
       oeuvres: () => [
         el('p', { class: 'help' }, 'Le serveur d\'OpenStreetMap n\'a sans doute pas répondu ce jour-là : la liste d\'avant reste dans l\'appli. Relance le robot un autre jour. Rien à faire à la main.')],
       galeries: () => [
@@ -7494,6 +7556,7 @@ const HELP = [
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
     '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
+    '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Relier des lieux** : 2 à 4 lieux dans le meilleur ordre.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
@@ -7629,6 +7692,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} Rues sans voitures : dans Autour de moi → Itinéraire, les secteurs « Paris Respire » prévus aujourd\'hui ou le prochain jour, avec leurs heures et leur contour sur la carte. Le week-end, « Maintenant » signale celui qui est à 10 min à pied. Toujours « prévu » : la Ville peut ajourner. Les contours arrivent avec la prochaine mise à jour des données.',
     '{footprints} Avant de marcher : dans Autour de moi, « Fermé à ton arrivée » quand le lieu aura fermé le temps d\'y aller à pied. Sur un circuit et dans J\'ai du temps, un encadré prévient quand la balade finirait après le coucher du soleil.',
     '{moon} Ouvert tard : sous chaque lieu, « arriver avant 20 h » dit quand le guichet ferme ou quand on ne laisse plus entrer (lu sur le site de chaque lieu). Le lieu quitte « Ce soir » à cette heure : avant, il y restait jusqu\'à 30 min de la fermeture, alors que le Louvre n\'admet plus personne pendant la dernière heure.',
     '{map} Les arrondissements sur la carte : de loin, leurs numéros (en noir, sur un fond blanc qui cache le petit nom écrit par la carte) et leurs limites, pour apprendre où ils sont ({settings} → La carte pour les masquer). Devant la température, « 3e » dit où tu es, seulement quand c\'est sûr. La fiche d\'un lieu dit son arrondissement même sans adresse.',
@@ -7638,7 +7702,6 @@ const HELP = [
     '{sun} Plus lisible : les titres des rubriques (« Mes salles cette semaine », « En ce moment »…) sont plus grands et en lettres normales, dans toute l\'appli. Sorties : « Voir les 7 sorties » sous chaque rubrique, « Mes salles » a sa flèche, et une sortie de tes salles n\'est plus répétée plus bas (elle garde son heure du jour).',
     '{vibrate} {settings} → « Vibrer quand Maintenant a du nouveau » (éteint au départ) : une courte vibration pour Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue et Gratuit à 5 min. Appli ouverte et écran allumé seulement. Et {settings} → Appli → Données de l\'appli dit en gros, avec une coche verte, quand tout est à jour.',
     '{calendar-days} Bons plans gratuits en marchant : « Maintenant », sur la carte, te signale une sortie gratuite à 5 min qui commence dans la demi-heure (seulement si elle est gratuite sans condition et sans réservation obligatoire), et un jour gratuit, le musée gratuit le plus proche avec son heure.',
-    '{arrow-right} Fiche d\'un lieu, en Grand ou Très grand texte : « Y aller » ne coupe plus « 3 min à pied » ni « 190 m » en deux ; la ligne passe à la suite après « Y aller · ».',
   ]],
 ];
 
