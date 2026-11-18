@@ -21,7 +21,8 @@ concurrency:
 jobs:
   maj:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 18 nov. : 17 min passaient déjà à attendre OpenStreetMap quand ses serveurs étaient lents ; 45 laisse un second tour.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -58,14 +59,21 @@ jobs:
           set -u
           node tools/maj-art.mjs demandes /tmp/src
           UA='Carte-paris, robot mensuel (https://github.com/Limopo74/Carte-paris)'
-          for k in oeuvres galeries; do
-            for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
-              if curl -fsS --compressed --max-time 240 -A "$UA" --data-urlencode "data@/tmp/src/q-$k.txt" -o "/tmp/src/$k.json" "$server"; then
-                echo "$k : $(wc -c < "/tmp/src/$k.json") octets depuis $server"; break
-              fi
-              echo "$k : $server ne répond pas"; rm -f "/tmp/src/$k.json"; sleep 30
+          # Deux tours : le 18 nov., les galeries n'ont eu aucune réponse des trois serveurs au premier essai,
+          # puis overpass-api.de a répondu en une minute quelques minutes plus tard.
+          for tour in 1 2; do
+            for k in oeuvres galeries; do
+              [ -s "/tmp/src/$k.json" ] && continue
+              for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+                if curl -fsS --compressed --max-time 240 -A "$UA" --data-urlencode "data@/tmp/src/q-$k.txt" -o "/tmp/src/$k.json" "$server"; then
+                  echo "$k : $(wc -c < "/tmp/src/$k.json") octets depuis $server (tour $tour)"; break
+                fi
+                echo "$k : $server ne répond pas (tour $tour)"; rm -f "/tmp/src/$k.json"; sleep 30
+              done
+              sleep 10
             done
-            sleep 10
+            [ -s /tmp/src/oeuvres.json ] && [ -s /tmp/src/galeries.json ] && break
+            [ "$tour" = 1 ] && { echo "Second tour dans 2 minutes."; sleep 120; }
           done
           exit 0
 
@@ -91,8 +99,27 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json
-          if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
-          git diff --cached --stat
-          git commit -m "Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries (robot)"
-          git push
+          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json"
+          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries (robot)"
+          # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
+          # n'écrase jamais une version plus récente arrivée entre-temps.
+          CHANGED=$(git diff --name-only -- $FILES)
+          if [ -z "$CHANGED" ]; then echo "Rien de changé."; exit 0; fi
+          mkdir -p /tmp/neuf && cp $CHANGED /tmp/neuf/
+          TESTE=$(git rev-parse HEAD)
+          # 18 nov. : un envoi a été refusé parce qu'un autre commit était arrivé pendant que le robot travaillait
+          # (« fetch first »). Ces fichiers ne sont écrits que par le robot : on repart de la dernière version du
+          # dépôt, on y remet les nouvelles données, on relance les tests, et on réessaie (3 fois au plus).
+          for essai in 1 2 3; do
+            git fetch -q origin main
+            git reset -q --hard FETCH_HEAD
+            cp /tmp/neuf/*.json data/
+            git add $CHANGED
+            if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
+            if [ "$(git rev-parse HEAD)" != "$TESTE" ]; then npm test > /tmp/tests.txt 2>&1 || { tail -30 /tmp/tests.txt; exit 1; }; TESTE=$(git rev-parse HEAD); fi
+            git diff --cached --stat
+            git commit -q -m "$MSG"
+            if git push; then exit 0; fi
+            echo "Envoi refusé (essai $essai), nouvel essai dans 20 s."; sleep 20
+          done
+          exit 1
