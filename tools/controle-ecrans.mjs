@@ -40,7 +40,7 @@ const PLANS = [{ id: 'ev1', name: 'Concert de jazz au square', lat: 48.8800, lng
 const OUTINGS = [{ id: 'o1', at: now - 10 * 864e5, name: 'Hockney 25', lat: 48.8766, lng: 2.2633, place: 'Fondation Louis Vuitton', text: 'Les arbres en grand format, salle 5', stars: 5 }];
 // v205 : une Note du jour d'il y a 4 jours (Mon journal)
 const NOTES = [{ day: (() => { const d = new Date(now - 4 * 864e5); const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; })(), at: now - 4 * 864e5, text: 'Expo Hockney : y retourner avant janvier' }];
-const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle'];
+const ARTISTS = ['Paris la nuit', 'David Hockney', 'Niki de Saint Phalle', 'Claude Monet']; // v231 : Claude Monet a des musées (data/musees.json)
 const VENUES = ['Paris 9e']; // v166 : Mes salles (le lieu des sorties simulées)
 // v158 : œuvres dans la rue (OpenStreetMap simulé)
 const ART_RUE = { elements: [
@@ -104,6 +104,8 @@ const ECRANS = {
   jourordre: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Modifier la liste' }).click(); await p.waitForSelector('#sheet .btn.move'); },
   prevoirjour: async (p) => { await ECRANS.prevoir(p); await feuille(p).locator('.seg button', { hasText: 'Aujourd\'hui' }).click(); await p.waitForTimeout(300); },
   ouverttard: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Ouvert tard' }).click(); await p.waitForTimeout(400); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
+  artistemusees: async (p) => { await ECRANS.artistes(p); await feuille(p).locator('.item-main', { hasText: 'Claude Monet' }).click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); }, // v231
+  artistemusee: async (p) => { await ECRANS.artistemusees(p); await feuille(p).locator('.ev-main', { hasText: 'Orsay' }).click(); await p.waitForTimeout(500); }, // v231
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
   donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
   artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },

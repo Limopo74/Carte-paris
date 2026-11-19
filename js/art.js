@@ -679,3 +679,45 @@ export function nextFreeFor(p, date = new Date(), days = 35) {
   }
   return null;
 }
+
+/* ---------- Mes artistes : toute l'année dans les musées (v231, data/musees.json refait par tools/maj-merimee.py) ---------- */
+
+/**
+ * Noms de famille portés par plusieurs artistes : quand la liste de la Région n'écrit que lui (« David »), on ne devine pas
+ * lequel. Il faut alors le nom complet des deux côtés (« David d'Angers »). Mon choix 3A du 19 nov. 2026.
+ */
+export const AMBIGUOUS_ARTISTS = new Set(['brueghel', 'cranach', 'david', 'laurens', 'la tour', 'latour', 'vernet', 'huet', 'rousseau',
+  'lemoyne', 'germain', 'jacob', 'dantan', 'isabey', 'tiepolo', 'guardi', 'ruysdael', 'dufy', 'pissarro', 'delaunay', 'le brun',
+  'morel fatio', 'sene', 'coustou', 'millet', 'van eyck', 'robert']);
+const artNorm = (s) => plain(s).replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Fichier de l'appli -> { updated, items: [{ id, n, a, url, lat, lng, art }] } ; une entrée douteuse est écartée. */
+export function parseMusees(json) {
+  const str = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  const items = (Array.isArray(json?.items) ? json.items : []).map((m) => ({
+    id: str(m?.id, 10), n: str(m?.n, 80), a: str(m?.a, 80), url: /^https:\/\/[^\s"<>]+$/.test(m?.url ?? '') ? m.url : '',
+    lat: Number(m?.lat), lng: Number(m?.lng), art: Array.isArray(m?.art) ? m.art.map((x) => str(x, 40)).filter(Boolean).slice(0, 80) : [],
+  })).filter((m) => m.n && m.art.length && m.lat > 48.80 && m.lat < 48.91 && m.lng > 2.22 && m.lng < 2.47);
+  return { updated: /^\d{4}-\d{2}-\d{2}$/.test(json?.updated ?? '') ? json.updated : '', items };
+}
+
+/**
+ * Le nom que je suis et un nom cité par un musée désignent-ils le même artiste ? Oui s'ils sont pareils (sans accents ni
+ * majuscules), ou si l'un est la fin de l'autre (« Monet » et « Claude Monet », « van Gogh » et « Vincent van Gogh »),
+ * sauf quand ce nom court est porté par plusieurs artistes (AMBIGUOUS_ARTISTS).
+ */
+export function sameArtist(followed, cited) {
+  const a = artNorm(followed);
+  const b = artNorm(cited);
+  if (a.length < 3 || b.length < 3) return false;
+  if (a === b) return true;
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return long.endsWith(` ${short}`) && !AMBIGUOUS_ARTISTS.has(short);
+}
+
+/** Les musées qui citent cet artiste, du plus proche au plus loin (ou par nom sans position). */
+export function museumsWith(list, name, here = null) {
+  return (list ?? []).filter((m) => m.art.some((c) => sameArtist(name, c)))
+    .map((m) => ({ ...m, d: here ? distanceM(here, m) : null }))
+    .sort((x, y) => (here ? x.d - y.d : x.n.localeCompare(y.n, 'fr')));
+}

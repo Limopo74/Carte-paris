@@ -19,7 +19,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (230)';
+const VERSION = '19 novembre 2026 (231)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4748,11 +4748,15 @@ function openLate() {
 function openArtist(name, back = null) {
   const n = cleanArtist(name);
   if (!n) return;
+  if (!museesInfo) { loadMusees().then(() => openArtist(name, back)); return; } // fichier de l'appli : quelques millisecondes
   const k = artistKey(n);
   const again = () => openArtist(n, back);
   const here = named(n, again);
   const pos = startHere() ?? origin;
   const works = artistWorks(state.points, n, pos);
+  const museums = museumsWith(museesInfo.items, n, pos); // v231 : toute l'année dans les musées
+  const openMuseum = (m) => openSpot({ icon: 'landmark', title: m.n, kicker: `${n} dans ses collections`, lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
+    link: m.url ? [m.url, 'Site officiel du musée'] : null, back: here, key: `musee:${m.id}`, fav: 'musee' });
   const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
   const link = cleanArtistLinks(state.artistLinks)[k];
   const input = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', inputmode: 'url', enterkeyhint: 'done', placeholder: 'https://… ou @nom (Instagram)', 'aria-label': `Site ou Instagram de ${n}` });
@@ -4771,6 +4775,11 @@ function openArtist(name, back = null) {
     works.length ? el('ul', { class: 'items ev-list' }, works.map(({ p, d }) => sortieCard({ genre: 'oeuvre', name: p.name, onclick: () => openDetail(p.id, here),
       sub: [catOf(p.cat).name, p.address], d, tags: [p.gone ? el('span', { class: 'tag closed' }, 'Disparue ou recouverte') : null] })))
       : el('p', { class: 'empty' }, 'Aucune pour l\'instant. Note l\'artiste dans la fiche d\'une œuvre (Modifier → Artiste).'),
+    ...(museums.length ? [
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Toute l\'année dans les musées'), el('span', {}, String(museums.length))),
+      el('ul', { class: 'items ev-list' }, museums.map((m) => sortieCard({ genre: 'musee', name: m.n, sub: [m.a], d: m.d, onclick: () => openMuseum(m) }))),
+      el('p', { class: 'help' }, `D'après la liste des musées de France de la Région Île-de-France${museesInfo.updated ? `, lue le ${frenchDate(museesInfo.updated)}` : ''}. Elle ne cite pas tout : un autre musée peut avoir ses œuvres. Quand elle n'écrit que le nom de famille, l'appli s'en contente, sauf s'il est porté par plusieurs artistes (David, Brueghel…). Une œuvre peut être prêtée ou en réserve : regarde sur le site du musée avant d'y aller pour elle.`),
+    ] : []),
     el('h3', { class: 'fiche-sec' }, 'Son site'),
     link ? el('div', { class: 'fiche-toc' },
       el('a', { class: 'fiche-row', href: link.u, target: '_blank', rel: 'noopener' }, ico('external-link'),
@@ -4844,6 +4853,7 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
 
 async function openArtists() {
   track('Mes artistes');
+  await loadMusees();
   const title = [ico('user'), ' Mes artistes'];
   const back = foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); })));
   const names = cleanArtists(state.artists);
@@ -4871,7 +4881,7 @@ async function openArtists() {
     names.length ? el('ul', { class: 'items' }, names.map((n) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openArtist(n, named('Mes artistes', () => openArtists())) },
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n),
-          el('span', { class: 'item-sub' }, [found.length ? plural(found.filter((x) => x.who.includes(n)).length, 'rendez-vous', 'rendez-vous') : '', artistWorks(state.points, n).length ? plural(artistWorks(state.points, n).length, 'œuvre dans tes lieux', 'œuvres dans tes lieux') : ''].filter(Boolean).join(' · ') || 'Ses œuvres, son site'))),
+          el('span', { class: 'item-sub' }, [found.length ? plural(found.filter((x) => x.who.includes(n)).length, 'rendez-vous', 'rendez-vous') : '', artistWorks(state.points, n).length ? plural(artistWorks(state.points, n).length, 'œuvre dans tes lieux', 'œuvres dans tes lieux') : '', museumsWith(museesInfo.items, n).length ? plural(museumsWith(museesInfo.items, n).length, 'musée toute l\'année', 'musées toute l\'année') : ''].filter(Boolean).join(' · ') || 'Ses œuvres, son site'))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Retirer ${n} de mes artistes` }, ico('x'))))) : null,
     el('label', { class: 'field' }, 'Ajouter un artiste', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
@@ -6804,6 +6814,10 @@ let histList = null;
 let archData = null; let archMap = null;
 const loadArch = async () => { archData ??= await fetch('data/architectes.json').then((r) => (r.ok ? r.json() : null)).catch(() => null); archMap ??= cleanArch(archData); return archMap; };
 let merimeeInfo = null;
+/** v231 : musées ouverts et artistes de leurs collections (data/musees.json), pour la page d'un artiste. */
+let museesInfo = null;
+const loadMusees = async () => (museesInfo ??= await fetch('data/musees.json').then((r) => (r.ok ? r.json() : null))
+  .then(parseMusees).catch(() => parseMusees(null)));
 const loadMerimee = async () => (merimeeInfo ??= await fetch('data/merimee.json').then((r) => (r.ok ? r.json() : null))
   .then(parseMerimee).catch(() => parseMerimee(null)));
 async function monuments() {
@@ -7495,7 +7509,7 @@ function openSettings(section = null) {
         el('div', { class: 'menu' }, link(ARCH_FILE)),
         say('Mets à jour les auteurs des monuments', 'tools/maj-architectes.py')],
       merimee: () => [
-        el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année. Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments.`),
+        el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année. Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments, et à « Toute l'année dans les musées » sur la page d'un artiste${museesInfo?.updated ? ` (musées lus le ${frenchDate(museesInfo.updated)})` : ''}.`),
         el('div', { class: 'menu' }, ...MERIMEE_FILES.map(link)),
         el('p', { class: 'help' }, 'Sur pop.culture.gouv.fr : base « Patrimoine architectural (Mérimée) », filtre Localisation : Paris, puis Exporter. Pour les musées : export GeoJSON.'),
         say('Mets à jour les monuments (Mérimée)', 'tools/maj-merimee.py')],
@@ -8705,7 +8719,7 @@ const HELP = [
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
-    '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris.',
+    '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     '{landmark} **Grands lieux** : 26 musées, fondations et salles de concert, avec ce que l\'agenda annonce. Aussi par la loupe : tape « orsay ».',
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -8882,6 +8896,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
     '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
     '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
@@ -8891,7 +8906,6 @@ const HELP = [
     '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
     '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
-    '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
   ]],
 ];
 
@@ -8986,7 +9000,7 @@ if (dropStaleDayList()) renderMarkers(); // la liste du jour d'hier s'efface san
 updatePlanningCount();
 refreshParkHours().catch(() => {}); // horaires de la Ville pour mes parcs (liste sans position, gardée un jour)
 // Fichiers de l'appli (rien n'est envoyé) : Navigo pour les fiches ; une fois toutes les dates connues, le rappel groupé
-Promise.all([stationsReady, loadNavigo(), loadRatpToilets(), loadMerimee()]).then(remindData).catch(() => {});
+Promise.all([stationsReady, loadNavigo(), loadRatpToilets(), loadMerimee(), loadMusees()]).then(remindData).catch(() => {});
 // Ouvrir sur ma position (v176, Réglages → La carte, allumé au départ) : seulement si la position est déjà autorisée
 // (rien n'est demandé), récente, précise, dans Paris, arrivée dans les 2 s, et si je n'ai ni touché la carte ni ouvert
 // un lien. Le point bleu s'efface au bout de 2 min : il ne suit pas mes pas, il ne doit jamais montrer une position fausse.

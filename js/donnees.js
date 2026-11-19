@@ -60,7 +60,7 @@ export const FIXED_DATA = [
   { id: 'architectes', name: 'Auteurs des monuments (Monuments)', every: 45, robot: true, lazy: true }, // v198 ; ministère de la Culture, Licence Ouverte 2.0
   { id: 'acces', name: 'Sorties du métro (fiche d\'un lieu)', every: 45, robot: true, lazy: true }, // v199 ; IDFM, Licence Ouverte 2.0
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
-  { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
+  { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâches programmées Claude chaque 1er mars et chaque 1er septembre (v225)
 ];
