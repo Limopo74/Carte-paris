@@ -50,14 +50,14 @@ import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMar
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
-import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (247)';
+const VERSION = '19 novembre 2026 (248)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1640,6 +1640,9 @@ const ROUGH = {
   municipality: 'Ville entière : position approximative',
 };
 
+/** v248 : le lieu à moi qui correspond à un résultat de recherche (« Sur ta carte »), ou null (voir myPlaceFor). */
+const myResult = (r) => myPlaceFor(state.points, r);
+
 /** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
 function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
@@ -1647,8 +1650,10 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
   const out = el('div', { class: 'stack' });
   let ctrl;
 
-  const row = (title, sub, onclick) => el('li', {}, el('button', { type: 'button', onclick },
-    el('span', { class: 'res-title' }, title), sub ? el('span', { class: 'res-sub' }, sub) : null));
+  const row = (title, sub, onclick, mine = null) => el('li', {}, el('button', { type: 'button', onclick: mine ? () => openDetail(mine.id, named('Recherche', toList)) : onclick },
+    el('span', { class: 'res-title' }, title), sub || mine ? el('span', { class: 'res-sub' }, sub, mine ? el('span', { class: 'tag' }, 'Sur ta carte') : null) : null));
+  /* v248 : après « Enregistrer » ou « Annuler », la fiche ramène à cette liste, sans nouvelle recherche */
+  const toList = () => openPlaceSearch(kept?.q ?? input.value, false, back, kept);
 
   const run = async () => {
     const q = input.value.trim();
@@ -1685,16 +1690,17 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
   };
   /** Les résultats d'une recherche (gardés pour revenir de la carte sans tout redemander). */
   const show = (res) => {
+    kept = res;
     const { q, P, M, A, failed, box } = res;
     fill(out);
     const placeRows = (list) => el('ul', { class: 'results' }, list.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
-      () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours }))));
+      () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours, onCancel: toList, onSaved: toList }), myResult(r))));
     if (P.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, box ? 'Lieux dans la zone de la carte' : 'Lieux, du plus proche'), el('span', {}, String(P.length))), placeRows(P));
     if (M.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, P.length ? 'Ailleurs à Paris et autour' : 'Rien dans la zone de la carte : ailleurs à Paris et autour'), el('span', {}, String(M.length))), placeRows(M));
     if (A.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
         el('ul', { class: 'results' }, A.map((r) => row(r.label, ROUGH[r.type] ?? null,
-          () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null })))));
+          () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null, onCancel: toList, onSaved: toList }), myResult(r)))));
     }
     const total = P.length + M.length + A.length;
     if (total >= 2) out.prepend(el('button', { type: 'button', class: 'btn c-disc', onclick: () => showSearchPeek(res, () => openPlaceSearch(q, false, back, res)) }, ico('map'), 'Voir sur la carte'));
@@ -1725,6 +1731,9 @@ function showSearchPeek(res, back) {
     ...[...res.P, ...res.M].map((r) => ({ lat: r.lat, lng: r.lng, name: r.name, sub: [r.kind, r.address].filter(Boolean).join(' · '), draft: { lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours } })),
     ...res.A.map((r) => ({ lat: r.lat, lng: r.lng, name: r.label, sub: ROUGH[r.type] ?? 'Adresse', draft: { lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null } })),
   ];
+  /* v248 : un résultat déjà dans mes lieux n'a pas de rond : c'est ma goutte qui le montre (un appui ouvre ma fiche) */
+  const mine = items.filter((x) => myResult(x.draft.name != null ? x.draft : { label: x.name, lat: x.lat, lng: x.lng }));
+  const again = () => showSearchPeek(res, back);
   closeSheet();
   endPeek();
   const pins = [];
@@ -1732,18 +1741,20 @@ function showSearchPeek(res, back) {
     peekCard?.remove();
     if (x) {
       peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Résultat choisi' },
-        el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openForm({ ...x.draft, onCancel: () => showSearchPeek(res, back) }); } },
+        el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openForm({ ...x.draft, onCancel: again, onSaved: again }); } },
           el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, 'Résultat'), el('span', { class: 'now-name' }, x.name), el('span', { class: 'now-sub' }, `${x.sub ? `${x.sub} · ` : ''}Touche ici pour l'ajouter`)),
           el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
         el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
       document.body.append(peekCard);
-    } else showPeekCard('Recherche', `« ${res.q} » · ${plural(items.length, 'résultat', 'résultats')}`, back, 'Touche un rond pour voir son nom');
+    } else showPeekCard('Recherche', `« ${res.q} » · ${plural(items.length, 'résultat', 'résultats')}`, back,
+      !mine.length ? 'Touche un rond pour voir son nom' : mine.length === items.length ? 'Tous sont déjà sur ta carte' : `${mine.length} déjà sur ta carte · Touche un rond`);
   };
   const pick = (x) => {
     for (const m of pins) m.getElement()?.querySelector('.peek-pin')?.classList.toggle('sel', m.options.item === x);
     card(x);
   };
   for (const x of items) {
+    if (mine.includes(x)) continue;
     const m = L.marker([x.lat, x.lng], { keyboard: true, title: x.name, zIndexOffset: 400, item: x,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('map-pin-plus', { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
       .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', x.name))
@@ -2022,6 +2033,7 @@ function openForm(draft, existing = null) {
       }
     }
     const listIds = [...lists].filter((id) => (state.lists ?? []).some((l) => l.id === id));
+    let created = null;
     if (existing) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
@@ -2037,11 +2049,13 @@ function openForm(draft, existing = null) {
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
       if (done) np.passages = addPassage([], { at: np.created }); // ajouté comme « Déjà visité » : son premier passage
       state.points.push(np);
+      created = np;
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
     }
     const ok = persist();
     renderMarkers();
-    if (existing) openDetail(existing.id); else closeSheet();
+    /* v248 : venu d'une recherche, on revient à ses résultats (le lieu y est marqué « Sur ta carte ») pour en ajouter un autre */
+    if (existing) openDetail(existing.id); else if (ok && created && draft.onSaved) draft.onSaved(created); else closeSheet();
     if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${planText(draftPlan(draft))}` : ''}`);
     if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
     if (ok && !existing) refreshParkHours().catch(() => {});
@@ -9326,7 +9340,7 @@ const HELP = [
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
   ]],
   ['map-pin', 'Mes lieux', [
-    '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Annuler » sur la fiche te ramène aux ronds.',
+    '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
@@ -9452,6 +9466,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
     '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
     '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
@@ -9461,7 +9476,6 @@ const HELP = [
     '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
     '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
-    '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
   ]],
 ];
 

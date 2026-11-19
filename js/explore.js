@@ -184,6 +184,29 @@ export function findDuplicate(points, cand, ignoreId = null) {
   return best;
 }
 
+/**
+ * v248 : un résultat de « Avec un nom ou une adresse » est-il déjà un de mes lieux ? Plus strict que findDuplicate :
+ * « Sur ta carte » ne doit jamais être faux. Un lieu : même nom à moins de 60 m, ou un nom contenu dans l'autre
+ * (6 lettres au moins) à moins de 30 m. Une adresse : même adresse enregistrée, à moins de 60 m. Rien de proche : null.
+ */
+export function myPlaceFor(points, r) {
+  const isAddr = r.label != null && r.name == null;
+  const n = fold(isAddr ? r.label : r.name).replace(/\s+/g, ' ').trim();
+  if (!n || !Number.isFinite(r.lat) || !Number.isFinite(r.lng)) return null;
+  let best = null;
+  for (const p of points ?? []) {
+    if (!Number.isFinite(p?.lat) || !Number.isFinite(p?.lng)) continue;
+    const d = distanceM(p, r);
+    if (d > 60) continue;
+    const pn = fold(isAddr ? p.address : p.name).replace(/\s+/g, ' ').trim();
+    if (!pn) continue;
+    const short = pn.length < n.length ? pn : n;
+    const ok = pn === n || (!isAddr && d <= 30 && short.length >= 6 && (pn.includes(n) || n.includes(pn)));
+    if (ok && (!best || d < best.d)) best = { point: p, d };
+  }
+  return best?.point ?? null;
+}
+
 /* ---------- 7. Wikipédia : ce qu'il y a d'intéressant autour ---------- */
 
 /** Recherche d'articles autour d'un point (position arrondie à 100 m environ). */
