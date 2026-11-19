@@ -5,7 +5,8 @@ import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passes
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
-import { readPlan, snap, route, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
+import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
+import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -56,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (246)';
+const VERSION = '19 novembre 2026 (247)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1820,10 +1821,10 @@ function runLaunchAction() {
   // « Ouvrir dans Chrome » (voir linkGuard) renvoie le lien dans ?ouvrir=… : on le remet à sa place
   const reopened = new URLSearchParams(location.search).get('ouvrir');
   const h = reopened ? `#${reopened}` : location.hash;
-  const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h);
+  const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h); const circ = readMyCircuitLink(h);
   const link = location.href;
-  if (/(lieu|balade|rdv)=/.test(h)) history.replaceState(null, '', location.pathname + (reopened ? '' : location.search));
-  const go = shared ? () => receivePlace(shared) : walk ? () => stationsReady.then(() => receiveRoute(walk)) : meet ? () => receiveMeet(meet) : null;
+  if (/(lieu|balade|rdv|circuit)=/.test(h)) history.replaceState(null, '', location.pathname + (reopened ? '' : location.search));
+  const go = shared ? () => receivePlace(shared) : walk ? () => stationsReady.then(() => receiveRoute(walk)) : meet ? () => receiveMeet(meet) : circ ? () => receiveCircuit(circ) : null;
   if (go) { if (!reopened && outsideMyApp()) linkGuard(link, h, go); else go(); return; }
   const q = new URLSearchParams(location.search);
   if (![...q.keys()].length) return;
@@ -3491,6 +3492,9 @@ function openRoute(id) {
     el('div', { class: 'row' },
       steps.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(steps), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
       el('button', { type: 'button', class: 'btn', onclick: () => openTrace(r) }, ico('pencil'), 'Modifier')),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(steps.map(({ s: _s, ...st }) => st), r.name) }, ico('share-2'), 'Partager'),
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openMakeCircuit(r.id) }, ico('signpost'), 'En faire un circuit')),
     el('ol', { class: 'items' }, steps.map((p, i) => el('li', { class: 'item' }, el(p.pid && state.points.some((x) => x.id === p.pid) ? 'button' : 'div',
       { class: 'item-main', ...(p.pid && state.points.some((x) => x.id === p.pid) ? { type: 'button', onclick: () => openDetail(p.pid, named(r.name, () => openRoute(id))) } : {}) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
@@ -3500,6 +3504,131 @@ function openRoute(id) {
     foot(backBtn(routesBack)),
   ), { name: 'route', again: () => openRoute(id) });
   drawTrace(steps, legs);
+}
+
+
+/* ---------- Mes circuits (v247, Mes parcours version 2) : un parcours devient un circuit de visite à moi ---------- */
+const STATION_NEAR_M = 500; // départ et arrivée : la station la plus proche, dite seulement à moins de 500 m
+const myCircuitsList = () => cleanMyCircuits(state.myCircuits);
+/** « Saint-Paul » si une station est à moins de 500 m, sinon '' (rien plutôt qu'une station trop loin). */
+function stationNear(p) {
+  const n = stations.length ? nearestStation(stations, p) : null;
+  return n && n.d <= STATION_NEAR_M ? { name: n.station.n, d: n.d } : null;
+}
+const stationText = (x) => (x ? `Ⓜ ${x.name}${x.d < 15 ? ', à côté' : ` à ${fmtDist(x.d)}`}` : 'pas de station à moins de 500 m');
+
+/** « En faire un circuit » : titre, thèmes, un texte par étape si je veux. Refusé s'il repasse par la même rue (choix 6B). */
+function openMakeCircuit(routeIdArg, draft = null) {
+  const r = cleanRoutes(state.routes).find((x) => x.id === routeIdArg);
+  if (!r || !streets) { openMyRoutes(); return; }
+  const back = named(r.name, () => openRoute(r.id));
+  const { steps, legs } = placeSteps(r.steps);
+  const d = draft ?? { titre: r.name, themes: [], texts: steps.map(() => '') };
+  const again = () => openMakeCircuit(r.id, d);
+  const start = stationNear(steps[0]); const end = stationNear(steps.at(-1));
+  const broken = !legs.every(Boolean);
+  const rep = broken ? null : repeated(streets, legs);
+  const total = legsTotal(legs);
+  const titleIn = el('input', { type: 'text', maxlength: 80, value: d.titre, 'aria-label': 'Titre du circuit' });
+  titleIn.addEventListener('input', () => { d.titre = titleIn.value; });
+  const chip = (k, label) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(d.themes.includes(k)), onclick: () => {
+    d.themes = d.themes.includes(k) ? d.themes.filter((x) => x !== k) : [...d.themes, k]; again(); } }, label);
+  const texts = steps.map((p, i) => {
+    const ta = el('textarea', { rows: 2, maxlength: STEP_TEXT_MAX, 'aria-label': `Texte de l'étape ${i + 1}, ${p.name}`, placeholder: 'Ce qu\'il y a à voir (facultatif)' });
+    ta.value = d.texts[i] ?? ''; ta.addEventListener('input', () => { d.texts[i] = ta.value; });
+    return el('li', { class: 'item' }, el('div', { class: 'item-main step-text' },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), ta)));
+  });
+  const save = () => {
+    const titre = (d.titre || '').trim();
+    if (!titre) { toast('Donne un titre au circuit.'); titleIn.focus(); return; }
+    const line = legs.flatMap((l, i) => (i ? l.line.slice(1) : l.line));
+    const c = { id: myCircuitId(), titre, themes: d.themes, depart: start?.name ?? '', arrivee: end?.name ?? '', m: Math.round(total), at: Date.now(), from: r.id,
+      tr: encodeTrace(line), etapes: steps.map((p, i) => ({ n: p.name, lat: p.lat, lng: p.lng, t: d.texts[i] ?? '' })) };
+    const [ok] = cleanMyCircuits([c]);
+    if (!ok) { toast('Ce circuit n\'a pas pu être enregistré.'); return; }
+    state.myCircuits = cleanMyCircuits([ok, ...myCircuitsList()]);
+    persist(); nearLayer.clearLayers();
+    openCircuit(asCircuit(ok), named('Circuits', () => openCircuits()));
+    toast('Circuit enregistré dans Circuits de visite → Mes circuits');
+  };
+  const blocked = broken || rep;
+  openSheet([ico('signpost'), ' En faire un circuit'], el('div', { class: 'stack' },
+    broken ? el('p', { class: 'warn', role: 'alert' }, 'Un bout du chemin n\'est plus trouvé : touche « ← » puis Modifier pour reposer l\'étape.') : null,
+    rep ? el('p', { class: 'warn', role: 'alert' }, `Ce parcours repasse ${fmtDist(rep.m)}${rep.name ? ` par ${rep.name}` : ' par la même rue'}, à partir de l'étape ${rep.leg}. Un circuit ne revient jamais sur ses pas : déplace ou retire une étape (Modifier le parcours).`) : null,
+    rep ? el('button', { type: 'button', class: 'btn', onclick: () => openTrace(r) }, ico('pencil'), 'Modifier le parcours') : null,
+    el('p', { class: 'summary' }, `${plural(steps.length, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)}`),
+    el('p', { class: 'help' }, ico('train-front', { size: 15 }), ` Départ : ${stationText(start)} · arrivée : ${stationText(end)}`),
+    el('label', { class: 'field' }, el('span', {}, 'Titre'), titleIn),
+    el('h3', { class: 'fiche-sec' }, 'Thème'),
+    el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Thème' }, ...CIRCUIT_THEMES.map(([k, label]) => chip(k, label))),
+    el('h3', { class: 'fiche-sec' }, 'Tes textes, étape par étape'),
+    el('ol', { class: 'items' }, texts),
+    el('p', { class: 'help tip' }, 'Un circuit ne revient jamais sur ses pas (plus de 15 m dans la même rue) ; aller voir une étape un peu en retrait et revenir par le même bout est permis jusqu\'à 40 m. Tes textes sont à toi : l\'appli ne les vérifie pas. Le circuit garde son tracé, même si tu modifies ensuite le parcours.'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openRoute(r.id) }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', disabled: Boolean(blocked), onclick: save }, 'Enregistrer'))), // inactif (tirets) tant que le parcours revient sur ses pas
+  ), { tall: true, name: `make-circuit:${r.id}`, again });
+  drawTrace(steps, legs, false);
+  void back;
+}
+
+/** Mes circuits dans la page Circuits : rangée du haut, sous mon titre. */
+function myCircuitsBlock(from, again) {
+  const list = myCircuitsList();
+  if (!list.length) return [];
+  return [el('h3', { class: 'ring-title' }, el('span', {}, 'Mes circuits'), el('span', {}, String(list.length))),
+    el('ul', { class: 'items ev-list' }, list.map((c) => { const v = asCircuit(c); return sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(v, named('Circuits', again)),
+      sub: [c.by ? `De ${c.by}` : 'Mon circuit', `environ ${minText(circuitTimes(v).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(v)] }); })),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Circuits de l\'appli'), el('span', {}, ''))];
+}
+
+/** Partager un de mes circuits : un lien, avec ou sans mes textes. */
+function openShareCircuit(c, back) {
+  let withTexts = false;
+  const box = el('input', { type: 'checkbox', class: 'check' });
+  box.addEventListener('change', () => { withTexts = box.checked; });
+  const hasTexts = c.etapes.some((e) => e.t);
+  openSheet([ico('share-2'), ' Partager le circuit'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, c.titre),
+    el('p', { class: 'help' }, 'Le lien contient le titre, les étapes et le tracé. La personne l\'ouvre dans Ma carte de Paris et peut l\'ajouter à ses circuits. Rien ne passe par un serveur.'),
+    hasTexts ? el('label', { class: 'item-main check-row' }, box, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec mes textes'), el('span', { class: 'item-sub' }, 'Tes textes d\'étapes partent aussi'))) : null,
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink(c.titre, `Circuit « ${c.titre} »`, myCircuitLink(location.href, c, withTexts)) }, ico('send'), 'Envoyer le lien'),
+    foot(backBtn(back)),
+  ), { name: `share-circuit:${c.id}` });
+}
+
+/** Un circuit reçu par lien : le voir, le faire, l'ajouter à Mes circuits. */
+function receiveCircuit(c) {
+  const v = { ...asCircuit(c), received: true };
+  loadArcades().then(() => openCircuit(v, null));
+}
+function addReceivedCircuit(v) {
+  const [c] = cleanMyCircuits([{ ...v, id: myCircuitId(), tr: encodeTrace(v.trace), at: Date.now(), by: 'un lien reçu' }]);
+  if (!c) return;
+  state.myCircuits = cleanMyCircuits([c, ...myCircuitsList()]); persist();
+  openCircuit(asCircuit(c), named('Circuits', () => openCircuits()));
+  toast('Ajouté à Circuits de visite → Mes circuits');
+}
+/** Bas de la page d'un de mes circuits : Partager, Supprimer (confirmé). */
+function myCircuitActions(v, self, back) {
+  const c = myCircuitsList().find((x) => x.id === v.id);
+  if (!c) return null;
+  const zone = el('div', { class: 'stack' });
+  const show = () => fill(zone,
+    el('h3', { class: 'fiche-sec' }, 'Mon circuit'),
+    ficheRow('share-2', 'Partager ce circuit', 'Un lien, avec ou sans tes textes', () => openShareCircuit(c, self)),
+    ficheRow('trash-2', 'Supprimer ce circuit', 'Demande confirmation ; le parcours d\'origine reste', ask));
+  const ask = () => fill(zone,
+    el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${c.titre} » ? Ce n'est pas annulable.`),
+    el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: show }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => deleteMyCircuit(c, back) }, 'Oui, supprimer')));
+  show();
+  return zone;
+}
+function deleteMyCircuit(c, back) {
+  state.myCircuits = myCircuitsList().filter((x) => x.id !== c.id); persist(); nearLayer.clearLayers(); peekLayer.clearLayers();
+  (back ?? (() => openCircuits()))(); toast('Circuit supprimé');
 }
 
 /* ---------- Partager un lieu par un lien (tout est dans le #, rien ne passe par un serveur) ---------- */
@@ -6908,6 +7037,7 @@ async function openCircuits(back = null) {
     el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Thème et durée' },
       ...CIRCUIT_THEMES.map(([k, label]) => chip(circuitTheme === k, label, () => { circuitTheme = circuitTheme === k ? '' : k; again(); })),
       ...CIRCUIT_DURATIONS.map(([k, label]) => chip(circuitDur === k, label, () => { circuitDur = circuitDur === k ? '' : k; again(); }))),
+    ...myCircuitsBlock(from, again),
     shown.length ? el('ul', { class: 'items ev-list' }, shown.map((c) => sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(c, named('Circuits', again)),
       sub: [`${c.depart} → ${c.arrivee}`, `environ ${minText(circuitTimes(c).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(c)] })))
       : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
@@ -6926,7 +7056,7 @@ function openCircuit(c, back) {
   const again = () => openCircuit(c, back);
   const t = circuitTimes(c);
   const done = circuitDone(state.outings, c.id);
-  const mine = pointsNearTrace(offered().filter((p) => !p.owner), c.trace, minutesToMeters(tune('traceMin')));
+  const mine = pointsNearTrace(offered().filter((p) => !p.owner && !c.etapes.some((e) => distanceM(e, p) < 20)), c.trace, minutesToMeters(tune('traceMin'))); // un lieu déjà étape n'est pas répété
   const showAll = openCircuit.all === c.id;
   const mineShown = showAll || mine.length <= 4 ? mine : mine.slice(0, 3);
   const stopNames = new Set(c.etapes.map((e) => e.n));
@@ -6936,7 +7066,8 @@ function openCircuit(c, back) {
   const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
   openSheet([ico('signpost'), ` ${c.titre}`], el('div', { class: 'stack' },
     isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
-    el('p', { class: 'summary' }, `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
+    c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : (myCircuitsList().find((x) => x.id === c.id)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.id).by}` : 'Mon circuit')) : null,
+    el('p', { class: 'summary' }, c.mine ? [c.depart ? `Ⓜ ${c.depart}` : 'Départ', c.arrivee ? `Ⓜ ${c.arrivee}` : 'arrivée'].join(' → ') + ` · ${kmText(c.m)}` : `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
     el('p', { class: 'help' }, ico('footprints'), ` ${minText(t.walk)} de marche à ton pas, environ ${minText(t.total)} avec les arrêts.`),
     nightLine(t.total),
     c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.confort}`) : null,
@@ -6944,7 +7075,8 @@ function openCircuit(c, back) {
     done.length ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openOuting(done[0].id, self) }, ico('check'), el('span', {}, `Fait le ${dayText(done[0].at)}`, el('small', {}, done.length > 1 ? `${plural(done.length, 'fois', 'fois')} en tout · ce que j'en retiens` : 'Ce que j\'en retiens')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))) : null,
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(stepStops(c), c.titre) }, ico('navigation'), 'Balade guidée'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showCircuitOnMap(c, back) }, ico('map'), 'Voir sur la carte'),
-    el('button', { type: 'button', class: 'btn c-add', onclick: () => markCircuitDone(c, self) }, ico('check'), 'Je l\'ai fait'),
+    c.received ? el('button', { type: 'button', class: 'btn c-add', onclick: () => addReceivedCircuit(c) }, ico('plus'), 'Ajouter à mes circuits')
+      : el('button', { type: 'button', class: 'btn c-add', onclick: () => markCircuitDone(c, self) }, ico('check'), 'Je l\'ai fait'),
     el('h3', { class: 'fiche-sec' }, `Les ${c.etapes.length} étapes`),
     el('ol', { class: 'items' }, c.etapes.map((e, i) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCircuitStep(c, i, self) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
@@ -6955,12 +7087,13 @@ function openCircuit(c, back) {
     mineShown.length < mine.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { openCircuit.all = c.id; again(); } }, `Tous mes lieux près du tracé (${mine.length})`, ico('chevron-down')) : null,
     arcs.length ? el('h3', { class: 'fiche-sec' }, `Autres passages à ${ARCADE_TRACE_MIN} min du tracé`) : null,
     arcs.length ? el('ul', { class: 'items' }, arcs.map((x) => arcadeRow(x, self, `${walkMinutes(x.d)} min du tracé · ${x.a.rues}`))) : null,
-    el('h3', { class: 'fiche-sec' }, 'Un souci sur ce circuit ?'),
-    pbs.length ? ficheRow('triangle-alert', plural(pbs.length, 'problème noté', 'problèmes notés'), `Le dernier le ${dayText(pbs[0].at)} · les voir, les copier`, () => openCircuitNotes(c, self)) : null,
-    ficheRow('triangle-alert', 'Signaler un problème sur le chemin', 'Pour une étape : ouvre l\'étape, puis « Signaler un problème »', () => openProblem(c, null, self)),
-    isHidden ? ficheRow('eye', 'Remettre ce circuit', 'Il revient dans la liste', () => setCircuitHidden(c, false, again))
+    c.mine ? null : el('h3', { class: 'fiche-sec' }, 'Un souci sur ce circuit ?'),
+    c.mine ? null : pbs.length ? ficheRow('triangle-alert', plural(pbs.length, 'problème noté', 'problèmes notés'), `Le dernier le ${dayText(pbs[0].at)} · les voir, les copier`, () => openCircuitNotes(c, self)) : null,
+    c.mine ? null : ficheRow('triangle-alert', 'Signaler un problème sur le chemin', 'Pour une étape : ouvre l\'étape, puis « Signaler un problème »', () => openProblem(c, null, self)),
+    c.mine && !c.received ? myCircuitActions(c, self, back) : null,
+    c.mine ? null : isHidden ? ficheRow('eye', 'Remettre ce circuit', 'Il revient dans la liste', () => setCircuitHidden(c, false, again))
       : ficheRow('eye-off', 'Masquer ce circuit', 'Il quitte la liste ; tu pourras le remettre', () => setCircuitHidden(c, true, back ?? (() => openCircuits()))),
-    el('p', { class: 'help' }, 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
+    el('p', { class: 'help' }, c.mine ? 'Les textes des étapes ne sont pas vérifiés par l\'appli. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.' : 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: `circuit:${c.id}`, again });
 }
@@ -6970,7 +7103,7 @@ function openCircuitStep(c, i, back) {
   const e = c.etapes[i];
   const self = named(e.n, () => openCircuitStep(c, i, back));
   openSpot({ icon: e.m ? 'train-front' : 'signpost', title: e.n, kicker: `Étape ${i + 1} sur ${c.etapes.length} · ${c.titre}`, lines: [e.t], place: e,
-    extra: el('button', { type: 'button', class: 'btn c-info', onclick: () => openProblem(c, i, self) }, ico('triangle-alert'), 'Signaler un problème'),
+    extra: c.mine ? null : el('button', { type: 'button', class: 'btn c-info', onclick: () => openProblem(c, i, self) }, ico('triangle-alert'), 'Signaler un problème'),
     link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}` });
 }
 
@@ -8003,7 +8136,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('details', { class: 'help-item sources' }, el('summary', {}, ico('info'), 'Confidentialité'), el('div', { class: 'stack sources-body' }, /* v234 : 33 lignes repliées (mon choix 3A) */
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire » ; celui d\'un de tes circuits, son titre, ses étapes et son tracé, et tes textes seulement si tu coches « Avec mes textes ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -8488,6 +8621,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
       row('plans', 'Sorties prévues', `${nbPlans} à venir dans Mon planning`, nbPlans > 0),
       row('artists', 'Artistes', plural(nbArtists, 'artiste suivi', 'artistes suivis'), nbArtists > 0),
       row('venues', 'Salles', plural(nbVenues, 'salle suivie', 'salles suivies'), nbVenues > 0),
+      row('circuits', 'Mes circuits', `${plural(cleanMyCircuits(state.myCircuits).filter((c) => !c.by).length, 'circuit', 'circuits')} · tes textes d'étapes suivent « Commentaires »`, cleanMyCircuits(state.myCircuits).some((c) => !c.by)),
       row('ttb', 'TTB', `La liste du guide${nbTtb ? ` (${plural(nbTtb, 'adresse', 'adresses')}${ttbData?.date ? `, page du ${frenchDate(ttbData.date)}` : ''})` : ''}${nbMarks ? ` et tes marques (${nbMarks})` : ''}`, nbTtb + nbMarks > 0)),
     el('h3', { class: 'fiche-sec' }, 'Quelles catégories'),
     el('div', { class: 'list-chips', style: 'margin-top: 8px' },
@@ -9171,13 +9305,13 @@ const HELP = [
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
-    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
+    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone). **Mes circuits**, en haut : ceux que tu as faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien ; Partager (un lien, avec ou sans tes textes) et Supprimer en bas de leur page.',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
     '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Supprimer.',
+    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
@@ -9318,6 +9452,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
     '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
     '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
     '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
@@ -9327,7 +9462,6 @@ const HELP = [
     '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
-    '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
   ]],
 ];
 

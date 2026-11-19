@@ -160,7 +160,7 @@ export function route(P, s1, s2) {
   // Même tronçon : tout droit le long de la rue
   if (s1.edge === s2.edge) {
     return { m: Math.abs(s2.t - s1.t), line: [[s1.lat, s1.lng], ...between(P, s1.edge, s1.t, s2.t), [s2.lat, s2.lng]],
-      flags: P.ef[s1.edge], names: [edgeName(P, s1.edge)].filter(Boolean) };
+      flags: P.ef[s1.edge], names: [edgeName(P, s1.edge)].filter(Boolean), segs: [[s1.edge, Math.min(s1.t, s2.t), Math.max(s1.t, s2.t)]] };
   }
   const dist = new Float64Array(P.N).fill(Infinity); const via = new Int32Array(P.N).fill(-1);
   const h = new Heap();
@@ -190,15 +190,16 @@ export function route(P, s1, s2) {
   const outB = first === P.eb[s1.edge];
   const line = [[s1.lat, s1.lng], ...between(P, s1.edge, s1.t, outB ? L1 : 0), [P.lat[first], P.lng[first]]];
   let m = outB ? L1 - s1.t : s1.t; let flags = P.ef[s1.edge]; const names = [edgeName(P, s1.edge)];
+  const segs = [[s1.edge, outB ? s1.t : 0, outB ? L1 : s1.t]]; // [tronçon, de, à] en mètres depuis son nœud a
   for (const [i, to] of edges) {
     const pts = edgePoints(P, i); if (to === P.ea[i]) pts.reverse();
-    line.push(...pts.slice(1)); m += P.em[i]; flags |= P.ef[i]; names.push(edgeName(P, i));
+    line.push(...pts.slice(1)); m += P.em[i]; flags |= P.ef[i]; names.push(edgeName(P, i)); segs.push([i, 0, P.em[i]]);
   }
   const inB = bestEnd === P.eb[s2.edge];
   line.push(...between(P, s2.edge, inB ? L2 : 0, s2.t), [s2.lat, s2.lng]);
-  m += inB ? L2 - s2.t : s2.t; flags |= P.ef[s2.edge]; names.push(edgeName(P, s2.edge));
+  m += inB ? L2 - s2.t : s2.t; flags |= P.ef[s2.edge]; names.push(edgeName(P, s2.edge)); segs.push([s2.edge, inB ? s2.t : 0, inB ? L2 : s2.t]);
   const uniq = names.filter((n, i) => n && n !== names[i - 1]);
-  return { m, line, flags, names: [...new Set(uniq)] };
+  return { m, line, flags, names: [...new Set(uniq)], segs };
 }
 
 /* ---------- Mes parcours enregistrés (v1) : seulement les étapes ; le chemin se recalcule avec le plan ---------- */
@@ -235,3 +236,62 @@ export function cleanRoutes(list) {
 
 /** Identifiant d'un parcours. */
 export const routeId = () => globalThis.crypto?.randomUUID?.() ?? `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+
+/* ---------- Mes circuits (v2) : ne jamais revenir sur ses pas (règle 14 des circuits, mon choix 6B) ---------- */
+/** Un bout de moins de 15 m parcouru deux fois est permis (traversée). */
+export const REPEAT_OK_M = 15;
+/** Aller voir une étape un peu en retrait (cour, entrée) puis repartir par le même bout : permis jusqu'à 40 m
+ *  (comme les étapes des circuits de Claude, à moins de 40 m du tracé). */
+export const SPUR_OK_M = 40;
+const NEAR_M = 20; // deux passages à moins de 20 m l'un de l'autre, dans la même rue (un trottoir puis l'autre) = la même rue
+const STEP_M = 8; // le tracé est regardé tous les 8 m
+
+/** Points tous les 8 m le long d'une ligne [[lat, lng], …], avec la direction (radians). */
+function samples(line) {
+  const out = [];
+  for (let k = 0; k < line.length - 1; k++) {
+    const [a1, g1] = line[k]; const [a2, g2] = line[k + 1];
+    const dx = (g2 - g1) * kx(a1); const dy = (a2 - a1) * KY; const L = Math.hypot(dx, dy);
+    const n = Math.max(1, Math.round(L / STEP_M)); const dir = Math.atan2(dy, dx);
+    for (let j = 0; j < n; j++) out.push({ lat: a1 + ((a2 - a1) * j) / n, lng: g1 + ((g2 - g1) * j) / n, w: L / n, dir });
+  }
+  return out;
+}
+
+/**
+ * Ce qu'un parcours parcourt deux fois : { m (mètres en double), name (rue la plus touchée), leg (étape à partir de
+ * laquelle on revient sur ses pas) } ou null si rien au-delà de 15 m. legs : les chemins de route(), dans l'ordre.
+ * Un bout du tracé compte double s'il passe à moins de 20 m d'un bout d'un chemin d'avant, dans la même rue (le nom de la
+ * rue la plus proche) ; autour de chaque étape (20 m), le chemin d'avant et le suivant ne se comparent pas, et le petit
+ * aller-retour fait pour aller voir une étape en retrait (cour, entrée) est permis jusqu'à 40 m.
+ */
+export function repeated(P, legs) {
+  const S = legs.map((l) => (l ? samples(l.line) : []));
+  const nameCache = new Map();
+  const nameOf = (q) => { const k = `${q.lat.toFixed(5)},${q.lng.toFixed(5)}`; if (!nameCache.has(k)) nameCache.set(k, snap(P, q, 30)?.name ?? ''); return nameCache.get(k); };
+  const stopAt = legs.map((l) => (l ? { lat: l.line.at(-1)[0], lng: l.line.at(-1)[1] } : null)); // l'étape au bout du chemin li
+  const near = (a, b, m) => Math.hypot((a.lng - b.lng) * kx(a.lat), (a.lat - b.lat) * KY) < m;
+  const parts = []; // [mètres, nom, chemin d'avant, chemin]
+  for (let li = 1; li < S.length; li++) {
+    for (const q of S[li]) {
+      for (let lj = 0; lj < li; lj++) {
+        if (lj === li - 1 && stopAt[lj] && near(q, stopAt[lj], NEAR_M)) continue; // autour de l'étape partagée
+        const hit = S[lj].find((r) => near(q, r, NEAR_M) && (lj !== li - 1 || !stopAt[lj] || !near(r, stopAt[lj], NEAR_M)));
+        if (!hit) continue;
+        const nq = nameOf(q);
+        if (!near(q, hit, 8) && (!nq || nq !== nameOf(hit))) continue; // proches mais pas la même rue : une rue voisine
+        parts.push([q.w, nq, lj, li]);
+        break;
+      }
+    }
+  }
+  const spur = new Map();
+  for (const [o, , lj, li] of parts) if (lj === li - 1) spur.set(li, (spur.get(li) ?? 0) + o);
+  const kept = parts.filter(([, , lj, li]) => !(lj === li - 1 && spur.get(li) <= SPUR_OK_M));
+  const total = kept.reduce((t, [o]) => t + o, 0);
+  if (total <= REPEAT_OK_M) return null;
+  const byName = new Map();
+  for (const [o, n] of kept) if (n) byName.set(n, (byName.get(n) ?? 0) + o);
+  const name = [...byName].sort((x, y) => y[1] - x[1])[0]?.[0] ?? '';
+  return { m: total, name, leg: Math.min(...kept.map(([, , , li]) => li + 1)) };
+}
