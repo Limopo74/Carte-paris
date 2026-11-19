@@ -31,6 +31,14 @@ export const GARES_FILE = { name: 'Emplacement des gares IDF', file: 'emplacemen
 export const ACCES_FILE = { name: 'Référentiel des arrêts : Accès', file: 'acces.json', url: 'https://data.iledefrance-mobilites.fr/explore/dataset/acces/export/' };
 /** Auteur et date des monuments (data/architectes.json, refait par le robot avec tools/maj-architectes.py, v198). */
 export const ARCH_FILE = { name: 'Immeubles protégés au titre des Monuments historiques', file: 'liste-des-immeubles-proteges-au-titre-des-monuments-historiques.csv', url: 'https://www.data.gouv.fr/datasets/immeubles-proteges-au-titre-des-monuments-historiques-2' };
+/** Immeubles protégés par la Ville (data/patrimoine.json, refait par le robot avec tools/maj-patrimoine.py, v245). */
+export const PVP_FILES = [
+  { name: 'PLU bioclimatique : protections patrimoniales', file: 'plub_pvp.json', url: 'https://opendata.paris.fr/explore/dataset/plub_pvp/export/' },
+  { name: 'Lien entre protections et bâtiments', file: 'plub_pvp_geos.json', url: 'https://opendata.paris.fr/explore/dataset/plub_pvp_geos/export/' },
+  { name: 'Bâtiments protégés', file: 'plub_surf_pvp.json', url: 'https://opendata.paris.fr/explore/dataset/plub_surf_pvp/export/' },
+];
+/** Architecture contemporaine remarquable (data/acr.json, refait par le robot avec tools/maj-acr.py, v245). */
+export const ACR_FILE = { name: 'Liste des édifices labellisés Architecture contemporaine remarquable', file: 'liste-des-edifices-labellises-acr.csv', url: 'https://www.data.gouv.fr/datasets/liste-des-edifices-labellises-architecture-contemporaine-remarquable-acr/' };
 /** Origine du nom des voies (data/voies.json, refait par le robot avec tools/maj-voies.py, v198). */
 export const VOIES_FILE = { name: 'Dénominations des emprises des voies actuelles', file: 'denominations-emprises-voies-actuelles.json', url: 'https://opendata.paris.fr/explore/dataset/denominations-emprises-voies-actuelles/export/' };
 /** Contours des secteurs « Paris Respire » (data/respire.json, refait par le robot avec tools/maj-respire.py, v197). */
@@ -58,6 +66,8 @@ export const FIXED_DATA = [
   { id: 'respire', name: 'Rues sans voitures (Paris Respire)', every: 45, robot: true, lazy: true }, // v197 ; contours seulement, Ville de Paris, licence ODbL
   { id: 'voies', name: 'Origine du nom des rues (Où suis-je ?)', every: 45, robot: true, lazy: true }, // v198 ; Ville de Paris, licence ODbL
   { id: 'architectes', name: 'Auteurs des monuments (Monuments)', every: 45, robot: true, lazy: true }, // v198 ; ministère de la Culture, Licence Ouverte 2.0
+  { id: 'patrimoine', name: 'Immeubles protégés par la Ville (Monuments)', every: 45, robot: true, lazy: true }, // v245 ; Ville de Paris, licence ODbL
+  { id: 'acr', name: 'Architecture contemporaine remarquable (Monuments)', every: 45, robot: true, lazy: true }, // v245 ; ministère de la Culture, Licence Ouverte 2.0
   { id: 'acces', name: 'Sorties du métro (fiche d\'un lieu)', every: 45, robot: true, lazy: true }, // v199 ; IDFM, Licence Ouverte 2.0
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
   { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },

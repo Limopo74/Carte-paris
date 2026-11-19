@@ -318,6 +318,12 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/data\/gares\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'IDFM', updated: '2026-11-18', stations: [{ n: 'Gare du Nord', m: 'R', l: ['B', 'D'], lat: 48.8809, lng: 2.3553 }, { n: 'Porte de la Chapelle', m: 'T', l: ['3b'], lat: 48.8977, lng: 2.3592 }] }) }));
   // v199 : la vraie sortie du métro Blanche (référentiel IDFM, lu le 18 nov. 2026)
   await page.route(/data\/acces\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'IDFM', updated: '2026-11-18', items: [{ n: 'bd de Clichy', s: '1', lat: 48.88367, lng: 2.33288 }] }) }));
+  // v245 : Monuments — deux immeubles protégés par la Ville et un édifice labellisé près du point de test (exemples : les vrais arrivent avec le robot)
+  await page.route(/data\/patrimoine\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'Ville de Paris', updated: '2026-11-19', items: [
+    { n: '09-0001', a: '10 rue de test', t: 'Maison d\'exemple du XVIIIe siècle. Façade en pierre de taille composée de trois travées et de quatre étages carrés sur rez-de-chaussée, appuis de fenêtre en fer forgé Louis XV au premier étage. Porte cochère cintrée.', p: [[48.8815, 2.3365]] },
+    { n: '09-0002', a: '12 rue de test', t: 'Immeuble court d\'exemple.', p: [[48.8809, 2.3358], [48.8808, 2.3357]] }] }) }));
+  await page.route(/data\/acr\.json/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ source: 'ministère de la Culture', updated: '2026-11-19', items: [
+    { r: 'ACR0009999', t: 'Édifice d\'exemple', a: ['Exemple Jean (architecte)'], d: '1975', l: '2019', lat: 48.8820, lng: 2.3370 }] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie

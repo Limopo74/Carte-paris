@@ -18,7 +18,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -30,6 +30,7 @@ import { typo } from './typo.js';
 import { wordsOf, seriesOf, seriesIdOf, hasWord, toggleWord, saveSeries, deleteSeries, WORDS_MAX, WORD_MAX, SERIES_NAME_MAX, SERIES_MAX } from './mots.js';
 import { cleanGares, gareLines, garesNear } from './gares.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
+import { cleanPvp, cleanAcr, acrLabel, excerpt as pvpExcerpt, within as nearWithin } from './patrimoine.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
@@ -55,7 +56,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (244)';
+const VERSION = '19 novembre 2026 (245)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -162,7 +163,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -4501,7 +4502,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]) || (id === 'gares' && !gares.length && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'patrimoine' && !pvpInfo?.items?.length && !dates[id]) || (id === 'acr' && !acrInfo?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]) || (id === 'gares' && !gares.length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -7101,6 +7102,13 @@ let histList = null;
 /** Auteur et date des monuments (data/architectes.json, robot ; v198) : lu avec Monuments. */
 let archData = null; let archMap = null;
 const loadArch = async () => { archData ??= await fetch('data/architectes.json').then((r) => (r.ok ? r.json() : null)).catch(() => null); archMap ??= cleanArch(archData); return archMap; };
+/** v245 : immeubles protégés par la Ville (data/patrimoine.json, gros : lu seulement à l'ouverture de Monuments, puis gardé
+ * par le téléphone jusqu'à la version suivante) et architecture récente labellisée (data/acr.json). Un échec ne bloque pas Monuments. */
+let pvpInfo = null; let acrInfo = null;
+const loadPvp = async () => (pvpInfo ??= await fetch('data/patrimoine.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  .then((j) => (j ? { updated: j.updated, items: cleanPvp(j) } : null)));
+const loadAcr = async () => (acrInfo ??= await fetch('data/acr.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  .then((j) => (j ? { updated: j.updated, items: cleanAcr(j) } : null)));
 let merimeeInfo = null;
 /** v231 : musées ouverts et artistes de leurs collections (data/musees.json), pour la page d'un artiste. */
 let museesInfo = null;
@@ -7140,43 +7148,76 @@ function openSameAuthor(rec, back) {
 async function openMonuments() {
   track('Monuments');
   if (!origin) { openNear(); return; }
-  const title = [ico('landmark'), ' Monuments historiques'];
+  const title = [ico('landmark'), ' Monuments'];
   let all;
   if (!histList) openSheet(title, el('p', { class: 'help' }, 'Chargement des monuments de Paris (la première fois seulement)…'), { name: 'hist' });
-  try { all = await monuments(); await Promise.all([loadMerimee(), loadArch()]); } catch {
+  try { all = await monuments(); await Promise.all([loadMerimee(), loadArch(), loadPvp(), loadAcr()]); } catch {
     openSheet(title, el('div', { class: 'stack' },
       el('p', { class: 'warn' }, 'La base des monuments ne répond pas. Réessaie dans un moment.'),
       foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'))), { name: 'hist' });
     return;
   }
-  const items = all.map((m) => ({ ...m, d: distanceM(origin, m) })).filter((m) => m.d <= 1000).sort((a, b) => a.d - b.d).slice(0, 25);
+  // v245 : les édifices labellisés « Architecture contemporaine remarquable » se rangent avec les monuments, à leur distance
+  const acrNear = nearWithin(acrInfo?.items, origin, 1000).map((x) => ({ name: x.t, lat: x.lat, lng: x.lng, d: x.d, acr: x }));
+  const items = [...all.map((m) => ({ ...m, d: distanceM(origin, m) })).filter((m) => m.d <= 1000), ...acrNear].sort((a, b) => a.d - b.d).slice(0, 25);
+  const villeM = tune('villeM');
+  const pvp = nearWithin(pvpInfo?.items, origin, villeM);
   const have = (m) => findDuplicate(state.points, { name: m.name, lat: m.lat, lng: m.lng });
   const info = (m) => merimeeInfo?.items.get(m.merimee);
   const link = (href, icon, label, aria) => el('a', { class: 'mini-link', href, target: '_blank', rel: 'noopener', 'aria-label': aria }, ico(icon), label);
   // v198 : « Du même auteur (N) » quand le premier auteur nommé a d'autres monuments protégés dans Paris (nom écrit à l'identique)
   const sameBtn = (m) => { const rec = archMap?.get(m.merimee); const n = rec ? sameAuthor(archMap, rec, null).length : 0;
     return n ? el('button', { type: 'button', class: 'mini-link', onclick: () => openSameAuthor(rec, named('Monuments', openMonuments)), 'aria-label': `Les autres monuments de ${authorName(rec.a[0])}` }, ico('user'), `Du même auteur (${n})`) : null; };
+  // Boussole, Métro, Ajouter : les mêmes trois boutons, à la même place, pour un monument et pour un immeuble de la Ville
+  const rowBtns = (m) => [
+    el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
+    metroBtn(m, openMonuments),
+    have(m) ? null : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${m.name} à ma carte`, onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, acc: null }) }, ico('plus'))];
+  // v245 : un immeuble protégé par la Ville : son adresse, le début du texte de la Ville, « Lire la suite » le déroule sur place
+  const pvpRow = (x) => {
+    const m = { name: x.a, lat: x.lat, lng: x.lng };
+    const short = pvpExcerpt(x.t);
+    const txt = el('span', { class: 'item-sub small pvp-text' }, short || x.t);
+    return el('li', { class: 'item item-col pvp' },
+      el('div', { class: 'item-row wrap' },
+        el('div', { class: 'item-main' },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a), el('span', { class: 'item-sub' }, `${fmtDist(x.d)} · ${walkMinutes(x.d)} min`), txt)),
+        ...rowBtns(m)),
+      short ? el('div', { class: 'links' },
+        el('button', { type: 'button', class: 'mini-link', 'aria-expanded': 'false', onclick: (e) => {
+          const open = e.currentTarget.getAttribute('aria-expanded') !== 'true';
+          txt.textContent = typo(open ? x.t : short); e.currentTarget.setAttribute('aria-expanded', String(open));
+          e.currentTarget.replaceChildren(ico(open ? 'chevron-up' : 'chevron-down'), open ? 'Replier' : 'Lire la suite');
+        } }, ico('chevron-down'), 'Lire la suite')) : null);
+  };
   openSheet(title, el('div', { class: 'stack' },
-    el('p', { class: 'help' }, items.length ? `${plural(items.length, 'monument protégé', 'monuments protégés')} à moins de 1 km, du plus proche au plus loin.` : 'Aucun monument historique à moins de 1 km.'),
+    // v245 : d'abord ce qui est devant moi, les immeubles protégés par la Ville (3 lignes, puis « Tous les immeubles »)
+    ...(pvp.length ? [
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Protégés par la Ville'), el('span', {}, String(pvp.length))),
+      el('p', { class: 'help' }, `${plural(pvp.length, 'immeuble', 'immeubles')} à moins de ${tuningText('villeM', villeM)}. Textes de la Ville de Paris (plan d'urbanisme de juin 2026) : une façade a pu changer depuis.`),
+      el('ul', { class: 'items' }, pvp.map((x, i) => { const li = pvpRow(x); if (i >= 3) li.hidden = true; return li; })),
+      pvp.length > 3 ? el('button', { type: 'button', class: 'ev-more', onclick: (e) => { e.currentTarget.previousElementSibling.querySelectorAll('li[hidden]').forEach((li) => { li.hidden = false; }); e.currentTarget.remove(); } }, `Tous les immeubles (${pvp.length})`, ico('chevron-down')) : null,
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Monuments à moins de 1 km'), el('span', {}, String(items.length)))] : []),
+    pvp.length && items.length ? null : el('p', { class: 'help' }, items.length ? `${plural(items.length, 'monument', 'monuments')} à moins de 1 km, du plus proche au plus loin.` : 'Aucun monument à moins de 1 km.'),
     el('ul', { class: 'items' }, items.map((m) => el('li', { class: 'item item-col' },
       el('div', { class: 'item-row wrap' },
         el('div', { class: 'item-main' },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`),
-            ...[merimeeLine(info(m)), museumLine(info(m)), archLine(archMap?.get(m.merimee))].filter(Boolean).map((t) => el('span', { class: 'item-sub small' }, t)))),
-        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
-        metroBtn(m, openMonuments),
-        have(m) ? null : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${m.name} à ma carte`, onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, acc: null }) }, ico('plus'))),
+            ...(m.acr ? [acrLabel(m.acr), archLine({ a: m.acr.a, d: m.acr.y })] : [merimeeLine(info(m)), museumLine(info(m)), archLine(archMap?.get(m.merimee))]).filter(Boolean).map((t) => el('span', { class: 'item-sub small' }, t)))),
+        ...rowBtns(m)),
       el('div', { class: 'links' },
         m.site ? link(m.site, 'send', 'Site officiel', `Site officiel de ${m.name} (visites, billets)`) : null,
         m.merimee ? link(merimeeUrl(m.merimee), 'landmark', 'Fiche Culture', `Fiche du ministère de la Culture : ${m.name}`) : null,
-        sameBtn(m),
+        m.acr ? link(merimeeUrl(m.acr.r), 'landmark', 'Fiche Culture', `Fiche du ministère de la Culture : ${m.name}`) : sameBtn(m),
         m.wiki ? link(m.wiki, 'book-open-text', 'Wikipédia', `Article Wikipédia : ${m.name}`) : null)))),
-    el('p', { class: 'help tip' }, `Billets et horaires : sur le site officiel quand il existe. « Façade seulement » : seul l'extérieur est protégé, l'intérieur ne se visite en général pas. Sources : Wikidata (CC0), base Mérimée du ministère de la Culture${merimeeInfo?.updated ? ` (${frenchDate(merimeeInfo.updated)})` : ''} et liste des musées de la Région Île-de-France. La liste de Paris est téléchargée une fois par mois ; ta position n'est pas envoyée.`),
+    el('p', { class: 'help tip' }, `Billets et horaires : sur le site officiel quand il existe. « Façade seulement » : seul l'extérieur est protégé, l'intérieur ne se visite en général pas. Sources : Wikidata (CC0), base Mérimée du ministère de la Culture${merimeeInfo?.updated ? ` (${frenchDate(merimeeInfo.updated)})` : ''}, liste des musées de la Région Île-de-France, label « Architecture contemporaine remarquable » du ministère de la Culture (Licence Ouverte 2.0) et protections patrimoniales du plan d'urbanisme de la Ville de Paris (ODbL, sans valeur réglementaire). La liste de Paris est téléchargée une fois par mois ; ta position n'est pas envoyée.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'hist', again: openMonuments });
   nearLayer.clearLayers();
   if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  for (const x of pvp) L.circleMarker([x.lat, x.lng], { radius: 4, color: '#A54A28', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   for (const m of items) L.circleMarker([m.lat, m.lng], { radius: 7, color: '#A54A28', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   if (items.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], ...items.slice(0, 8).map((m) => [m.lat, m.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
@@ -7681,7 +7722,7 @@ function openSettings(section = null) {
   if (section === 'donnees') {
     // Œuvres et galeries : lues une fois pour savoir si le robot les a déjà rangées dans l'appli (sinon « Pas encore ») ;
     // arrêts de bus et plaques aussi (v187) : sans eux, leur date restait inconnue et la ligne disait « À jour » à tort
-    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire(), loadVoies(), loadArch(), loadGares()]).finally(() => openSettings(section)); return; }
+    if (!artFilesRead.has('liste')) { artFilesRead.add('liste'); Promise.allSettled([loadStreetArt(), loadGalleries(), loadBus(), loadPlaques(), loadArr(), loadRespire(), loadVoies(), loadArch(), loadPvp(), loadAcr(), loadGares()]).finally(() => openSettings(section)); return; }
     const dates = dataDates();
     const due = new Set(dataDue(dates));
     // Date inconnue (fichier illisible, hors réseau et jamais gardé) : ni « À jour » ni « En retard » (v187 : pas d'info plutôt qu'une info fausse)
@@ -7758,7 +7799,7 @@ function openSettings(section = null) {
     const late = !notYet && dataDue({ [id]: date }).includes(id);
     const link = (f) => el('a', { class: 'menu-row c-metro', href: f.url, target: '_blank', rel: 'noopener' },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('download')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.xlsx') ? 'Excel' : f.file.endsWith('.json') ? 'JSON' : 'GeoJSON'} · fichier « ${f.file} »`)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, f.name), el('span', { class: 'menu-sub' }, `Exporter → ${f.file.endsWith('.xlsx') ? 'Excel' : f.file.endsWith('.json') ? 'JSON' : f.file.endsWith('.csv') ? 'CSV' : 'GeoJSON'} · fichier « ${f.file} »`)),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
     const robot = d.robot ? [
       el('p', { class: 'help' }, 'Refait chaque 1er du mois par le robot GitHub, qui télécharge le fichier officiel, le vérifie et publie. Pour le lancer tout de suite :'),
@@ -7792,6 +7833,14 @@ function openSettings(section = null) {
         el('p', { class: 'help tip' }, 'Sert à Monuments : l\'auteur (architecte, sculpteur…) et la date de chaque monument protégé de Paris, et « Du même auteur ». Ministère de la Culture, base Mérimée, Licence Ouverte 2.0, lu dans l\'API de data.gouv.fr.'),
         el('div', { class: 'menu' }, link(ARCH_FILE)),
         say('Mets à jour les auteurs des monuments', 'tools/maj-architectes.py')],
+      patrimoine: () => [
+        el('p', { class: 'help tip' }, `Sert à Monuments : les immeubles protégés par la Ville de Paris, avec le texte de la Ville qui dit quoi regarder (plan local d'urbanisme bioclimatique voté le 16 juin 2026, licence ODbL, sans valeur réglementaire).${pvpInfo?.items?.length ? ` ${plural(pvpInfo.items.length, 'immeuble', 'immeubles')} dans l'appli.` : ''} Fichier lu à la première ouverture de Monuments, puis gardé par le téléphone.`),
+        el('div', { class: 'menu' }, ...PVP_FILES.map(link)),
+        say('Mets à jour les immeubles protégés par la Ville', 'tools/maj-patrimoine.py')],
+      acr: () => [
+        el('p', { class: 'help tip' }, `Sert à Monuments : les édifices de moins de 100 ans labellisés « Architecture contemporaine remarquable » par le ministère de la Culture (Licence Ouverte 2.0), lus dans l'API de data.gouv.fr.${acrInfo?.items?.length ? ` ${plural(acrInfo.items.length, 'édifice', 'édifices')} à Paris.` : ''}`),
+        el('div', { class: 'menu' }, link(ACR_FILE)),
+        say('Mets à jour l\'architecture contemporaine remarquable', 'tools/maj-acr.py')],
       merimee: () => [
         el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année. Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments, et à « Toute l'année dans les musées » sur la page d'un artiste${museesInfo?.updated ? ` (musées lus le ${frenchDate(museesInfo.updated)})` : ''}.`),
         el('div', { class: 'menu' }, ...MERIMEE_FILES.map(link)),
@@ -7871,7 +7920,7 @@ function openSettings(section = null) {
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
-      el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
+      el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
     ), { tall: true, name: 'settings:appli', again: () => openSettings('appli') });
     return;
@@ -7951,7 +8000,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'distances') {
-    const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'traceMin', 'askDays']; /* les deux distances des alertes se règlent sur leur page */
+    const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'villeM', 'traceMin', 'askDays']; /* les deux distances des alertes se règlent sur leur page */
     openSheet([ico('ruler'), ' Distances et durées'], el('div', { class: 'stack' },
       el('div', { class: 'menu' }, row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide')),
       el('h3', { class: 'fiche-sec' }, 'Y aller'),
@@ -7961,6 +8010,7 @@ function openSettings(section = null) {
       el('h3', { class: 'fiche-sec' }, 'Autour de moi'),
       tuneRow('ttbMin', (v) => `TTB à moins de ${v}`, 'Quand le calque TTB est affiché'),
       tuneRow('rainMin', (v) => `Passages couverts à ${v}`, 'Quand il pleut'),
+      tuneRow('villeM', (v) => `Immeubles de la Ville à ${v}`, 'Dans Monuments'),
       el('h3', { class: 'fiche-sec' }, 'Circuits'),
       tuneRow('traceMin', (v) => `Mes lieux à ${v} du tracé`, 'Sur la page d\'un circuit'),
       el('h3', { class: 'fiche-sec' }, 'Mon planning'),
@@ -9046,7 +9096,7 @@ const HELP = [
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
-    '{landmark} **Monuments** : les monuments protégés à moins de 1 km, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date. « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
+    '{landmark} **Monuments** : en haut, les immeubles **protégés par la Ville** tout près (150 m au départ, réglable dans {settings} → Distances et durées), avec le texte de la Ville qui dit quoi regarder sur la façade ; « Lire la suite » le donne en entier. Ces textes datent du plan d\'urbanisme de juin 2026 : une façade a pu changer depuis. Dessous, les monuments à moins de 1 km : les monuments historiques, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date ; et les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Orgues de Flandre…). « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
@@ -9182,6 +9232,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
     '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
     '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
@@ -9191,7 +9242,6 @@ const HELP = [
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
-    '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
   ]],
 ];
 

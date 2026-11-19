@@ -9,6 +9,7 @@ export const TUNING = Object.freeze({
   eventsM: Object.freeze({ def: 3000, min: 1000, max: 5000, step: 500, unit: 'm' }), // tous les onglets de Sorties
   ttbMin: Object.freeze({ def: 15, min: 5, max: 30, step: 5, unit: 'min' }), // TTB dans Autour de moi
   rainMin: Object.freeze({ def: 10, min: 5, max: 20, step: 5, unit: 'min' }), // passages couverts quand il pleut
+  villeM: Object.freeze({ def: 150, min: 50, max: 300, step: 50, unit: 'm' }), // v245 : immeubles protégés par la Ville, dans Monuments (mon choix M2B)
   traceMin: Object.freeze({ def: 2, min: 1, max: 5, step: 1, unit: 'min' }), // mes lieux près du tracé d'un circuit
   askDays: Object.freeze({ def: 30, min: 15, max: 90, step: 15, unit: 'jours' }), // « Tu y es allée ? »
 });
