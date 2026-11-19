@@ -341,7 +341,8 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
   const artists = sel.artists ? cleanArtists(state.artists) : [];
   const venues = sel.venues ? cleanVenues(state.venues) : [];
   // Mes circuits (v2) : seulement si je les coche ; mes textes d'étapes suivent la case des commentaires ; ceux reçus d'un proche ne repartent pas
-  const myCircuits = sel.circuits ? cleanMyCircuits(state.myCircuits).filter((c) => !c.by).map(({ by: _b, from: _f, ...c }) => (sel.notes ? c : { ...c, etapes: c.etapes.map(({ t: _t, ...e }) => e) })) : [];
+  const myCircuits = sel.circuits ? cleanMyCircuits(state.myCircuits).filter((c) => !c.by).map(({ by: _b, from: _f, base: _x, baseFp: _y, moved: _z, ...c }) => // ma version d'un circuit de Claude part comme un circuit à moi
+ (sel.notes ? c : { ...c, etapes: c.etapes.map(({ t: _t, ...e }) => e) })) : [];
   const sent = [points.length ? 'lieux' : '', points.length && sel.notes ? 'notes' : '', points.length && sel.passages ? 'passages' : '',
     plans.length ? 'plans' : '', artists.length ? 'artists' : '', venues.length ? 'venues' : '', myCircuits.length ? 'circuits' : ''].filter(Boolean);
   return {

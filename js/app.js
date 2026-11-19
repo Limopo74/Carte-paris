@@ -6,7 +6,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
 import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
-import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX } from './mescircuits.js';
+import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -57,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (248)';
+const VERSION = '19 novembre 2026 (249)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -3327,7 +3327,7 @@ const RUES_SIZE = 'moins de 2 Mo'; // poids téléchargé (compressé) : 1,7 Mo 
 const LIEU_SNAP_M = 20; // une étape posée à 20 m d'un de mes lieux prend ce lieu (choix 2A du 19 nov.)
 let streets = null; // plan des rues lu
 let streetsAt = 0; // date d'enregistrement sur le téléphone
-let trace = null; // parcours en cours : { id, name, steps: [{ lat, lng, name, pid?, s }], legs: [chemin entre deux étapes] }
+let trace = null; // parcours en cours : { id, name, steps: [{ lat, lng, name, pid?, s }], legs: [chemin entre deux étapes], sel (étape touchée), circuit? (v3 : étapes d'un circuit) }
 
 async function streetsStored() {
   try {
@@ -3364,12 +3364,17 @@ function crossingNote(legs) {
   const parts = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert (fermé parfois la nuit)' : null, f & STEPS ? 'a des escaliers' : null].filter(Boolean);
   return parts.length ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin ${parts.join(' et ')}.`) : null;
 }
-function drawTrace(steps, legs, fit = true) {
+function drawTrace(steps, legs, fit = true, pick = null, sel = null) {
   nearLayer.clearLayers();
   const lines = legs.filter(Boolean).map((l) => l.line);
   for (const ln of lines) L.polyline(ln, { color: ink(), weight: 5, opacity: 0.9, interactive: false }).addTo(nearLayer);
-  steps.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
-    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
+  steps.forEach((p, i) => {
+    const mk = L.marker([p.lat, p.lng], { interactive: Boolean(pick), keyboard: Boolean(pick), title: pick ? `Étape ${i + 1} : ${p.name}` : '', zIndexOffset: 1000,
+      icon: pick ? L.divIcon({ className: 'pin-wrap step-hit', html: `<span class="step-pin${i === sel ? ' sel' : ''}">${i + 1}</span>`, iconSize: [44, 44], iconAnchor: [22, 40] }) // zone d'appui de 44 px (v3)
+        : L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) });
+    if (pick) mk.on('click', () => pick(i));
+    mk.addTo(nearLayer);
+  });
   const all = [...lines.flat(), ...steps.map((p) => [p.lat, p.lng])];
   if (fit && all.length) map.fitBounds(L.latLngBounds(all).pad(0.15), { paddingTopLeft: [10, 70], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false, maxZoom: 17 });
 }
@@ -3425,11 +3430,14 @@ function openTrace(r = null) {
 }
 function showTrace(fit = false) {
   const t = trace; const n = t.steps.length; const total = legsTotal(t.legs);
-  const nameIn = t.id ? el('input', { type: 'text', maxlength: 80, value: t.name, 'aria-label': 'Nom du parcours', placeholder: autoName(t.steps) }) : null;
+  const cm = t.circuit; // v3 : les étapes d'un circuit (le circuit garde son titre, ses textes ; Enregistrer revient à « Modifier le circuit »)
+  if (t.sel != null && !t.steps[t.sel]) t.sel = null;
+  const nameIn = t.id && !cm ? el('input', { type: 'text', maxlength: 80, value: t.name, 'aria-label': 'Nom du parcours', placeholder: autoName(t.steps) }) : null;
   nameIn?.addEventListener('input', () => { t.name = nameIn.value; });
-  const leave = () => { const id = t.id; trace = null; nearLayer.clearLayers(); if (id && cleanRoutes(state.routes).some((x) => x.id === id)) openRoute(id); else openMyRoutes(); };
+  const leave = () => { if (cm) { cm.cancel(); return; } const id = t.id; trace = null; nearLayer.clearLayers(); if (id && cleanRoutes(state.routes).some((x) => x.id === id)) openRoute(id); else openMyRoutes(); };
   const save = () => {
     if (n < 2) { toast('Pose au moins 2 étapes.'); return; }
+    if (cm) { if (!t.legs.every(Boolean)) { toast('Un bout du chemin n\'est pas trouvé : retire ou déplace l\'étape.'); return; } cm.done(t.steps, t.legs); return; }
     const steps = t.steps.map(({ s: _s, ...st }) => st);
     const rec = { id: t.id ?? routeId(), name: (t.name || '').trim() || autoName(steps), at: Date.now(), steps };
     state.routes = cleanRoutes([rec, ...cleanRoutes(state.routes).filter((x) => x.id !== rec.id)]);
@@ -3437,25 +3445,45 @@ function showTrace(fit = false) {
     openRoute(rec.id);
     toast('Parcours enregistré');
   };
-  openSheet([ico('route'), t.id ? ' Modifier le parcours' : ' Nouveau parcours'], el('div', { class: 'stack' },
+  const picked = t.sel != null ? t.steps[t.sel] : null;
+  let pickZone = null;
+  openSheet([ico('route'), cm ? ' Étapes du circuit' : t.id ? ' Modifier le parcours' : ' Nouveau parcours'], el('div', { class: 'stack' },
     nameIn ? el('label', { class: 'field' }, el('span', {}, 'Nom du parcours'), nameIn) : null,
     el('p', { class: 'summary' }, n > 1 ? `${plural(n, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)}` : n ? '1 étape' : 'Aucune étape'),
-    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), n ? ' Touche la carte pour ajouter une étape. Le chemin suit les rues.' : ' Touche la carte là où tu veux partir.'),
-    crossingNote(t.legs),
+    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), n ? (cm ? ' Touche la carte pour ajouter une étape : elle se place là où elle allonge le moins le chemin. Touche un numéro pour retirer l\'étape.' : ' Touche la carte pour ajouter une étape, un numéro pour la retirer. Le chemin suit les rues.') : ' Touche la carte là où tu veux partir.'),
+    crossingNote(t.legs.filter((l) => !l?.orig)),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', disabled: !n, onclick: () => { t.steps.pop(); t.legs.pop(); showTrace(); } }, 'Retirer la dernière'),
-      el('button', { type: 'button', class: 'btn', disabled: n < 3, onclick: bestOrder }, 'Meilleur ordre')),
+      el('button', { type: 'button', class: 'btn', disabled: !n, onclick: () => removeStep(n - 1) }, 'Retirer la dernière'),
+      el('button', { type: 'button', class: 'btn', disabled: n < (cm ? 4 : 3), onclick: bestOrder }, 'Meilleur ordre')),
+    pickZone = picked ? el('div', { class: 'step-pick', role: 'group', 'aria-label': `Étape ${t.sel + 1}` }, // sous les boutons : rien ne bouge au-dessus
+      el('p', { class: 'summary' }, `Étape ${t.sel + 1} : ${picked.name}`),
+      el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { t.sel = null; showTrace(); } }, 'Garder'),
+        el('button', { type: 'button', class: 'btn danger', onclick: () => removeStep(t.sel) }, ico('trash-2'), 'Retirer cette étape'))) : null,
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))), // toujours actif : « Pose au moins 2 étapes » sinon
   ), { name: 'trace', again: () => showTrace() });
-  drawTrace(t.steps, t.legs, fit && n > 0);
+  drawTrace(t.steps, t.legs, fit && n > 0, (i) => { t.sel = t.sel === i ? null : i; showTrace(); }, t.sel);
+  if (pickZone) requestAnimationFrame(() => { sheetBody.scrollTop = sheetBody.scrollHeight; }); // en Très grand, « Retirer cette étape » reste visible (la barre du bas le cachait)
+}
+/** Retirer l'étape i du tracé en cours : le chemin relie l'étape d'avant à celle d'après (v3). */
+function removeStep(i) {
+  const t = trace; const n = t?.steps.length ?? 0;
+  if (!n || i < 0 || i >= n) return;
+  t.steps.splice(i, 1);
+  if (n === 1) t.legs = [];
+  else if (i === 0) t.legs.shift();
+  else if (i === n - 1) t.legs.pop();
+  else t.legs.splice(i - 1, 2, route(streets, t.steps[i - 1].s, t.steps[i].s));
+  t.sel = null;
+  showTrace();
 }
 function bestOrder() {
   const t = trace; if (!t || t.steps.length < 3) return;
-  const order = [t.steps[0], ...orderRoute(t.steps[0], t.steps.slice(1))];
+  const order = t.circuit ? [t.steps[0], ...orderRoute(t.steps[0], t.steps.slice(1, -1)), t.steps.at(-1)] // un circuit garde son départ et son arrivée
+    : [t.steps[0], ...orderRoute(t.steps[0], t.steps.slice(1))];
   const legs = order.slice(1).map((st, i) => route(streets, order[i].s, st.s));
   if (legs.some((l) => !l)) { toast('Pas de meilleur ordre trouvé'); return; }
-  const before = legsTotal(t.legs); t.steps = order; t.legs = legs;
+  const before = legsTotal(t.legs); t.steps = order; t.legs = legs; t.sel = null;
   showTrace(true);
   toast(legsTotal(legs) < before - 5 ? `Dans le meilleur ordre : ${fmtDist(legsTotal(legs))}` : 'C\'était déjà le meilleur ordre');
 }
@@ -3468,6 +3496,22 @@ function traceTap(lat, lng, lieu = null) {
   const s = snap(streets, at);
   if (!s) { toast(`Pas de rue à pied à moins de ${SNAP_MAX_M} m : touche plus près d'une rue.`); return; }
   const step = near ? { lat: near.lat, lng: near.lng, name: near.name.slice(0, 80), pid: near.id, s } : { lat: s.lat, lng: s.lng, name: s.name || `Étape ${t.steps.length + 1}`, s };
+  t.sel = null;
+  if (t.circuit && t.steps.length >= 2) { // v3 : dans un circuit, l'étape va là où elle allonge le moins le chemin sans revenir sur ses pas ; départ et arrivée restent
+    const tries = [];
+    for (let g = 0; g < t.steps.length - 1; g++) {
+      const a = route(streets, t.steps[g].s, s); const b = a && route(streets, s, t.steps[g + 1].s);
+      if (a && b) tries.push({ g, a, b, cost: a.m + b.m - (t.legs[g]?.m ?? 0) });
+    }
+    tries.sort((x, y) => x.cost - y.cost);
+    const ok = (x) => { const legs = [...t.legs]; legs.splice(x.g, 1, x.a, x.b); return !legs.every(Boolean) || !repeated(streets, legs, t.circuit.fixed ? new Set(legs.map((l, i) => (l?.orig ? i : -1)).filter((i) => i >= 0)) : null); };
+    const best = tries.slice(0, 6).find(ok) ?? tries[0]; // sinon la plus courte : « Modifier le circuit » dira où il revient sur ses pas
+    if (!best) { toast('Pas de chemin à pied jusque-là d\'après le plan des rues.'); return; }
+    t.steps.splice(best.g + 1, 0, step); t.legs.splice(best.g, 1, best.a, best.b);
+    showTrace();
+    toast(`Étape ${best.g + 2} ajoutée`);
+    return;
+  }
   const prev = t.steps.at(-1);
   if (prev) {
     const leg = route(streets, prev.s, s);
@@ -3589,7 +3633,7 @@ function openMakeCircuit(routeIdArg, draft = null) {
 
 /** Mes circuits dans la page Circuits : rangée du haut, sous mon titre. */
 function myCircuitsBlock(from, again) {
-  const list = myCircuitsList();
+  const list = myCircuitsList().filter((c) => !c.base); // ma version d'un circuit de Claude reste à la place de l'original (choix 7B)
   if (!list.length) return [];
   return [el('h3', { class: 'ring-title' }, el('span', {}, 'Mes circuits'), el('span', {}, String(list.length))),
     el('ul', { class: 'items ev-list' }, list.map((c) => { const v = asCircuit(c); return sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(v, named('Circuits', again)),
@@ -3626,21 +3670,126 @@ function addReceivedCircuit(v) {
 }
 /** Bas de la page d'un de mes circuits : Partager, Supprimer (confirmé). */
 function myCircuitActions(v, self, back) {
-  const c = myCircuitsList().find((x) => x.id === v.id);
+  const c = myCircuitsList().find((x) => x.id === v.myId);
   if (!c) return null;
   const zone = el('div', { class: 'stack' });
   const show = () => fill(zone,
-    el('h3', { class: 'fiche-sec' }, 'Mon circuit'),
+    el('h3', { class: 'fiche-sec' }, c.base ? 'Ta version' : 'Mon circuit'),
+    ficheRow('pencil', 'Modifier ce circuit', 'Les étapes, le titre, le thème, les textes', () => openEditCircuit(v, self, back)),
     ficheRow('share-2', 'Partager ce circuit', 'Un lien, avec ou sans tes textes', () => openShareCircuit(c, self)),
-    ficheRow('trash-2', 'Supprimer ce circuit', 'Demande confirmation ; le parcours d\'origine reste', ask));
+    c.base ? ficheRow('rotate-ccw', 'Revenir au circuit d\'origine', 'Ta version est effacée ; demande confirmation', ask)
+      : ficheRow('trash-2', 'Supprimer ce circuit', 'Demande confirmation ; le parcours d\'origine reste', ask));
   const ask = () => fill(zone,
-    el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${c.titre} » ? Ce n'est pas annulable.`),
+    el('p', { class: 'warn', role: 'alert' }, c.base ? `Revenir au circuit d'origine ? Ta version de « ${c.titre} » sera effacée. Ce n'est pas annulable.` : `Supprimer « ${c.titre} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: show }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn danger solid', onclick: () => deleteMyCircuit(c, back) }, 'Oui, supprimer')));
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => (c.base ? revertCircuit(c, back) : deleteMyCircuit(c, back)) }, c.base ? 'Oui, revenir' : 'Oui, supprimer')));
   show();
   return zone;
 }
-function deleteMyCircuit(c, back) {
+/** « Revenir au circuit d'origine » (choix 8A) : ma version est effacée, le circuit de Claude revient. */
+async function revertCircuit(c, back) {
+  state.myCircuits = myCircuitsList().filter((x) => x.id !== c.id); persist(); nearLayer.clearLayers(); peekLayer.clearLayers();
+  const orig = (await loadCircuits())?.find((x) => x.id === c.base);
+  if (orig) openCircuit(orig, back); else (back ?? (() => openCircuits()))();
+  toast('Le circuit d\'origine est revenu');
+}
+
+/** Ouvrir le plan des rues avant de changer les étapes d'un circuit (il n'est téléchargé qu'une fois). */
+function openStreetsFor(next, back) {
+  const err = el('p', { class: 'warn', role: 'alert', hidden: true });
+  const get = el('button', { type: 'button', class: 'btn primary go-bar', onclick: async () => {
+    get.disabled = true; get.textContent = 'Téléchargement…'; err.hidden = true;
+    try { await downloadStreets(); next(); } catch (e) { err.textContent = e.message; err.hidden = false; get.disabled = false; fill(get, ico('download'), 'Télécharger le plan des rues'); }
+  } }, ico('download'), 'Télécharger le plan des rues');
+  openSheet([ico('route'), ' Étapes du circuit'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, 'Pour que le chemin suive les rues'),
+    el('p', { class: 'help' }, `Changer les étapes demande le plan des rues de Paris (OpenStreetMap). Il se télécharge une seule fois, ${RUES_SIZE}, puis reste sur ton téléphone. Rien n'est envoyé.`),
+    err, get, foot(backBtn(back))), { name: 'streets-for' });
+}
+
+/**
+ * « Modifier ce circuit » (v3) : un circuit de Claude (ma version le remplace sur mon téléphone, choix 7B), ma version d'un
+ * circuit de Claude, ou un de mes circuits. Les étapes se changent sur la carte ; les bouts non touchés gardent leur tracé.
+ */
+async function openEditCircuit(v, back, pageBack, draft = null) { // back : la page du circuit ; pageBack : là où elle ramène
+  const claude = !v.mine || Boolean(v.base);
+  const prev = v.mine ? myCircuitsList().find((x) => x.id === v.myId) : null;
+  const orig = claude ? (v.mine ? (await loadCircuits())?.find((x) => x.id === v.base) : v) : null;
+  if (claude && !orig) { toast('Le circuit d\'origine n\'a pas pu être chargé.'); return; }
+  const d = draft ?? { titre: v.titre, themes: [...v.themes], steps: v.etapes.map((e) => ({ ...e, t0: e.t ?? '' })), legs: null, moved: v.moved === true };
+  const again = () => openEditCircuit(v, back, pageBack, d);
+  const self = named(`Modifier ${d.titre || v.titre}`, again);
+  const changed = Boolean(d.legs);
+  const fixed = new Set((d.legs ?? []).map((l, i) => (l?.orig ? i : -1)).filter((i) => i >= 0));
+  const broken = changed && !d.legs.every(Boolean);
+  const rep = changed && !broken && streets ? repeated(streets, d.legs, claude ? fixed : null) : null; // circuit de Claude : seuls les bouts changés sont regardés
+  const total = changed ? legsTotal(d.legs) : v.m;
+  const start = changed ? stationNear(d.steps[0]) : null; const end = changed ? stationNear(d.steps.at(-1)) : null;
+  const stText = (x, name) => (changed ? stationText(x) : name ? `Ⓜ ${name}` : 'pas de station à moins de 500 m');
+  const titleIn = el('input', { type: 'text', maxlength: 80, value: d.titre, 'aria-label': 'Titre du circuit' });
+  titleIn.addEventListener('input', () => { d.titre = titleIn.value; });
+  const chip = (k, label) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(d.themes.includes(k)), onclick: () => {
+    d.themes = d.themes.includes(k) ? d.themes.filter((x) => x !== k) : [...d.themes, k]; again(); } }, label);
+  const texts = d.steps.map((e, i) => {
+    const ta = el('textarea', { rows: 2, maxlength: STEP_TEXT_MAX, 'aria-label': `Texte de l'étape ${i + 1}, ${e.n}`, placeholder: 'Ce qu\'il y a à voir (facultatif)' });
+    ta.value = e.t ?? ''; ta.addEventListener('input', () => { e.t = ta.value; });
+    return el('li', { class: 'item' }, el('div', { class: 'item-main step-text' },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.n), ta)));
+  });
+  const editSteps = async () => {
+    if (!(await loadStreets())) { openStreetsFor(editSteps, self); return; }
+    const kept = d.legs ?? splitTrace(v.trace, v.etapes).map((line) => ({ line, m: line.slice(1).reduce((t, p, k) => t + distanceM({ lat: line[k][0], lng: line[k][1] }, { lat: p[0], lng: p[1] }), 0), flags: 0, orig: true }));
+    trace = { id: null, name: d.titre, sel: null, legs: [...kept],
+      steps: d.steps.map((e) => ({ lat: e.lat, lng: e.lng, name: e.n, e, s: snap(streets, e) })),
+      circuit: {
+        fixed: claude, // circuit de Claude : ses bouts gardés ne se comparent pas entre eux
+        done: (steps, legs) => {
+          const same = legs.every((l) => l?.orig) && steps.length === d.steps.length && steps.every((st, i) => st.e === d.steps[i]);
+          if (!same) { d.steps = steps.map((st) => (st.e ? st.e : { n: st.name, lat: st.lat, lng: st.lng, t: '', t0: '' })); d.legs = legs; d.moved = true; }
+          trace = null; again();
+        },
+        cancel: () => { trace = null; again(); },
+      } };
+    showTrace(true);
+  };
+  const save = () => {
+    const titre = (d.titre || '').trim();
+    if (!titre) { toast('Donne un titre au circuit.'); titleIn.focus(); return; }
+    const line = changed ? d.legs.flatMap((l, i) => (i ? l.line.slice(1) : l.line)) : v.trace;
+    const rec = { id: prev?.id ?? myCircuitId(), titre, themes: d.themes, m: Math.round(total), at: Date.now(), tr: encodeTrace(line),
+      depart: changed ? start?.name ?? '' : v.depart, arrivee: changed ? end?.name ?? '' : v.arrivee,
+      etapes: d.steps.map((e) => { const t = (e.t ?? '').trim(); return { n: e.n, lat: e.lat, lng: e.lng, t, ...(e.s && t === e.t0 ? { s: e.s } : {}), ...(e.m ? { m: true } : {}) }; }), // une source ne reste que sur le texte qu'elle dit
+      ...(prev?.from ? { from: prev.from } : {}), ...(prev?.by ? { by: prev.by } : {}),
+      ...(claude ? { base: orig.id, baseFp: prev?.baseFp || circuitFp(orig), confort: orig.confort, note: orig.note, moved: d.moved === true } : {}) };
+    const [ok] = cleanMyCircuits([rec]);
+    if (!ok) { toast('Ce circuit n\'a pas pu être enregistré.'); return; }
+    state.myCircuits = cleanMyCircuits([ok, ...myCircuitsList().filter((x) => x.id !== ok.id)]);
+    persist(); nearLayer.clearLayers();
+    openCircuit(asCircuit(ok), pageBack);
+    toast(claude ? 'Ta version remplace ce circuit sur ton téléphone' : 'Circuit modifié');
+  };
+  const blocked = broken || rep;
+  openSheet([ico('pencil'), ' Modifier le circuit'], el('div', { class: 'stack' },
+    broken ? el('p', { class: 'warn', role: 'alert' }, 'Un bout du chemin n\'est pas trouvé : touche « Changer les étapes » et déplace l\'étape.') : null,
+    rep ? el('p', { class: 'warn', role: 'alert' }, `Le chemin repasse ${fmtDist(rep.m)}${rep.name ? ` par ${rep.name}` : ' par la même rue'}, à partir de l'étape ${rep.leg}. Un circuit ne revient jamais sur ses pas : déplace ou retire une étape.`) : null,
+    el('p', { class: 'summary' }, `${plural(d.steps.length, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)}`),
+    el('p', { class: 'help' }, ico('train-front', { size: 15 }), ` Départ : ${stText(start, v.depart)} · arrivée : ${stText(end, v.arrivee)}`),
+    changed ? crossingNote(d.legs.filter((l) => !l?.orig)) : null,
+    claude ? el('p', { class: 'help' }, ico('info', { size: 15 }), ' Ta version remplace celle de l\'appli sur ton téléphone. « Revenir au circuit d\'origine » la remet.') : null,
+    el('button', { type: 'button', class: 'btn', onclick: editSteps }, ico('route'), 'Changer les étapes'),
+    el('label', { class: 'field' }, el('span', {}, 'Titre'), titleIn),
+    el('h3', { class: 'fiche-sec' }, 'Thème'),
+    el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Thème' }, ...CIRCUIT_THEMES.map(([k, label]) => chip(k, label))),
+    el('h3', { class: 'fiche-sec' }, claude ? 'Les textes, étape par étape' : 'Tes textes, étape par étape'),
+    el('ol', { class: 'items' }, texts),
+    el('p', { class: 'help tip' }, claude ? 'Les bouts du chemin que tu ne touches pas gardent le tracé de l\'appli ; ceux que tu changes suivent le plan des rues et ne doivent pas revenir sur leurs pas. Un texte que tu changes n\'a plus sa source.' : 'Un circuit ne revient jamais sur ses pas (plus de 15 m dans la même rue) ; aller voir une étape un peu en retrait et revenir par le même bout est permis jusqu\'à 40 m. Tes textes sont à toi : l\'appli ne les vérifie pas.'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { nearLayer.clearLayers(); (back ?? (() => openCircuits()))(); } }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', disabled: Boolean(blocked), onclick: save }, 'Enregistrer'))),
+  ), { tall: true, name: `edit-circuit:${v.id}`, again });
+  if (changed) drawTrace(d.steps, d.legs, false); else nearLayer.clearLayers();
+}
+function deleteMyCircuit(c, back) { // c : l'enregistrement (son id m-…)
   state.myCircuits = myCircuitsList().filter((x) => x.id !== c.id); persist(); nearLayer.clearLayers(); peekLayer.clearLayers();
   (back ?? (() => openCircuits()))(); toast('Circuit supprimé');
 }
@@ -7041,7 +7190,8 @@ async function openCircuits(back = null) {
   }
   const from = circuitFrom();
   const hidden = new Set(cleanHiddenCircuits(state.hiddenCircuits));
-  const kept = list.filter((c) => !hidden.has(c.id));
+  const mineOf = new Map(myCircuitsList().filter((x) => x.base).map((x) => [x.base, x]));
+  const kept = list.filter((c) => !hidden.has(c.id)).map((c) => (mineOf.has(c.id) ? asCircuit(mineOf.get(c.id)) : c)); // ma version à la place de l'original (choix 7B)
   const notes = cleanCircuitNotes(state.circuitNotes);
   const self = named('Circuits', again);
   const shown = circuitsFor(kept, { theme: circuitTheme, dur: circuitDur }, from);
@@ -7053,7 +7203,7 @@ async function openCircuits(back = null) {
       ...CIRCUIT_DURATIONS.map(([k, label]) => chip(circuitDur === k, label, () => { circuitDur = circuitDur === k ? '' : k; again(); }))),
     ...myCircuitsBlock(from, again),
     shown.length ? el('ul', { class: 'items ev-list' }, shown.map((c) => sortieCard({ genre: 'circuit', name: c.titre, onclick: () => openCircuit(c, named('Circuits', again)),
-      sub: [`${c.depart} → ${c.arrivee}`, `environ ${minText(circuitTimes(c).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(c)] })))
+      sub: [c.base ? 'Ta version' : `${c.depart} → ${c.arrivee}`, `environ ${minText(circuitTimes(c).total)}`, kmText(c.m)], d: distanceM(from, c.etapes[0]), tags: [circuitDoneTag(c)] })))
       : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
     notes.length ? ficheRow('triangle-alert', 'Problèmes notés', `${plural(notes.length, 'signalement', 'signalements')} · Copier pour Claude`, () => openCircuitNotes(null, self)) : null,
     hidden.size ? ficheRow('eye-off', plural(list.filter((c) => hidden.has(c.id)).length, 'circuit masqué', 'circuits masqués'), 'Les voir et les remettre', () => openHiddenCircuits(list, self)) : null,
@@ -7080,11 +7230,12 @@ function openCircuit(c, back) {
   const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
   openSheet([ico('signpost'), ` ${c.titre}`], el('div', { class: 'stack' },
     isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
-    c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : (myCircuitsList().find((x) => x.id === c.id)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.id).by}` : 'Mon circuit')) : null,
+    c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : c.base ? 'Ta version de ce circuit' : (myCircuitsList().find((x) => x.id === c.myId)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.myId).by}` : 'Mon circuit')) : null,
+    revisedLine(c),
     el('p', { class: 'summary' }, c.mine ? [c.depart ? `Ⓜ ${c.depart}` : 'Départ', c.arrivee ? `Ⓜ ${c.arrivee}` : 'arrivée'].join(' → ') + ` · ${kmText(c.m)}` : `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
     el('p', { class: 'help' }, ico('footprints'), ` ${minText(t.walk)} de marche à ton pas, environ ${minText(t.total)} avec les arrêts.`),
     nightLine(t.total),
-    c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.confort}`) : null,
+    c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.moved ? 'Circuit d\'origine : ' : ''}${c.confort}`) : null, // mes étapes changées : le confort dit celui de l'original
     c.note ? el('p', { class: 'help' }, ico('info'), ` ${c.note}`) : null,
     done.length ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openOuting(done[0].id, self) }, ico('check'), el('span', {}, `Fait le ${dayText(done[0].at)}`, el('small', {}, done.length > 1 ? `${plural(done.length, 'fois', 'fois')} en tout · ce que j'en retiens` : 'Ce que j\'en retiens')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))) : null,
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(stepStops(c), c.titre) }, ico('navigation'), 'Balade guidée'),
@@ -7107,9 +7258,19 @@ function openCircuit(c, back) {
     c.mine && !c.received ? myCircuitActions(c, self, back) : null,
     c.mine ? null : isHidden ? ficheRow('eye', 'Remettre ce circuit', 'Il revient dans la liste', () => setCircuitHidden(c, false, again))
       : ficheRow('eye-off', 'Masquer ce circuit', 'Il quitte la liste ; tu pourras le remettre', () => setCircuitHidden(c, true, back ?? (() => openCircuits()))),
-    el('p', { class: 'help' }, c.mine ? 'Les textes des étapes ne sont pas vérifiés par l\'appli. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.' : 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
+    c.mine ? null : el('h3', { class: 'fiche-sec' }, 'Ta version'), // v3 : en dernier, rien ne bouge au-dessus
+    c.mine ? null : ficheRow('pencil', 'Modifier ce circuit', 'Ta version remplacera celle-ci sur ton téléphone ; l\'original revient quand tu veux', () => openEditCircuit(c, self, back)),
+    el('p', { class: 'help' }, c.base ? 'Les textes que tu as changés ne sont pas vérifiés ; les autres citent leur source. Le tracé' : c.mine ? 'Les textes des étapes ne sont pas vérifiés par l\'appli. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.' : 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: `circuit:${c.id}`, again });
+}
+
+/** Ma version d'un circuit de Claude que Claude a revu depuis (choix 8A) : ma version reste, l'appli le dit. */
+function revisedLine(c) {
+  if (!c.base) return null;
+  const mine = myCircuitsList().find((x) => x.id === c.myId); const orig = circuitsData?.find((x) => x.id === c.base);
+  return mine?.baseFp && orig && circuitFp(orig) !== mine.baseFp
+    ? el('p', { class: 'warn' }, 'Claude a revu ce circuit depuis que tu l\'as modifié. Ta version est gardée ; « Revenir au circuit d\'origine », en bas, montre la nouvelle.') : null;
 }
 
 /** Une étape : son texte et sa source, puis les mêmes actions qu'un lieu de Sorties (Y aller, Boussole, Métro, Ajouter). */
@@ -9319,13 +9480,13 @@ const HELP = [
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
-    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone). **Mes circuits**, en haut : ceux que tu as faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien ; Partager (un lien, avec ou sans tes textes) et Supprimer en bas de leur page.',
+    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone). **Mes circuits**, en haut : ceux que tu as faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien ; Partager (un lien, avec ou sans tes textes), Modifier et Supprimer en bas de leur page. « **Modifier ce circuit** », en bas d\'un circuit de l\'appli : ta version le remplace sur ton téléphone ; les bouts que tu ne touches pas gardent leur tracé, ceux que tu changes ne doivent pas revenir sur leurs pas ; « Revenir au circuit d\'origine » le remet.',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
     '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
+    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
@@ -9466,6 +9627,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
     '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
@@ -9475,7 +9637,6 @@ const HELP = [
     '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
     '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
     '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
-    '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
   ]],
 ];
 

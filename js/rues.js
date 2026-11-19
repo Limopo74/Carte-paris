@@ -265,7 +265,7 @@ function samples(line) {
  * rue la plus proche) ; autour de chaque étape (20 m), le chemin d'avant et le suivant ne se comparent pas, et le petit
  * aller-retour fait pour aller voir une étape en retrait (cour, entrée) est permis jusqu'à 40 m.
  */
-export function repeated(P, legs) {
+export function repeated(P, legs, fixed = null) { // fixed : les bouts gardés d'un circuit de Claude, pas comparés entre eux
   const S = legs.map((l) => (l ? samples(l.line) : []));
   const nameCache = new Map();
   const nameOf = (q) => { const k = `${q.lat.toFixed(5)},${q.lng.toFixed(5)}`; if (!nameCache.has(k)) nameCache.set(k, snap(P, q, 30)?.name ?? ''); return nameCache.get(k); };
@@ -275,6 +275,7 @@ export function repeated(P, legs) {
   for (let li = 1; li < S.length; li++) {
     for (const q of S[li]) {
       for (let lj = 0; lj < li; lj++) {
+        if (fixed?.has(li) && fixed.has(lj)) continue;
         if (lj === li - 1 && stopAt[lj] && near(q, stopAt[lj], NEAR_M)) continue; // autour de l'étape partagée
         const hit = S[lj].find((r) => near(q, r, NEAR_M) && (lj !== li - 1 || !stopAt[lj] || !near(r, stopAt[lj], NEAR_M)));
         if (!hit) continue;

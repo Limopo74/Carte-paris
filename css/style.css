@@ -309,6 +309,9 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 .arc-pin svg { display: block; }
 .arc-pin.far { width: 14px; height: 14px; margin: 13px; border-radius: 50%; border-width: 2.5px; } /* de loin : un point, le toucher zoome */
 .step-pin.circuit { width: 28px; height: 28px; background: var(--disc); color: var(--surface); } /* étapes d'un circuit (v168), sur son tracé terre cuite */
+.step-hit { display: flex; align-items: center; justify-content: center; } /* v3 : un numéro qui se touche pendant le tracé, zone d'appui de 44 px */
+.step-pin.sel { box-shadow: 0 0 0 3px var(--disc); } /* l'étape touchée, avant « Retirer cette étape » */
+.step-pick { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .check-row { cursor: pointer; }
 .check { width: 22px; height: 22px; flex: none; accent-color: var(--ink); }
 ol.items { padding: 0; }

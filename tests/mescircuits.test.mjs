@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { encodeTrace, cleanMyCircuits, asCircuit, myCircuitLink, readMyCircuitLink, myCircuitId, MY_CIRCUITS_MAX } from '../js/mescircuits.js';
-import { decodeTrace } from '../js/circuits.js';
+import { encodeTrace, cleanMyCircuits, asCircuit, myCircuitLink, readMyCircuitLink, myCircuitId, MY_CIRCUITS_MAX, circuitFp, splitTrace } from '../js/mescircuits.js';
+import { decodeTrace, cleanCircuits } from '../js/circuits.js';
 import { readPlan, snap, route, repeated } from '../js/rues.js';
 import { loadState, saveState, exportJSON, exportForFriend, mergeImport, backupHash, SEND_DEFAULT } from '../js/store.js';
 
@@ -114,4 +114,63 @@ test('aller voir une étape en retrait et revenir par le même bout : permis jus
   assert.equal(repeated(P2, L2([at2(0), at2(10), at2(2)])), null, 'cour de 30 m : on y va, on en revient');
   const deep = repeated(P2, L2([at2(0), at2(11), at2(2)]));
   assert.ok(deep && deep.m > 50, 'impasse de 60 m : refusée');
+});
+
+/* ---------- Version 3 : modifier un circuit de Claude (ma version le remplace, choix 7B ; l'original revient, 8A) ---------- */
+const V1 = { ...C1, id: 'm-vers1', base: 'marais', baseFp: 'abc', confort: 'Plat, sans escalier.', note: 'Fermé le lundi.', moved: true, at: 20,
+  etapes: [{ n: 'Métro Saint-Paul', lat: 48.85521, lng: 2.36086, t: 'Ligne 1.', m: true }, { n: 'Hôtel de Sully', lat: 48.85441, lng: 2.3637, t: 'Hôtel particulier.', s: 'https://exemple.fr/sully' }, { n: 'Rue d\'Ormesson', lat: 48.8553, lng: 2.3624 }] };
+
+test('ma version d\'un circuit de Claude : gardée avec son original, sa source, sa station ; une seule par circuit', () => {
+  const [c] = cleanMyCircuits([V1]);
+  assert.equal(c.base, 'marais'); assert.equal(c.baseFp, 'abc'); assert.equal(c.moved, true);
+  assert.equal(c.confort, 'Plat, sans escalier.');
+  assert.equal(c.etapes[0].m, true, 'une station reste une station');
+  assert.equal(c.etapes[1].s, 'https://exemple.fr/sully', 'la source reste avec son texte');
+  assert.equal(cleanMyCircuits([{ ...V1, etapes: V1.etapes.map((e) => ({ ...e, t: '' })) }])[0].etapes[1].s, undefined, 'sans texte, pas de source');
+  assert.equal(cleanMyCircuits([{ ...V1, etapes: V1.etapes.map((e) => ({ ...e, s: 'http://pas-sur.fr' })) }])[0].etapes[1].s, undefined, 'source en https seulement');
+  assert.equal(cleanMyCircuits([{ ...V1, base: 'm-moi' }])[0].base, undefined, 'jamais un de mes circuits comme original');
+  const two = cleanMyCircuits([{ ...V1, id: 'm-vers2', at: 30, titre: 'Plus récente' }, V1]);
+  assert.equal(two.length, 1, 'une seule version d\'un même circuit');
+  assert.equal(two[0].titre, 'Plus récente');
+  const v = asCircuit(c);
+  assert.equal(v.id, 'marais', 'elle prend la place de l\'original (Je l\'ai fait, Masquer gardent son id)');
+  assert.equal(v.myId, 'm-vers1'); assert.equal(v.base, 'marais'); assert.equal(v.confort, 'Plat, sans escalier.');
+});
+
+test('l\'empreinte de l\'original change quand Claude le revoit (choix 8A) ; le tracé se coupe aux étapes', () => {
+  const list = cleanCircuits(JSON.parse(readFileSync(new URL('../data/circuits.json', import.meta.url), 'utf8')));
+  const c = list.find((x) => x.id === 'marais');
+  assert.equal(circuitFp(c), circuitFp(structuredClone(c)));
+  assert.notEqual(circuitFp(c), circuitFp({ ...c, etapes: c.etapes.map((e, i) => (i === 2 ? { ...e, t: `${e.t} Corrigé.` } : e)) }), 'un texte revu');
+  assert.notEqual(circuitFp(c), circuitFp({ ...c, trace: c.trace.slice(1) }), 'un tracé revu');
+  for (const x of list) {
+    const parts = splitTrace(x.trace, x.etapes);
+    assert.equal(parts.length, x.etapes.length - 1, `${x.id} : un bout par étape`);
+    assert.deepEqual(parts[0][0], x.trace[0]); assert.deepEqual(parts.at(-1).at(-1), x.trace.at(-1));
+    assert.equal(parts.reduce((t, l) => t + l.length - 1, 0), x.trace.length - 1, `${x.id} : aucun point perdu ni en double`);
+  }
+});
+
+test('ma version part chez un proche comme un circuit à moi (sans l\'original)', () => {
+  const mem = new Map(); const st = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)) };
+  saveState(st, { ...loadState(st), myCircuits: [V1] });
+  const s1 = loadState(st);
+  assert.equal(s1.myCircuits[0].base, 'marais', 'sur le téléphone et dans ma sauvegarde');
+  const friend = JSON.stringify(exportForFriend(s1, { ...SEND_DEFAULT, circuits: true }));
+  assert.ok(friend.includes('Marais du dimanche'));
+  assert.ok(!friend.includes('"base"') && !friend.includes('baseFp'), 'chez le proche, il ne remplace pas son circuit de l\'appli');
+});
+
+test('règle 6B sur ma version d\'un circuit de Claude : seuls les bouts changés comptent (choix A)', () => {
+  const L = legs([s(0, 0), s(0, 2), s(0, 1)]);
+  assert.ok(repeated(P, L), 'tout regardé : aller-retour refusé');
+  assert.equal(repeated(P, L, new Set([0, 1])), null, 'deux bouts gardés : pas comparés entre eux');
+  assert.ok(repeated(P, L, new Set([0])), 'un bout changé qui revient sur un bout gardé : refusé');
+});
+
+test('appli : Modifier ce circuit, Revenir au circuit d\'origine, retirer une étape en touchant son numéro', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  for (const t of ["'Modifier ce circuit'", "'Changer les étapes'", "'Retirer cette étape'", "'Revenir au circuit d\\'origine'", "'Ta version de ce circuit'", "'Ta version'"]) assert.ok(app.includes(t), t);
+  assert.ok(app.includes('repeated(streets, d.legs, claude ? fixed : null)'), 'circuit de Claude : seuls les bouts changés');
+  assert.ok(/Claude a revu ce circuit/.test(app), 'l\'original revu se dit');
 });
