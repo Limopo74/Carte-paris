@@ -32,7 +32,7 @@ import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
-import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
+import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (236)';
+const VERSION = '19 novembre 2026 (237)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2003,10 +2003,14 @@ function openForm(draft, existing = null) {
       if (dup) {
         fill(err,
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
+          draft.photoFile && !Number.isFinite(draft.ticketAt) && (dup.point.photos?.length ?? 0) >= MAX_PHOTOS ? `Il a déjà ${MAX_PHOTOS} photos : ta photo n'y entre pas. ` : '',
           el('div', { class: 'row', style: 'margin-top:8px' },
             Number.isFinite(draft.ticketAt)
               ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = draftPlan(draft); persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${planText(dup.point.ticket)}`); } }, 'Noter sur ce lieu')
-              : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
+              // v237 : une photo vient d'être prise : elle va sur ce lieu au lieu d'être perdue (6 au plus : sinon on le dit)
+              : draft.photoFile && (dup.point.photos?.length ?? 0) < MAX_PHOTOS
+                ? el('button', { type: 'button', class: 'btn c-add', onclick: async () => { const pt = dup.point; if (await savePhotos(pt, [draft.photoFile])) { draft.photoFile = null; renderMarkers(); openDetail(pt.id); } } }, ico('camera'), 'Y ajouter la photo')
+                : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
             el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
         err.scrollIntoView({ block: 'nearest' });
         return;
@@ -2256,14 +2260,15 @@ async function photoUrl(id) {
 }
 const newPhotoId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
-/** Photo de la fiche, en large sous les informations (v95) ; un appui ouvre toutes les photos. */
-function photoWide(p, back) {
+/** Photo de la fiche, en large sous les informations (v95) ; un appui ouvre toutes les photos.
+ * v237 : `open` remplace cet appui (page d'un passage : la photo s'ouvre en grand, la page reste dessous). */
+function photoWide(p, back, open = null) {
   const photos = p.photos ?? [];
   if (!photos.length) return null; // le bouton « Photo » de la fiche suffit
   const img = el('img', { alt: '', class: 'fiche-photo-img' });
   photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
   return el('figure', { class: 'fiche-photo' },
-    el('button', { type: 'button', onclick: () => openPhotos(p, back), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos` : 'Voir la photo' }, img),
+    el('button', { type: 'button', onclick: open ?? (() => openPhotos(p, back)), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos` : 'Voir la photo' }, img),
     el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
 }
 
@@ -4445,9 +4450,10 @@ function followButton(name, again) {
   } }, ico('heart'), on ? 'Suivie (Mes salles)' : 'Suivre');
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav });
+  if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
@@ -4457,10 +4463,13 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: title, lat: place.lat, lng: place.lng, id: `spot:${place.lat},${place.lng}` }, named(title, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       // v167 : « ★ Favori » (un appui) pour un musée, une galerie, un théâtre ; « Ajouter » (formulaire) pour le reste
       fav ? favButton({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', hours: add.hours ?? '', note: add.note ?? '', kind: fav }, again)
+        // v237 : déjà dans mes lieux (passage couvert) : « Ma fiche » à la place d'« Ajouter », même bouton, même place
+        : mine ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openDetail(mine.id, named(title, again)) }, ico('map-pin'), 'Ma fiche')
         : el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', acc: null, ...add }) }, ico('plus'), 'Ajouter')),
     fav ? followButton(title, again) : null, // v170 : une salle, une galerie, un musée se suivent aussi (Mes salles)
     extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
+    mine ? photoWide(mine, null, () => viewPhoto(mine.photos, 0, mine.name)) : null, // v237 : ma photo, après tous les boutons (rien ne bouge)
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again });
 }
@@ -6858,7 +6867,8 @@ function openArcade(a, back = null) {
   openSpot({ icon: 'door-open', title: a.nom, kicker: 'Passage couvert', place: a,
     lines: [a.t, a.rues ? el('p', { class: 'where' }, ico('map-pin'), `Entrées : ${a.rues}`) : null, ARCADE_HOURS],
     extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => showArcadeOnMap(a, back) }, ico('map'), 'Voir sur la carte'),
-    link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add: { covered: true }, back, key: `passage:${a.id}` });
+    link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add: { covered: true }, back, key: `passage:${a.id}`,
+    mine: myArcadePlace(state.points, a) }); // v237 : le passage est dans mes lieux → « Ma fiche » et ma photo
 }
 
 /** Le passage seul sur la carte, de près : son trait s'il est sûr, sinon son pictogramme. Le bandeau ramène à sa page. */
@@ -8895,7 +8905,7 @@ const HELP = [
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
-    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
+    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). Ajouté à tes lieux (Ajouter), il montre « Ma fiche » et ta photo. De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -8978,6 +8988,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{door-open} Passages couverts : un passage que tu as ajouté à tes lieux montre « Ma fiche » à la place d\'« Ajouter », et ta photo sous « Source » (touche-la pour la voir en grand). Pour illustrer un passage : sa page → Ajouter → {camera} Photo → Enregistrer ; les suivantes : Ma fiche → Photo. Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
@@ -8987,7 +8998,6 @@ const HELP = [
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
     '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
     '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
-    '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
   ]],
 ];
 

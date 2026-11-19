@@ -1,6 +1,7 @@
 // Passages couverts (v168) : une liste fixe, vérifiée, dans l'appli (data/passages.json). Tri sur le téléphone, rien n'est envoyé.
 import { decodeTrace, distanceToTrace } from './circuits.js';
 import { distanceM, minutesToMeters } from './geo.js';
+import { fold } from './search.js';
 
 /** Zoom à partir duquel le trait d'une entrée à l'autre remplace le pictogramme. */
 export const ARCADE_LINE_ZOOM = 16;
@@ -45,3 +46,23 @@ export const ARCADE_TRACE_MIN = 5;
 /** Les passages à moins de maxM du tracé d'un circuit, du plus proche : [{ a, d }]. */
 export const arcadesNearTrace = (list, trace, maxM) => (Array.isArray(list) && Array.isArray(trace) && trace.length
   ? list.map((a) => ({ a, d: distanceToTrace(a, trace) })).filter((x) => x.d <= maxM).sort((x, y) => x.d - y.d) : []);
+
+/** v237 : à quelle distance un de mes lieux peut être « ce passage » (même seuil que l'alerte de doublon du formulaire). */
+export const ARCADE_MINE_M = 60;
+/** v237 : le passage est-il dans mes lieux ? Un de MES lieux (pas celui d'un proche) dont le nom contient celui du passage,
+ * ou l'inverse (« Choiseul » pour « Passage Choiseul »), à moins de 60 m ; le plus proche. Aucune donnée en plus : un lieu
+ * renommé autrement n'est plus reconnu, et la page garde alors « Ajouter » (pas d'info plutôt qu'une info fausse). */
+const core = (s) => s.split(' ').filter((w) => !/^(passage|galerie|du|des|de|la|le|l|d)$/.test(w)).join(' ');
+export function myArcadePlace(points, a) {
+  const n = fold(a?.nom);
+  if (!n || !Array.isArray(points)) return null;
+  let best = null;
+  for (const p of points) {
+    if (!p || p.owner || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+    const pn = fold(p.name);
+    if (!core(pn) || !(pn === n || pn.includes(n) || n.includes(pn))) continue; // « Passage » seul ne suffit pas
+    const d = distanceM(p, a);
+    if (d <= ARCADE_MINE_M && (!best || d < best.d)) best = { p, d };
+  }
+  return best?.p ?? null;
+}

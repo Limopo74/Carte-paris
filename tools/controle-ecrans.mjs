@@ -145,6 +145,15 @@ const ECRANS = {
   // v168 : passages couverts
   circuitpassages: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'passages couverts' }).click(); await p.waitForTimeout(400); await feuille(p).locator('h3', { hasText: 'Autres passages' }).scrollIntoViewIfNeeded(); },
   passagecouvert: async (p) => { await ECRANS.circuitpassages(p); await feuille(p).locator('.item-main', { hasText: 'Choiseul' }).click(); await p.waitForTimeout(300); },
+  // v237 : le passage est dans mes lieux, avec une photo : « Ma fiche » à la place d'« Ajouter », ma photo sous « Source »
+  passagemien: async (p) => { await avecLieu(p, { id: 'pc', name: 'Passage Choiseul', lat: 48.86807, lng: 2.33556, covered: true, photos: ['ph-pc'] }); await ECRANS.passagecouvert(p); await feuille(p).locator('.fiche-photo').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  passagemienphoto: async (p) => { await ECRANS.passagemien(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(500); },
+  // v237 : une photo prise sur un lieu déjà là sous un autre nom : « Y ajouter la photo » au lieu de la perdre
+  passagedoublon: async (p) => { await avecLieu(p, { id: 'pd', name: 'Galeries de Choiseul', lat: 48.86807, lng: 2.33556 }); await ECRANS.passagecouvert(p);
+    await feuille(p).locator('button', { hasText: 'Ajouter' }).click(); await p.waitForTimeout(300);
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).getByRole('button', { name: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png'); await p.waitForTimeout(300);
+    await p.locator('button', { hasText: 'Enregistrer' }).last().click(); await p.waitForTimeout(400); },
+  passagedoublonfait: async (p) => { await ECRANS.passagedoublon(p); await feuille(p).locator('button', { hasText: 'Y ajouter la photo' }).click(); await p.waitForSelector('#sheet .fiche-photo'); await p.waitForTimeout(400); },
   passagecarte: async (p) => { await ECRANS.passagecouvert(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   // v161 : street art
   ficheoeuvre: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque jaune"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Disparue ou recouverte' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
@@ -236,6 +245,26 @@ const ECRANS = {
   barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
+// v237 : un lieu de plus (et sa photo, dessinée ici, rangée dans la base des photos) le temps d'un écran ; le fichier d'état est remis ensuite.
+async function avecLieu(p, pt) {
+  const avant = await p.evaluate(async (pt) => {
+    const k = 'carte-paris.v1'; const brut = localStorage.getItem(k); const o = JSON.parse(brut);
+    o.points.push({ address: '', hours: '', created: Date.now() - 864e5 * 5, ...pt });
+    localStorage.setItem(k, JSON.stringify(o));
+    for (const id of pt.photos ?? []) {
+      const c = document.createElement('canvas'); c.width = 960; c.height = 720; const g = c.getContext('2d');
+      const sky = g.createLinearGradient(0, 0, 0, 720); sky.addColorStop(0, '#e9e4d6'); sky.addColorStop(1, '#8a6b4e'); g.fillStyle = sky; g.fillRect(0, 0, 960, 720);
+      g.strokeStyle = '#3b2f25'; g.lineWidth = 6; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(480, 120); g.lineTo(i * 120, 0); g.stroke(); }
+      g.fillStyle = '#5b4636'; g.fillRect(0, 200, 300, 520); g.fillRect(660, 200, 300, 520); g.fillStyle = '#f3d27a'; for (let y = 260; y < 640; y += 110) { g.fillRect(40, y, 200, 70); g.fillRect(720, y, 200, 70); }
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      await new Promise((res, rej) => { const q = indexedDB.open('carte-paris-photos', 1); q.onupgradeneeded = () => q.result.createObjectStore('photos'); q.onsuccess = () => { const t = q.result.transaction('photos', 'readwrite'); t.objectStore('photos').put(blob, id); t.oncomplete = () => { q.result.close(); res(); }; t.onerror = rej; }; q.onerror = rej; });
+    }
+    return brut;
+  }, pt);
+  await p.reload(); await p.waitForTimeout(600);
+  if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click();
+  await p.evaluate((brut) => localStorage.setItem('carte-paris.v1', brut), avant);
+}
 async function avecListe(p, ids) {
   const avant = await p.evaluate((liste) => {
     const k = 'carte-paris.v1'; const brut = localStorage.getItem(k); const o = JSON.parse(brut);
