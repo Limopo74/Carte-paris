@@ -598,6 +598,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .help-item li .ico { vertical-align: -3px; margin: 0 2px; color: var(--guide); }
 .help-item li .ico svg { width: 17px; height: 17px; }
 #sheetTitle:focus { outline: none; }
+#sheetTitle .title-clamp { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; } /* Mes parcours : un nom long reste sur 2 lignes */
 #sheetTitle:focus-visible { outline: none; }
 .row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: var(--t16); border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); }
 .m-badge::before { content: 'M'; }

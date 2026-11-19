@@ -4,7 +4,8 @@ import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
+import { readPlan, snap, route, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -54,7 +55,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (243)';
+const VERSION = '19 novembre 2026 (244)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -477,7 +478,7 @@ function renderMarkers() {
     })
       .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? (canVanish(p, state.categories) ? ', disparue ou recouverte' : ', fermé définitivement') : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
-      .on('click', () => { if (!moving) openDetail(p.id, arrBack()); })
+      .on('click', () => { if (view === 'trace') { traceTap(p.lat, p.lng, p); return; } if (!moving) openDetail(p.id, arrBack()); })
       .addTo(pointsLayer);
   }
   // Une adresse TTB gardée dans mes lieux : seule ma goutte reste (v155). Au démarrage, le calque TTB n'existe pas encore.
@@ -1626,7 +1627,7 @@ async function addAtPosition() {
 
 // Appui long sur la carte (ou clic droit sur ordinateur).
 map.on('contextmenu', (e) => {
-  if (moving) return;
+  if (moving || view === 'trace') return; // pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
   addAt(e.latlng.lat, e.latlng.lng);
 });
 
@@ -3215,64 +3216,203 @@ function renderWay(from, dest) {
   map.fitBounds(b, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
 }
 
-/* ---------- Relier des lieux ---------- */
+/* ---------- Mes parcours (v244, à la place de Relier des lieux) : je touche la carte pour poser mes étapes ;
+   le chemin suit les rues, calculé sur le téléphone avec le plan des rues (js/rues.js), téléchargé la première fois. ---------- */
+const RUES_CACHE = 'carte-paris-rues'; // gardé d'une version à l'autre (sw.js ne l'efface pas)
+const RUES_URL = 'data/rues.json';
+const RUES_OLD = 40 * 864e5; // plus vieux que 40 jours : refait en silence à l'ouverture de Mes parcours (le robot le refait chaque mois)
+const RUES_SIZE = 'moins de 2 Mo'; // poids téléchargé (compressé) : 1,7 Mo le 19 nov. 2026 ; vérifié par tests/rues.test.mjs
+const LIEU_SNAP_M = 20; // une étape posée à 20 m d'un de mes lieux prend ce lieu (choix 2A du 19 nov.)
+let streets = null; // plan des rues lu
+let streetsAt = 0; // date d'enregistrement sur le téléphone
+let trace = null; // parcours en cours : { id, name, steps: [{ lat, lng, name, pid?, s }], legs: [chemin entre deux étapes] }
 
-function openRoutePicker(selected = new Set()) {
-  track('Relier des lieux');
-  const start = origin ?? startHere();
-  const pts = offered()
-    .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
-    .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
-  const go = el('button', { type: 'button', class: 'btn primary', onclick: () => renderRoute(start, pts.filter((x) => selected.has(x.p.id)).map((x) => x.p)) });
-  const info = el('p', { class: 'help' });
-  const update = () => {
-    go.disabled = selected.size < 2;
-    go.textContent = selected.size < 2 ? 'Choisis au moins 2 lieux' : `Calculer le parcours (${selected.size} lieux)`;
-    info.textContent = `Jusqu'à ${MAX_ROUTE} lieux (limite de Google Maps sur téléphone).`;
-  };
-  const list = el('ul', { class: 'items' }, pts.slice(0, 60).map(({ p, d }) => {
-    const box = el('input', { type: 'checkbox', class: 'check', 'aria-label': p.name });
-    box.checked = selected.has(p.id);
-    box.addEventListener('change', () => {
-      if (box.checked && selected.size >= MAX_ROUTE) { box.checked = false; toast(`${MAX_ROUTE} lieux au plus.`); return; }
-      if (box.checked) selected.add(p.id); else selected.delete(p.id);
-      update();
-    });
-    return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
-        el('span', { class: 'item-sub' }, [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
-  }));
-  update();
-  openSheet([ico('route'), ' Relier des lieux'], el('div', { class: 'stack' }, info, list, go), { tall: true, name: 'routepick', again: () => openRoutePicker(selected) });
+async function streetsStored() {
+  try {
+    if (!('caches' in window)) return null;
+    const r = await (await caches.open(RUES_CACHE)).match(RUES_URL);
+    if (!r) return null;
+    streetsAt = Number(r.headers.get('x-saved')) || 0;
+    return await r.json();
+  } catch { return null; }
+}
+async function loadStreets() {
+  if (!streets) { const j = await streetsStored(); streets = j ? readPlan(j) : null; }
+  if (streets && Date.now() - streetsAt > RUES_OLD && navigator.onLine) downloadStreets().catch(() => {}); // remis à jour sans rien dire
+  return streets;
+}
+async function downloadStreets() {
+  const res = await fetch('data/rues.json', { cache: 'no-cache' }); // fichier de l'appli (même adresse que RUES_URL)
+  if (!res.ok) throw new Error('Plan des rues introuvable : réessaie plus tard.');
+  const text = await res.text();
+  const p = readPlan(JSON.parse(text));
+  if (!p) throw new Error('Plan des rues illisible : réessaie plus tard.');
+  try { await (await caches.open(RUES_CACHE)).put(RUES_URL, new Response(text, { headers: { 'Content-Type': 'application/json', 'x-saved': String(Date.now()) } })); } catch { /* gardé pour cette ouverture seulement */ }
+  streets = p; streetsAt = Date.now();
+  return p;
 }
 
-function renderRoute(start, chosen) {
-  const route = start ? orderRoute(start, chosen) : chosen;
-  const total = start ? routeLength(start, route) : routeLength(route[0], route.slice(1));
-  let prev = start ?? route[0];
-  const steps = route.map((p, i) => {
-    const leg = distanceM(prev, p);
-    prev = p;
-    return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Relier des lieux', () => renderRoute(start, chosen))) },
+const routesBack = named('Mes parcours', () => openMyRoutes());
+const routeMin = (m) => { const n = routeMinutes(m); return `${n < 60 ? `${n} min` : minText(n)} à pied`; }; // à la minute près en dessous d'une heure
+const legsTotal = (legs) => legs.reduce((s, l) => s + (l?.m ?? 0), 0);
+const legsFlags = (legs) => legs.reduce((f, l) => f | (l?.flags ?? 0), 0);
+/** Phrase honnête sur ce que le chemin traverse (parc ou passage fermé la nuit, escaliers), sinon null. */
+function crossingNote(legs) {
+  const f = legsFlags(legs);
+  const parts = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert (fermé parfois la nuit)' : null, f & STEPS ? 'a des escaliers' : null].filter(Boolean);
+  return parts.length ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin ${parts.join(' et ')}.`) : null;
+}
+function drawTrace(steps, legs, fit = true) {
+  nearLayer.clearLayers();
+  const lines = legs.filter(Boolean).map((l) => l.line);
+  for (const ln of lines) L.polyline(ln, { color: ink(), weight: 5, opacity: 0.9, interactive: false }).addTo(nearLayer);
+  steps.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
+  const all = [...lines.flat(), ...steps.map((p) => [p.lat, p.lng])];
+  if (fit && all.length) map.fitBounds(L.latLngBounds(all).pad(0.15), { paddingTopLeft: [10, 70], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false, maxZoom: 17 });
+}
+/** Les étapes d'un parcours posées sur le plan, avec le chemin entre deux étapes (null s'il n'y en a pas). */
+function placeSteps(steps) {
+  const out = steps.map((st) => ({ ...st, s: snap(streets, st) }));
+  const legs = out.slice(1).map((st, i) => route(streets, out[i].s, st.s));
+  return { steps: out, legs };
+}
+
+function openMyRoutes() {
+  track('Mes parcours');
+  if (!streets) {
+    const err = el('p', { class: 'warn', role: 'alert', hidden: true });
+    const get = el('button', { type: 'button', class: 'btn primary go-bar', onclick: async () => {
+      get.disabled = true; get.textContent = 'Téléchargement…'; err.hidden = true;
+      try { await downloadStreets(); openMyRoutes(); } catch (e) { err.textContent = e.message; err.hidden = false; get.disabled = false; fill(get, ico('download'), 'Télécharger le plan des rues'); }
+    } }, ico('download'), 'Télécharger le plan des rues');
+    openSheet([ico('route'), ' Mes parcours'], el('div', { class: 'stack' },
+      el('p', { class: 'summary' }, 'Pour que ton chemin suive les rues'),
+      el('p', { class: 'help' }, `L'appli a besoin du plan des rues de Paris (OpenStreetMap). Il se télécharge une seule fois, ${RUES_SIZE}, puis reste sur ton téléphone, même sans réseau. Il est refait chaque mois avec les autres données.`),
+      el('p', { class: 'help' }, 'Rien n\'est envoyé : le chemin se calcule sur ton téléphone.'),
+      err, get,
+      foot(backBtn(named('Itinéraire', openRoutes))),
+    ), { name: 'myroutes', again: openMyRoutes });
+    loadStreets().then((p) => { if (p && view === 'myroutes') openMyRoutes(); }); // déjà sur le téléphone : la liste
+    return;
+  }
+  loadStreets();
+  trace = null; nearLayer.clearLayers();
+  const list = cleanRoutes(state.routes);
+  openSheet([ico('route'), ' Mes parcours'], el('div', { class: 'stack' },
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => openTrace() }, ico('plus'), 'Nouveau parcours'),
+    list.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Mes parcours'), el('span', {}, String(list.length))) : null,
+    list.length ? el('ul', { class: 'items' }, list.map((r) => {
+      const { legs } = placeSteps(r.steps); const m = legsTotal(legs);
+      return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openRoute(r.id) },
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, r.name),
+          el('span', { class: 'item-sub' }, [plural(r.steps.length, 'étape', 'étapes'), legs.every(Boolean) ? fmtDist(m) : null, legs.every(Boolean) ? routeMin(m) : null].filter(Boolean).join(' · ')))));
+    })) : el('p', { class: 'help' }, 'Touche « Nouveau parcours », puis la carte, là où tu veux passer.'),
+    foot(backBtn(named('Itinéraire', openRoutes))),
+  ), { name: 'myroutes', again: openMyRoutes });
+}
+
+/** Tracer un parcours : nouveau (r absent) ou Modifier (r : un de mes parcours). */
+function openTrace(r = null) {
+  if (!streets) { openMyRoutes(); return; }
+  if (!trace || (r && trace.id !== r.id)) {
+    const placed = r ? placeSteps(r.steps) : { steps: [], legs: [] };
+    trace = { id: r?.id ?? null, name: r?.name ?? '', ...placed };
+  }
+  showTrace(true);
+}
+function showTrace(fit = false) {
+  const t = trace; const n = t.steps.length; const total = legsTotal(t.legs);
+  const nameIn = t.id ? el('input', { type: 'text', maxlength: 80, value: t.name, 'aria-label': 'Nom du parcours', placeholder: autoName(t.steps) }) : null;
+  nameIn?.addEventListener('input', () => { t.name = nameIn.value; });
+  const leave = () => { const id = t.id; trace = null; nearLayer.clearLayers(); if (id && cleanRoutes(state.routes).some((x) => x.id === id)) openRoute(id); else openMyRoutes(); };
+  const save = () => {
+    if (n < 2) { toast('Pose au moins 2 étapes.'); return; }
+    const steps = t.steps.map(({ s: _s, ...st }) => st);
+    const rec = { id: t.id ?? routeId(), name: (t.name || '').trim() || autoName(steps), at: Date.now(), steps };
+    state.routes = cleanRoutes([rec, ...cleanRoutes(state.routes).filter((x) => x.id !== rec.id)]);
+    persist(); trace = null;
+    openRoute(rec.id);
+    toast('Parcours enregistré');
+  };
+  openSheet([ico('route'), t.id ? ' Modifier le parcours' : ' Nouveau parcours'], el('div', { class: 'stack' },
+    nameIn ? el('label', { class: 'field' }, el('span', {}, 'Nom du parcours'), nameIn) : null,
+    el('p', { class: 'summary' }, n > 1 ? `${plural(n, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)}` : n ? '1 étape' : 'Aucune étape'),
+    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), n ? ' Touche la carte pour ajouter une étape. Le chemin suit les rues.' : ' Touche la carte là où tu veux partir.'),
+    crossingNote(t.legs),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', disabled: !n, onclick: () => { t.steps.pop(); t.legs.pop(); showTrace(); } }, 'Retirer la dernière'),
+      el('button', { type: 'button', class: 'btn', disabled: n < 3, onclick: bestOrder }, 'Meilleur ordre')),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))), // toujours actif : « Pose au moins 2 étapes » sinon
+  ), { name: 'trace', again: () => showTrace() });
+  drawTrace(t.steps, t.legs, fit && n > 0);
+}
+function bestOrder() {
+  const t = trace; if (!t || t.steps.length < 3) return;
+  const order = [t.steps[0], ...orderRoute(t.steps[0], t.steps.slice(1))];
+  const legs = order.slice(1).map((st, i) => route(streets, order[i].s, st.s));
+  if (legs.some((l) => !l)) { toast('Pas de meilleur ordre trouvé'); return; }
+  const before = legsTotal(t.legs); t.steps = order; t.legs = legs;
+  showTrace(true);
+  toast(legsTotal(legs) < before - 5 ? `Dans le meilleur ordre : ${fmtDist(legsTotal(legs))}` : 'C\'était déjà le meilleur ordre');
+}
+/** Un appui sur la carte pendant le tracé : une étape de plus (sur la rue la plus proche, ou un de mes lieux). */
+function traceTap(lat, lng, lieu = null) {
+  const t = trace; if (!t || view !== 'trace') return;
+  if (t.steps.length >= ROUTE_STEPS_MAX) { toast(`${ROUTE_STEPS_MAX} étapes au plus.`); return; }
+  const near = lieu ?? state.points.filter((p) => !p.gone && !p.owner).map((p) => ({ p, d: distanceM({ lat, lng }, p) })).filter((x) => x.d <= LIEU_SNAP_M).sort((a, b) => a.d - b.d)[0]?.p;
+  const at = near ? { lat: near.lat, lng: near.lng } : { lat, lng };
+  const s = snap(streets, at);
+  if (!s) { toast(`Pas de rue à pied à moins de ${SNAP_MAX_M} m : touche plus près d'une rue.`); return; }
+  const step = near ? { lat: near.lat, lng: near.lng, name: near.name.slice(0, 80), pid: near.id, s } : { lat: s.lat, lng: s.lng, name: s.name || `Étape ${t.steps.length + 1}`, s };
+  const prev = t.steps.at(-1);
+  if (prev) {
+    const leg = route(streets, prev.s, s);
+    if (!leg) { toast('Pas de chemin à pied jusque-là d\'après le plan des rues.'); return; }
+    t.legs.push(leg);
+  }
+  t.steps.push(step);
+  showTrace();
+}
+map.on('click', (e) => {
+  if (view !== 'trace' || moving || e.originalEvent?.target?.closest?.('.leaflet-interactive, .leaflet-marker-icon')) return;
+  traceTap(e.latlng.lat, e.latlng.lng);
+});
+
+function openRoute(id) {
+  const r = cleanRoutes(state.routes).find((x) => x.id === id);
+  if (!r) { openMyRoutes(); return; }
+  if (!streets) { openMyRoutes(); return; }
+  trace = null;
+  const { steps, legs } = placeSteps(r.steps);
+  const ok = legs.every(Boolean); const total = legsTotal(legs);
+  const zone = el('div', { class: 'stack' });
+  const showDel = () => fill(zone, el('button', { type: 'button', class: 'btn danger', onclick: askDel }, ico('trash-2'), 'Supprimer ce parcours'));
+  const askDel = () => fill(zone,
+    el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${r.name} » ? Ce n'est pas annulable.`),
+    el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: showDel }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+        state.routes = cleanRoutes(state.routes).filter((x) => x.id !== id); persist(); nearLayer.clearLayers(); openMyRoutes(); toast('Parcours supprimé');
+      } }, 'Oui, supprimer')));
+  showDel();
+  openSheet(el('span', { class: 'title-clamp' }, ico('route'), ` ${r.name}`), el('div', { class: 'stack' }, // nom sur 2 lignes au plus (charte § 5)
+    el('p', { class: 'summary' }, ok ? `${plural(steps.length, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)} (sans les arrêts)` : plural(steps.length, 'étape', 'étapes')),
+    ok ? null : el('p', { class: 'warn' }, 'Le plan des rues a changé : un bout du chemin n\'est plus trouvé. Touche Modifier pour reposer l\'étape.'),
+    crossingNote(legs),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(steps.map(({ s: _s, ...st }) => st), 'Parcours') }, ico('navigation'), 'Balade guidée'),
+    el('div', { class: 'row' },
+      steps.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(steps), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
+      el('button', { type: 'button', class: 'btn', onclick: () => openTrace(r) }, ico('pencil'), 'Modifier')),
+    el('ol', { class: 'items' }, steps.map((p, i) => el('li', { class: 'item' }, el(p.pid && state.points.some((x) => x.id === p.pid) ? 'button' : 'div',
+      { class: 'item-main', ...(p.pid && state.points.some((x) => x.id === p.pid) ? { type: 'button', onclick: () => openDetail(p.pid, named(r.name, () => openRoute(id))) } : {}) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
-        el('span', { class: 'item-sub' }, i === 0 && !start ? 'Départ' : [fmtDist(leg), walkPart(leg)].filter(Boolean).join(' · ')))));
-  });
-  openSheet('Ton parcours', el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${fmtDist(total)} au total${isFar(total) ? '' : ` · ${fmtWalk(total)} (sans les arrêts)`}.`),
-    el('ol', { class: 'items' }, steps),
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(route, 'Parcours') }, ico('navigation'), 'Balade guidée'),
-    el('div', { class: 'row' },
-      el('a', { class: 'btn', href: routeUrl(route), target: '_blank', rel: 'noopener' }, 'Google Maps'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(route, 'Mon parcours') }, ico('share-2'), 'Partager')),
-    el('button', { type: 'button', class: 'btn', onclick: () => openRoutePicker(new Set(chosen.map((p) => p.id))) }, 'Changer les lieux'),
-  ), { tall: true, name: 'route', again: () => renderRoute(start, chosen) });
-  nearLayer.clearLayers();
-  const line = [...(start ? [start] : []), ...route].map((p) => [p.lat, p.lng]);
-  L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
-  route.forEach((p, i) => L.marker([p.lat, p.lng], { interactive: false, keyboard: false, zIndexOffset: 1000,
-    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="step-pin">${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 30] }) }).addTo(nearLayer));
-  map.fitBounds(L.latLngBounds(line).pad(0.2), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
+        el('span', { class: 'item-sub' }, [p.pid ? 'Un de tes lieux' : null, i === 0 ? 'Départ' : legs[i - 1] ? `${fmtDist(legs[i - 1].m)} depuis l'étape ${i}` : 'Chemin pas trouvé'].filter(Boolean).join(' · '))))))),
+    zone,
+    foot(backBtn(routesBack)),
+  ), { name: 'route', again: () => openRoute(id) });
+  drawTrace(steps, legs);
 }
 
 /* ---------- Partager un lieu par un lien (tout est dans le #, rien ne passe par un serveur) ---------- */
@@ -6599,7 +6739,7 @@ function openRoutes() {
   openSheet([ico('route'), ' Itinéraire'], el('div', { class: 'menu' },
     row('hourglass', 'J\'ai du temps', 'Une boucle à pied qui revient ici, selon ton temps libre', () => openFreeTime()),
     row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
-    row('route', 'Relier des lieux', '2 à 4 de tes lieux dans le meilleur ordre', () => openRoutePicker()),
+    row('route', 'Mes parcours', 'Touche la carte pour poser tes étapes ; le chemin suit les rues', () => openMyRoutes()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
     row('signpost', 'Circuits de visite', 'Des balades d\'un métro à l\'autre, avec leur tracé', () => openCircuits(openRoutes)),
     row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
@@ -7728,7 +7868,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('details', { class: 'help-item sources' }, el('summary', {}, ico('info'), 'Confidentialité'), el('div', { class: 'stack sources-body' }, /* v234 : 33 lignes repliées (mon choix 3A) */
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -8894,14 +9034,14 @@ const HELP = [
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
-    '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite, Rues sans voitures.',
+    '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
     '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Relier des lieux** : 2 à 4 lieux dans le meilleur ordre.',
+    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
@@ -9042,6 +9182,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
     '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
     '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
@@ -9051,7 +9192,6 @@ const HELP = [
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
     '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
-    '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
   ]],
 ];
 

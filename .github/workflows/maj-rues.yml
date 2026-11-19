@@ -1,0 +1,84 @@
+# Robot du plan des rues à pied (Mes parcours, v244) : refait data/rues.json chaque mois depuis OpenStreetMap.
+# Séparé du robot des données (« Mise à jour des données ») : ses 10 demandes sont longues et les serveurs souvent
+# saturés (19 nov. 2026 : plusieurs passages pour tout obtenir). Jamais bloquant : s'il manque un morceau de rues,
+# ou si le plan obtenu est trop petit ou trop morcelé (tools/maj-rues.py), le plan d'avant reste et rien n'est publié.
+# Rien ne concerne le téléphone ni la position : il ne lit que des données publiques.
+name: Plan des rues
+
+on:
+  schedule:
+    - cron: '41 4 2 * *' # le 2 du mois (le lendemain du robot des données), vers 5 h 40 à Paris
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: maj-rues
+  cancel-in-progress: false
+
+jobs:
+  rues:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Demander les rues à OpenStreetMap (9 cases et les parcs)
+        run: |
+          set -u
+          mkdir -p /tmp/src
+          python3 -I tools/maj-rues.py demandes /tmp/src
+          UA='Carte-paris, robot mensuel (https://github.com/Limopo74/Carte-paris)'
+          for q in /tmp/src/q-*.txt; do
+            k=$(basename "$q" .txt); out="/tmp/src/r-${k#q-}.json"
+            tours="1 2 3"; [ "$k" = q-parcs ] && tours="1 2"
+            for tour in $tours; do
+              for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+                if curl -fsS --compressed --max-time 360 -A "$UA" --data-urlencode "data@$q" -o "$out" "$server"; then
+                  echo "$k : $(wc -c < "$out") octets depuis $server (tour $tour)"; break 2
+                fi
+                echo "$k : $server ne répond pas (tour $tour)"; rm -f "$out"; sleep 20
+              done
+              sleep 60
+            done
+            [ -s "$out" ] || echo "$k : pas reçu"
+          done
+          exit 0
+
+      - name: Refaire le plan (seulement si toutes les rues sont là)
+        id: plan
+        run: |
+          set -u
+          for k in 00 01 02 10 11 12 20 21 22; do
+            [ -s "/tmp/src/r-$k.json" ] || { echo "Morceau q-$k manquant : plan d'avant gardé."; echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; }
+          done
+          [ -s /tmp/src/r-parcs.json ] || echo "Parcs pas reçus : plan fait sans eux (les parcs ne sont alors pas évités)."
+          if python3 -I tools/maj-rues.py /tmp/src data/rues.json "$(TZ=Europe/Paris date +%F)"; then echo "ok=1" >> "$GITHUB_OUTPUT"
+          else git checkout -- data/rues.json; echo "Plan refusé : plan d'avant gardé."; echo "ok=0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Contrôler et publier
+        if: steps.plan.outputs.ok == '1'
+        run: |
+          set -euo pipefail
+          npm test
+          git config user.name "Robot des données"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/rues.json; then echo "Rien de changé."; exit 0; fi
+          cp data/rues.json /tmp/rues-neuf.json
+          for essai in 1 2 3; do
+            git fetch -q origin main
+            git reset -q --hard FETCH_HEAD
+            cp /tmp/rues-neuf.json data/rues.json
+            git add data/rues.json
+            if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
+            npm test > /tmp/tests.txt 2>&1 || { tail -30 /tmp/tests.txt; exit 1; }
+            git commit -q -m "Plan des rues du $(TZ=Europe/Paris date +%-d/%m/%Y) (robot)"
+            if git push; then exit 0; fi
+            echo "Envoi refusé (essai $essai), nouvel essai dans 20 s."; sleep 20
+          done
+          exit 1

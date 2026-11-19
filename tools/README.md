@@ -38,6 +38,10 @@ Options (variables d'environnement) :
 
 Rien ne part sur Internet pendant le contrôle : les fonds de carte et les services en ligne sont coupés, et l'agenda de Sorties est simulé avec cinq sorties fictives. Les vrais services (agenda, galeries, météo, Vélib') ne sont donc **pas** vérifiés ici.
 
+## Robot du plan des rues (Mes parcours, v244)
+
+`.github/workflows/maj-rues.yml` refait `data/rues.json` le 2 de chaque mois (ou à la demande : onglet Actions → « Plan des rues » → Run workflow) avec `tools/maj-rues.py` : les rues où l'on marche dans Paris, trottoirs compris, et les parcs, demandés à OpenStreetMap en 10 morceaux. Jamais bloquant : s'il manque un morceau, ou si le plan est trop petit ou trop morcelé, le plan d'avant reste. Le fichier (format 2, environ 6 Mo, 1,7 Mo compressé en novembre 2026) n'est pas installé avec l'appli : il est téléchargé la première fois que « Mes parcours » sert, puis gardé à part sur le téléphone.
+
 ## Robot de mise à jour des données (GitHub Actions)
 
 `.github/workflows/maj-donnees.yml` refait chaque 1er du mois (ou à la demande : onglet Actions → « Mise à jour des données » → Run workflow) les lignes et gares, les avantages Navigo, les toilettes RATP et les contours des arrondissements (`maj-arrondissements.py`, pour Mon Paris). Il télécharge les exports officiels (API Opendatasoft d'IDFM et de la RATP), relance `maj-lignes.py`, `maj-navigo.py` et `maj-sanitaires.py`, puis `verif-donnees.py` (aucun fichier vide, pas plus de 20 % d'éléments perdus, champs « oui » encore présents) et `npm test`. Il ne publie que si tout passe. Mérimée, marchés couverts et listes annuelles restent à faire avec Claude.
