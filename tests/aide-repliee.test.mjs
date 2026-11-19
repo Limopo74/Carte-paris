@@ -36,3 +36,24 @@ test('aide repliée : la page d\'aide elle-même n\'en a pas', () => {
   const body = app.slice(i, app.indexOf('\n}\n', i));
   assert.ok(!body.includes("'help tip'"));
 });
+
+// v250 : « dès qu'il y a quelques lignes de texte secondaire, le replier » (ma demande du 19 nov.).
+// Un texte gris resté visible (mise en garde, ce qui part du téléphone, état) tient en une ou deux phrases courtes :
+// son explication et sa source vont dans un `help tip` à côté. Au-delà de 200 signes, le test échoue.
+// Exceptions voulues : les textes déjà dans un bloc replié (Sorties → Aide, Confidentialité) et les listes datées de Données de l'appli.
+test('aide repliée : aucun texte gris visible de plus de 200 signes', () => {
+  const DEJA_REPLIE = ['Mise à jour automatique : l', 'Sources : marchés et agenda', 'Listes tenues par Claude, vérifiées le', 'Tes lieux, tes photos et ta position restent sur ce téléphone'];
+  const bad = [];
+  for (const [i, l] of lines.entries()) {
+    const k = l.indexOf("el('p', { class: 'help' }, ");
+    if (k < 0) continue;
+    const rest = l.slice(k + 27);
+    const q = rest[0];
+    if (q !== "'" && q !== '`') continue;
+    let j = 1;
+    while (j < rest.length && !(rest[j] === q && rest[j - 1] !== '\\')) j++;
+    const lit = rest.slice(1, j).replace(/\$\{[^}]*\}/g, '…').replace(/\\'/g, "'");
+    if (lit.length > 200 && !DEJA_REPLIE.some((d) => lit.startsWith(d))) bad.push(`${i + 1} (${lit.length} signes) : ${lit.slice(0, 70)}`);
+  }
+  assert.deepEqual(bad, [], `Texte gris trop long : garde la phrase utile, range le reste dans un « help tip »\n${bad.join('\n')}`);
+});

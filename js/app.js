@@ -57,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (251)';
+const VERSION = '19 novembre 2026 (252)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -687,7 +687,7 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucune impression écrite.'),
-    all.length ? null : el('p', { class: 'help' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
+    all.length ? null : el('p', { class: 'help tip' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.n ? passageRow(x, () => openDayNote(named('Mon journal', again), x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
@@ -1711,7 +1711,7 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
         ? 'La recherche ne répond pas. Vérifie ta connexion internet, puis réessaie.'
         : 'Rien trouvé dans Paris et les départements voisins (92, 93, 94). Essaie avec moins de mots, ou ajoute le quartier (ex. : « Uniqlo Opéra »).';
     }
-    if (P.length || M.length) out.append(el('p', { class: 'help' }, `Lieux : données © OpenStreetMap, ${box ? 'cherchés d\'abord dans la zone que montre la carte (déplace ou zoome la carte, puis relance)' : 'cherchés dans tout Paris et autour'}, 40 au plus. OpenStreetMap ne connaît pas tous les commerces (surtout les récents) : pour un nom courant (« boulangerie »), zoome sur le quartier ou ajoute la rue.`));
+    if (P.length || M.length) out.append(el('p', { class: 'help' }, 'OpenStreetMap ne connaît pas tous les commerces, surtout les récents.'), el('p', { class: 'help tip' }, `Lieux : données © OpenStreetMap, ${box ? 'cherchés d\'abord dans la zone que montre la carte (déplace ou zoome la carte, puis relance)' : 'cherchés dans tout Paris et autour'}, 40 au plus. Pour un nom courant (« boulangerie »), zoome sur le quartier ou ajoute la rue.`));
   };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
 
@@ -3097,7 +3097,7 @@ function renderNear(fit = false) {
   if (farther > 0 && inside) {
     body.push(el('p', { class: 'help' }, `${plural(farther, 'autre', 'autres')} plus loin que ${ringText(maxRing)}.`));
   }
-  if (inside) body.push(el('p', { class: 'help' }, `Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».${origin.kind === 'gps' && !following ? ' La liste se met à jour toute seule quand tu as marché 50 m.' : ''}`));
+  if (inside) body.push(el('p', { class: 'help' }, 'Temps à pied estimés, détours compris.'), el('p', { class: 'help tip' }, `Le trajet exact est dans « Y aller ».${origin.kind === 'gps' && !following ? ' La liste se met à jour toute seule quand tu as marché 50 m.' : ''}`));
   if (state.showTtb && ttbList().length) {
     // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min (réglable, v214), puis toute la liste
     const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(tune('ttbMin'))).sort((a, b) => a.d - b.d);
@@ -3407,7 +3407,8 @@ function openMyRoutes() {
     } }, ico('download'), 'Télécharger le plan des rues');
     openSheet([ico('route'), ' Mes parcours'], el('div', { class: 'stack' },
       el('p', { class: 'summary' }, 'Pour que ton chemin suive les rues'),
-      el('p', { class: 'help' }, `L'appli a besoin du plan des rues de Paris (OpenStreetMap). Il se télécharge une seule fois, ${RUES_SIZE}, puis reste sur ton téléphone, même sans réseau. Il est refait chaque mois avec les autres données.`),
+      el('p', { class: 'help' }, `L'appli a besoin du plan des rues de Paris (${RUES_SIZE}), téléchargé une seule fois.`),
+      el('p', { class: 'help tip' }, 'Il vient d\'OpenStreetMap, reste ensuite sur ton téléphone, même sans réseau, et il est refait chaque mois avec les autres données.'),
       el('p', { class: 'help' }, 'Rien n\'est envoyé : le chemin se calcule sur ton téléphone.'),
       err, get,
       foot(backBtn(named('Itinéraire', openRoutes))),
@@ -3661,7 +3662,8 @@ function openShareCircuit(c, back) {
   const hasTexts = c.etapes.some((e) => e.t);
   openSheet([ico('share-2'), ' Partager le circuit'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, c.titre),
-    el('p', { class: 'help' }, 'Le lien contient le titre, les étapes et le tracé. La personne l\'ouvre dans Ma carte de Paris et peut l\'ajouter à ses circuits. Rien ne passe par un serveur.'),
+    el('p', { class: 'help' }, 'Le lien contient le titre, les étapes et le tracé. Rien ne passe par un serveur.'),
+    el('p', { class: 'help tip' }, 'La personne l\'ouvre dans Ma carte de Paris et peut l\'ajouter à ses circuits.'),
     hasTexts ? el('label', { class: 'item-main check-row' }, box, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec mes textes'), el('span', { class: 'item-sub' }, 'Tes textes d\'étapes partent aussi'))) : null,
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink(c.titre, `Circuit « ${c.titre} »`, myCircuitLink(location.href, c, withTexts)) }, ico('send'), 'Envoyer le lien'),
     foot(backBtn(back)),
@@ -3715,7 +3717,8 @@ function openStreetsFor(next, back) {
   } }, ico('download'), 'Télécharger le plan des rues');
   openSheet([ico('route'), ' Étapes du circuit'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, 'Pour que le chemin suive les rues'),
-    el('p', { class: 'help' }, `Changer les étapes demande le plan des rues de Paris (OpenStreetMap). Il se télécharge une seule fois, ${RUES_SIZE}, puis reste sur ton téléphone. Rien n'est envoyé.`),
+    el('p', { class: 'help' }, `Changer les étapes demande le plan des rues de Paris (${RUES_SIZE}), téléchargé une seule fois. Rien n'est envoyé.`),
+    el('p', { class: 'help tip' }, 'Il vient d\'OpenStreetMap et reste ensuite sur ton téléphone.'),
     err, get, foot(backBtn(back))), { name: 'streets-for' });
 }
 
@@ -3838,7 +3841,8 @@ function openSharePlace(p, back) {
     nc?.row,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => sharePlace(p, Boolean(nc?.box.checked)) }, ico('share-2'), 'Envoyer le lien'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => showQr(p, back, Boolean(nc?.box.checked)) }, ico('qr-code'), 'QR code'),
-    el('p', { class: 'help' }, 'Ton proche ouvre le lien : le lieu s\'ouvre, prêt à être ajouté à sa carte. Ton commentaire ne part que si la case est cochée.'),
+    el('p', { class: 'help' }, 'Ton commentaire ne part que si la case est cochée.'),
+    el('p', { class: 'help tip' }, 'Ton proche ouvre le lien : le lieu s\'ouvre, prêt à être ajouté à sa carte.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche')),
   ), { name: `partager:${p.id}` });
 }
@@ -3990,7 +3994,8 @@ async function showVelib(at = null) {
       setVelibLayer(!velibOn);
       if (velibOn) { nearLayer.clearLayers(); closeSheet(); } else showVelib(from);
     } }, ico('map'), velibOn ? 'Masquer les stations de la carte' : 'Toutes les stations sur la carte'),
-    el('p', { class: 'help' }, `Données Vélib' Métropole en temps réel, reçues à ${hourText(velibAt)}. Une station qui n'a rien envoyé depuis plus d'une heure n'est pas proposée : ses nombres seraient sans doute faux.`),
+    el('p', { class: 'help' }, `Données Vélib' Métropole reçues à ${hourText(velibAt)}.`),
+    el('p', { class: 'help tip' }, 'En temps réel. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'est pas proposée : ses nombres seraient sans doute faux.'),
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
@@ -4741,7 +4746,8 @@ function myStats() {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Marche et air'), el('span', {}, '')),
     el('div', { class: 'stat-tiles' }, tile(`${minOf(t.m)} min`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
     svg, readout, legend, table,
-    el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position (Ma position et direction, balade guidée). L\'air est une estimation du quartier, heure par heure, pas une mesure sur toi.'),
+    el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position. L\'air : une estimation du quartier, pas une mesure sur toi.'),
+    el('p', { class: 'help tip' }, 'La marche est comptée avec Ma position et direction ou une balade guidée ; l\'air, heure par heure.'),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
     el('div', { class: 'stat-tiles' }, tile(String(ps.added), 'ajoutés'), tile(String(ps.visited), 'visités'), tile(String(ps.fav), 'favoris'), tile(ps.stars != null ? `${String(ps.stars).replace('.', ',')} ★` : '–', 'étoiles en moyenne')),
     ps.byCat.length ? hbars(ps.byCat.slice(0, 6).map(([id, n]) => [catOf(id).name, n, catDot(id)]), 'Lieux par catégorie') : null,
@@ -4844,7 +4850,8 @@ async function openWhereAmI() {
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
     quarter,
-    el('p', { class: 'help' }, 'Pour trouver ton adresse, ta position est envoyée à l\'IGN (Géoplateforme, service public). Le quartier vient de Wikipédia, avec une position arrondie à 100 m. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
+    el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
+    el('p', { class: 'help tip' }, 'L\'IGN tient la Géoplateforme, un service public. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   );
   openSheet([ico('locate'), ' Où suis-je ?'], body, { name: 'where', again: openWhereAmI });
@@ -5094,7 +5101,8 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
       ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openVenues(named('Sortie', again)) }, ico('heart'), el('span', {}, 'Dans Mes salles', el('small', {}, e.place)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))
       : el('button', { type: 'button', class: 'fiche-row', onclick: () => { state.venues = cleanVenues([...cleanVenues(state.venues), e.place]); persist(); again(); toast(`${e.place} : dans Mes salles`); } },
         ico('heart'), el('span', {}, 'Suivre ce lieu', el('small', {}, `${e.place} : son programme en tête de Sorties`)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))) : null,
-    el('p', { class: 'help' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur. Horaires et prix : vérifie sur son site.'),
+    el('p', { class: 'help' }, 'Horaires et prix : vérifie sur le site de l\'organisateur.'),
+    el('p', { class: 'help tip' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur.'),
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'sortie', again });
@@ -5156,7 +5164,8 @@ function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; 
       open: (x, b) => openFreeDaySpot(x, date, b), back: again, from: o }) }, ico('map'), 'Voir sur la carte') : null,
     el('ul', { class: 'items ev-list' }, list.map((f) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeDaySpot(f, date, here), sub: [hoursOn(f, date), f.when], d: f.d,
       tags: [/réservation/i.test(`${f.note ?? ''} ${f.when}`) ? el('span', { class: 'tag closed' }, 'Sur réservation') : null] }))),
-    el('p', { class: 'help' }, `Liste vérifiée le ${FREE_CHECKED}. Distances depuis ${o.kind === 'map' ? 'le centre de la carte' : 'le point de départ de Sorties'}. Les règles changent : vérifie sur le site du lieu.`),
+    el('p', { class: 'help' }, `Distances depuis ${o.kind === 'map' ? 'le centre de la carte' : 'le point de départ de Sorties'}. Les règles changent : vérifie sur le site du lieu.`),
+    el('p', { class: 'help tip' }, `Liste vérifiée le ${FREE_CHECKED}.`),
     foot(backBtn(back)),
   ), { tall: true, name: `gratuitjour:${date.getTime()}`, again });
 }
@@ -5224,7 +5233,8 @@ function openFindOutings(initial = '', tab = 'all') {
   };
   input.addEventListener('input', run);
   openSheet([ico('search'), ` ${title}`], el('div', { class: 'stack' }, input, box,
-    el('p', { class: 'help' }, `Agenda de la Ville de Paris, tout Paris, 7 jours${tab === 'free' ? ', seulement les sorties gratuites' : tab === 'art' ? ', seulement les expos' : ''}. Il n'a pas toutes les sorties de Paris. Ce que tu tapes reste sur le téléphone.`),
+    el('p', { class: 'help' }, 'L\'agenda de la Ville n\'a pas toutes les sorties de Paris.'),
+    el('p', { class: 'help tip' }, `Agenda de la Ville de Paris, tout Paris, 7 jours${tab === 'free' ? ', seulement les sorties gratuites' : tab === 'art' ? ', seulement les expos' : ''}. Ce que tu tapes reste sur le téléphone.`),
     foot(backBtn(openEvents))), { tall: true, name: `chercher-${tab}`, again: () => openFindOutings(input.value, tab) });
   run();
   input.focus();
@@ -5258,7 +5268,8 @@ async function openWeekExpos() {
           el('span', { class: 'week-arr-sub' }, [plural(g.items.length, 'expo', 'expos'), near != null ? `${g.items.length > 1 ? 'la plus proche ' : ''}à ${fmtDist(near)}` : ''].filter(Boolean).join(' · '))),
         el('ul', { class: 'items week-items ev-list' }, g.items.slice(0, 40).map((e) => eventRow(e, openWeekExpos, { week: true }))));
     })) : el('p', { class: 'empty' }, 'Aucune expo trouvée dans l\'agenda cette semaine.'),
-    el('p', { class: 'help' }, `Source : agenda « Que faire à Paris ? » de la Ville de Paris, téléchargé pour tout Paris (ta position n'est pas envoyée). Les galeries privées n'y sont souvent pas. ${o ? (o.kind === 'map' ? 'Distances depuis le centre de la carte.' : 'Distances depuis toi.') : ''}`),
+    el('p', { class: 'help' }, `Les galeries privées ne sont souvent pas dans l'agenda de la Ville.${o ? (o.kind === 'map' ? ' Distances depuis le centre de la carte.' : ' Distances depuis toi.') : ''}`),
+    el('p', { class: 'help tip' }, 'Source : agenda « Que faire à Paris ? » de la Ville de Paris, téléchargé pour tout Paris (ta position n\'est pas envoyée).'),
     back,
   ), { tall: true, name: 'week', again: openWeekExpos });
 }
@@ -5295,7 +5306,8 @@ async function openArtPlaces(focus = '', from = null) {
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
       open: (x) => openArtPlaces(x.name), back: () => openArtPlaces() }) }, ico('map'), 'Voir sur la carte'),
     ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
-    el('p', { class: 'help' }, `Liste des lieux vérifiée le ${ART_PLACES_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée). Tous les rendez-vous n'y sont pas : le programme officiel fait foi. Le Centre Pompidou est fermé jusqu'en 2030, ses expositions ont lieu au Grand Palais ; le musée Maillol rouvre le 13 janvier 2027.`),
+    el('p', { class: 'help' }, 'Le Centre Pompidou est fermé jusqu\'en 2030 (ses expositions au Grand Palais) ; le musée Maillol rouvre le 13 janvier 2027. L\'agenda n\'a pas tous les rendez-vous : le programme officiel fait foi.'),
+    el('p', { class: 'help tip' }, `Liste des lieux vérifiée le ${ART_PLACES_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
     back,
   ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from) });
   if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
@@ -5332,7 +5344,8 @@ function openLate() {
       el('summary', {}, el('span', { class: 'week-arr-name' }, DAY_NAMES[w.k].charAt(0).toUpperCase() + DAY_NAMES[w.k].slice(1)),
         el('span', { class: 'week-arr-sub' }, w.list.map((p) => p.name).join(', '))),
       el('ul', { class: 'items' }, w.list.map((p) => row(p, back)))))),
-    el('p', { class: 'help' }, `À gauche, la fermeture. « Arriver avant » : fermeture du guichet ou dernière entrée, lue le ${LAST_CHECKED} sur le site du lieu ; le lieu quitte alors « Ce soir ». Sans cette ligne (Orsay, Art moderne) : heure non trouvée, le lieu quitte « Ce soir » une heure avant sa fermeture. Horaires habituels, vérifiés le ${LATE_CHECKED}. Fermetures exceptionnelles et 1er samedi : vérifie sur le site. Liste remise à jour avec les listes annuelles.`),
+    el('p', { class: 'help' }, 'Horaires habituels. Fermetures exceptionnelles et 1er samedi : vérifie sur le site du lieu.'),
+    el('p', { class: 'help tip' }, `À gauche, la fermeture. « Arriver avant » : fermeture du guichet ou dernière entrée, lue le ${LAST_CHECKED} sur le site du lieu ; le lieu quitte alors « Ce soir ». Sans cette ligne (Orsay, Art moderne) : heure non trouvée, le lieu quitte « Ce soir » une heure avant sa fermeture. Horaires vérifiés le ${LATE_CHECKED}, remis à jour avec les listes annuelles.`),
     foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); }))),
   ), { tall: true, name: 'ouvert-tard', again: openLate });
 }
@@ -5378,7 +5391,8 @@ function openArtist(name, back = null) {
     ...(museums.length ? [
       el('h3', { class: 'ring-title' }, el('span', {}, 'Toute l\'année dans les musées'), el('span', {}, String(museums.length))),
       el('ul', { class: 'items ev-list' }, museums.map((m) => sortieCard({ genre: 'musee', name: m.n, sub: [m.a], d: m.d, onclick: () => openMuseum(m) }))),
-      el('p', { class: 'help' }, `D'après la liste des musées de France de la Région Île-de-France${museesInfo.updated ? `, lue le ${frenchDate(museesInfo.updated)}` : ''}. Elle ne cite pas tout : un autre musée peut avoir ses œuvres. Quand elle n'écrit que le nom de famille, l'appli s'en contente, sauf s'il est porté par plusieurs artistes (David, Brueghel…). Une œuvre peut être prêtée ou en réserve : regarde sur le site du musée avant d'y aller pour elle.`),
+      el('p', { class: 'help' }, 'La liste de la Région ne cite pas tout : un autre musée peut avoir ses œuvres. Une œuvre peut être prêtée ou en réserve : regarde sur le site du musée avant d\'y aller pour elle.'),
+      el('p', { class: 'help tip' }, `D'après la liste des musées de France de la Région Île-de-France${museesInfo.updated ? `, lue le ${frenchDate(museesInfo.updated)}` : ''}. Quand elle n'écrit que le nom de famille, l'appli s'en contente, sauf s'il est porté par plusieurs artistes (David, Brueghel…).`),
     ] : []),
     el('h3', { class: 'fiche-sec' }, 'Son site'),
     link ? el('div', { class: 'fiche-toc' },
@@ -5446,7 +5460,8 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n), el('span', { class: 'item-sub' }, 'Un appui pour la suivre')))))) : null,
     el('label', { class: 'field' }, 'Suivre une salle', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
-    el('p', { class: 'help' }, 'Le plus simple : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie ou d\'un musée gratuit. L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Les salles qui n\'y publient pas n\'apparaîtront pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    el('p', { class: 'help' }, 'Les salles qui ne publient pas dans l\'agenda de la Ville n\'apparaîtront pas.'),
+    el('p', { class: 'help tip' }, 'Le plus simple : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie ou d\'un musée gratuit. L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
     foot(backBtn(back)),
   ), { tall: true, name: 'salles', again });
 }
@@ -5485,7 +5500,8 @@ async function openArtists() {
       el('button', { type: 'button', class: 'go-compass', onclick: () => removeName(n), 'aria-label': `Retirer ${n} de mes artistes` }, ico('x'))))) : null,
     el('label', { class: 'field' }, 'Ajouter un artiste', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
-    el('p', { class: 'help' }, 'L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le titre, le lieu et les mots-clés des sorties de l\'agenda « Que faire à Paris ? » de la Ville, sur 7 jours. Les galeries privées n\'y sont souvent pas. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    el('p', { class: 'help' }, 'Les galeries privées ne sont souvent pas dans l\'agenda de la Ville.'),
+    el('p', { class: 'help tip' }, 'L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le titre, le lieu et les mots-clés des sorties de l\'agenda « Que faire à Paris ? » de la Ville, sur 7 jours. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
     back,
   ), { tall: true, name: 'artistes', again: openArtists });
 }
@@ -5915,7 +5931,8 @@ async function openStreetArt() {
       open: (x, b) => openStreetArtCard(x, b), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
     near.length ? el('ul', { class: 'items ev-list' }, near.map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d,
       tags: [a.mine ? el('span', { class: 'tag open' }, 'Tes artistes') : null] }))) : null,
-    el('p', { class: 'help' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris rangée dans l'appli${streetArtUpdated ? ` le ${frenchDate(streetArtUpdated)}` : ''}, rien n'est envoyé). Les fresques, graffitis et mosaïques ne sont pas montrés : ils disparaissent trop souvent. La liste n'est pas complète.`),
+    el('p', { class: 'help' }, 'La liste n\'est pas complète. Les fresques, graffitis et mosaïques n\'y sont pas : ils disparaissent trop souvent.'),
+    el('p', { class: 'help tip' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris rangée dans l'appli${streetArtUpdated ? ` le ${frenchDate(streetArtUpdated)}` : ''}, rien n'est envoyé).`),
     backExpos,
   ), { tall: true, name: 'art-rue', again: openStreetArt });
 }
@@ -5963,7 +5980,8 @@ async function openGalleryWalk(from = null) {
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
     plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin0.lat, lng: origin0.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
     plan.route.length ? el('a', { class: 'btn', href: loopUrl(origin0, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
-    el('p', { class: 'help' }, 'Seules les galeries dont les horaires sont connus (OpenStreetMap) sont proposées, et seulement si elles sont ouvertes à ton arrivée. Ta position n\'est pas envoyée.'),
+    el('p', { class: 'help' }, 'Seules les galeries aux horaires connus, ouvertes à ton arrivée, sont proposées.'),
+    el('p', { class: 'help tip' }, 'Horaires d\'OpenStreetMap. Ta position n\'est pas envoyée.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire')),
   ), { tall: true, name: 'galwalk', again: () => openGalleryWalk() });
   nearLayer.clearLayers();
@@ -6025,7 +6043,8 @@ function showQr(p, back, withNote = false) {
   if (nc) nc.box.checked = withNote;
   openSheet([ico('qr-code'), ' QR code'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, p.name), box, nc?.row,
-    el('p', { class: 'help' }, `Ton ami le scanne avec l'appareil photo : le lieu s'ouvre, prêt à être ajouté à sa carte.${nc ? ' Ton commentaire ne part que si la case est cochée.' : ''}`),
+    nc ? el('p', { class: 'help' }, 'Ton commentaire ne part que si la case est cochée.') : null,
+    el('p', { class: 'help tip' }, 'Ton ami le scanne avec l\'appareil photo : le lieu s\'ouvre, prêt à être ajouté à sa carte.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche')),
   ), { name: 'qr' });
 }
@@ -6094,7 +6113,8 @@ async function openHomePlan(home) {
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
     best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     ...busBlock,
-    el('p', { class: 'help' }, `Métro et RER (là où le RER croise le métro) : estimation sans horaires.${home.bus ? ' Bus : les lignes qui vont jusqu\'à ton arrêt, sans horaires ni sens ; vérifie le sens à l\'arrêt. Touche un arrêt pour la boussole.' : ''}`),
+    el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
+    el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ' Bus : les lignes qui vont jusqu\'à ton arrêt. Touche un arrêt pour la boussole.' : ''}`),
     trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
@@ -6220,7 +6240,8 @@ async function openMyBusLines(query = '') {
       kept.sv && kept.lines[l.id] && !kept.stops[l.id] ? 'arrêts pas connus' : ''].filter(Boolean).join(' · '));
   const date = busDayText(busTracesFile?.data || kept.data);
   openSheet([ico('bus'), ' Mes lignes de bus'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Les lignes à voir sur la carte. Touche « Mes lignes de bus » dans ⋯ Plus pour les montrer ou les masquer. Le chemin des bus et leurs arrêts (en zoomant), sans horaires ni sens.'),
+    el('p', { class: 'help' }, 'Le chemin des bus et leurs arrêts (en zoomant), sans horaires ni sens.'),
+    el('p', { class: 'help tip' }, 'Les lignes à voir sur la carte. Touche « Mes lignes de bus » dans ⋯ Plus pour les montrer ou les masquer.'),
     mine.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Tes lignes'), el('span', {}, String(mine.length))) : null,
     mine.length ? el('div', {}, mine.map((l) => el('div', { class: 'cat-row mystation-row' },
       tag(l),
@@ -6229,7 +6250,8 @@ async function openMyBusLines(query = '') {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Ajouter une ligne'), el('span', {}, '')),
     mine.length >= BUS_LINES_MAX ? el('p', { class: 'help' }, `${BUS_LINES_MAX} lignes au plus, pour que la carte reste lisible : retire une ligne pour en ajouter une autre.`) : el('label', { class: 'field' }, 'Numéro de la ligne', input),
     mine.length >= BUS_LINES_MAX ? null : results,
-    date ? el('p', { class: 'help' }, `Chemin des lignes\u00a0: Île-de-France Mobilités, ${date}. Arrêts\u00a0: Île-de-France Mobilités, à Paris et en petite couronne. Une déviation pour travaux ne se voit pas.`) : null,
+    date ? el('p', { class: 'help' }, `Chemin des lignes du ${date}. Une déviation pour travaux ne se voit pas. Arrêts connus à Paris et en petite couronne.`) : null,
+    date ? el('p', { class: 'help tip' }, 'Chemin des lignes et arrêts : Île-de-France Mobilités.') : null,
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'buslines', again: back });
   if (busTracesFile || mine.length >= BUS_LINES_MAX) { draw(); return; }
@@ -6385,7 +6407,8 @@ function openWeather(redraw = false) {
     } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
     air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
     meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
-    el('p', { class: 'help' }, 'Source : Open-Meteo (prévisions européennes CAMS pour l\'air). Valeurs pour le quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
+    el('p', { class: 'help' }, 'Valeurs du quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
+    el('p', { class: 'help tip' }, 'Source : Open-Meteo, et le service européen CAMS pour l\'air.'),
   ), { name: 'weather', again: () => openWeather(true) });
 }
 wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
@@ -6693,7 +6716,8 @@ function openNavigo(x, back = null) {
     x.address ? el('p', { class: 'where' }, x.address) : null,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Avantage Navigo'), el('span', {}, '')),
     el('p', {}, x.offer),
-    el('p', { class: 'help' }, 'Sur présentation d\'un passe Navigo valide (annuel, mois, imagine R, Senior, Liberté +). L\'offre peut changer : vérifie sur le site du lieu avant d\'y aller.'),
+    el('p', { class: 'help' }, 'Sur présentation d\'un passe Navigo valide. L\'offre peut changer : vérifie sur le site du lieu avant d\'y aller.'),
+    el('p', { class: 'help tip' }, 'Passes Navigo valides : annuel, mois, imagine R, Senior, Liberté +.'),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
@@ -6759,7 +6783,7 @@ function openTtbCheck(back) {
       el('p', { class: 'help' }, '2 · De retour ici, ta réponse :'),
       ttbVerdict(x, again),
       el('button', { type: 'button', class: 'btn', onclick: () => { ttbSkipped.add(ttbKey(x)); again(); } }, ico('chevron-right'), 'Passer, je ne sais pas'),
-      el('p', { class: 'help' }, 'Google Maps le dit sous le nom du lieu quand il a fermé pour de bon. Sinon, regarde la date des derniers avis. Une vérification vaut 6 mois.'),
+      el('p', { class: 'help tip' }, 'Google Maps le dit sous le nom du lieu quand il a fermé pour de bon. Sinon, regarde la date des derniers avis. Une vérification vaut 6 mois.'),
     ] : el('p', {}, ttbSkipped.size ? `Plus rien à voir, sauf ${plural(ttbSkipped.size, 'adresse passée', 'adresses passées')}.` : 'Toutes les adresses sont vérifiées ou notées fermées.'),
     !x && ttbSkipped.size ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { ttbSkipped.clear(); again(); } }, 'Revoir les adresses passées') : null,
     foot(backBtn(back)),
@@ -6823,7 +6847,8 @@ function openTtbList(back = null, limit = 30) {
       buttons: [compassBtn(x), metroBtn(x, named('TTB', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
       : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
     all.length > limit ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(back, limit + 30) }, ico('plus'), `Voir ${Math.min(30, all.length - limit)} de plus`) : null,
-    el('p', { class: 'help' }, `Liste du guide TTB${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone. Horaires selon le guide : vérifie avant d'y aller.`),
+    el('p', { class: 'help' }, 'Horaires selon le guide : vérifie avant d\'y aller.'),
+    el('p', { class: 'help tip' }, `Liste du guide TTB${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone.`),
     foot(back ? backBtn(back) : null, el('button', { type: 'button', class: 'btn c-info', onclick: () => openTtb(named('TTB', again)) }, ico('refresh-cw'), 'Mettre à jour')),
   ), { name: 'ttb-list', again, tall: true });
 }
@@ -6895,7 +6920,7 @@ function ttbMarkedSection(again) {
   return [el('h3', { class: 'ring-title' }, el('span', {}, 'Masquées ou fermées'), el('span', {}, String(list.length))),
     el('ul', { class: 'items' }, list.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('TTB', again)) },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, ttbMark(marks, x) === 'closed' ? 'Fermé définitivement' : 'Masquée')))))),
-    el('p', { class: 'help' }, 'Elles restent masquées après un nouvel import (même nom et même adresse). Comme la liste, elles partent dans ta sauvegarde si la case « Avec la liste TTB » est cochée.')];
+    el('p', { class: 'help tip' }, 'Elles restent masquées après un nouvel import (même nom et même adresse). Comme la liste, elles partent dans ta sauvegarde si la case « Avec la liste TTB » est cochée.')];
 }
 
 function openTtb(back = named('Réglages', () => openSettings()), confirm = false) {
@@ -6909,7 +6934,7 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
     n ? el('h3', { class: 'ring-title' }, el('span', {}, 'Encore ouvertes ?'), el('span', {}, '')) : null,
     n ? el('p', {}, ttbCountText()) : null,
     n ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openTtbCheck(named('TTB', again)) }, ico('check'), 'Vérifier les adresses') : null,
-    n ? el('p', { class: 'help' }, 'Une adresse à la fois : Avis Google, puis ta réponse. Une vérification vaut 6 mois ; elle se fait aussi sur chaque fiche, sous « Avis Google ».') : null,
+    n ? el('p', { class: 'help tip' }, 'Une adresse à la fois : Avis Google, puis ta réponse. Une vérification vaut 6 mois ; elle se fait aussi sur chaque fiche, sous « Avis Google ».') : null,
     ...ttbMarkedSection(again),
     el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
     el('ol', { class: 'steps' },
@@ -6919,7 +6944,8 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
     el('a', { class: 'btn c-guide', href: TTB_SITE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Ouvrir la page Adresses'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => input.click() }, ico('download'), 'Choisir le fichier'),
     input,
-    el('p', { class: 'help' }, 'Source : le guide Très Très Bon (trestresbon.fr). Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide. La liste reste sur ce téléphone et rien n\'est envoyé ; elle part seulement dans ta sauvegarde (case « Avec la liste TTB », cochée au départ).'),
+    el('p', { class: 'help' }, 'La liste reste sur ce téléphone et rien n\'est envoyé ; elle part seulement dans ta sauvegarde (case « Avec la liste TTB », cochée au départ).'),
+    el('p', { class: 'help tip' }, 'Source : le guide Très Très Bon (trestresbon.fr). Seules les adresses à Paris sont gardées, sans doublons. L\'appli garde le nom, l\'adresse, la rubrique, le budget, le lien du lieu et les horaires, jamais les textes du guide.'),
     n ? (confirm
       ? el('div', { class: 'stack' }, el('p', { class: 'warn', role: 'alert' }, `Retirer les ${n} adresses TTB ? Tes lieux ne sont pas touchés.`),
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openTtb(back) }, 'Annuler'),
@@ -7059,7 +7085,8 @@ function openPlaque(p, back = null) {
     lines: [el('blockquote', { class: 'plaque-text' }, p.x),
       p.o ? el('p', { class: 'where' }, ico('eye'), `Où regarder : ${p.o.charAt(0).toLowerCase()}${p.o.slice(1)}`) : null,
       p.a ? el('p', { class: 'where' }, ico('map-pin'), p.a) : null,
-      el('p', { class: 'help' }, 'Texte relevé par la Ville de Paris (Direction des Affaires Culturelles, licence ODbL). Une plaque peut avoir été déplacée ou retirée.')],
+      el('p', { class: 'help' }, 'Une plaque peut avoir été déplacée ou retirée.'),
+      el('p', { class: 'help tip' }, 'Texte relevé par la Ville de Paris (Direction des Affaires Culturelles, licence ODbL).')],
     add: { note: p.x }, back, key: `plaque:${p.lat},${p.lng}` });
 }
 const plaqueRow = (x, back) => el('li', { class: 'item' },
@@ -7111,7 +7138,8 @@ async function openCuriosities() {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, w.title), el('span', { class: 'item-sub' }, `${fmtDist(w.d)} · ${walkMinutes(w.d)} min · lire l'article`))),
       have(w) ? el('span', { class: 'tag' }, 'Déjà là')
         : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))) : null,
-    el('p', { class: 'help' }, 'Plaques : Ville de Paris (licence ODbL), triées sur ton téléphone. Wikipédia (CC BY-SA) : seule une position arrondie à 100 m est envoyée.'),
+    el('p', { class: 'help' }, 'Wikipédia : seule une position arrondie à 100 m est envoyée.'),
+    el('p', { class: 'help tip' }, 'Plaques : Ville de Paris (licence ODbL), triées sur ton téléphone. Wikipédia : licence CC BY-SA.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
@@ -7173,7 +7201,8 @@ async function openRespire(back = openRoutes) {
     n ? rows(today) : null,
     next ? el('h3', { class: 'ring-title' }, el('span', {}, `Prochain jour : ${dayTitle(next)}`)) : null,
     next ? rows(next) : null,
-    el('p', { class: 'help' }, `Opérations « Paris Respire » de la Ville de Paris : jours et heures lus le ${RESPIRE_CHECKED} sur ${RESPIRE_PAGE}. Ce sont des prévisions : une opération peut être ajournée, et rien ici ne dit qu'elle a bien lieu. Un appui montre le secteur sur la carte. Pas dans la liste : les Champs-Élysées (1er dimanche du mois, sauf exception).`),
+    el('p', { class: 'help' }, 'Ce sont des prévisions : une opération peut être ajournée, et rien ici ne dit qu\'elle a bien lieu.'),
+    el('p', { class: 'help tip' }, `Opérations « Paris Respire » de la Ville de Paris : jours et heures lus le ${RESPIRE_CHECKED} sur ${RESPIRE_PAGE}. Un appui montre le secteur sur la carte. Pas dans la liste : les Champs-Élysées (1er dimanche du mois, sauf exception).`),
     foot(backBtn(back)),
   ), { name: 'respire', again });
 }
@@ -7220,7 +7249,8 @@ async function openCircuits(back = null) {
       : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
     notes.length ? ficheRow('triangle-alert', 'Problèmes notés', `${plural(notes.length, 'signalement', 'signalements')} · Copier pour Claude`, () => openCircuitNotes(null, self)) : null,
     hidden.size ? ficheRow('eye-off', plural(list.filter((c) => hidden.has(c.id)).length, 'circuit masqué', 'circuits masqués'), 'Les voir et les remettre', () => openHiddenCircuits(list, self)) : null,
-    el('p', { class: 'help' }, `La durée suit ton pas : la marche, plus ${STOP_MIN} min pour regarder chaque étape. Les visites de musée sont en plus. Le temps à droite : pour aller au départ.`),
+    el('p', { class: 'help' }, `Durées à ton pas, ${STOP_MIN} min par étape comprises ; les visites de musée sont en plus.`),
+    el('p', { class: 'help tip' }, 'Le temps à droite : pour aller au départ.'),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'circuits', again });
 }
@@ -7273,7 +7303,8 @@ function openCircuit(c, back) {
       : ficheRow('eye-off', 'Masquer ce circuit', 'Il quitte la liste ; tu pourras le remettre', () => setCircuitHidden(c, true, back ?? (() => openCircuits()))),
     c.mine ? null : el('h3', { class: 'fiche-sec' }, 'Ta version'), // v3 : en dernier, rien ne bouge au-dessus
     c.mine ? null : ficheRow('pencil', 'Modifier ce circuit', 'Ta version remplacera celle-ci sur ton téléphone ; l\'original revient quand tu veux', () => openEditCircuit(c, self, back)),
-    el('p', { class: 'help' }, c.base ? 'Les textes que tu as changés ne sont pas vérifiés ; les autres citent leur source. Le tracé' : c.mine ? 'Les textes des étapes ne sont pas vérifiés par l\'appli. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.' : 'Chaque étape cite sa source. Le tracé suit les rues d\'OpenStreetMap ; il ne change pas si une rue est en travaux.'),
+    el('p', { class: 'help' }, `${c.base ? 'Les textes que tu as changés ne sont pas vérifiés ; les autres citent leur source. ' : c.mine ? 'Les textes des étapes ne sont pas vérifiés par l\'appli. ' : ''}Le tracé ne change pas si une rue est en travaux.`),
+    el('p', { class: 'help tip' }, `${c.mine ? '' : 'Chaque étape cite sa source. '}Le tracé suit les rues d'OpenStreetMap.`),
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: `circuit:${c.id}`, again });
 }
@@ -7346,7 +7377,8 @@ function openProblem(c, i, back) {
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Le problème (un seul choix)' }, chips),
     el('label', { class: 'field' }, 'Un mot (facultatif)', text),
     save,
-    el('p', { class: 'help' }, 'Gardé sur ton téléphone, rien n\'est envoyé, ta position n\'est pas notée. Pour que le circuit soit corrigé : « Copier pour Claude », puis colle le texte dans une conversation.'),
+    el('p', { class: 'help' }, 'Gardé sur ton téléphone, rien n\'est envoyé, ta position n\'est pas notée.'),
+    el('p', { class: 'help tip' }, 'Pour que le circuit soit corrigé : « Copier pour Claude », puis colle le texte dans une conversation.'),
     foot(backBtn(back)),
   ), { name: `probleme:${c.id}:${i ?? 'chemin'}` });
 }
@@ -7547,7 +7579,8 @@ function openSameAuthor(rec, back) {
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.t || 'Monument'),
           el('span', { class: 'item-sub' }, [x.m != null ? fmtWalk(x.m) : '', x.d].filter(Boolean).join(' · '))))))),
-    el('p', { class: 'help' }, 'Seulement les édifices où ce nom est écrit à l\'identique : ce n\'est pas toute son œuvre. Un appui ouvre la boussole. Source : base Mérimée du ministère de la Culture (Licence Ouverte 2.0).'),
+    el('p', { class: 'help' }, 'Seulement les édifices où ce nom est écrit à l\'identique : ce n\'est pas toute son œuvre.'),
+    el('p', { class: 'help tip' }, 'Un appui ouvre la boussole. Source : base Mérimée du ministère de la Culture (Licence Ouverte 2.0).'),
     foot(backBtn(back)),
   ), { name: 'same-author', again: self });
 }
@@ -7814,7 +7847,7 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'btn c-add', onclick: () => {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
-          el('p', { class: 'help' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
+          el('p', { class: 'help tip' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
       canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
@@ -7824,7 +7857,8 @@ function openSettings(section = null) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
-      el('p', { class: 'help' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements, et si tu perds ton téléphone il part avec. De temps en temps, envoie-le-toi aussi par courriel ou sur ton Drive. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
+      el('p', { class: 'help' }, 'Envoie-toi aussi ce fichier par courriel ou sur ton Drive : si tu perds ton téléphone, Téléchargements part avec lui.'),
+      el('p', { class: 'help tip' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
       foot(el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer'), el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')), // v185 : le retour toujours en dernier
     ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
@@ -7833,9 +7867,10 @@ function openSettings(section = null) {
   if (section === 'importer') {
     openSheet([ico('upload'), ' Restaurer ou importer'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
-      el('p', { class: 'help' }, 'Choisis ton dernier fichier « Ma carte de Paris - sauvegarde du … » (dossier Téléchargements). Les lieux qui manquent reviennent, avec leurs photos et tes stations ; ceux déjà là ne sont pas touchés.'),
+      el('p', { class: 'help' }, 'Choisis ton dernier fichier « Ma carte de Paris - sauvegarde du … » (dossier Téléchargements).'),
+      el('p', { class: 'help tip' }, 'Les lieux qui manquent reviennent, avec leurs photos et tes stations ; ceux déjà là ne sont pas touchés.'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => pickImport('friend') }, ico('user'), 'Importer les lieux d\'un proche'),
-      el('p', { class: 'help' }, 'Ses lieux s\'ajoutent aux tiens, à son nom. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
+      el('p', { class: 'help tip' }, 'Ses lieux s\'ajoutent aux tiens, à son nom. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
       el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
       foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')),
     ), { tall: true, name: 'settings:importer', again: () => openSettings('importer') });
@@ -7864,7 +7899,7 @@ function openSettings(section = null) {
     const moreNow = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips));
     const asStart = !cleanChips(state.hiddenChips).length && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
-      el('p', { class: 'help' }, 'La barre du haut, de gauche à droite. Pour chaque bouton : « Barre » le garde en haut, « Plus » le range sous le bouton ⋯ (à un appui), « Masqué » l\'enlève. Les lieux restent toujours sur la carte. Flèches pour ranger tes catégories, nom pour les modifier.'),
+      el('p', { class: 'help tip' }, 'La barre du haut, de gauche à droite. Pour chaque bouton : « Barre » le garde en haut, « Plus » le range sous le bouton ⋯ (à un appui), « Masqué » l\'enlève. Les lieux restent toujours sur la carte. Flèches pour ranger tes catégories, nom pour les modifier.'),
       el('p', { class: 'summary' }, `En haut : ${plural(nTop.bar, 'bouton', 'boutons')}${nTop.more ? ` + ⋯ (${nTop.more} dans Plus)` : ''}${nTop.hidden ? ` · ${nTop.hidden} masqué${nTop.hidden > 1 ? 's' : ''}` : ''}`),
       // Réglage de toute la barre : en tête de page, sans faire défiler
       el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
@@ -8061,7 +8096,8 @@ function openSettings(section = null) {
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:-0.5`, 'aria-label': `${PACE_NAME[m]} : moins vite`, onclick: () => step(m, -0.5) }, ico('minus')),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:0.5`, 'aria-label': `${PACE_NAME[m]} : plus vite`, onclick: () => step(m, 0.5) }, ico('plus')))),
       el('p', { class: 'help tip' }, 'Pour trouver ta vitesse : chronomètre un trajet de 1 km dans la rue, feux compris (Google Maps à pied donne la distance). Puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
-      el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied (les rues font environ 1,3 fois la ligne droite). De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.`),
+      el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied.`),
+      el('p', { class: 'help tip' }, 'Les rues font environ 1,3 fois la ligne droite. De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.'),
       el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'),
       backBtn,
     ), { tall: true, name: 'settings:pas', again: () => openSettings('pas') });
@@ -8114,7 +8150,8 @@ function openSettings(section = null) {
         if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
       } }, 'Enregistrer les mètres'),
       el('label', { class: 'field' }, 'En minutes à pied', minRings),
-      el('p', { class: 'help' }, `De 1 à 60 minutes. Exemple : 5, 10, 15, 20. Estimation à ton pas (${kmhText(paceKmh(state.pace))} km/h, réglable dans Mon pas), détours compris.`),
+      el('p', { class: 'help' }, `De 1 à 60 minutes. Estimation à ton pas (${kmhText(paceKmh(state.pace))} km/h), détours compris.`),
+      el('p', { class: 'help tip' }, 'Exemple : 5, 10, 15, 20. Ton pas se règle dans Mon pas.'),
       el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
         state.minuteRings = normalizeMinuteRings(minRings.value);
         minRings.value = state.minuteRings.join(', ');
@@ -8217,7 +8254,8 @@ function openSettings(section = null) {
     const say = (phrase, tool) => el('p', { class: 'help' }, `Dans le projet « Geoloc », envoie-le à Claude avec la phrase : « ${phrase} ».${tool ? ` Claude lance ${tool}, vérifie, puis publie une nouvelle version.` : ''}`);
     const body = {
       lignes: () => [
-        el('p', { class: 'help' }, `À refaire ${everyText(d.every)}, ou dès qu'une ligne ouvre ou se prolonge. Données d'Île-de-France Mobilités (${IDFM_SITE.replace('https://', '')}), licence ODbL.`),
+        el('p', { class: 'help' }, `À refaire ${everyText(d.every)}, ou dès qu'une ligne ouvre ou se prolonge.`),
+        el('p', { class: 'help tip' }, `Données d'Île-de-France Mobilités (${IDFM_SITE.replace('https://', '')}), licence ODbL.`),
         el('h3', { class: 'ring-title' }, el('span', {}, '1. Télécharge ces deux fichiers'), el('span', {}, '')),
         el('div', { class: 'menu' }, ...TRANSPORT_FILES.map(link)),
         el('p', { class: 'help' }, `Seulement si une ligne change de couleur ou si une nouvelle ligne ouvre : « ${COLORS_FILE.name} ».`),
@@ -8249,7 +8287,8 @@ function openSettings(section = null) {
         el('div', { class: 'menu' }, link(ACR_FILE)),
         say('Mets à jour l\'architecture contemporaine remarquable', 'tools/maj-acr.py')],
       merimee: () => [
-        el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année. Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments, et à « Toute l'année dans les musées » sur la page d'un artiste${museesInfo?.updated ? ` (musées lus le ${frenchDate(museesInfo.updated)})` : ''}.`),
+        el('p', { class: 'help' }, `À refaire ${everyText(d.every)} : de nouveaux monuments sont protégés chaque année.`),
+        el('p', { class: 'help tip' }, `Sert à la ligne « Classé · 17e siècle · église » et « Se visite : … » de Monuments, et à « Toute l'année dans les musées » sur la page d'un artiste${museesInfo?.updated ? ` (musées lus le ${frenchDate(museesInfo.updated)})` : ''}.`),
         el('div', { class: 'menu' }, ...MERIMEE_FILES.map(link)),
         el('p', { class: 'help' }, 'Sur pop.culture.gouv.fr : base « Patrimoine architectural (Mérimée) », filtre Localisation : Paris, puis Exporter. Pour les musées : export GeoJSON.'),
         say('Mets à jour les monuments (Mérimée)', 'tools/maj-merimee.py')],
@@ -8326,7 +8365,8 @@ function openSettings(section = null) {
       el('details', { class: 'help-item sources' }, el('summary', {}, ico('info'), 'Confidentialité'), el('div', { class: 'stack sources-body' }, /* v234 : 33 lignes repliées (mon choix 3A) */
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire » ; celui d\'un de tes circuits, son titre, ses étapes et son tracé, et tes textes seulement si tu coches « Avec mes textes ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
-      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
+      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran.`),
+      el('p', { class: 'help tip' }, 'Une appli web n\'a pas accès au podomètre. Le nombre de pas est calculé avec 70 cm par pas.'),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
     ), { tall: true, name: 'settings:appli', again: () => openSettings('appli') });
@@ -8794,7 +8834,8 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     } else toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
   };
   openSheet([ico('users'), ' Envoyer à un proche'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'Ta sauvegarde reste complète. Ici, tu choisis ce que ton proche reçoit. Tes favoris, tes « Déjà visité » et tes billets restent à toi ; tes étoiles partent. Il ouvre le fichier dans son appli : Réglages → Restaurer ou importer → Importer les lieux d\'un proche.'),
+    el('p', { class: 'help' }, 'Tes favoris, tes « Déjà visité » et tes billets restent à toi ; tes étoiles partent.'),
+    el('p', { class: 'help tip' }, 'Ta sauvegarde reste complète : ici, tu choisis seulement ce que ton proche reçoit. Il ouvre le fichier dans son appli : Réglages → Restaurer ou importer → Importer les lieux d\'un proche.'),
     state.me ? el('div', { class: 'me-line' }, el('span', {}, 'Tes lieux partiront au nom de ', el('b', {}, state.me)),
       el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, 'Modifier'))
       : el('div', { class: 'me-box' }, el('label', { class: 'field' }, 'Tes lieux partiront au nom de', meInput),
@@ -8818,7 +8859,8 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
       ...lists.map(([l, n]) => chip(`Liste : ${l.name} ${n}`, sendLists.has(l.id), () => toggleList(l.id)))),
     summary,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: send }, ico('send'), 'Envoyer le fichier'),
-    el('p', { class: 'help' }, 'Le menu de partage du téléphone s\'ouvre (SMS, courriel, WhatsApp…). Rien ne passe par un serveur. Tes billets, tes réglages, ton journal, tes notes du jour et les lieux de tes proches ne partent jamais.'),
+    el('p', { class: 'help' }, 'Seul ce que tu coches part, et rien ne passe par un serveur.'),
+    el('p', { class: 'help tip' }, 'Le menu de partage du téléphone s\'ouvre (SMS, courriel, WhatsApp…). Ne partent jamais : tes billets, tes réglages et ton adresse Chez moi, ton journal, tes notes du jour, tes parcours, tes mots tout prêts et les lieux de tes proches.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Sauvegarde')),
   ), { name: 'envoyer-proche', again });
   sumText();
@@ -9057,7 +9099,8 @@ function renderMetroPlan(p, from, back, start = null) {
   openSheet(`Vers ${p.name}`, el('div', { class: 'stack' },
     el('p', { class: 'summary' }, none ? 'Pas de trajet simple en métro' : onFoot ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
     el('ol', { class: 'plan' }, steps),
-    onFoot ? null : el('p', { class: 'help' }, none ? 'Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.' : 'Estimation sans horaires : vérifie la direction sur le quai. Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
+    onFoot || none ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai.'),
+    onFoot ? null : el('p', { class: 'help tip' }, 'Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
@@ -9238,7 +9281,8 @@ function showPratique(from, fs, ts, cs = []) {
       setPratLayer(!state.showPratique);
       if (state.showPratique) { nearLayer.clearLayers(); closeSheet(); } else showPratique(from, fs, ts, cs);
     } }, ico('map'), state.showPratique ? 'Masquer fontaines et toilettes de la carte' : 'Toutes les fontaines et toilettes sur la carte'),
-    el('p', { class: 'help' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées. Ouvert ou fermé : d\'après les horaires publiés (ceux du parc pour les toilettes d\'un parc) ; un lieu fermé en ce moment passe en dernier. Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
+    el('p', { class: 'help' }, 'Ouvert ou fermé : d\'après les horaires publiés (ceux du parc pour les toilettes d\'un parc).'),
+    el('p', { class: 'help tip' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées ; un lieu fermé en ce moment passe en dernier. Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
   ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
@@ -9397,7 +9441,7 @@ function mySettingsBlock() {
 
 const HELP = [
   ['map', 'Se repérer', [
-    '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone.',
+    '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
     '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
@@ -9416,7 +9460,7 @@ const HELP = [
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
-    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
+    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
@@ -9493,13 +9537,17 @@ const HELP = [
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
-    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone). **Mes circuits**, en haut : ceux que tu as faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien ; Partager (un lien, avec ou sans tes textes), Modifier et Supprimer en bas de leur page. « **Modifier ce circuit** », en bas d\'un circuit de l\'appli : ta version le remplace sur ton téléphone ; les bouts que tu ne touches pas gardent leur tracé, ceux que tu changes ne doivent pas revenir sur leurs pas ; « Revenir au circuit d\'origine » le remet.',
+    '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
+    '{signpost} **Mes circuits**, en haut de Circuits de visite : ceux que tu as faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien. En bas de leur page : Modifier, Partager (un lien, avec ou sans tes textes) et Supprimer.',
+    '{pencil} **Modifier ce circuit**, en bas d\'un circuit de l\'appli : les étapes, le titre, le thème, les textes. Ta version le remplace sur ton téléphone ; les bouts que tu ne touches pas gardent leur tracé, ceux que tu changes ne doivent pas revenir sur leurs pas. Si l\'appli revoit l\'original, ta version reste et sa page le dit. {rotate-ccw} « Revenir au circuit d\'origine » le remet.',
     '**La page d\'un circuit** : la durée à ton pas (plus 4 min par étape pour regarder), les escaliers et les pentes, Balade guidée, Voir sur la carte (le tracé et les étapes numérotées), puis tes lieux à 2 min du tracé et les autres passages couverts à 5 min.',
     '{triangle-alert} **Un souci sur un circuit** : sur la page d\'une étape, ou en bas du circuit pour le chemin, « Signaler un problème » (un choix, un mot si tu veux). Rien n\'est envoyé ni ta position notée. Liste des circuits → Problèmes notés → « Copier pour Claude », à coller dans une conversation pour que le circuit soit corrigé. « Masquer ce circuit » le retire de la liste ; en bas de la liste, « circuits masqués » pour le remettre.',
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet. **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
+    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet.',
+    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer.',
+    '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
@@ -9538,13 +9586,14 @@ const HELP = [
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
-    '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
+    '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici. {clock} **Horaires** : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture, fermeture à midi) ; un jour férié, la fiche ne dit alors ni ouvert ni fermé. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
+    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
+    '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
@@ -9555,7 +9604,7 @@ const HELP = [
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
-    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
+    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
@@ -9584,15 +9633,15 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le-toi aussi par courriel ou sur ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux (avec tes impressions), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
     '{share-2} **Partager un lieu** : sa fiche → Partager, ou QR code. Ton ami l\'enregistre en un appui. Ton commentaire ne part que si tu coches « Avec mon commentaire ». Les horaires partent avec la date où tu les as notés.',
     '{copy} **Partager une sortie** : Mon planning → la sortie → « Prévu » → Copier le lien d\'invitation. Ton ami la reçoit dans son planning.',
-    '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
+    '**Partager une balade** : « Partager » dans J\'ai du temps, sur un de tes parcours (Mes parcours) ou en bas d\'un de tes circuits (« Partager ce circuit »).',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour et tes mots tout prêts restent à toi. Ta sauvegarde, elle, reste complète.',
+    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, tes circuits, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour, tes parcours, tes mots tout prêts et ton adresse Chez moi restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à Mon planning », ou Retirer.',
     '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
@@ -9603,18 +9652,18 @@ const HELP = [
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
-    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
+    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
     '{database} **Données de l\'appli** : {settings} → Mise à jour et confidentialité. Chaque donnée a sa date.',
     '**En direct** : fontaines, toilettes, agenda, marchés, Vélib\' et météo se rechargent seuls.',
-    '**Un robot** refait le 1er de chaque mois les listes rangées dans l\'appli : lignes et gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres dans la rue, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram. Quand une source manque ou a trop changé, la liste d\'avant reste.',
+    '**Un robot** refait le 1er de chaque mois les listes rangées dans l\'appli : lignes et gares, Navigo, toilettes RATP, arrondissements, arrêts et chemin des bus, plaques, œuvres dans la rue, galeries, rues sans voitures, noms des rues, auteurs des monuments, immeubles protégés par la Ville, architecture contemporaine, sorties du métro, RER et tram. Le plan des rues de Mes parcours, le 2 du mois. Quand une source manque ou a trop changé, la liste d\'avant reste.',
     '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Monuments, marchés couverts et listes d\'expos** se refont avec Claude. Touche la ligne pour savoir quoi faire.',
     '**Un rappel** s\'affiche, une fois par semaine au plus, quand une donnée est en retard.',
     '{info} **Sorties → « Aide »**, tout en bas : d\'où viennent les sorties. L\'agenda se recharge chaque jour, les marchés chaque semaine, les galeries chaque mois.',
-    '**Gratuités et temps forts** sont des listes fixes. Sorties prévient quand elles sont à revoir ; Claude en prépare une chaque début septembre.',
+    '**Gratuités et temps forts** sont des listes fixes. Sorties prévient quand elles sont à revoir ; Claude prépare leur mise à jour chaque 1er mars et chaque 1er septembre, et te demande ton accord.',
     '**Les couleurs** : ardoise pour y aller, bleu pour le métro, terre cuite pour découvrir.',
     '**Et aussi** : vert pour ajouter, or pour les favoris, zinc pour les réglages, brique pour supprimer.',
     '**Les formes** : plaque pleine = l\'action principale ; contour = une autre action ; tampon = un état (ouvert, à faire).',
@@ -9640,6 +9689,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
     '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
     '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
     '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
@@ -9649,7 +9699,6 @@ const HELP = [
     '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
     '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
-    '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
   ]],
 ];
 
