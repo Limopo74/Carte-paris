@@ -17,7 +17,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
@@ -48,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (211)';
+const VERSION = '19 novembre 2026 (212)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2601,11 +2601,7 @@ function openSearch(initial = '') {
     fill(agendaBox, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, 7 jours)…'));
     try { await weekEvents(); } catch { fill(agendaBox, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.')); return; }
     if (input.value.trim() !== q) return;
-    const far = 864e13;
-    const seen = new Set();
-    const found = (weekCache?.items ?? []).filter((e) => textMatch(q, e.title, e.place, e.tags))
-      .filter((e) => { const k = `${e.title}|${e.place}`; if (seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a, b) => (a.end?.getTime() ?? far) - (b.end?.getTime() ?? far));
+    const found = findOutings(weekCache?.items, q);
     fill(agendaBox, ...(found.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Agenda de la semaine'), el('span', {}, String(found.length))),
       el('ul', { class: 'items ev-list' }, found.slice(0, 30).map((e) => eventRow({ ...e, d: distanceM(from(), e) }, () => openSearch(q), { week: true })))]
       : [el('p', { class: 'empty' }, `Rien dans l'agenda de la semaine pour « ${q} ».`)]));
@@ -4437,15 +4433,48 @@ async function todayEvents() {
 }
 
 let weekCache = null; // { day, items } : la semaine de tout Paris, gardée le temps de la journée
+let weekLoading = null; // v212 : un seul téléchargement à la fois (Chercher une sortie relance à chaque lettre)
 async function weekEvents() {
   const day = new Date().toDateString();
   if (weekCache?.day === day) return weekCache.items;
-  // Version légère (champs utiles seulement) ; si le serveur la refuse, la version complète, plus courte
-  let r = await net(weekEventsUrl());
-  if (!r.ok) r = await net(weekEventsUrl(new Date(), 7, false));
-  if (!r.ok) throw new Error(String(r.status));
-  weekCache = { day, items: parseEvents(await r.json()) };
-  return weekCache.items;
+  weekLoading ??= (async () => {
+    // Version légère (champs utiles seulement) ; si le serveur la refuse, la version complète, plus courte
+    let r = await net(weekEventsUrl());
+    if (!r.ok) r = await net(weekEventsUrl(new Date(), 7, false));
+    if (!r.ok) throw new Error(String(r.status));
+    weekCache = { day, items: parseEvents(await r.json()) };
+    return weekCache.items;
+  })().finally(() => { weekLoading = null; });
+  return weekLoading;
+}
+
+/**
+ * Chercher une sortie (v212) : ouvert depuis Sorties → Tout, Gratuit ou Expos (jamais Navigo).
+ * L'agenda de la semaine de la Ville, tout Paris ; seulement ce que montre l'onglet. La carte ne bouge pas.
+ */
+function openFindOutings(initial = '', tab = 'all') {
+  const title = FIND_LABEL[tab] ?? FIND_LABEL.all;
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: tab === 'art' ? 'Un titre, un musée, un artiste…' : 'Un titre, un lieu, un artiste…', value: initial, 'aria-label': title });
+  const box = el('div', { class: 'stack' });
+  const from = () => evFrom ?? freshHere() ?? map.getCenter();
+  const run = async () => {
+    const q = input.value.trim();
+    if (q.replace(/\s/g, '').length < 3) { fill(box, el('p', { class: 'help' }, 'Tape au moins 3 lettres.')); return; }
+    if (!weekCache || weekCache.day !== new Date().toDateString()) fill(box, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, 7 jours)…'));
+    try { await weekEvents(); } catch { if (input.value.trim() === q) fill(box, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.')); return; }
+    if (input.value.trim() !== q) return; // une autre lettre a été tapée entre-temps
+    const found = findOutings(weekCache?.items, q, tab);
+    const head = { all: 'Agenda de la semaine', free: 'Gratuit cette semaine', art: 'Expos de l\'agenda' }[tab];
+    fill(box, ...(found.length ? [el('h3', { class: 'ring-title' }, el('span', {}, head), el('span', {}, String(found.length))),
+      el('ul', { class: 'items ev-list' }, found.slice(0, 30).map((e) => eventRow({ ...e, d: distanceM(from(), e) }, named(title, () => openFindOutings(q, tab)), { week: true })))]
+      : [el('p', { class: 'empty' }, `Rien ${tab === 'free' ? 'de gratuit ' : tab === 'art' ? 'comme expo ' : ''}dans l'agenda de la semaine pour « ${q} ».`)]));
+  };
+  input.addEventListener('input', run);
+  openSheet([ico('search'), ` ${title}`], el('div', { class: 'stack' }, input, box,
+    el('p', { class: 'help' }, `Agenda de la Ville de Paris, tout Paris, 7 jours${tab === 'free' ? ', seulement les sorties gratuites' : tab === 'art' ? ', seulement les expos' : ''}. Il n'a pas toutes les sorties de Paris. Ce que tu tapes reste sur le téléphone.`),
+    foot(backBtn(openEvents))), { tall: true, name: `chercher-${tab}`, again: () => openFindOutings(input.value, tab) });
+  run();
+  input.focus();
 }
 
 /** Expos de la semaine dans tout Paris, par arrondissement, sans déplacer la carte. */
@@ -4922,6 +4951,8 @@ async function openEvents(start = null) {
   openSheet(title, el('div', { class: 'stack ev-page' },
     seg, // les onglets restent toujours à la même place
     ctx,
+    /* v212 : Chercher, sous le point de départ et Carte, seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) */
+    FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', onclick: () => openFindOutings('', mode) }, ico('search'), FIND_LABEL[mode]) : null,
     filters ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': mode === 'navigo' ? 'Disciplines' : 'Dehors ou à l\'abri' }, ...filters) : null,
     ...body,
     // Les sites utiles (v164) : visibles en bas de Sorties, et non plus cachés dans l'aide ; le nom du site est écrit en clair
@@ -7942,6 +7973,7 @@ const HELP = [
     '**Quatre onglets** : Tout, Gratuit, Expos, Navigo.',
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
+    '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
     '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ.',
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Voir les … » déroule la suite. Une sortie de Mes salles, montrée en tête de Tout, n\'est pas répétée plus bas.',
@@ -8129,6 +8161,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
     '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
     '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
@@ -8138,7 +8171,6 @@ const HELP = [
     '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
     '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
     '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
-    '{map} Filtres → Arrondissement : une case ouvre maintenant la liste de tes lieux de l\'arrondissement, sous la carte, rangée par catégorie. Pour un autre arrondissement, touche-le sur la carte. Les boutons de catégories du haut filtrent la carte et la liste. La croix ferme la liste et tous tes lieux reviennent.',
   ]],
 ];
 

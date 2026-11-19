@@ -153,6 +153,9 @@ const ECRANS = {
   categorie: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
   // v166 : feuille réduite, Mes salles
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
+  // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
+  chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
+  chercherexpo: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.tabs-line button', { hasText: 'Expos' }).click(); await p.waitForTimeout(900); await feuille(p).locator('.ev-findrow', { hasText: 'Chercher une expo' }).click(); await feuille(p).locator('input[type=search]').fill('photo'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
   salles: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-more, .fiche-row', { hasText: 'Mes salles' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
   // v167 : le lieu d'une sortie gardé en favori d'un appui (la page se redessine, le message propose Modifier et Annuler)
   // (puis « Annuler » dans le message : le lieu ajouté ne doit pas gêner les écrans suivants, qui partagent le même stockage)

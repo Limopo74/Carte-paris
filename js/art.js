@@ -494,6 +494,21 @@ export function textMatch(q, ...fields) {
   return words.every((w) => hay.includes(w));
 }
 
+/**
+ * Chercher une sortie depuis Sorties (v212) : l'agenda de la semaine, seulement ce que montre l'onglet
+ * (tout, le gratuit, les expos). Navigo n'est pas l'agenda : pas de recherche là. Sans doublon (même titre, même lieu),
+ * celles qui finissent d'abord. La recherche se fait sur le téléphone : rien de ce qui est tapé n'est envoyé.
+ */
+export const FIND_LABEL = { all: 'Chercher une sortie', free: 'Chercher du gratuit', art: 'Chercher une expo' };
+export function findOutings(items, q, tab = 'all') {
+  const keep = tab === 'free' ? (e) => e.free === true : tab === 'art' ? isExpo : () => true;
+  const seen = new Set();
+  const far = 864e13;
+  return (items ?? []).filter((e) => keep(e) && textMatch(q, e.title, e.place, e.tags))
+    .filter((e) => { const k = `${e.title}|${e.place}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (a.end?.getTime() ?? far) - (b.end?.getTime() ?? far));
+}
+
 /* ---------- 17. L'artiste d'un lieu (v161) : les œuvres de mes lieux, son site ---------- */
 
 /** Clé de comparaison d'un nom d'artiste : sans accents, majuscules ni ponctuation (« Miss.Tic » = « miss tic »). */
