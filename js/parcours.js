@@ -5,8 +5,8 @@ import { distanceM } from './geo.js';
 import { marketsOn, whenToday, hoursToday } from './markets.js';
 import { streetKind } from './events.js';
 
-/** Rayon du parcours, comme Sorties (2,5 km). */
-export const DECK_RADIUS = 2500;
+/** Rayon du parcours au départ : celui de Sorties (3 km). L'appli passe le réglage (Réglages → Distances et durées). */
+export const DECK_RADIUS = 3000;
 
 export const STREET_ICON = { marche: 'gift', brocante: 'tags', fete: 'sparkles', expo: 'palette' };
 export const STREET_LABEL = { marche: 'Marché éphémère', brocante: 'Brocante, puces, vide-grenier', fete: 'Fête, festival', expo: 'Expo en plein air' };

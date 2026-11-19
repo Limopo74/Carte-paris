@@ -50,7 +50,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (216)';
+const VERSION = '19 novembre 2026 (217)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5559,7 +5559,7 @@ async function drawMarkets() {
       .on('click', () => openStreetEvent(e)).addTo(marketsLayer);
   }
 }
-/* Dans la rue : parcourir (v213). Aujourd'hui ou demain, autour de moi (sinon du centre de la carte), 2,5 km au plus. */
+/* Dans la rue : parcourir (v216). Aujourd'hui ou demain, autour de moi (sinon du centre de la carte), à la distance de Sorties (v217). */
 const streetEventsCache = new Map(); // jour → agenda du jour (tout Paris, aucune position envoyée)
 const keepStreetUndated = (e) => isExpo(e) || streetKind(e) === 'marche'; // sans créneau publié : seulement une expo ou un marché éphémère
 async function streetEventsOn(date) {
@@ -5581,7 +5581,7 @@ async function streetDeckOn(date, from) {
   let events = [];
   let agendaFailed = false;
   try { events = await streetEventsOn(date); } catch { agendaFailed = true; }
-  const items = streetDeck({ markets: await loadMarkets(), events, date, now: new Date(), from, holiday: holidayOn(date) });
+  const items = streetDeck({ markets: await loadMarkets(), events, date, now: new Date(), from, holiday: holidayOn(date), radius: tune('eventsM') });
   return { items, agendaFailed };
 }
 /** Le texte sous le nom, dans le bandeau : genre · heures de ce jour-là · marche. */
@@ -5597,7 +5597,7 @@ async function openStreetDeck(day = null, start = 0) {
   if (day == null) day = deckDay(decks[0].items.length, decks[1].items.length);
   const { items, agendaFailed } = decks[day];
   const words = ['aujourd\'hui', 'demain'];
-  if (!items.length) { toast(`Rien dans la rue ${words[day]} à moins de 2,5 km${from.kind === 'map' ? ' du centre de la carte' : ''}.`); return; }
+  if (!items.length) { toast(`Rien dans la rue ${words[day]} à moins de ${tuningText('eventsM', tune('eventsM'))}${from.kind === 'map' ? ' du centre de la carte' : ''}.`); return; }
   if (agendaFailed) toast('L\'agenda de la Ville ne répond pas : seulement les marchés.', true); else hideToast();
   const date = dates[day];
   endPeek();
@@ -7238,7 +7238,7 @@ function openSettings(section = null) {
       el('h3', { class: 'fiche-sec' }, 'Y aller'),
       tuneRow('walkM', (v) => `À pied jusqu'à ${v}`, 'Au-delà, en transports'),
       el('h3', { class: 'fiche-sec' }, 'Sorties'),
-      tuneRow('eventsM', (v) => `Jusqu'à ${v}`, 'Tous les onglets de Sorties'),
+      tuneRow('eventsM', (v) => `Jusqu'à ${v}`, 'Tous les onglets, et Dans la rue'),
       el('h3', { class: 'fiche-sec' }, 'Autour de moi'),
       tuneRow('ttbMin', (v) => `TTB à moins de ${v}`, 'Quand le calque TTB est affiché'),
       tuneRow('rainMin', (v) => `Passages couverts à ${v}`, 'Quand il pleut'),
@@ -8311,7 +8311,7 @@ const HELP = [
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
-    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message. Le bandeau montre un lieu à la fois, du plus proche au plus loin (2,5 km au plus, autour de toi ou du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
+    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message. Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi ou du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
@@ -8391,7 +8391,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
+    '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
     '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',

@@ -57,3 +57,15 @@ test('parcours : le jour ouvert, aujourd\'hui sauf s\'il ne reste rien', () => {
   assert.equal(slotText({ slotStart: new Date(2026, 10, 19, 14), slotEnd: new Date(2026, 10, 19, 18, 30) }), '14h–18h30');
   assert.equal(slotText({}), '');
 });
+
+test('parcours Dans la rue : suit la distance de Sorties (v217), 3 km au départ comme Réglages → Distances et durées', async () => {
+  const { TUNING } = await import('../js/reglages.js');
+  assert.equal(DECK_RADIUS, TUNING.eventsM.def);
+  const events = [ev('Grande brocante du quartier', 48.8690, 2.3660, new Date(2026, 10, 19, 9), new Date(2026, 10, 19, 18))];
+  const near = streetDeck({ markets: MARKETS, events, date: now, now, from, radius: 100 });
+  assert.deepEqual(near.map((x) => x.name), ['Marché proche']); // la brocante (≈ 250 m) sort à 100 m
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /streetDeck\(\{[^}]*radius: tune\('eventsM'\)/);
+  assert.doesNotMatch(app, /2,5 km/);
+});
