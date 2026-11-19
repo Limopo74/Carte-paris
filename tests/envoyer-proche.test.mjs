@@ -66,7 +66,12 @@ test('envoyer (v207) : seulement mes sorties à venir — ni une sortie passée,
   const plan = (id, days, extra = {}) => ({ id, name: `Sortie ${id}`, lat: 48.86, lng: 2.33, plan: true, ticket: { at: at(days) }, ...extra });
   const s = { ...state(), plans: [plan('demain', 1), plan('matin', 0, { ticket: { at: at(0, 9) } }), plan('hier', -1), plan('manquee', -3, { missed: true, until: at(20) }), plan('paul', 2, { by: 'Paul' })] };
   assert.deepEqual(sendPlans(s, now).map((x) => x.id), ['demain', 'matin']); // ce matin compte encore : c'est aujourd'hui
-  const f = exportForFriend(s, { ...SEND_DEFAULT, plans: true });
+  // exportForFriend prend la vraie date du jour : sorties placées par rapport à maintenant (le 20 nov. 2026, les sorties
+  // du 18 et du 19 étaient passées, f.plans manquait et le test cassait sans défaut dans l'appli).
+  const later = (days) => Date.now() + days * 864e5;
+  const s2 = { ...state(), plans: [plan('demain', 1, { ticket: { at: later(1) } }), plan('manquee', -3, { missed: true, ticket: { at: later(-3) }, until: later(20) }), plan('paul', 2, { by: 'Paul', ticket: { at: later(2) } })] };
+  const f = exportForFriend(s2, { ...SEND_DEFAULT, plans: true });
+  assert.deepEqual(f.plans.map((x) => x.id), ['demain']);
   assert.ok(f.plans.every((x) => !x.by && !x.missed));
   assert.equal(sendPlans({ ...state(), plans: [plan('hier', -1)] }, now).length, 0);
 });

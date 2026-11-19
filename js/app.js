@@ -46,6 +46,7 @@ import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, past
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
@@ -57,7 +58,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (254)';
+const VERSION = '19 novembre 2026 (255)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -69,6 +70,11 @@ const FAV_COLOR_NAMES = ['Doré', ...COLOR_NAMES];
 const failingStorage = { getItem() { throw new Error(); }, setItem() { throw new Error(); } };
 let storage;
 try { storage = window.localStorage; storage.getItem('test'); } catch { storage = failingStorage; }
+// v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
+let usage = readUsage(storage.getItem(USAGE_KEY));
+let usageTimer = 0;
+const USAGE_SEL = '.btn, .fiche-row, .menu-row, .map-btn, .icon-btn, #chips button, #wxBadge';
+const USAGE_SKIP = '.item, .items, .move, .seg, #sheetClose, .leaflet-control-container'; // lignes de lieux et de listes : jamais comptées
 
 // L'appli installée s'ouvre en plein écran (« standalone ») : elle marque sa mémoire, partagée avec Chrome.
 // Un navigateur sans cette marque (celui de Messages, Samsung Internet…) n'est donc pas « mon appli ».
@@ -1079,6 +1085,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   navStack.push({ name: key, again, want: scroll });
   shownKey = key;
   if (name !== 'near') stopQuietNear(); // la position n'est suivie que sur l'écran Autour de moi
+  const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
@@ -1086,6 +1093,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   sheet.classList.toggle('tall', tall);
   sheet.hidden = false;
   sheetBody.scrollTop = scroll;
+  usageOpened(name, was);
   onSheetClose = onClose;
   if (!historyPushed) {
     history.pushState({ sheet: true }, '');
@@ -8387,6 +8395,7 @@ function openSettings(section = null) {
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('details', { class: 'help-item sources' }, el('summary', {}, ico('info'), 'Confidentialité'), el('div', { class: 'stack sources-body' }, /* v234 : 33 lignes repliées (mon choix 3A) */
       el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire » ; celui d\'un de tes circuits, son titre, ses étapes et son tracé, et tes textes seulement si tu coches « Avec mes textes ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
+      el('p', { class: 'help' }, '« Ce que j\'utilise » ne garde que le nom des écrans et des boutons touchés, et combien de fois, sur ce téléphone : ni lieu, ni heure, ni position, et hors sauvegarde.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran.`),
       el('p', { class: 'help tip' }, 'Une appli web n\'a pas accès au podomètre. Le nombre de pas est calculé avec 70 cm par pas.'),
@@ -8556,8 +8565,88 @@ function openSettings(section = null) {
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
+    row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
+}
+
+/* ---------- Ce que j'utilise (v254) : écrans ouverts et boutons touchés, comptés sur ce téléphone seulement ----------
+   Rien d'autre que le nom de l'écran, le nom du bouton et deux nombres (js/usage.js). Hors sauvegarde, jamais envoyé. */
+function saveUsage(now = false) {
+  clearTimeout(usageTimer);
+  const write = () => { try { storage.setItem(USAGE_KEY, JSON.stringify(usage)); } catch { /* plein : tant pis, ce n'est qu'un compte */ } };
+  if (now) write(); else usageTimer = setTimeout(write, 2000);
+}
+function usageText(b) {
+  const a = b.getAttribute('aria-label');
+  if (a) return a;
+  const c = b.cloneNode(true);
+  c.querySelectorAll('small, .menu-sub, .item-sub, .tag, [aria-hidden="true"]').forEach((x) => x.remove());
+  return c.textContent;
+}
+/** Sur la page d'un lieu, d'une sortie ou d'une personne, un bouton qui porte son nom n'est pas compté (le nom resterait gardé). */
+function usageSafe(text) {
+  if (!SCREEN_LABEL[screenKey(view)] || sheet.hidden) return true;
+  const t = sheetTitle.textContent.replace(/\s+/g, ' ').trim().toLowerCase(); const l = String(text).replace(/\s+/g, ' ').trim().toLowerCase();
+  return !(l.length >= 6 && t.includes(l)) && !(t.length >= 6 && l.includes(t));
+}
+function usageOk(b) { return Boolean(b) && !b.closest(USAGE_SKIP) && !b.disabled; }
+function usageLabels(root) { return [...root.querySelectorAll(USAGE_SEL)].filter((b) => usageOk(b) && b.offsetParent !== null && !sheetHead(b)).map(usageText).filter(usageSafe); }
+function sheetHead(b) { return sheet.contains(b) && !sheetBody.contains(b); }
+function usageOpened(name, was) {
+  if (usage.off || !name || name === was || name === 'settings:usage') return; // la page elle-même ne se compte pas
+  noteOpen(usage, name, SCREEN_LABEL[screenKey(name)] ? '' : sheetTitle.textContent);
+  noteSeen(usage, name, usageLabels(sheetBody));
+  saveUsage();
+}
+document.addEventListener('click', (e) => {
+  if (usage.off) return;
+  const b = e.target.closest?.(USAGE_SEL);
+  if (!usageOk(b) || sheetHead(b)) return;
+  const inSheet = sheetBody.contains(b);
+  if (inSheet && view === 'settings:usage') return;
+  const text = usageText(b);
+  if (cleanLabel(text) === 'Ce que j\'utilise') return; // ouvrir la page pour la lire n'est pas un usage
+  if (inSheet && !usageSafe(text)) return;
+  noteUsed(usage, inSheet ? (view ?? 'autre') : 'carte', text); saveUsage();
+}, true);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveUsage(true); });
+setTimeout(() => { // une ouverture de l'appli, et les boutons de la carte affichés à ce moment-là
+  if (usage.off) return;
+  usage.opens += 1;
+  noteSeen(usage, 'carte', [...document.querySelectorAll(USAGE_SEL)].filter((b) => usageOk(b) && !sheet.contains(b) && b.offsetParent !== null).map(usageText));
+  saveUsage();
+}, 3000);
+
+function openUsage() {
+  const r = usageReport(usage);
+  const since = new Date(usage.since).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const nNever = r.never.reduce((n, x) => n + x.labels.length, 0);
+  openSheet([ico('chart-no-axes-column'), ' Ce que j\'utilise'], el('div', { class: 'stack' },
+    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(!usage.off), onclick: () => {
+      usage.off = usage.off ? undefined : true; saveUsage(true); openUsage();
+      toast(usage.off ? 'Plus rien n\'est compté' : 'L\'appli compte de nouveau ce que tu touches');
+    } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('chart-no-axes-column')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Compter ce que je touche'), el('span', { class: 'menu-sub' }, usage.off ? 'Éteint : rien n\'est compté' : `Depuis le ${since}`)),
+    el('span', { class: `switch${usage.off ? '' : ' on'}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))),
+    el('p', { class: 'summary' }, `${plural(usage.opens, 'ouverture de l\'appli', 'ouvertures de l\'appli')} · ${plural(r.touches, 'appui compté', 'appuis comptés')}`),
+    el('p', { class: 'help' }, 'Compté sur ce téléphone seulement : le nom des écrans et des boutons, et combien de fois. Ni lieu, ni heure, ni position. Rien ne part, pas même dans ta sauvegarde.'),
+    usage.opens < 10 ? el('p', { class: 'help' }, 'Encore trop tôt pour conclure : reviens dans deux ou trois semaines.') : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Jamais touchés'), el('span', {}, String(nNever))),
+    r.never.length ? r.never.map((x) => el('div', {},
+      el('p', {}, el('b', {}, x.screen), ` · ${plural(x.opens, 'ouverture', 'ouvertures')}`),
+      el('p', { class: 'muted' }, x.labels.join(' · '))))
+      : el('p', { class: 'help' }, 'Rien pour l\'instant : un bouton y entre quand son écran a été ouvert 3 fois sans que tu le touches.'),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Les plus touchés'), el('span', {}, '')),
+    r.top.length ? r.top.map((x) => el('p', {}, el('b', {}, x.label), ` · ${x.screen} · ${x.used}`))
+      : el('p', { class: 'help' }, 'Aucun appui compté pour l\'instant.'),
+    el('p', { class: 'help tip' }, 'Pour masquer ce qui ne sert pas : un bouton de la fiche dans Réglages → Fiche d\'un lieu ; un bouton du haut dans Barre du haut ; un bouton de la carte dans Boutons de la carte ; une ligne de Filtres dans Filtres affichés. Pour le reste, montre cette page à Claude.'),
+    foot(el('button', { type: 'button', class: 'btn danger', onclick: () => {
+      if (!confirm('Remettre les comptes à zéro ? Ils repartiront d\'aujourd\'hui.')) return;
+      usage = emptyUsage(); saveUsage(true); openUsage(); toast('Comptes remis à zéro');
+    } }, 'Remettre à zéro'), backBtn(named('Réglages', () => openSettings()))),
+  ), { tall: true, name: 'settings:usage', again: openUsage });
 }
 
 function favBadge(icon = state.fav.icon, color = state.fav.color) {
@@ -9673,6 +9762,7 @@ const HELP = [
     '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
+    '{chart-no-axes-column} **Ce que j\'utilise** : {settings}, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -9712,6 +9802,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
     '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
     '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
@@ -9721,7 +9812,6 @@ const HELP = [
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
     '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
     '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
-    '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
   ]],
 ];
 
