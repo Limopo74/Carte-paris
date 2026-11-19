@@ -70,6 +70,23 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Placer un point : **Valider ici**. Supprimer : toujours confirmé, bouton brique.
 - Interrupteurs (Favori, Déjà visité) : libellé fixe, état dit par `aria-pressed` et un fond léger quand c'est allumé.
 - Les boutons ne changent jamais de place d'un écran à l'autre.
+- **Lexique** (v222, vérifié par `tests/vocabulaire.test.mjs`) : un mot par chose, une chose par mot.
+  | Chose | Mot | Jamais |
+  |---|---|---|
+  | se placer sur la carte | **Position** | localisation, géolocalisation |
+  | un de mes points | **lieu** (adresse : l'adresse postale, ou une adresse du guide TTB) | endroit |
+  | le geste | **touche** (verbe) ; **appui long** (nom) | appuie, clique |
+  | valider un formulaire | **Enregistrer** | Garder, Valider (sauf « Valider ici » pour placer un point) |
+  | détruire un objet (lieu, photo, impression, signalement) | **Supprimer**, toujours confirmé, bouton brique | Effacer |
+  | sortir d'une liste, l'objet reste | **Retirer** | Supprimer |
+  | vider un texte ou des choix (note du jour, filtres) | **Effacer** | |
+  | ne plus afficher | **Masquer** / **Réafficher** | Cacher |
+  | une visite datée d'un de mes lieux | **impression** (« Écrire une impression », « Mes impressions ») | passage (réservé aux **passages couverts**) |
+  | mon texte sur un lieu / les étoiles / la page du jour | **Commentaire** / **Mes étoiles** / **Note du jour** | note (pour les deux premiers) |
+  | message électronique | **courriel** | mail |
+- **Deux voix** : les noms d'écrans et de boutons parlent comme moi (Mon planning, Autour de moi, J'ai du temps, Où suis-je ?) ; les phrases me tutoient (« touche… », « tes lieux »). Jamais de vouvoiement. Claude est toujours nommé à la 3e personne.
+- **Accords au féminin** : l'appli sert à deux utilisatrices (« Tu y es allée ? », « Tu es déjà passée ici »).
+- **Typographie à l'affichage** (`js/typo.js`, appliquée par `el()` et `toast()`, jamais dans un champ) : espace insécable avant « : ; ? ! » % » et après « « » ; heures « 9 h 30 » (un module peut écrire « 9h30 », l'écran montre « 9 h 30 ») ; « 1er » pour le premier jour du mois. Un texte posé autrement (`textContent`) passe aussi par `typo()`.
 - **Retour à la même hauteur** (v150) : revenir à un écran (« ← Nom », bouton retour du téléphone) ou le redessiner le rouvre là où on l'avait laissé ; un écran ouvert pour la première fois commence en haut (`openSheet`, pile `navStack`).
 
 ## 9. Contrôle après chaque changement

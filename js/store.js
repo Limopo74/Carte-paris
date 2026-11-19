@@ -8,7 +8,7 @@ import { cleanNotes } from './notes.js';
 import { cleanTuning, cleanFicheHidden } from './reglages.js';
 import { cleanHome } from './chezmoi.js';
 
-/** Jours pendant lesquels une sortie de l'agenda prévue est gardée : ceux du réglage « Tu y es allé ? » (v214). */
+/** Jours pendant lesquels une sortie de l'agenda prévue est gardée : ceux du réglage « Tu y es allée ? » (v214). */
 const keepDays = (s) => cleanTuning(s?.tuning).askDays;
 
 export const KEY = 'carte-paris.v1';
@@ -152,7 +152,7 @@ const clean = (p) => ({
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
 export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|velib|pratique|passages|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
-/** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib', Fontaines et toilettes, Passages couverts. Un bouton caché n'est pas aussi dans Plus. */
+/** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib', Fontaines et toilettes, Passages couverts. Un bouton masqué n'est pas aussi dans Plus. */
 export const DEFAULT_MORE_CHIPS = ['velib', 'pratique', 'passages'];
 export const cleanMoreChips = (list, hidden = []) => (list === undefined ? [...DEFAULT_MORE_CHIPS] : cleanChips(list)).filter((k) => !hidden.includes(k));
 /** Un bouton du haut ajouté après coup arrive sous ⋯ Plus, pas dans la barre (chipsV 2, v168 : Passages couverts). */
@@ -301,7 +301,7 @@ export function sendPoints(state, cats = null, lists = new Set()) {
   return (state.points ?? []).filter((p) => !p.owner && (cats === null || cats.has(p.cat) || (p.lists ?? []).some((l) => lists.has(l))));
 }
 /** Mes sorties de l'agenda qui peuvent partir (v207) : à partir d'aujourd'hui, et seulement les miennes. Une sortie passée
- * (« Tu y es allé ? », « Pas allé ») ou encore « Prévu par » un autre proche ne part pas : chez lui, elle porterait mon prénom à tort. */
+ * (« Tu y es allée ? », « Pas allé ») ou encore « Prévu par » un autre proche ne part pas : chez lui, elle porterait mon prénom à tort. */
 export function sendPlans(state, now = new Date()) {
   const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return cleanPlans(state.plans, now.getTime()).filter((x) => !x.by && x.ticket.at >= t0);
@@ -567,7 +567,7 @@ export function cleanLayout(o) {
   const hiddenTools = cleanHidden(o.hiddenTools);
   return { mapTools: normalizeTools(o.mapTools), hiddenTools, moreTools: cleanMore(withNewInMore(o.moreTools, o.mapTools), hiddenTools) };
 }
-/** Ne garder que l'essentiel : les boutons choisis sur la carte, tous les autres dans Plus (aucun caché). L'ordre ne change pas. */
+/** Ne garder que l'essentiel : les boutons choisis sur la carte, tous les autres dans Plus (aucun masqué). L'ordre ne change pas. */
 export function essentialLayout(s) {
   const ess = cleanEssentials(s.essentials);
   return { hiddenTools: [], moreTools: MAP_TOOLS.filter((t) => !ess.includes(t)),

@@ -33,7 +33,7 @@ test('liste du jour : seulement les lieux d\'aujourd\'hui, dans mon ordre', () =
   assert.deepEqual(staleDayList(pts, now).map((p) => p.id), ['h'], 'la liste d\'hier s\'efface, pas les sorties prévues');
 });
 
-test('liste du jour : le lendemain, pas de « Tu y es allé ? » ; les sorties prévues gardent la question', () => {
+test('liste du jour : le lendemain, pas de « Tu y es allée ? » ; les sorties prévues gardent la question', () => {
   const pts = [
     { name: 'Liste d\'hier', ticket: dayTicket(1, hier) },
     { name: 'Sortie d\'hier', ticket: { at: planAt(hier, 'aprem'), part: 'aprem' } },

@@ -613,7 +613,7 @@ export function favCategory(kind, categories) {
   return cats.find((c) => c.id === 'culture')?.id ?? null;
 }
 
-/* ---------- 20. « Vouliez-vous dire… ? » sous le champ Artiste (v172) ---------- */
+/* ---------- 20. « Tu voulais dire… ? » sous le champ Artiste (v172) ---------- */
 
 /** Distance d'édition (lettres ajoutées, retirées ou changées) entre deux clés courtes. */
 function editDistance(a, b) {

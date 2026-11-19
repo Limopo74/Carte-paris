@@ -60,7 +60,7 @@ test('Plus du haut : le bouton ⋯ et sa page existent, le réglage a ses trois 
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /function openChipsMore\(/);
   assert.match(app, /class: 'more-chip icon-only'/);
-  assert.match(app, /\[\['bar', 'Barre'\], \['more', 'Plus'\], \['hidden', 'Caché'\]\]/);
+  assert.match(app, /\[\['bar', 'Barre'\], \['more', 'Plus'\], \['hidden', 'Masqué'\]\]/);
   // un bouton rangé ou caché reste visible dans la barre tant qu'il est actif
   assert.match(app, /where\(x\.key\) !== 'bar' && x\.active/);
 });

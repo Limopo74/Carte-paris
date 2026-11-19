@@ -35,7 +35,7 @@ test('il y a…', () => {
   assert.equal(agoText(now - 800 * day, now), 'il y a 2 ans');
 });
 
-test('« Tu es déjà passé ici » : à moins de 100 m, avec une note ou une photo, pas ce qu\'on vient d\'ajouter', () => {
+test('« Tu es déjà passée ici » : à moins de 100 m, avec une note ou une photo, pas ce qu\'on vient d\'ajouter', () => {
   const here = { lat: 48.8800, lng: 2.3400 };
   const pts = [
     { id: 'a', lat: 48.8805, lng: 2.3400, note: 'cour avec glycine', created: now - 200 * day }, // ~55 m
@@ -74,7 +74,7 @@ test('mes passages : datés, du plus récent au plus ancien, pas de doublon auto
   assert.deepEqual(dropAutoPassage(l, now).map((x) => x.text ?? ''), ['terrasse ouverte', 'glycine en fleur'], 'décoché : seul le passage vide du jour part');
   assert.deepEqual(cleanPassages([{ at: 'x' }, { at: 1, text: '  ', photo: '<b>' }]), [{ at: 1 }]);
   assert.equal(logName({ log: ' Mes repas ' }), 'Mes repas');
-  assert.equal(logName({}), 'Mes passages');
+  assert.equal(logName({}), 'Mes impressions');
   assert.equal(cleanLog('  Mes\n visites  '), 'Mes visites');
   assert.equal(cleanLog('x'.repeat(40)).length, 24);
   assert.deepEqual(photoIds({ photos: ['a'], passages: [{ at: 1, photo: 'b' }, { at: 2, photo: 'a' }] }), ['a', 'b']);
@@ -90,7 +90,7 @@ test('mes passages : datés, du plus récent au plus ancien, pas de doublon auto
   assert.equal(memoryOf({ note: 'jardin', created: 5 }).text, 'jardin');
 });
 
-test('nom de l\'historique d\'une catégorie : gardé, effacé = « Mes passages »', async () => {
+test('nom de l\'historique d\'une catégorie : gardé, effacé = « Mes impressions »', async () => {
   const { updateCategory, loadState, saveState } = await import('../js/store.js');
   const st0 = { categories: [{ id: 'resto', name: 'Restos', color: '#d9480f', icon: '🍽️' }] };
   const st1 = updateCategory(st0, 'resto', { name: 'Restos', color: '#d9480f', icon: '🍽️', log: 'Mes repas' });

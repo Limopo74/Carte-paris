@@ -35,5 +35,5 @@ test('le nom se règle dans la catégorie, s\'efface, et part dans la sauvegarde
   assert.ok(!('did' in c2), 'champ vidé : on revient à « Déjà visité »');
   assert.equal(c2.log, 'Mes visites', 'l\'historique n\'est pas touché');
   const s3 = updateCategory(s1, id, { name: 'Street art', color: '#c2255c', icon: '🎨', log: '', did: 'Déjà vue' });
-  assert.ok(!('log' in s3.categories.find((c) => c.id === id)), 'historique vidé : « Mes passages »');
+  assert.ok(!('log' in s3.categories.find((c) => c.id === id)), 'historique vidé : « Mes impressions »');
 });

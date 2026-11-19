@@ -63,7 +63,7 @@ export const MEMORY_VISIT_MS = 3600e3; // une même visite : la note reste affic
 export const MEMORY_AGAIN_MS = 7 * 864e5; // puis plus avant 7 jours
 
 /**
- * « Tu es déjà passé ici » : le plus proche de mes lieux à moins de `maxM` (100 m au départ, réglable depuis la v214) qui a une note ou une photo,
+ * « Tu es déjà passée ici » : le plus proche de mes lieux à moins de `maxM` (100 m au départ, réglable depuis la v214) qui a une note ou une photo,
  * gardé depuis plus d'un jour (pas ce que je viens d'ajouter), et pas déjà rappelé ces 7 derniers jours
  * (sauf pendant la même visite). `shown` : { id: date du premier rappel }. Renvoie { p, d } ou null.
  */
@@ -83,7 +83,7 @@ export function memoryHere(points, pos, shown = {}, now = Date.now(), maxM = MEM
 }
 
 /** Le titre du rappel (v214) : « ici » n'est vrai que jusqu'à 100 m ; au-delà, la distance réglée peut aller à 500 m, on donne les minutes à pied. */
-export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passé ici' : `Déjà passé · ${minutes} min à pied`);
+export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passée ici' : `Déjà passée · ${minutes} min à pied`);
 
 /** Le carnet des rappels : remis à zéro pour un lieu après 7 jours ; les vieux rappels (plus de 7 jours) sont oubliés. */
 export function markShown(shown, id, now = Date.now()) {
@@ -96,9 +96,9 @@ export function markShown(shown, id, now = Date.now()) {
 /* ---------- Mes passages (v157) : pour chaque adresse, la liste datée de mes passages ---------- */
 // Forme : p.passages = [{ at, text?, photo? }], le plus récent d'abord ; 200 au plus par adresse.
 
-export const LOG_DEFAULT = 'Mes passages';
+export const LOG_DEFAULT = 'Mes impressions';
 export const LOG_MAX = 24;
-/** Le nom de l'historique d'une catégorie (« Mes repas », « Mes visites »…), sinon « Mes passages ». */
+/** Le nom de l'historique d'une catégorie (« Mes repas », « Mes visites »…), sinon « Mes impressions ». */
 export const logName = (cat) => (typeof cat?.log === 'string' && cat.log.trim() ? cat.log.trim().slice(0, LOG_MAX) : LOG_DEFAULT);
 /** Nom d'historique saisi : nettoyé, '' = celui par défaut. */
 export const cleanLog = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, LOG_MAX) : '');
@@ -152,7 +152,7 @@ export function placeNear(points, pos, maxM = 30) {
 export const journal = (points) => points.filter((p) => !p.owner).flatMap((p) => cleanPassages(p.passages).map((x) => ({ p, ...x })))
   .sort((a, b) => b.at - a.at);
 
-/** Ce que « Tu es déjà passé ici » rappelle : le dernier passage écrit ou en photo, sinon le commentaire de la fiche. */
+/** Ce que « Tu es déjà passée ici » rappelle : le dernier passage écrit ou en photo, sinon le commentaire de la fiche. */
 export function memoryOf(p) {
   const last = cleanPassages(p.passages).find((x) => x.text || x.photo);
   return last ? { at: last.at, text: last.text ?? '', photo: last.photo ?? null } : { at: p.visited ?? p.created ?? null, text: p.note?.trim() ?? '', photo: p.photos?.[0] ?? null };

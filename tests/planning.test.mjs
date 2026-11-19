@@ -72,7 +72,7 @@ test('invitation : le moment de la journée voyage avec le lien', () => {
   assert.equal(r2.ticketPart, '');
 });
 
-test('sorties de l\'agenda prévues : gardées 30 jours après le jour prévu (Tu y es allé ?), puis effacées', async () => {
+test('sorties de l\'agenda prévues : gardées 30 jours après le jour prévu (Tu y es allée ?), puis effacées', async () => {
   const { cleanPlans, planOfEvent } = await import('../js/planning.js');
   const t = new Date(2026, 10, 17, 10).getTime();
   const ok = { id: 'a1', name: ' Concert ', lat: 48.88, lng: 2.33, ticket: { at: new Date(2026, 10, 17, 20).getTime() }, place: 'Square', url: 'https://quefaire.paris.fr/x' };

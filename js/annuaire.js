@@ -1,6 +1,6 @@
 // Recherche de lieux (magasins, restaurants, musées…) dans OpenStreetMap avec Nominatim.
 // Règles du service public : pas d'autocomplétion, une requête par seconde au plus.
-// On ne cherche donc que quand la personne appuie sur « Chercher ».
+// On ne cherche donc que quand la personne touche « Chercher ».
 
 const BASE = 'https://nominatim.openstreetmap.org/search';
 const PARIS_BOX = '2.22,48.92,2.47,48.80'; // préfère Paris sans exclure le reste

@@ -98,7 +98,7 @@ export function planTimes(t) {
   return out;
 }
 
-/** Sorties d'avant aujourd'hui (`days` jours au plus : 30 au départ, réglable depuis la v214), à confirmer : « Tu y es allé ? ». Les plus récentes d'abord. */
+/** Sorties d'avant aujourd'hui (`days` jours au plus : 30 au départ, réglable depuis la v214), à confirmer : « Tu y es allée ? ». Les plus récentes d'abord. */
 export function pastPlans(points, now = new Date(), days = 30) {
   const today = dayStart(now).getTime();
   return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && !isDayList(p.ticket) && p.ticket.at < today && p.ticket.at >= today - days * 864e5)
@@ -118,12 +118,12 @@ export function cleanPlan(t) {
 /**
  * Sorties de l'agenda prévues (v153) : gardées à part de mes lieux, sans goutte sur la carte.
  * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées `keepDays` jours après le jour prévu
- * (30 au départ ; v214 : autant que le réglage « Tu y es allé ? », jamais moins de 30)
- * (avant la v158 : dès le lendemain) ; « Tu y es allé ? » les retire avant.
+ * (30 au départ ; v214 : autant que le réglage « Tu y es allée ? », jamais moins de 30)
+ * (avant la v158 : dès le lendemain) ; « Tu y es allée ? » les retire avant.
  */
 export function cleanPlans(list, now = Date.now(), keepDays = 30) {
   const d = new Date(now);
-  // v158 : gardées 30 jours après le jour prévu, le temps de répondre à « Tu y es allé ? » (comme mes lieux)
+  // v158 : gardées 30 jours après le jour prévu, le temps de répondre à « Tu y es allée ? » (comme mes lieux)
   const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate() - Math.max(30, Number.isFinite(keepDays) ? keepDays : 30)).getTime();
   const seen = new Set();
   return (Array.isArray(list) ? list : []).map((x) => {
@@ -141,7 +141,7 @@ export function cleanPlans(list, now = Date.now(), keepDays = 30) {
       ...(typeof x.url === 'string' && /^https:\/\/[^\s"<>]+$/.test(x.url) ? { url: x.url.slice(0, 500) } : {}),
       ...(typeof x.by === 'string' && x.by.trim() ? { by: x.by.trim().slice(0, 30) } : {}), // v181 : prévue par un proche (son fichier)
       ...(Number.isFinite(x.until) && x.until > 0 ? { until: x.until } : {}), // v199 : fin d'une expo de l'agenda
-      ...(x.missed === true ? { missed: true } : {}), // v199 : « Non » à « Tu y es allé ? », encore à l'affiche
+      ...(x.missed === true ? { missed: true } : {}), // v199 : « Non » à « Tu y es allée ? », encore à l'affiche
     };
   }).filter(Boolean).slice(0, 200);
 }
@@ -151,7 +151,7 @@ export const planOfEvent = (plans, e, now = new Date()) => (plans ?? []).find((x
   && Math.abs(x.lat - e.lat) < 1e-5 && Math.abs(x.lng - e.lng) < 1e-5 && x.ticket?.at >= dayStart(now).getTime()) ?? null;
 
 /**
- * Mon carnet de sorties (v158) : les sorties de l'agenda où je suis allé (« Tu y es allé ? » → Oui), avec ce que j'en retiens.
+ * Mon carnet de sorties (v158) : les sorties de l'agenda où je suis allé (« Tu y es allée ? » → Oui), avec ce que j'en retiens.
  * Forme : { id, at, name, lat, lng, place?, url?, text?, stars?, photo? }, la plus récente d'abord ; 500 au plus.
  */
 export function cleanOutings(list) {

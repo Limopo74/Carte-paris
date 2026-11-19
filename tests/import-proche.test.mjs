@@ -62,7 +62,7 @@ test('import : un nouvel envoi met à jour ses lieux déjà reçus, sans rien re
   assert.equal(mine.state.points.find((p) => p.id === 'a').name, 'Mon A', 'un lieu à elle avec le même id reste le sien');
 });
 
-test('sorties « Prévu par » : gardées par cleanPlans, jamais dans « Tu y es allé ? »', () => {
+test('sorties « Prévu par » : gardées par cleanPlans, jamais dans « Tu y es allée ? »', () => {
   const p = cleanPlans([{ id: 'p1', name: 'Expo', lat: 48.86, lng: 2.33, plan: true, ticket: { at: Date.now() - 864e5 }, by: 'Marie' }]);
   assert.equal(p[0].by, 'Marie');
   assert.equal(pastPlans(p).length, 0);

@@ -13,13 +13,13 @@ const memStorage = () => { const m = new Map(); return { getItem: (k) => m.get(k
 // Bornes et crans de la maquette (mon choix 3A), recopiés du texte, pas du code
 const SPEC = {
   alertM: [50, 500, 50, 100], // « Prévenir à 100 m » : de 50 à 500 m, par 50 m
-  memoryM: [50, 500, 50, 100], // « Déjà passé ici » : 50 à 500 m par 50
+  memoryM: [50, 500, 50, 100], // « Déjà passée ici » : 50 à 500 m par 50
   walkM: [500, 3000, 250, 1000], // Y aller : 500 m à 3 km par 250 m
   eventsM: [1000, 5000, 500, 3000], // Sorties : 1 à 5 km par 500 m, 3 km au départ (mon choix 2A)
   ttbMin: [5, 30, 5, 15], // TTB : 5 à 30 min par 5
   rainMin: [5, 20, 5, 10], // passages couverts : 5 à 20 min par 5
   traceMin: [1, 5, 1, 2], // circuits : 1 à 5 min par 1
-  askDays: [15, 90, 15, 30], // « Tu y es allé ? » : 15 à 90 jours par 15
+  askDays: [15, 90, 15, 30], // « Tu y es allée ? » : 15 à 90 jours par 15
 };
 
 test('valeurs au départ : celles d\'aujourd\'hui, sauf Sorties à 3 km', () => {
@@ -131,13 +131,13 @@ test('« Mes réglages par défaut » reprend aussi les nouveaux réglages', () 
   assert.deepEqual(cleanSettings({}).tuning, cleanTuning());
 });
 
-/* ---------- « Déjà passé ici » : distance réglable, texte jamais faux ---------- */
+/* ---------- « Déjà passée ici » : distance réglable, texte jamais faux ---------- */
 const day = 864e5;
 const now = new Date(2026, 10, 19, 15).getTime();
 const here = { lat: 48.8800, lng: 2.3400 };
 const far = { id: 'e', lat: 48.8820, lng: 2.3400, note: 'cour avec glycine', created: now - 200 * day }; // environ 220 m
 
-test('« Déjà passé ici » : la distance réglée est comprise, un mètre de plus ne l\'est pas', () => {
+test('« Déjà passée ici » : la distance réglée est comprise, un mètre de plus ne l\'est pas', () => {
   const d = distanceM(here, far);
   assert.ok(d > 200 && d < 250, `le lieu d'essai est à ${d} m`);
   assert.equal(memoryHere([far], here, {}, now), null, 'sans réglage : 100 m, comme avant');
@@ -148,12 +148,12 @@ test('« Déjà passé ici » : la distance réglée est comprise, un mètre de 
   assert.equal(memoryHere([far], here, {}, now, 200), null, 'réglé à 200 m');
 });
 
-test('jusqu\'à 100 m « Tu es déjà passé ici » ; au-delà « Déjà passé · N min à pied »', () => {
-  assert.equal(memoryTitle(99, 2), 'Tu es déjà passé ici');
-  assert.equal(memoryTitle(100, 2), 'Tu es déjà passé ici');
-  assert.equal(memoryTitle(101, 2), 'Déjà passé · 2 min à pied');
-  assert.equal(memoryTitle(240, 3), 'Déjà passé · 3 min à pied');
-  assert.equal(memoryTitle(0, 0), 'Tu es déjà passé ici');
+test('jusqu\'à 100 m « Tu es déjà passée ici » ; au-delà « Déjà passée · N min à pied »', () => {
+  assert.equal(memoryTitle(99, 2), 'Tu es déjà passée ici');
+  assert.equal(memoryTitle(100, 2), 'Tu es déjà passée ici');
+  assert.equal(memoryTitle(101, 2), 'Déjà passée · 2 min à pied');
+  assert.equal(memoryTitle(240, 3), 'Déjà passée · 3 min à pied');
+  assert.equal(memoryTitle(0, 0), 'Tu es déjà passée ici');
 });
 
 /* ---------- Y aller : à pied jusqu'à la distance réglée, en transports au-delà ---------- */
@@ -188,8 +188,8 @@ test('app.js ne garde plus les faux « 1000 » et « 999 » qui supposaient une 
   assert.equal(/mapsUrl\([^)]*999\)/.test(app), false, 'à pied imposé : 0');
 });
 
-/* ---------- « Tu y es allé ? » : nombre de jours réglable ---------- */
-test('« Tu y es allé ? » : le dernier jour compté est compris, le suivant ne l\'est pas', () => {
+/* ---------- « Tu y es allée ? » : nombre de jours réglable ---------- */
+test('« Tu y es allée ? » : le dernier jour compté est compris, le suivant ne l\'est pas', () => {
   const today = new Date(2026, 10, 19, 15);
   const ago = (n) => ({ name: `J-${n}`, ticket: { at: new Date(2026, 10, 19 - n, 10).getTime() } });
   const pts = [ago(1), ago(14), ago(15), ago(16), ago(30), ago(31), ago(89), ago(90), ago(91)];
@@ -201,7 +201,7 @@ test('« Tu y es allé ? » : le dernier jour compté est compris, le suivant ne
 });
 
 /* ---------- Une sortie de l'agenda prévue se garde aussi longtemps que la question se pose ---------- */
-test('sorties de l\'agenda : gardées autant de jours que « Tu y es allé ? », jamais moins de 30', async () => {
+test('sorties de l\'agenda : gardées autant de jours que « Tu y es allée ? », jamais moins de 30', async () => {
   const { cleanPlans } = await import('../js/planning.js');
   const t = new Date(2026, 10, 19, 15).getTime();
   const plan = (n) => ({ id: `p${n}`, name: `J-${n}`, lat: 48.86, lng: 2.33, plan: true, ticket: { at: new Date(2026, 10, 19 - n, 10).getTime() } });
