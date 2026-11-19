@@ -707,10 +707,19 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .passage-img { flex: none; width: 44px; height: 44px; border-radius: var(--r); object-fit: cover; background: var(--line); }
 .plan-time.passage-date { font-size: var(--t14); min-width: 4.6em; }
 .passage-stars { display: block; color: var(--fav); font-size: var(--t13); letter-spacing: 1px; }
-.ttb-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--disc); color: var(--bg); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
+.ttb-pin { position: relative; width: 28px; height: 28px; border-radius: 50%; background: var(--disc); color: var(--bg); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; box-shadow: var(--float); }
 .ttb-pin b, .ttb-dot b { font-family: var(--display); font-weight: 800; font-size: 11.5px; line-height: 1; letter-spacing: 0; }
 .ttb-far .ttb-pin { width: 14px; height: 14px; margin: 7px; border-width: 1.5px; }
 .ttb-far .ttb-pin svg { display: none; }
+/* v218 : adresse vérifiée par moi depuis moins de 6 mois. Coche encre sur pastille claire, en haut à droite (jamais la coche verte, qui veut dire « Déjà visité ») ; vue de loin, le bord du petit rond passe à l'encre. */
+.ttb-ok { position: absolute; top: -7px; right: -7px; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--ink); border: 1.5px solid var(--ink); }
+.ttb-far .ttb-ok { display: none; }
+.ttb-far .ttb-pin.ok { border-color: var(--ink); }
+#sheetTitle .fiche-kick .tag { margin-left: 8px; letter-spacing: 0; }
+.ttb-verdict .btn { padding-inline: 6px; line-height: 1.15; }
+.ttb-card { border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--line); padding: 10px 0; }
+.ttb-card p { margin: 0; }
+.ttb-card .ttb-card-name { font: 800 var(--t22) / 1.15 var(--display); margin: 2px 0 6px; }
 .ttb-dot { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--disc); color: var(--bg); }
 .chip.ttb-chip .ttb-dot { width: 32px; height: 32px; }
 .ttb-dot b { letter-spacing: -0.02em; }

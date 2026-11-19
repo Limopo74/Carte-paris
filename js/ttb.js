@@ -184,22 +184,52 @@ export function ttbCategory(rub, categories) {
 }
 
 /* Adresses TTB masquées ou fermées (v165) : notées par moi, gardées sur le téléphone avec la liste (hors sauvegarde),
-   et retrouvées après un nouvel import (même nom et même adresse, sans accents ni majuscules). */
+   et retrouvées après un nouvel import (même nom et même adresse, sans accents ni majuscules).
+   Depuis la v218, une troisième marque, « ok » : vérifiée par moi, encore ouverte (voir plus bas). */
 export const TTB_MARKS_KEY = 'carte-paris.ttb-masque';
 const markKey = (s) => foldName(s).replace(/[^a-z0-9]+/g, ' ').trim();
 /** La clé d'une adresse du guide : son nom et son adresse. */
 export const ttbKey = (x) => `${markKey(x?.name)}|${markKey(x?.address)}`;
-/** { clé : { n: nom, k: 'closed' | 'hidden', at } }, 500 au plus ; le reste est écarté. */
+/** { clé : { n: nom, k: 'closed' | 'hidden' | 'ok', at } }, 500 au plus ; le reste est écarté. */
 export function cleanTtbMarks(obj) {
   const out = {};
   for (const [key, v] of Object.entries(obj && typeof obj === 'object' ? obj : {}).slice(0, 500)) {
-    if (!/^[a-z0-9 ]+\|[a-z0-9 ]*$/.test(key) || !['closed', 'hidden'].includes(v?.k) || !Number.isFinite(v?.at)) continue;
+    if (!/^[a-z0-9 ]+\|[a-z0-9 ]*$/.test(key) || !['closed', 'hidden', 'ok'].includes(v?.k) || !Number.isFinite(v?.at)) continue;
     out[key] = { n: cut(v.n, 120), k: v.k, at: v.at };
   }
   return out;
 }
-/** Ce que j'ai noté pour cette adresse : 'closed', 'hidden' ou ''. */
-export const ttbMark = (marks, x) => marks?.[ttbKey(x)]?.k ?? '';
+/** Ce qui retire cette adresse de la carte et des listes : 'closed', 'hidden' ou '' (une marque « ok » ne la cache pas). */
+export const ttbMark = (marks, x) => { const k = marks?.[ttbKey(x)]?.k ?? ''; return k === 'ok' ? '' : k; };
+
+/* « Encore ouvert ? » (v218, mes choix du 19 nov.) : après « Avis Google », je note « Toujours ouvert » : marque « ok », datée.
+   Elle vaut 6 mois (un resto vérifié peut fermer : une marque sans fin deviendrait fausse) ; après, l'adresse est « à revoir ». */
+export const TTB_CHECK_DAYS = 183;
+const CHECK_MS = TTB_CHECK_DAYS * 864e5;
+/** Le moment de ma dernière vérification (même ancienne), sinon 0. */
+export const ttbCheckedAt = (marks, x) => { const m = marks?.[ttbKey(x)]; return m?.k === 'ok' ? m.at : 0; };
+/** Jusqu'à quand vaut une vérification faite à ce moment. */
+export const ttbCheckEnd = (at) => at + CHECK_MS;
+/** 'ok' (vérifiée depuis moins de 6 mois), 'old' (vérifiée il y a plus longtemps), 'no' (jamais), '' (fermée ou masquée). */
+export function ttbState(marks, x, now = Date.now()) {
+  if (ttbMark(marks, x)) return '';
+  const at = ttbCheckedAt(marks, x);
+  return !at ? 'no' : now - at < CHECK_MS ? 'ok' : 'old';
+}
+/** Le compteur : vérifiées, notées fermées, à voir (jamais vérifiées ou à revoir). Les masquées ne comptent nulle part. */
+export function ttbCounts(items, marks, now = Date.now()) {
+  const c = { ok: 0, closed: 0, todo: 0 };
+  for (const x of Array.isArray(items) ? items : []) {
+    const s = ttbState(marks, x, now);
+    if (s === 'ok') c.ok++; else if (s) c.todo++; else if (ttbMark(marks, x) === 'closed') c.closed++;
+  }
+  return c;
+}
+/** Les adresses à voir, par arrondissement puis par nom ; `skipped` : les clés de celles que j'ai passées. */
+export function ttbQueue(items, marks, skipped = new Set(), now = Date.now()) {
+  return (Array.isArray(items) ? items : []).filter((x) => ['no', 'old'].includes(ttbState(marks, x, now)) && !skipped.has(ttbKey(x)))
+    .sort((a, b) => a.arr - b.arr || a.name.localeCompare(b.name, 'fr'));
+}
 
 /* TTB dans ma sauvegarde (v179, choix du 18 nov.) : la liste et mes marques partent dans le fichier quand la case
    « Avec la liste TTB » est cochée (cochée au départ). Le fichier reste sur le téléphone ou là où je l'envoie ;
@@ -213,7 +243,8 @@ export function ttbExport(data, marks) {
 }
 /**
  * Fusion à la restauration ou à l'import : la liste dont la page est la plus récente gagne (à date égale, ou sans
- * date, celle du téléphone reste) ; les marques du téléphone restent et celles du fichier s'ajoutent.
+ * date, celle du téléphone reste) ; les marques du téléphone restent et celles du fichier s'ajoutent. Seule exception (v218) :
+ * ma marque « ok » cède à une marque plus récente du fichier, « ok » ou « closed » (l'adresse a été revue depuis).
  * `mine` = { data: { items, date } | null, marks } ; `file` = l'objet `ttb` du fichier.
  * Renvoie { data, marks, list: true si la liste du fichier a été prise, newMarks: nombre de marques ajoutées }.
  */
@@ -224,7 +255,8 @@ export function ttbMerge(mine, file) {
   const marks = cleanTtbMarks(mine?.marks);
   let newMarks = 0;
   for (const [k, v] of Object.entries(cleanTtbMarks(file?.marks))) {
-    if (k in marks || Object.keys(marks).length >= 500) continue;
+    if (k in marks) { if (marks[k].k === 'ok' && v.k !== 'hidden' && v.at > marks[k].at) marks[k] = v; continue; }
+    if (Object.keys(marks).length >= 500) continue;
     marks[k] = v; newMarks++;
   }
   return { data: list ? b : (a ?? null), marks, list, newMarks };

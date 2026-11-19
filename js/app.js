@@ -29,7 +29,7 @@ import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, r
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbExport, ttbMerge } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -50,7 +50,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (217)';
+const VERSION = '19 novembre 2026 (218)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -452,7 +452,7 @@ function renderMarkers() {
     })
       .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? (canVanish(p, state.categories) ? ', disparue ou recouverte' : ', fermé définitivement') : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); } })
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
-      .on('click', () => { if (!moving) openDetail(p.id); })
+      .on('click', () => { if (!moving) openDetail(p.id, arrBack()); })
       .addTo(pointsLayer);
   }
   // Une adresse TTB gardée dans mes lieux : seule ma goutte reste (v155). Au démarrage, le calque TTB n'existe pas encore.
@@ -2610,7 +2610,7 @@ function openSearch(initial = '') {
     const q = input.value.trim();
     const hit = (xs, ...keys) => near((xs ?? []).filter((x) => textMatch(q, ...keys.map((k) => x[k]))));
     fill(moreBox,
-      ...block('TTB', hit(ttbOpen(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
+      ...block('TTB', hit(ttbHere(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
       ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
       ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
       ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))),
@@ -3511,6 +3511,11 @@ function pickArr(n) {
   if (z) map.fitBounds(L.latLngBounds(z.rings.flat().map(([x, y]) => [y, x])), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], animate: false });
 }
 /** Mes lieux de l'arrondissement, rangés par catégorie (v202). Les boutons du haut et les autres filtres s'y appliquent comme sur la carte. */
+/** Liste d'un arrondissement affichée, même réduite (v218) : une goutte ou un rond TTB touché sur la carte ouvre sa fiche avec le retour vers cette liste. Sinon null. */
+function arrBack() {
+  const n = view === 'arrlist' ? filt.arr : 0;
+  return n ? named(`Mes lieux du ${arrOrd(n)}`, () => openArrList(n)) : null;
+}
 function openArrList(n) {
   const here = (p) => arrOfPoint(p) === n;
   const pts = visible().filter(here);
@@ -5699,15 +5704,51 @@ const ttbBudgets = new Set();
 /** Adresses TTB masquées ou fermées (v165), notées par moi : plus sur la carte ni dans les listes. Gardées à part (localStorage), comme la liste ; elles partent dans le fichier de sauvegarde avec la case « Avec la liste TTB » (v179). */
 let ttbMarks;
 const ttbMarksNow = () => { if (ttbMarks === undefined) { try { ttbMarks = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { ttbMarks = {}; } } return ttbMarks; };
-function setTtbMark(x, k) {
+const setTtbMark = (x, k) => putTtbMark(x, k ? { n: x.name, k, at: Date.now() } : null);
+/** Pose une marque telle quelle, ou la retire (null) : « Annuler » remet celle d'avant, avec sa date (v218). */
+function putTtbMark(x, mark) {
   const m = { ...ttbMarksNow() };
-  if (k) m[ttbKey(x)] = { n: x.name, k, at: Date.now() }; else delete m[ttbKey(x)];
+  if (mark) m[ttbKey(x)] = mark; else delete m[ttbKey(x)];
   ttbMarks = cleanTtbMarks(m);
   try { storage.setItem(TTB_MARKS_KEY, JSON.stringify(ttbMarks)); } catch { toast('Le téléphone n\'a pas pu le garder (plus de place).', true); }
   drawTtb();
 }
 const ttbOpen = () => ttbList().filter((x) => !ttbMark(ttbMarksNow(), x)); // ni masquées ni fermées
-const ttbShown = () => ttbOpen().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
+const ttbHere = () => ttbOpen().filter((x) => !filt.arr || x.arr === filt.arr); /* v218 (mon choix 4A) : un arrondissement choisi vaut aussi pour TTB, comme pour mes lieux */
+const ttbShown = () => ttbHere().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
+/* « Encore ouvert ? » (v218) : l'étiquette de la fiche, le compteur, les deux réponses après « Avis Google », la page pour tout vérifier d'affilée */
+const TTB_STATE = { ok: ['tag open', 'Vérifiée'], old: ['tag', 'À revoir'], no: ['tag closed', 'Pas vérifiée'] };
+const ttbCountText = (list = ttbList()) => { const c = ttbCounts(list, ttbMarksNow()); return `${plural(c.ok, 'vérifiée', 'vérifiées')} · ${plural(c.closed, 'fermée', 'fermées')} · ${c.todo} à voir`; };
+const monthYear = (t) => new Date(t).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+const ttbSkipped = new Set(); /* « Passer » : le temps de la session */
+function ttbVerdict(x, after) {
+  const prev = ttbMarksNow()[ttbKey(x)] ?? null;
+  const undo = { label: 'Annuler', fn: () => { putTtbMark(x, prev); after(); } };
+  return el('div', { class: 'row ttb-verdict' },
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => { setTtbMark(x, 'ok'); after(); toast('Notée vérifiée : toujours ouvert', false, undo); } }, ico('check'), 'Toujours ouvert'),
+    el('button', { type: 'button', class: 'btn danger', onclick: () => { setTtbMark(x, 'closed'); after(); toast('Noté fermé : l\'appli ne la propose plus', false, undo); } }, ico('store'), 'Fermé définitivement'));
+}
+/** Réglages → TTB → Vérifier les adresses : une adresse à la fois, par arrondissement ; ta réponse amène la suivante. */
+function openTtbCheck(back) {
+  const again = () => openTtbCheck(back);
+  const x = ttbQueue(ttbOpen(), ttbMarksNow(), ttbSkipped)[0];
+  openSheet([ttbDotFor(''), ' Vérifier les adresses'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, ttbCountText()),
+    x ? [
+      el('div', { class: 'ttb-card' },
+        el('p', {}, `${arrOrd(x.arr)} · ${ttbKicker(x)}`),
+        el('p', { class: 'ttb-card-name' }, x.name),
+        el('p', { class: 'where' }, ico('map-pin'), x.address)),
+      el('a', { class: 'btn primary', href: reviewsUrl(x), target: '_blank', rel: 'noopener' }, ico('star'), '1 · Avis Google'),
+      el('p', { class: 'help' }, '2 · De retour ici, ta réponse :'),
+      ttbVerdict(x, again),
+      el('button', { type: 'button', class: 'btn', onclick: () => { ttbSkipped.add(ttbKey(x)); again(); } }, ico('chevron-right'), 'Passer, je ne sais pas'),
+      el('p', { class: 'help' }, 'Google Maps le dit sous le nom du lieu quand il a fermé pour de bon. Sinon, regarde la date des derniers avis. Une vérification vaut 6 mois.'),
+    ] : el('p', {}, ttbSkipped.size ? `Plus rien à voir, sauf ${plural(ttbSkipped.size, 'adresse passée', 'adresses passées')}.` : 'Toutes les adresses sont vérifiées ou notées fermées.'),
+    !x && ttbSkipped.size ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { ttbSkipped.clear(); again(); } }, 'Revoir les adresses passées') : null,
+    foot(backBtn(back)),
+  ), { name: 'ttb-check', again, tall: true });
+}
 /** Le bouton du haut : un rond terre cuite marqué « TTB » (ailleurs, le rond porte l'icône de la rubrique).
  * Pour changer la marque, ne modifier que TTB_MARK (3 lettres au plus pour tenir dans le rond). */
 const TTB_MARK = 'TTB';
@@ -5725,12 +5766,14 @@ function drawTtb() {
   ttbLayer.clearLayers();
   if (!state.showTtb) return;
   const mine = state.points.filter((p) => !p.owner);
+  const marks = ttbMarksNow();
   for (const x of ttbShown()) {
     if (navigoFor(x, mine)) continue; // déjà dans mes lieux : sa goutte suffit (sa fiche a la ligne TTB)
+    const ok = ttbState(marks, x) === 'ok'; /* v218 : vérifiée par moi depuis moins de 6 mois */
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
-      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
-      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, TTB${x.rub ? `, ${x.rub}` : ''}`))
-      .on('click', () => { if (!moving) openTtbPlace(x); })
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin${ok ? ' ok' : ''}">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}${ok ? `<i class="ttb-ok">${svgIcon('check', { size: 11, stroke: 3.4 })}</i>` : ''}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, TTB${x.rub ? `, ${x.rub}` : ''}${ok ? ', vérifiée' : ''}`))
+      .on('click', () => { if (!moving) openTtbPlace(x, arrBack()); })
       .addTo(ttbLayer);
   }
 }
@@ -5751,7 +5794,8 @@ function openTtbList(back = null, limit = 30) {
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
   const flip = (set, v) => { if (set.has(v)) set.delete(v); else set.add(v); drawTtb(); openTtbList(back, 30); };
   openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
+    el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : filt.arr ? ` dans le ${arrOrd(filt.arr)}` : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
+    el('p', { class: 'help' }, ttbCountText(ttbList().filter((x) => !filt.arr || x.arr === filt.arr))),
     el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDotFor('')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite, icône selon la rubrique, avec ces filtres')),
@@ -5784,7 +5828,9 @@ function openTtbPlace(x, back = null) {
   const today = ttbToday(x);
   const kick = `TTB · ${x.arr}${x.arr === 1 ? 'er' : 'e'}`;
   const insta = /instagram\.com/i.test(x.url), fb = /facebook\.com/i.test(x.url);
-  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), el('span', { class: 'fiche-name' }, x.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
+  const st = ttbState(ttbMarksNow(), x); /* v218 : l'étiquette à la hauteur du titre (mots courts : la ligne ne se coupe dans aucune taille de texte) */
+  const seenAt = ttbCheckedAt(ttbMarksNow(), x);
+  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, st ? el('span', { class: TTB_STATE[st][0] }, TTB_STATE[st][1]) : null), el('span', { class: 'fiche-name' }, x.name), el('span', { class: 'sr-only' }, `, ${kick}${st ? `, ${TTB_STATE[st][1]}` : ''}`)], el('div', { class: 'stack detail' },
     el('p', { class: 'summary' }, [ttbKicker(x), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), x.address), copyBtn(() => x.address, 'l\'adresse', 'Adresse copiée')),
     el('div', { class: 'fiche-cols' },
@@ -5804,17 +5850,19 @@ function openTtbPlace(x, back = null) {
         : el('button', { type: 'button', class: 'btn c-add', onclick: () => ttbAdd(x) }, ico('plus'), 'Ajouter')),
     x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico(insta ? 'camera' : 'info'), insta ? 'Instagram du lieu' : fb ? 'Page Facebook du lieu' : 'Site du lieu') : null,
     el('a', { class: 'btn c-guide', href: reviewsUrl(x), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
+    /* v218 (mon choix 3A) : les deux réponses juste sous « Avis Google » ; « Fermé définitivement » a quitté le Rangement */
+    st ? ttbVerdict(x, again) : null,
+    st === 'ok' ? el('p', { class: 'help' }, `Vérifiée le ${shortDate(seenAt)} : toujours ouvert. À revoir en ${monthYear(ttbCheckEnd(seenAt))}.`) : null,
+    st === 'old' ? el('p', { class: 'help' }, `Dernière vérification : ${monthYear(seenAt)}. À refaire.`) : null,
     x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon TTB') : null,
     x.hours.length ? el('div', { class: 'fiche-lines' }, x.hours.map((h, i) => el('p', {}, el('b', {}, `${TTB_DAYS[i]} `), h))) : null,
     el('p', { class: 'help' }, `Adresse du guide TTB${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}. Les horaires viennent du guide et peuvent avoir changé : vérifie avant d'y aller.`),
-    // Rangement (v165) : fermé définitivement (constaté sur place ou dans Google Maps), ou simplement masqué ; réversible
+    // Rangement (v165) : masquer une adresse, ou remettre celle que j'ai masquée ou notée fermée ; « Fermé définitivement » est sous « Avis Google » depuis la v218
     el('h3', { class: 'fiche-sec' }, 'Rangement'),
     ttbMark(ttbMarksNow(), x) ? el('div', { class: 'stack' },
       el('p', {}, ico('eye-off'), ttbMark(ttbMarksNow(), x) === 'closed' ? ' Noté fermé définitivement : plus sur la carte ni dans les listes.' : ' Masquée : plus sur la carte ni dans les listes.'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { setTtbMark(x, ''); again(); toast('Remise sur la carte'); } }, ico('eye'), 'Remettre sur la carte'))
       : el('div', { class: 'fiche-toc' },
-        el('button', { type: 'button', class: 'fiche-row', onclick: () => { setTtbMark(x, 'closed'); again(); toast('Noté fermé : l\'appli ne la propose plus', false, { label: 'Annuler', fn: () => { setTtbMark(x, ''); again(); } }); } },
-          ico('store'), el('span', {}, 'Fermé définitivement', el('small', {}, 'Constaté sur place ou dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
         el('button', { type: 'button', class: 'fiche-row', onclick: () => { setTtbMark(x, 'hidden'); again(); toast('Masquée', false, { label: 'Annuler', fn: () => { setTtbMark(x, ''); again(); } }); } },
           ico('eye-off'), el('span', {}, 'Masquer cette adresse', el('small', {}, 'Elle ne m\'intéresse pas ; gardée masquée après un nouvel import')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     back ? backBtn(back) : null,
@@ -5842,6 +5890,10 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
   openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide TTB, sur ta carte.'),
     n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('TTB', again)) }, ico('list'), 'Voir la liste') : null,
+    n ? el('h3', { class: 'ring-title' }, el('span', {}, 'Encore ouvertes ?'), el('span', {}, '')) : null,
+    n ? el('p', {}, ttbCountText()) : null,
+    n ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openTtbCheck(named('TTB', again)) }, ico('check'), 'Vérifier les adresses') : null,
+    n ? el('p', { class: 'help' }, 'Une adresse à la fois : Avis Google, puis ta réponse. Une vérification vaut 6 mois ; elle se fait aussi sur chaque fiche, sous « Avis Google ».') : null,
     ...ttbMarkedSection(again),
     el('h3', { class: 'ring-title' }, el('span', {}, n ? 'Mettre à jour la liste' : 'Importer la liste'), el('span', {}, '')),
     el('ol', { class: 'steps' },
@@ -8325,6 +8377,10 @@ const HELP = [
     '**La liste** : Autour de moi → Liste TTB, ou {settings} → TTB → Voir la liste. La plus proche d\'abord, avec un tri par rubrique et par budget.',
     '**Chaque icône** dit la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave.',
     '**La fiche** : cuisine, budget, horaires selon le guide, station, site, Avis Google et + Ajouter.',
+    '{check} **Encore ouvert ?** Sur la fiche, touche Avis Google, reviens, puis réponds : « Toujours ouvert » ou « Fermé définitivement ». À côté de « TTB », l\'étiquette dit Pas vérifiée, Vérifiée ou À revoir.',
+    '**Vérifiée** vaut 6 mois : le rond porte une coche noire (un bord noir vu de loin), puis l\'adresse passe « À revoir ». **Fermée** : le rond disparaît ; {settings} → TTB pour la remettre.',
+    '**Tout vérifier d\'affilée** : {settings} → TTB → Vérifier les adresses. Une adresse à la fois, par arrondissement ; le compteur dit ce qui reste.',
+    '**Un arrondissement choisi** (Filtres) : seuls ses ronds TTB restent sur la carte, comme tes lieux.',
     '{plus} **Ajouter** garde l\'adresse dans tes lieux, pour Favori, Déjà visité, étoiles, photos ou Prévoir. Sa goutte remplace alors le rond TTB.',
     '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
     '**Mauvaise catégorie** : touche la goutte → Modifier. **Pas voulu** : touche la goutte → Rangement → Supprimer ce lieu. Le rond TTB revient.',
@@ -8391,6 +8447,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
@@ -8400,7 +8457,6 @@ const HELP = [
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
     '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
     '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
-    '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
   ]],
 ];
 
