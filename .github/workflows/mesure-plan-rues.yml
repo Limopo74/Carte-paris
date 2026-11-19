@@ -1,0 +1,44 @@
+# Mesure du plan des rues à pied (19 nov. 2026, « Mes parcours » : choix A de la mesure).
+# Ne tourne que sur la branche mesure-plan-rues, quand elle reçoit un envoi. Ne publie rien, ne change ni l'appli
+# ni ses données : il télécharge les rues de Paris chez OpenStreetMap, fabrique le plan et écrit son poids dans le
+# journal ; le fichier est gardé 7 jours comme pièce jointe du passage (onglet Actions).
+name: Mesure du plan des rues
+
+on:
+  push:
+    branches: [mesure-plan-rues]
+
+permissions:
+  contents: read
+
+jobs:
+  mesure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Demander les rues à OpenStreetMap et fabriquer le plan
+        run: |
+          set -u
+          mkdir -p /tmp/src
+          python3 -I tools/maj-rues.py demande > /tmp/src/q-rues.txt
+          UA='Carte-paris, mesure ponctuelle (https://github.com/Limopo74/Carte-paris)'
+          for tour in 1 2; do
+            for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+              if curl -fsS --compressed --max-time 900 -A "$UA" --data-urlencode "data@/tmp/src/q-rues.txt" -o /tmp/src/rues.json "$server"; then
+                echo "Réponse : $(wc -c < /tmp/src/rues.json) octets depuis $server (tour $tour)"; break 2
+              fi
+              echo "$server ne répond pas (tour $tour)"; rm -f /tmp/src/rues.json; sleep 30
+            done
+            [ "$tour" = 1 ] && { echo "Second tour dans 2 minutes."; sleep 120; }
+          done
+          [ -s /tmp/src/rues.json ] || { echo "Aucun serveur n'a répondu : pas de mesure."; exit 1; }
+          python3 -I tools/maj-rues.py /tmp/src/rues.json /tmp/rues.json "$(TZ=Europe/Paris date +%F)"
+          gzip -9 -k /tmp/rues.json && ls -l /tmp/rues.json /tmp/rues.json.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plan-des-rues
+          path: /tmp/rues.json.gz
+          retention-days: 7
+          if-no-files-found: ignore
