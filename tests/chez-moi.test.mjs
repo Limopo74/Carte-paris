@@ -74,7 +74,12 @@ test('l\'appli : point de départ unique, écrans « là où je suis » inchang�
   assert.match(app, /const startHere = \(\) => atHome\(\) \?\? nearHere\(\);/);
   assert.match(app, /if \(homeOn\(\) && fix\.time >= homeOnAt && awayFromHome\(fix, state\.home\)\)/);
   assert.match(app, /de\\u00a0chez\\u00a0toi/);
-  assert.match(app, /wxBadge\.addEventListener\('click', \(\) => \(homeOn\(\) \? setHomeOn\(false\) : openWeather\(\)\)\)/);
+  // v239 : la pastille ouvre toujours la météo ; Chez moi s'éteint par l'interrupteur en haut de la page
+  assert.match(app, /wxBadge\.addEventListener\('click', \(\) => openWeather\(\)\);/);
+  const w = app.slice(app.indexOf('function openWeather('), app.indexOf("name: 'weather'"));
+  assert.match(w, /role: 'switch'/);
+  assert.match(w, /'Partir de chez moi'/);
+  assert.match(app, /if \(view === 'weather'\) openWeather\(true\);/);
   // Rentrer, la boussole et Où suis-je ? partent toujours de ma vraie position
   for (const fn of ['async function openHomePlan', 'function openCompass', 'async function openWhereAmI']) {
     const i = app.indexOf(fn); assert.ok(i > 0, fn);

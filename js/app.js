@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (238)';
+const VERSION = '19 novembre 2026 (239)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1476,6 +1476,7 @@ function setHomeOn(on, { quiet = false } = {}) {
   if (next) homeOnAt = Date.now();
   persist();
   drawWx();
+  if (view === 'weather') openWeather(true); // v239 : la ligne Chez moi de la page Météo suit
   if (!quiet) toast(next ? `Distances depuis chez toi (${homeShort(state.home)})` : 'Distances depuis ta position', false, { label: 'Annuler', fn: () => setHomeOn(!next, { quiet: true }) });
 }
 
@@ -5725,7 +5726,7 @@ function openHomeSettings() {
         el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))))
       : el('button', { type: 'button', class: 'btn c-guide', onclick: openHomeSearch }, ico('search'), 'Chercher mon adresse'),
     home ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
-    home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche-le pour l'éteindre.`) : null,
+    home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille pour l'éteindre en haut de la page Météo.`) : null,
     el('p', { class: 'help tip' }, 'Ne changent pas : Rentrer, M, la boussole, Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.'),
     el('p', { class: 'help tip' }, `Ton adresse reste sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.${home ? '' : ' Pour la trouver, l\'appli envoie ce que tu tapes à l\'IGN, après ton appui.'}`),
     foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(named('Réglages', () => openSettings())))),
@@ -5822,18 +5823,25 @@ function drawWx() {
     meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
     air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
     air ? `Air ${air.label.toLowerCase()}` : null);
-  wxBadge.setAttribute('aria-label', h ? `Distances depuis chez toi. ${meteo?.temp != null ? `${meteo.temp} degrés. ` : ''}Touche pour revenir à ta position` : [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', h ? `Distances depuis chez toi. ${meteo?.temp != null ? `${meteo.temp} degrés. ` : ''}Détails` : [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
   mediocre: 'Évite les efforts intenses dehors, surtout près des grands axes.', 'tres-mediocre': 'Limite les efforts dehors ; privilégie les parcs et les rues calmes.',
   extreme: 'Évite les efforts dehors aujourd\'hui.',
 };
-function openWeather() {
-  track('Météo et air');
+let wxHomeRow = false; // v239 : la ligne Chez moi reste visible tant que la page est ouverte, même éteinte (pour la rallumer)
+function openWeather(redraw = false) {
+  if (!redraw) { track('Météo et air'); wxHomeRow = homeOn(); }
   const day = dayNote();
+  const on = homeOn();
+  const home = cleanHome(state.home);
   const a = arrHere();
   openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
+    home && (on || wxHomeRow) ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, on ? `Distances depuis chez toi · ${homeShort(state.home)}` : 'Distances depuis ta position')),
+      el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))) : null,
     a ? el('p', { class: 'where-big' }, `Tu es dans le ${arrOrd(a)} arrondissement`) : null,
     day ? el('p', { class: 'warn day-note' }, day.long) : null,
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
@@ -5845,9 +5853,9 @@ function openWeather() {
     air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
     meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
     el('p', { class: 'help' }, 'Source : Open-Meteo (prévisions européennes CAMS pour l\'air). Valeurs pour le quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
-  ), { name: 'weather', again: openWeather });
+  ), { name: 'weather', again: () => openWeather(true) });
 }
-wxBadge.addEventListener('click', () => (homeOn() ? setHomeOn(false) : openWeather())); // v222 : Chez moi allumé, un appui l'éteint (« Annuler » dans le message)
+wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
 
 /* ---------- Marchés découverts : sur la carte le jour où ils se tiennent, et dans Sorties ---------- */
 
@@ -8994,7 +9002,7 @@ const HELP = [
     '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
-    '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche-le pour l\'éteindre. Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
+    '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
@@ -9036,6 +9044,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
@@ -9045,7 +9054,6 @@ const HELP = [
     '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
     '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
-    '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
   ]],
 ];
 
