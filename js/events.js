@@ -198,9 +198,14 @@ export function whenText(e, now = new Date()) {
   return '';
 }
 
-/** Rubrique d'un événement : 'brocante' (brocantes, vide-greniers, puces), 'fete' (fêtes, festivals, bals) ou 'autre'. */
+/**
+ * Rubrique d'un événement : 'brocante' (brocantes, vide-greniers, puces), 'fete' (fêtes, bals, carnavals) ou 'autre'.
+ * v220 : « festival » n'en fait plus une fête. L'agenda met l'étiquette « Festival » à des centaines de concerts,
+ * projections et rencontres en salle (221 le 19 nov., tous « en salle » sur les 10 jours suivants) ; « fêtent » non plus.
+ */
 const BROC = /brocante|vide[- ]?grenier|march[ée] aux puces|\bpuces\b|braderie|\btroc\b|vide[- ]?dressing/i;
-const FETE = /f[êe]te|festival|\bbal\b|carnaval|guinguette|kermesse|parade|f[ée]erie|f[êe]tes? de (quartier|rue)/i;
+const FETE = /\bf[êe]tes?\b|\bbals?\b|carnaval|guinguette|kermesse|parade|f[ée]erie/i;
+const FESTIVAL = /festival/i;
 export function eventKind(e) {
   const t = `${e.title ?? ''} ${e.tags ?? ''}`;
   if (BROC.test(t)) return 'brocante';
@@ -215,7 +220,7 @@ export const isFleaMarket = (m) => /puces|brocante|antiquit|livres? anciens?|vie
 /* ---------- Dans la rue : ce qui se passe sur la voie publique (deviné, donc approximatif) ---------- */
 
 const OUTDOOR = /plein air|en ext[ée]rieur|dans la rue|\b(rue|place|square|parvis|quai|quais|jardin|jardins|parc|grilles?|esplanade|boulevard|bd|avenue|av\.|all[ée]e|promenade|berges?|canal|pont|cour|march[ée] couvert)\b/i;
-const INDOOR = /\b(mus[ée]e|galerie|th[ée][âa]tre|cin[ée]ma|biblioth[èe]que|m[ée]diath[èe]que|salle|institut|fondation|conservatoire|auditorium|op[ée]ra|[ée]glise|mairie annexe|centre d'animation|centre culturel|gymnase|piscine)\b/i;
+const INDOOR = /\b(mus[ée]e|galerie|sc[èe]ne|th[ée][âa]tre|cin[ée]ma|biblioth[èe]que|m[ée]diath[èe]que|salle|institut|fondation|conservatoire|auditorium|op[ée]ra|[ée]glise|mairie annexe|centre d'animation|centre culturel|gymnase|piscine)\b/i;
 const EPHEMERAL = /march[ée] de no[eë]l|march[ée]s? de cr[ée]ateurs|march[ée] (artisanal|gourmand|des producteurs|bio|d'art)|village de no[eë]l|salon .*plein air|march[ée] [ée]ph[ée]m[èe]re/i;
 
 /**
@@ -242,11 +247,16 @@ export function streetKind(e) {
   const where = `${e.place ?? ''} ${e.address ?? ''}`;
   const all = `${text} ${where} ${e.lead ?? ''}`;
   const indoor = INDOOR.test(e.place ?? '');
-  const outdoor = OUTDOOR.test(`${text} ${e.place ?? ''}`) || /plein air|en ext[ée]rieur/i.test(e.lead ?? '');
-  if (EPHEMERAL.test(all) && !indoor) return 'marche';
+  const seenOut = OUTDOOR.test(`${text} ${e.place ?? ''}`) || /plein air|en ext[ée]rieur/i.test(e.lead ?? '');
+  /* v220 : une fête ou un marché éphémère ne va dans la rue que sur un indice de plein air (rue, place, square…,
+     ou « dehors » dans l'agenda) : sans indice, rien (Fête du piano à la Philharmonie, marché de Noël d'un café).
+     « En salle » dans l'agenda n'exclut pas : il est faux pour des brocantes de boulevard (vu le 19 nov.). */
+  const outdoor = seenOut || e.indoor === false;
+  if (EPHEMERAL.test(all) && !indoor && outdoor) return 'marche';
   const k = eventKind(e);
   if (k === 'brocante') return indoor ? null : 'brocante';
-  if (k === 'fete') return indoor && !outdoor ? null : 'fete';
+  if (k === 'fete') return seenOut || (outdoor && !indoor) ? 'fete' : null;
+  if (FESTIVAL.test(e.title ?? '') && seenOut && !indoor) return 'fete'; /* festival de rue : « festival » dans le titre (pas l'étiquette) et un lieu de plein air écrit */
   if (/\bexpo|exposition|installation|sculpture|photograph/i.test(text) && outdoor && !indoor) return 'expo';
   return null;
 }
@@ -260,6 +270,16 @@ const GENRES = [
   ['balade', /balade|visite|promenade|randonn[ée]e|flânerie/i],
   ['atelier', /atelier|conf[ée]rence|rencontre|d[ée]bat|\bcours de\b|initiation|masterclass/i],
 ];
+/* v220 : les étiquettes de l'agenda (« Concert;Festival », « Balade urbaine;Histoire »…) disent l'activité mieux que le titre.
+   Seules celles-ci comptent ; les autres (Festival, Loisirs, Histoire, Sport, Nature…) ne disent pas de genre. */
+const TAG_GENRE = { 'concert': 'musique', 'spectacle musical': 'musique', 'theatre': 'scene', 'danse': 'scene', 'cirque': 'scene',
+  'humour': 'scene', 'ecrans': 'cine', 'balade urbaine': 'balade', 'atelier': 'atelier', 'conference': 'atelier' };
+const plain = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+/** Genre donné par les étiquettes de l'agenda : un seul genre possible, sinon null (on se rabat sur le titre). */
+export function tagGenre(tags) {
+  const found = new Set(String(tags ?? '').split(/[;,]|->/).map((x) => TAG_GENRE[plain(x)]).filter(Boolean));
+  return found.size === 1 ? [...found][0] : null;
+}
 const FAMILLE = /\benfants?\b|jeune public|en famille|\bfamilles?\b|d[èe]s \d+ ans|b[ée]b[ée]s?\b|tout[- ]petits/i;
 
 /**
@@ -274,6 +294,8 @@ export function genreOf(e, { expo = false } = {}) {
   if (expo) return 'expo';
   const t = `${e.title ?? ''} ${e.tags ?? ''}`;
   if (FAMILLE.test(t)) return 'famille';
+  const byTag = tagGenre(e.tags);
+  if (byTag) return byTag;
   const hits = GENRES.filter(([, re]) => re.test(t)).map(([g]) => g);
   return hits.length === 1 ? hits[0] : null;
 }

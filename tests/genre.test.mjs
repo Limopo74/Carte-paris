@@ -35,3 +35,16 @@ test('en ce moment ou plus tard', () => {
   assert.equal(startsLater({ start: new Date('2026-11-01T10:00:00') }, now), false);
   assert.equal(startsLater({ start: null }, now), false);
 });
+
+test('genre (v220) : « Festival » n\'est plus une fête ; les étiquettes de l\'agenda donnent l\'activité', async () => {
+  const { tagGenre } = await import('../js/events.js');
+  assert.equal(genreOf({ title: 'Eboni Fondren 4tet', tags: 'Concert;Festival' }), 'musique');
+  assert.equal(genreOf({ title: 'Rire en Scène', tags: 'Festival;Humour;Théâtre' }), 'scene');
+  assert.equal(genreOf({ title: 'Le Mois du doc : projection', tags: 'Ecrans;Festival' }), 'cine');
+  assert.equal(genreOf({ title: 'Sur les pas de Victor Hugo', tags: 'Balade urbaine;Histoire;Loisirs' }), 'balade');
+  assert.equal(genreOf({ title: 'Livres en Tête', tags: 'Festival;Littérature' }), null, 'pas d\'indice : pas de genre');
+  assert.equal(genreOf({ title: 'Les Meneuses fêtent leur un an', tags: '' }), null, '« fêtent » n\'est pas une fête');
+  assert.equal(genreOf({ title: 'Bals d\'époque', tags: '' }), 'fete');
+  assert.equal(tagGenre('Danse;Spectacle musical;Théâtre'), null, 'deux genres : on se rabat sur le titre');
+  assert.equal(tagGenre('Concert;Spectacle musical'), 'musique');
+});
