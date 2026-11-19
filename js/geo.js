@@ -37,6 +37,15 @@ export function routeMinutes(m) {
   return Math.max(1, Math.round((m / 1000) * minPerKm));
 }
 
+/** Au-delà de 3 h de marche, une durée à pied ne veut plus rien dire (téléphone loin de Paris, v217) : on écrit la distance. */
+export const FAR_WALK_MIN = 180;
+/** « ≈ 12 min à pied », ou « à 385 km » quand la marche dépasserait 3 h. */
+export function walkLabel(m) {
+  const min = walkMinutes(m);
+  if (min <= FAR_WALK_MIN) return `≈ ${min} min à pied`;
+  return `à ${m >= 10000 ? Math.round(m / 1000).toLocaleString('fr-FR') : (m / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
 /** Minutes de marche estimées depuis une distance à vol d'oiseau, détours compris. 1 minute au minimum. */
 export function walkMinutes(m) {
   return Math.max(1, Math.ceil((m * DETOUR / 1000) * minPerKm - 1e-9));

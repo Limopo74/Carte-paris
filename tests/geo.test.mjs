@@ -98,3 +98,12 @@ test('Uber : lien universel, départ = ta position côté Uber, destination nomm
   assert.match(u, /dropoff\[formatted_address\]=12%20rue/);
   assert.doesNotMatch(uberUrl({ name: 'X', lat: 1, lng: 2 }), /formatted_address/);
 });
+
+test('walkLabel (v217) : plus de « 5984 min à pied » quand le téléphone est loin de Paris', async () => {
+  const { walkLabel, setWalkSpeed } = await import('../js/geo.js');
+  setWalkSpeed(5);
+  assert.equal(walkLabel(500), '≈ 8 min à pied');
+  assert.equal(walkLabel(11000), '≈ 172 min à pied'); // 2 h 52 : on garde la durée
+  assert.equal(walkLabel(12000), 'à 12 km');
+  assert.equal(walkLabel(384600), 'à 385 km');
+});

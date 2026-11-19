@@ -54,4 +54,12 @@ export function streetDeck({ markets = [], events = [], date, now = new Date(), 
 }
 
 /** Le jour ouvert par « Parcourir » : aujourd'hui, sauf s'il n'y reste plus rien (le soir) : alors demain. */
+/** Le parcours part de moi seulement si je suis à Paris ou tout près (12 km du centre) ; sinon du centre de la carte (v217 : au canapé, loin de Paris, rien n'était proposé). */
+export const NEAR_PARIS_M = 12000;
+const PARIS_CENTER = { lat: 48.8566, lng: 2.3522 };
+export const nearParis = (p) => Boolean(p) && distanceM(p, PARIS_CENTER) <= NEAR_PARIS_M;
+export function deckOrigin(here, center) {
+  if (nearParis(here)) return { lat: here.lat, lng: here.lng };
+  return { lat: center.lat, lng: center.lng, kind: 'map' };
+}
 export const deckDay = (todayCount, tomorrowCount) => (todayCount || !tomorrowCount ? 0 : 1);

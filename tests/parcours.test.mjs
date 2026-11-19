@@ -69,3 +69,21 @@ test('parcours Dans la rue : suit la distance de Sorties (v217), 3 km au départ
   assert.match(app, /streetDeck\(\{[^}]*radius: tune\('eventsM'\)/);
   assert.doesNotMatch(app, /2,5 km/);
 });
+
+test('parcours (v217) : loin de Paris, il part du centre de la carte, pas de ma position', async () => {
+  const { deckOrigin, NEAR_PARIS_M } = await import('../js/parcours.js');
+  const center = { lat: 48.8606, lng: 2.3376 };
+  assert.deepEqual(deckOrigin({ lat: 48.8676, lng: 2.3636 }, center), { lat: 48.8676, lng: 2.3636 }); // République
+  assert.deepEqual(deckOrigin({ lat: 48.8925, lng: 2.2369 }, center), { lat: 48.8925, lng: 2.2369 }); // La Défense, 9 km
+  assert.deepEqual(deckOrigin({ lat: 45.764, lng: 4.8357 }, center), { ...center, kind: 'map' }); // Lyon
+  assert.deepEqual(deckOrigin(null, center), { ...center, kind: 'map' });
+  assert.equal(NEAR_PARIS_M, 12000);
+});
+
+test('nearParis (v217) : Paris et la proche banlieue oui, Lyon non', async () => {
+  const { nearParis } = await import('../js/parcours.js');
+  assert.equal(nearParis({ lat: 48.8676, lng: 2.3636 }), true);
+  assert.equal(nearParis({ lat: 48.7900, lng: 2.4500 }), true); // Créteil, 11 km
+  assert.equal(nearParis({ lat: 48.5, lng: 2.3 }), false);
+  assert.equal(nearParis(null), false);
+});

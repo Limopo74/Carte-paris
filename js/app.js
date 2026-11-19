@@ -3,7 +3,7 @@ import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busHome, searchBusStops, busPlace, busLines } from './bus.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -19,7 +19,7 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, 
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
-import { streetDeck, deckDay, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
+import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
 import { cleanAcces, exitFor } from './acces.js';
@@ -50,7 +50,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (218)';
+const VERSION = '19 novembre 2026 (219)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -196,7 +196,9 @@ function el(tag, attrs = {}, ...children) {
 
 const fmtDist = (m) => (m < 15 ? 'à côté' : m < 1000 ? `${Math.ceil(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
 const fmtRing = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toLocaleString('fr-FR')} km`);
-const fmtWalk = (m) => `≈ ${walkMinutes(m)} min à pied`;
+const fmtWalk = (m) => walkLabel(m); // au-delà de 3 h : la distance en km (v217)
+const isFar = (m) => walkMinutes(m) > FAR_WALK_MIN; // plus de 3 h à pied : on ne parle plus de marche (v217)
+const walkPart = (m) => (isFar(m) ? null : fmtWalk(m)); // à côté d'une distance déjà écrite
 // Cercles d'« Autour de moi » : en mètres, ou en minutes à pied (rayons calculés depuis les minutes).
 const inMinutes = () => state.ringUnit === 'min';
 const nearRings = () => (inMinutes() ? state.minuteRings.map(minutesToMeters) : state.rings);
@@ -249,6 +251,7 @@ function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
 }
 
 let toastTimer;
+let toastSeq = 0; // chaque message a son numéro : un ancien « reste affiché » ne cache pas le suivant
 function toast(msg, isError = false, action = null) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -257,6 +260,12 @@ function toast(msg, isError = false, action = null) {
   t.classList.toggle('error', isError);
   t.hidden = false;
   clearTimeout(toastTimer);
+  const seq = ++toastSeq;
+  if ([action].flat().some((a) => a?.stay)) { // v217 (mon choix 2A) : reste jusqu'à un appui ailleurs sur la carte
+    const off = () => { if (toastSeq === seq) t.hidden = true; map.off('click', off); map.off('dragstart', off); };
+    map.on('click', off); map.on('dragstart', off);
+    return;
+  }
   toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : msg.length > 50 ? 5000 : 3000); // un long message reste le temps d'être lu
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
@@ -886,7 +895,7 @@ function openListPlaces(listId, query = '', picked = null) {
   const list = (state.lists ?? []).find((l) => l.id === listId);
   if (!list) { openSettings('categories'); return; }
   const sel = picked ?? new Set(state.points.filter((p) => p.lists?.includes(listId)).map((p) => p.id));
-  const from = freshHere() ?? origin;
+  const from = nearHere() ?? origin;
   const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const q = norm(query.trim());
   // Ceux de la liste d'abord, puis les plus proches (ou par nom sans position)
@@ -1167,6 +1176,7 @@ function dayNote(now = new Date()) {
 function departureFor(p, pos) {
   if (!pos) return { leave: null, travel: null, how: '' };
   let travel = walkMinutes(distanceM(pos, p)); let how = 'à pied';
+  if (!nearParis(pos)) return { leave: null, travel: null, how: '' }; // loin de Paris : pas d'heure de départ inventée (v217)
   if (travel > 25 && stations.length) { const plan = metroPlan(stations, pos, p, 3); if (plan.type !== 'walk') { travel = plan.minutes; how = 'en métro'; } }
   return { leave: leaveAt(p.ticket.at, travel), travel, how };
 }
@@ -1372,6 +1382,8 @@ function locate({ wait = 6000, good = 25 } = {}) {
 }
 
 const freshHere = () => (here && Date.now() - here.time < FRESH_MS ? here : null);
+/** Ma position seulement si je suis à Paris ou tout près (12 km du centre) : loin de Paris, les listes partent du centre de la carte (v217). */
+const nearHere = () => { const h = freshHere(); return h && nearParis(h) ? h : null; };
 
 /* ---------- Ajouter ---------- */
 
@@ -1564,7 +1576,7 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
       if (ctrl.signal.aborted) return;
     }
     // Du plus proche au plus loin : de ma position récente, sinon du centre de la carte (pas de GPS demandé)
-    const ref = freshHere() ?? map.getCenter();
+    const ref = nearHere() ?? map.getCenter();
     const near = (list) => list.map((r) => ({ ...r, d: distanceM(ref, r) })).sort((x, y) => x.d - y.d);
     const P = near(inView);
     const M = near(more);
@@ -1966,7 +1978,7 @@ function openDetail(id, back = null) {
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goBox = el('div', { class: 'stack' },
     el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), d != null ? `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
+      ico('arrow-right'), d != null && !isFar(d) ? `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -2567,7 +2579,7 @@ function openSearch(initial = '') {
   const info = el('p', { class: 'help' });
 
   const run = () => {
-    const pos = freshHere();
+    const pos = nearHere();
     const res = searchPoints(visible(), state.categories, input.value, pos);
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
@@ -2603,7 +2615,7 @@ function openSearch(initial = '') {
   const agendaBox = el('div', { class: 'stack' });
   const toAgenda = el('button', { type: 'button', class: 'btn c-disc', onclick: () => searchAgenda() });
   const back = named('Recherche', () => openSearch(input.value));
-  const from = () => freshHere() ?? map.getCenter();
+  const from = () => nearHere() ?? map.getCenter();
   const near = (xs) => xs.map((x) => ({ ...x, d: distanceM(from(), x) })).sort((a, b) => a.d - b.d);
   const block = (label, rows) => (rows.length ? [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(rows.length))), el('ul', { class: 'items ev-list' }, rows.slice(0, 8))] : []);
   function updateMore() {
@@ -3029,7 +3041,7 @@ function renderWay(from, dest) {
     el('p', { class: 'summary' }, found.length
       ? `${plural(found.length, 'lieu', 'lieux')} sur ton chemin, à moins de 5 min de détour.`
       : 'Aucun de tes lieux sur ton chemin (moins de 5 min de détour).'),
-    el('p', { class: 'help' }, `Trajet : ${fmtDist(total)} · ${fmtWalk(total)}.`),
+    el('p', { class: 'help' }, `Trajet : ${[fmtDist(total), walkPart(total)].filter(Boolean).join(' · ')}.`),
     el('ul', { class: 'items' }, found.map(({ point: p, detour }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Sur mon chemin', () => renderWay(from, dest))) },
         catDot(p.cat),
@@ -3056,7 +3068,7 @@ function renderWay(from, dest) {
 
 function openRoutePicker(selected = new Set()) {
   track('Relier des lieux');
-  const start = origin ?? freshHere();
+  const start = origin ?? nearHere();
   const pts = offered()
     .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
     .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
@@ -3093,10 +3105,10 @@ function renderRoute(start, chosen) {
     return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Relier des lieux', () => renderRoute(start, chosen))) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
-        el('span', { class: 'item-sub' }, i === 0 && !start ? 'Départ' : `${fmtDist(leg)} · ${fmtWalk(leg)}`))));
+        el('span', { class: 'item-sub' }, i === 0 && !start ? 'Départ' : [fmtDist(leg), walkPart(leg)].filter(Boolean).join(' · ')))));
   });
   openSheet('Ton parcours', el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${fmtDist(total)} au total · ${fmtWalk(total)} (sans les arrêts).`),
+    el('p', { class: 'summary' }, `${fmtDist(total)} au total${isFar(total) ? '' : ` · ${fmtWalk(total)} (sans les arrêts)`}.`),
     el('ol', { class: 'items' }, steps),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(route, 'Parcours') }, ico('navigation'), 'Balade guidée'),
     el('div', { class: 'row' },
@@ -3634,7 +3646,7 @@ function planInfo(p) {
       : ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
   }
   if (!isPart(p.ticket.part) && daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
-    const { leave, travel, how } = departureFor(p, freshHere());
+    const { leave, travel, how } = departureFor(p, nearHere());
     if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`));
   }
   const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
@@ -3723,14 +3735,14 @@ function openPlanning(from = null) {
   const timed = groups[0]?.label === todayLabel ? groups.shift().items : [];
   const list = dayList(state.points);
   const next = list[0] ?? null;
-  const pos = freshHere();
+  const pos = nearHere();
   const dNext = next && pos ? distanceM(pos, next) : null;
   const tagNext = next ? hoursTag(next) : null; // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
   const todayBlock = [
     el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
     next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
     next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), dNext != null ? `Y aller · ${fmtWalk(dNext).replace(/ /g, '\u00a0')}` : 'Y aller', dNext != null ? el('small', { class: 'go-dist' }, fmtDist(dNext)) : null) : null,
+      ico('arrow-right'), dNext != null && !isFar(dNext) ? `Y aller · ${fmtWalk(dNext).replace(/ /g, '\u00a0')}` : 'Y aller', dNext != null ? el('small', { class: 'go-dist' }, fmtDist(dNext)) : null) : null,
     next ? el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(next, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -3797,7 +3809,7 @@ function openDayPicker(selected = null, query = '') {
   track('Lieux du jour');
   const cur = dayList(state.points);
   const sel = selected ?? new Set(cur.map((p) => p.id));
-  const start = freshHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
+  const start = nearHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
   // Un lieu déjà prévu à une heure ou un autre jour garde sa sortie : il ne se coche pas ici
   const busy = (p) => Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && !(isDayList(p.ticket) && daysUntil(p.ticket.at) === 0);
   const all = offered().map((p) => ({ p, d: start ? distanceM(start, p) : 0, key: fold(p.name) }))
@@ -3876,7 +3888,7 @@ function openDayOrder(focus = null) {
   const list = dayList(state.points);
   if (!list.length) { openPlanning(); return; }
   const apply = (next, f = null) => { rankDayList(next); persist(); openDayOrder(f); };
-  const start = freshHere();
+  const start = nearHere();
   const shortest = () => {
     apply(start ? orderRoute(start, list) : [list[0], ...orderRoute(list[0], list.slice(1))]);
     toast(start ? 'Parcours le plus court depuis ta position' : 'Parcours le plus court depuis le premier lieu');
@@ -4486,7 +4498,7 @@ function openFindOutings(initial = '', tab = 'all') {
   const title = FIND_LABEL[tab] ?? FIND_LABEL.all;
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: tab === 'art' ? 'Un titre, un musée, un artiste…' : 'Un titre, un lieu, un artiste…', value: initial, 'aria-label': title });
   const box = el('div', { class: 'stack' });
-  const from = () => evFrom ?? freshHere() ?? map.getCenter();
+  const from = () => evFrom ?? nearHere() ?? map.getCenter();
   const run = async () => {
     const q = input.value.trim();
     if (q.replace(/\s/g, '').length < 3) { fill(box, el('p', { class: 'help' }, 'Tape au moins 3 lettres.')); return; }
@@ -4628,7 +4640,7 @@ function openArtist(name, back = null) {
   const k = artistKey(n);
   const again = () => openArtist(n, back);
   const here = named(n, again);
-  const pos = freshHere() ?? origin;
+  const pos = nearHere() ?? origin;
   const works = artistWorks(state.points, n, pos);
   const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
   const link = cleanArtistLinks(state.artistLinks)[k];
@@ -4820,6 +4832,7 @@ async function openEvents(start = null) {
   if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
   else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
   else if (start === 'near' || !evFrom) evFrom = origin;
+  if (evFrom && evFrom.kind !== 'map' && !nearParis(evFrom)) { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; } // loin de Paris : le centre de la carte (v217)
   if (!evFrom) { openNear(); return; }
   const o = evFrom;
   const fromMap = o.kind === 'map';
@@ -5074,7 +5087,7 @@ function showPeek(opts) {
   const back2 = (k) => named(kicker, () => showPeek({ ...opts, start: k, keep: true }));
   const subOf = (x) => {
     if (x.sub) return x.sub;
-    const o = freshHere() ?? from;
+    const o = nearHere() ?? from;
     return [off(x) ? 'Fermé' : '', o ? fmtWalk(distanceM(o, x)) : ''].filter(Boolean).join(' · ');
   };
   const sel = () => pins.forEach((m, k) => m.getElement()?.querySelector('.peek-pin')?.classList.toggle('sel', k === i));
@@ -5593,7 +5606,7 @@ async function streetDeckOn(date, from) {
 const streetSub = (x) => [x.label, x.holiday ? HOLIDAY_NOTE : x.hours, fmtWalk(x.d)].filter(Boolean).join(' · ');
 let streetFrom = null; // point de départ du parcours, gardé quand on change de jour
 async function openStreetDeck(day = null, start = 0) {
-  if (day == null || !streetFrom) { const c = map.getCenter(); streetFrom = freshHere() ? { lat: here.lat, lng: here.lng } : { lat: c.lat, lng: c.lng, kind: 'map' }; }
+  if (day == null || !streetFrom) streetFrom = deckOrigin(freshHere(), map.getCenter());
   const from = streetFrom;
   const dates = [new Date(), tomorrowNoon()];
   toast('Préparation du parcours…');
@@ -5617,15 +5630,14 @@ async function openStreetDeck(day = null, start = 0) {
 }
 /** Après un appui sur la tente : « Parcourir (N) » dans le message (aujourd'hui, ou demain s'il ne reste rien). */
 async function offerStreetDeck(msg) {
-  const c = map.getCenter();
-  streetFrom = freshHere() ? { lat: here.lat, lng: here.lng } : { lat: c.lat, lng: c.lng, kind: 'map' };
+  streetFrom = deckOrigin(freshHere(), map.getCenter()); // loin de Paris : le centre de la carte (v217)
   let decks;
   try { decks = await Promise.all([new Date(), tomorrowNoon()].map((d) => streetDeckOn(d, streetFrom))); } catch { return; }
   if (!state.showMarkets) return;
   const [t, m] = decks.map((d) => d.items.length);
   if (!t && !m) return;
   const day = deckDay(t, m);
-  toast(msg, false, { label: day ? `Parcourir demain (${m})` : `Parcourir (${t})`, fn: () => openStreetDeck(day) });
+  toast(msg, false, { label: day ? `Parcourir demain (${m})` : `Parcourir (${t})`, fn: () => openStreetDeck(day), stay: true });
 }
 /** Fiche d'un événement de rue (agenda de la Ville) : la page d'une sortie, avec le genre « Dans la rue ». */
 function openStreetEvent(e) {
@@ -5788,7 +5800,7 @@ function toggleTtb() {
 function openTtbList(back = null, limit = 30) {
   const again = () => openTtbList(back, limit);
   if (!ttbList().length) { openTtb(back); return; }
-  const here = freshHere();
+  const here = nearHere();
   const from = here ?? map.getCenter();
   const all = ttbShown().map((x) => ({ ...x, d: distanceM(from, x) })).sort((a, b) => a.d - b.d);
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
@@ -6140,7 +6152,7 @@ async function openRespire(back = openRoutes) {
   if (!respireData) { openSheet(title, el('p', { class: 'help' }, 'Lecture des secteurs…'), { name: 'respire', again }); await loadRespire(); }
   const sectors = respireSectors(respireData);
   const today = new Date();
-  const from = freshHere() || origin; // jamais de GPS demandé : la dernière position connue, sinon pas de distance
+  const from = nearHere() || origin; // jamais de GPS demandé : la dernière position connue, sinon pas de distance
   const self = named('Rues sans voitures', again);
   const rows = (date) => el('ul', { class: 'items' }, respireOn(sectors, date, from).map((x) => el('li', { class: 'item' },
     el('button', { type: 'button', class: 'item-main', onclick: () => showRespireOnMap(x, self) },
@@ -6171,7 +6183,7 @@ let circuitDur = '';
 /** Couleur du tracé d'un circuit : terre cuite (découvrir), lisible sur le fond clair comme sombre. */
 const discInk = () => (isDark() ? '#FFB08A' : '#A54A28');
 /** D'où trier les circuits : ma position si elle est fraîche, sinon le centre de la carte (aucune demande de GPS). */
-const circuitFrom = () => freshHere() ?? { ...map.getCenter(), kind: 'map' };
+const circuitFrom = () => nearHere() ?? { ...map.getCenter(), kind: 'map' };
 const dayText = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const circuitDoneTag = (c) => { const d = circuitDone(state.outings, c.id)[0]; return d ? el('span', { class: 'tag open' }, `Fait le ${dayText(d.at)}`) : null; };
 const stepStops = (c) => c.etapes.map((e) => ({ name: e.n, lat: e.lat, lng: e.lng }));
@@ -6456,7 +6468,7 @@ async function monuments() {
 /** Les autres monuments protégés de Paris du même auteur (v198), du plus proche ; un appui ouvre la boussole. */
 function openSameAuthor(rec, back) {
   const who = authorName(rec.a[0]);
-  const from = freshHere() || origin;
+  const from = nearHere() || origin;
   const list = sameAuthor(archMap, rec, from);
   const self = named(who, () => openSameAuthor(rec, back));
   openSheet([ico('user'), ` ${who}`], el('div', { class: 'stack' },
@@ -6594,7 +6606,7 @@ function openCompass(p, step = null) {
       arrow.style.opacity = '0.25';
       return;
     }
-    dist.textContent = `${fmtDist(d)} · ${fmtWalk(d)}`;
+    dist.textContent = [fmtDist(d), walkPart(d)].filter(Boolean).join(' · ');
     arrow.style.opacity = '1';
     if (heading == null) {
       arrow.style.transform = `rotate(${b}deg)`;
@@ -7929,7 +7941,7 @@ function showNearestMetro(from, note = null) {
   const st = first.station;
   const target = { name: `Ⓜ ${st.n}`, lat: st.lat, lng: st.lng };
   openSheet(`Ⓜ ${st.n}`, el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${fmtDist(first.d)} · ${fmtWalk(first.d)}`),
+    el('p', { class: 'summary' }, [fmtDist(first.d), walkPart(first.d)].filter(Boolean).join(' · ')),
     el('p', { class: 'help' }, stationLabel(st)),
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
@@ -8363,7 +8375,7 @@ const HELP = [
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
-    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message. Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi ou du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
+    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
@@ -8447,6 +8459,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
     '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
@@ -8456,7 +8469,6 @@ const HELP = [
     '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
     '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
-    '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
   ]],
 ];
 
