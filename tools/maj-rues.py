@@ -41,8 +41,9 @@ def queries():
             bb = ','.join(f'{x:.5f}' for x in b)
             out[f'q-{i}{j}'] = f'[out:json][timeout:300];way({bb}){WAY_FILTER};out body qt;>;out skel qt;'
     bb = ','.join(f'{x:.5f}' for x in BOX)
+    # Parcs : contours donnés directement (« out geom »), sans redemander leurs points un à un ; jamais bloquant.
     out['q-parcs'] = (f'[out:json][timeout:300];(way({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];'
-                      f'relation({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];);out body qt;>;out skel qt;')
+                      f'relation({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];);out geom qt;')
     return out
 
 
@@ -83,16 +84,17 @@ def build(data, in_paris=lambda pt: True):
 
     # Parcs : anneaux extérieurs des chemins fermés et des relations (assemblés bout à bout)
     rings = []
-    def ring_of(ids):
-        pts = [nodes[i] for i in ids if i in nodes]
-        return pts if len(pts) >= 4 else None
+    def pts_of(w):
+        if 'geometry' in w: return [(q['lat'], q['lon']) for q in w['geometry'] if q]
+        return [nodes[i] for i in w.get('nodes', []) if i in nodes]
     for w in ways.values():
         t = w.get('tags', {})
-        if t.get('leisure') in ('park', 'garden') and w['nodes'][0] == w['nodes'][-1]:
-            r = ring_of(w['nodes'])
-            if r: rings.append(r)
+        if t.get('leisure') in ('park', 'garden'):
+            r = pts_of(w)
+            if len(r) >= 4 and r[0] == r[-1]: rings.append(r)
     for rel in (e for e in els if e.get('type') == 'relation'):
-        parts = [list(ways[m['ref']]['nodes']) for m in rel.get('members', []) if m.get('type') == 'way' and m.get('role') in ('outer', '') and m['ref'] in ways]
+        parts = [pts_of(m) for m in rel.get('members', []) if m.get('type') == 'way' and m.get('role') in ('outer', '')]
+        parts = [p for p in parts if len(p) >= 2]
         while parts:
             cur = parts.pop(0)
             grown = True
@@ -103,9 +105,8 @@ def build(data, in_paris=lambda pt: True):
                     elif p[-1] == cur[-1]: cur += p[-2::-1]
                     else: continue
                     parts.pop(i); grown = True; break
-            if cur[0] == cur[-1]:
-                r = ring_of(cur)
-                if r: rings.append(r)
+            if cur[0] == cur[-1] and len(cur) >= 4:
+                rings.append(cur)
     boxes = [(min(p[0] for p in r), max(p[0] for p in r), min(p[1] for p in r), max(p[1] for p in r), r) for r in rings]
     def in_park(pt):
         return any(a <= pt[0] <= b and c <= pt[1] <= d and inside(pt, r) for a, b, c, d, r in boxes)
