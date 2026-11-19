@@ -397,6 +397,16 @@ ol.items { padding: 0; }
 .fiche-photo button { display: block; width: 100%; height: 150px; padding: 0; border: 0; border-radius: var(--r); overflow: hidden; background: var(--soft); }
 .fiche-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .fiche-photo figcaption { margin-top: 4px; font-size: var(--t13); color: var(--muted); }
+/* v238 (mes choix 1A 2A) : en tête de la page d'un passage, ma photo en bandeau de 100 px ; sans photo, le cadre « Prendre une photo »,
+   même hauteur que la photo et sa légende : Y aller et les boutons restent à la même place, et visibles à 360 × 740 */
+.spot-photo button { height: 100px; }
+/* en Grand et Très grand, le texte prend la place : bandeau plus bas, pour que « Y aller » reste visible au-dessus de la barre du bas */
+:root:is([data-text="grand"]) .spot-photo button { height: 84px; }
+:root:is([data-text="tresgrand"]) .spot-photo button { height: 60px; }
+:root:is([data-text="grand"]) .photo-snap { height: calc(88px + 1.25 * var(--t13)); }
+:root:is([data-text="tresgrand"]) .photo-snap { height: calc(64px + 1.25 * var(--t13)); flex-direction: row; }
+.photo-snap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: calc(104px + 1.25 * var(--t13)); border: 2px dashed var(--add); border-radius: var(--r); background: var(--soft); color: var(--add); font: inherit; font-weight: 600; font-size: var(--t16); cursor: pointer; }
+.photo-snap:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-photo button:focus-visible, .fiche-row:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-lines > * { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--t16); }
 .go-compass.slot { visibility: hidden; }

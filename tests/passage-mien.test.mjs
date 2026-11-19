@@ -58,3 +58,12 @@ test('app.js : « Ma fiche » remplace « Ajouter » et « Y ajouter la photo »
   assert.match(app, /'Ma fiche'\)/);
   assert.match(app, /'Y ajouter la photo'\)/);
 });
+
+test('v238 : « Prendre une photo » sur la page d\'un passage, Culture au lieu de la 1re catégorie', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /c\.id === 'culture'\) \? 'culture' : null/);
+  assert.match(app, /snap: \(\) => arcadePhoto\(a, back, add\)/);
+  assert.match(app, /ico\('camera', \{ size: 28 \}\), el\('span', \{\}, 'Prendre une photo'\)\)/);
+  assert.match(app, /mine \? spotPhoto\(mine\) : null,\n    !\(mine\?\.photos\?\.length\) && snap/);
+  assert.match(app, /label: 'Annuler'.*\n.*state\.points = state\.points\.filter\(\(p\) => p !== np\)/);
+});

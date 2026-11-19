@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (237)';
+const VERSION = '19 novembre 2026 (238)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2272,6 +2272,13 @@ function photoWide(p, back, open = null) {
     el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
 }
 
+/** v238 : le bandeau de ma photo en tête de la page d'un passage (100 px, classe `spot-photo`) ; un appui l'ouvre en grand. */
+function spotPhoto(p) {
+  const f = photoWide(p, null, () => viewPhoto(p.photos, 0, p.name));
+  f?.classList.add('spot-photo');
+  return f;
+}
+
 /** Écran des photos d'un lieu : prendre, choisir, voir en grand, supprimer. */
 /** Réduit et range les photos choisies dans le lieu. Renvoie le nombre ajouté (0 si rien ou erreur). */
 async function savePhotos(p, files) {
@@ -4450,11 +4457,16 @@ function followButton(name, again) {
   } }, ico('heart'), on ? 'Suivie (Mes salles)' : 'Suivre');
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
+    // v238 (mes choix 1A 2A) : ma photo illustre la page d'un passage, en tête, en bandeau de 100 px (Boussole · Métro · Ma fiche
+    // restent visibles à 360 × 740) ; sans photo, un cadre de la même hauteur « Prendre une photo » (`snap`) : d'un passage à
+    // l'autre, Y aller et les boutons restent à la même place. La fiche de mes lieux ne change pas.
+    mine ? spotPhoto(mine) : null,
+    !(mine?.photos?.length) && snap ? el('button', { type: 'button', class: 'photo-snap', onclick: snap }, ico('camera', { size: 28 }), el('span', {}, 'Prendre une photo')) : null,
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
@@ -4469,7 +4481,6 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     fav ? followButton(title, again) : null, // v170 : une salle, une galerie, un musée se suivent aussi (Mes salles)
     extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
-    mine ? photoWide(mine, null, () => viewPhoto(mine.photos, 0, mine.name)) : null, // v237 : ma photo, après tous les boutons (rien ne bouge)
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again });
 }
@@ -6864,11 +6875,48 @@ map.on('zoomend', drawArcadeLayer);
 
 /** La page d'un passage : ce qu'il a de particulier, ses entrées, sa source ; puis les actions d'un lieu (ajouté, il est déjà coché « abrité »). */
 function openArcade(a, back = null) {
+  const cat = state.categories.some((c) => c.id === 'culture') ? 'culture' : null; // v238 : un passage va dans Culture (avant : la 1re catégorie, Restos)
+  const add = { covered: true, ...(cat ? { cat } : {}) };
   openSpot({ icon: 'door-open', title: a.nom, kicker: 'Passage couvert', place: a,
     lines: [a.t, a.rues ? el('p', { class: 'where' }, ico('map-pin'), `Entrées : ${a.rues}`) : null, ARCADE_HOURS],
     extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => showArcadeOnMap(a, back) }, ico('map'), 'Voir sur la carte'),
-    link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add: { covered: true }, back, key: `passage:${a.id}`,
-    mine: myArcadePlace(state.points, a) }); // v237 : le passage est dans mes lieux → « Ma fiche » et ma photo
+    link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add, back, key: `passage:${a.id}`,
+    mine: myArcadePlace(state.points, a), // v237 : le passage est dans mes lieux → « Ma fiche » et ma photo
+    snap: () => arcadePhoto(a, back, add) }); // v238 : une photo d'un appui, le passage s'ajoute seul à mes lieux
+}
+
+/** v238 (mes choix 1A 2A) : « Prendre une photo » sur la page d'un passage. L'appareil s'ouvre ; la photo va sur ma fiche
+ * si le passage est dans mes lieux ; sinon le passage y est ajouté seul (nom, abrité, Culture), avec « Annuler ».
+ * Un autre de mes lieux au même endroit (renommé ?) : le formulaire s'ouvre avec la photo, pour choisir « Y ajouter la photo ». */
+function arcadePhoto(a, back, add) {
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const f = camera.files?.[0];
+    camera.remove();
+    if (!f) return;
+    const mine = myArcadePlace(state.points, a);
+    if (mine) {
+      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
+      if (await savePhotos(mine, [f])) { renderMarkers(); openArcade(a, back); }
+      return;
+    }
+    if (findDuplicate(state.points, { name: a.nom, lat: a.lat, lng: a.lng })) { openForm({ name: a.nom, lat: a.lat, lng: a.lng, address: '', acc: null, ...add, photoFile: f }); return; }
+    const np = newPoint({ name: a.nom, cat: add.cat ?? state.categories[0].id, lat: a.lat, lng: a.lng, covered: true });
+    state.points.push(np);
+    if (!(await savePhotos(np, [f]))) { state.points = state.points.filter((p) => p !== np); return; }
+    renderMarkers();
+    openArcade(a, back);
+    toast(`${a.nom} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
+      state.points = state.points.filter((p) => p !== np);
+      persist();
+      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      renderMarkers();
+      if (view === `passage:${a.id}`) openArcade(a, back);
+      toast('Passage retiré de tes lieux, photo effacée');
+    } });
+  });
+  document.body.append(camera);
+  camera.click();
 }
 
 /** Le passage seul sur la carte, de près : son trait s'il est sûr, sinon son pictogramme. Le bandeau ramène à sa page. */
@@ -8905,7 +8953,7 @@ const HELP = [
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans Réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
-    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). Ajouté à tes lieux (Ajouter), il montre « Ma fiche » et ta photo. De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
+    '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -8988,7 +9036,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{door-open} Passages couverts : un passage que tu as ajouté à tes lieux montre « Ma fiche » à la place d\'« Ajouter », et ta photo sous « Source » (touche-la pour la voir en grand). Pour illustrer un passage : sa page → Ajouter → {camera} Photo → Enregistrer ; les suivantes : Ma fiche → Photo. Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
+    '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',

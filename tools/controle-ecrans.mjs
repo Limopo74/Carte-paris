@@ -154,6 +154,13 @@ const ECRANS = {
     const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).getByRole('button', { name: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png'); await p.waitForTimeout(300);
     await p.locator('button', { hasText: 'Enregistrer' }).last().click(); await p.waitForTimeout(400); },
   passagedoublonfait: async (p) => { await ECRANS.passagedoublon(p); await feuille(p).locator('button', { hasText: 'Y ajouter la photo' }).click(); await p.waitForSelector('#sheet .fiche-photo'); await p.waitForTimeout(400); },
+  // v238 : « Prendre une photo » sur la page d'un passage : le passage s'ajoute seul à mes lieux (Culture), la page montre « Ma fiche » et la photo
+  passagephotofait: async (p) => { await ECRANS.passagecouvert(p);
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).locator('button', { hasText: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png');
+    await p.waitForSelector('#sheet .fiche-photo'); await p.waitForTimeout(400); },
+  // v238 : un autre de mes lieux au même endroit (renommé) : le formulaire s'ouvre avec la photo
+  passagephotodoublon: async (p) => { await avecLieu(p, { id: 'pd2', name: 'Galeries de Choiseul', lat: 48.86807, lng: 2.33556 }); await ECRANS.passagecouvert(p);
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).locator('button', { hasText: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png'); await p.waitForTimeout(500); },
   passagecarte: async (p) => { await ECRANS.passagecouvert(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(600); },
   // v161 : street art
   ficheoeuvre: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque jaune"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Disparue ou recouverte' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
@@ -362,6 +369,13 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
           out.push([e.tagName + '.' + [...e.classList].join('.'), o]); }
         return out; });
       writeFileSync(`${process.env.STYLES}/${nom}-${vw}-${theme}.json`, JSON.stringify(st));
+    }
+    // v238 : VUE=1 : aussi ce qu'on voit vraiment sur le téléphone, sans faire défiler (…-vue.png), et où tombe « Y aller »
+    if (process.env.VUE) {
+      await page.evaluate(() => document.querySelector('#sheetBody')?.scrollTo(0, 0)); await page.waitForTimeout(200);
+      await page.screenshot({ path: `${SORTIE}/${nom}-${vw}-${theme}-vue.png` });
+      const y = await page.evaluate(() => { const g = document.querySelector('#sheet .go-bar'); return g ? Math.round(g.getBoundingClientRect().bottom) : null; });
+      lignes.push(`${vw} ${theme} ${nom} : bas de « Y aller » à ${y} px sur ${vh}`);
     }
     // capture : la feuille entière, défilée, si elle est ouverte ; sinon l'écran
     if (await page.locator('#sheet:not([hidden])').count()) {
