@@ -19,6 +19,7 @@ import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, 
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
+import { streetDeck, deckDay, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
 import { cleanAcces, exitFor } from './acces.js';
@@ -49,7 +50,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (215)';
+const VERSION = '19 novembre 2026 (216)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -737,7 +738,10 @@ function chipPlace() {
 function chipItems(chip = null, catChip = null) {
   const toggleStreet = () => {
     state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
-    toast(state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué');
+    const msg = state.showMarkets ? 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes et expos en plein air sur la carte' : 'Dans la rue aujourd\'hui : masqué';
+    toast(msg);
+    if (state.showMarkets) offerStreetDeck(msg); // v213 : « Parcourir (N) » dans le message
+    else if (peekCard?.getAttribute('aria-label') === 'Dans la rue sur la carte') endPeek();
   };
   const toggleVelib = () => { setVelibLayer(!velibOn); refresh(); toast(velibOn ? 'Vélib\' : les stations sur la carte (en zoomant)' : 'Vélib\' : masqué'); };
   const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
@@ -4421,7 +4425,7 @@ function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; 
   openSheet([ico('landmark'), ` Gratuit ${dayTitle(date)}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(list.length, 'lieu gratuit', 'lieux gratuits')} ce jour-là, en plus des musées de la Ville (gratuits toute l'année).`),
     list.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: `Gratuit ${dayTitle(date)}`, label: plural(list.length, 'lieu', 'lieux'), items: list, icon: 'landmark',
-      open: (x) => openFreeDaySpot(x, date, here), back: again, from: o }) }, ico('map'), 'Voir sur la carte') : null,
+      open: (x, b) => openFreeDaySpot(x, date, b), back: again, from: o }) }, ico('map'), 'Voir sur la carte') : null,
     el('ul', { class: 'items ev-list' }, list.map((f) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeDaySpot(f, date, here), sub: [hoursOn(f, date), f.when], d: f.d,
       tags: [/réservation/i.test(`${f.note ?? ''} ${f.when}`) ? el('span', { class: 'tag closed' }, 'Sur réservation') : null] }))),
     el('p', { class: 'help' }, `Liste vérifiée le ${FREE_CHECKED}. Distances depuis ${o.kind === 'map' ? 'le centre de la carte' : 'le point de départ de Sorties'}. Les règles changent : vérifie sur le site du lieu.`),
@@ -4849,7 +4853,7 @@ async function openEvents(start = null) {
       shown.length < rows.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { evOpen.add(`${mode}:${key}`); openEvents(); } }, `Voir les ${rows.length} ${noun}`, ico('chevron-down')) : null];
   };
   const mapList = []; // ce que montre « Carte » : { name, lat, lng, go }
-  const onMap = (xs, go) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: () => go(x) }); };
+  const onMap = (xs, go) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: (b) => go(x, b) }); }; // b : le retour vers le bandeau de la carte (v213)
 
   // Temps forts de la semaine et gratuité exceptionnelle du jour : sous la plaque (Tout)
   const soon = highlightsSoon();
@@ -4881,7 +4885,7 @@ async function openEvents(start = null) {
     const flip = (g) => { if (navigoKinds.has(g)) navigoKinds.delete(g); else navigoKinds.add(g); openEvents(); };
     if (present.size > 1) filters = [el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!navigoKinds.size), onclick: () => { navigoKinds.clear(); openEvents(); } }, 'Tout'),
       ...NAVIGO_GROUPS.filter((g) => present.has(g)).map((g) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(navigoKinds.has(g)), onclick: () => flip(g) }, g))];
-    onMap(nvNear, (x) => openNavigo(x));
+    onMap(nvNear, (x, b) => openNavigo(x, b));
     body = [
       el('p', { class: 'help' }, ico('ticket'), ' Réductions sur présentation du passe Navigo (annuel, mois, imagine R, Senior, Liberté +).'),
       ...(nvNear.length ? section('navigo', within ? `Lieux partenaires à moins de ${evKm}` : 'Lieux partenaires les plus proches', nvNear.map((x) => navigoRow(x, back)), 'lieux', 5)
@@ -4900,8 +4904,8 @@ async function openEvents(start = null) {
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
       .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e))));
-    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g) => openGalleryCard(g));
-    onMap([...last, ...expos], (e) => openEventPage(e, back));
+    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b));
+    onMap([...last, ...expos], (e, b) => openEventPage(e, b ?? back));
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
@@ -4930,11 +4934,11 @@ async function openEvents(start = null) {
     const now = items.filter((x) => x.when === 'now');
     const later = items.filter((x) => x.when === 'later').slice(0, 15);
     const card = (x, opts = {}) => (x.m ? marketRow(x.m, back, opts) : eventRow(x.e, back, opts));
-    for (const x of [...now, ...later]) mapList.push({ name: x.m ? x.m.name : x.e.title, lat: (x.m ?? x.e).lat, lng: (x.m ?? x.e).lng, go: () => (x.m ? openMarket(x.m) : openEventPage(x.e, back)) });
+    for (const x of [...now, ...later]) mapList.push({ name: x.m ? x.m.name : x.e.title, lat: (x.m ?? x.e).lat, lng: (x.m ?? x.e).lng, go: (b) => (x.m ? openMarket(x.m, b) : openEventPage(x.e, b ?? back)) });
     if (mode === 'free') {
       const freeItems = [...now, ...later];
       const freePlaces = whereOn === 'out' ? [] : freeAll; // musées et théâtre : à l'abri
-      onMap(freePlaces, (f) => openFreeSpot(f));
+      onMap(freePlaces, (f, b) => openFreeSpot(f, b));
       body = [
         ...section('sorties', 'Sorties gratuites', freeItems.map((x) => card(x)), 'sorties'),
         ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'musées'),
@@ -4948,7 +4952,7 @@ async function openEvents(start = null) {
       ];
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
     } else {
-      onMap(last.slice(0, 3), (e) => openEventPage(e, back));
+      onMap(last.slice(0, 3), (e, b) => openEventPage(e, b ?? back));
       // v186 : une sortie déjà montrée dans Mes salles (en tête) n'est pas répétée plus bas ; elle reste sur la Carte
       const inVenues = venueShownKeys();
       const notShown = (e) => !inVenues.has(evKey(e));
@@ -4970,7 +4974,7 @@ async function openEvents(start = null) {
     el('button', { type: 'button', class: 'ev-from', onclick: openEventsFrom, 'aria-label': `Point de départ des distances : ${fromLabel.join('')}. Changer` },
       ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
     el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek({ kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
-      open: (x) => x.go(), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
+      open: (x, b) => x.go(b), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
   openSheet(title, el('div', { class: 'stack ev-page' },
     seg, // les onglets restent toujours à la même place
     ctx,
@@ -5039,22 +5043,84 @@ function showPeekCard(kicker, label, back, sub = 'Touche ici pour revenir à la 
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
   document.body.append(peekCard);
 }
-/** items : { name, lat, lng } ; open(x) ouvre la fiche d'un lieu ; off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste. */
-function showPeek({ kicker, label, items, icon, open, off = () => false, back, from = null }) {
+/**
+ * « Voir sur la carte » (v213 : on parcourt) : chaque lieu en rond à contour terre cuite, et un bandeau qui en montre un à la fois.
+ * items : { name, lat, lng, sub?, icon? } ; open(x, retour) ouvre sa page (le retour ramène ici, sur le même lieu) ;
+ * off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste (bouton « Liste ») ; from : point de départ des distances ;
+ * tabs : { name, list: [{ label, on, fn }] } (Aujourd'hui · Demain) ; start : le lieu montré ; keep : garder la vue de la carte ;
+ * onEnd : ce qu'il faut remettre en partant.
+ * ‹ › et glisser de côté sur le bandeau passent au lieu suivant ou précédent, la carte se place sur lui ;
+ * un rond touché devient le lieu du bandeau ; un appui sur le bandeau ouvre sa page.
+ */
+function showPeek(opts) {
+  const { kicker, items, icon, open, off = () => false, back = null, from = null, tabs = null, start = 0, keep = false, onEnd = null } = opts;
   closeSheet();
   endPeek();
   if (!items.length) { toast('Rien à afficher sur la carte.'); return; }
-  for (const x of items) {
-    L.marker([x.lat, x.lng], { keyboard: true, title: x.name, zIndexOffset: 400,
-      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin${off(x) ? ' off' : ''}">${svgIcon(icon, { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
-      .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}${off(x) ? ', fermé' : ''}`))
-      .on('click', () => open(x))
-      .addTo(peekLayer);
-  }
+  const n = items.length;
+  let i = Math.min(Math.max(start, 0), n - 1);
+  const pins = items.map((x, k) => L.marker([x.lat, x.lng], { keyboard: true, title: x.name, zIndexOffset: 400,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin${off(x) ? ' off' : ''}">${svgIcon(x.icon ?? icon, { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
+    .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}${off(x) ? ', fermé' : ''}`))
+    .on('click', () => go(k, false))
+    .addTo(peekLayer));
   if (from) L.marker([from.lat, from.lng], { interactive: false, keyboard: false, zIndexOffset: 350, // point de départ des distances
     icon: L.divIcon({ className: 'pin-wrap', html: `<span class="from-pin" title="Point de départ">${svgIcon(from.kind === 'map' ? 'plus' : 'locate-fixed', { size: 14, stroke: 2.6 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(peekLayer);
-  showPeekCard(kicker, label, back);
-  map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 170], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
+  const back2 = (k) => named(kicker, () => showPeek({ ...opts, start: k, keep: true }));
+  const subOf = (x) => {
+    if (x.sub) return x.sub;
+    const o = freshHere() ?? from;
+    return [off(x) ? 'Fermé' : '', o ? fmtWalk(distanceM(o, x)) : ''].filter(Boolean).join(' · ');
+  };
+  const sel = () => pins.forEach((m, k) => m.getElement()?.querySelector('.peek-pin')?.classList.toggle('sel', k === i));
+  /** Le lieu au milieu de la carte visible : sous la barre du haut, au-dessus du bandeau. */
+  const place = (x) => {
+    const z = Math.max(map.getZoom(), 16);
+    map.setView([x.lat, x.lng], z, { animate: false });
+    const H = map.getSize().y;
+    const top = peekCard ? peekCard.getBoundingClientRect().top - map.getContainer().getBoundingClientRect().top : H - 170;
+    const want = (90 + top) / 2;
+    if (Number.isFinite(want) && want < H / 2) map.panBy([0, Math.round(H / 2 - want)], { animate: false });
+  };
+  let moved = false;
+  const card = () => {
+    const x = items[i];
+    const old = peekCard;
+    peekCard = el('div', { class: 'now-card peek-card deck', role: 'region', 'aria-label': `${kicker} sur la carte` },
+      el('div', { class: 'deck-top' },
+        el('button', { type: 'button', class: 'now-open', onclick: () => { if (moved) { moved = false; return; } open(x, back2(i)); } },
+          el('span', { class: 'now-text' },
+            el('span', { class: 'now-kicker' }, tabs ? `${kicker} · ${tabs.name}` : kicker),
+            el('span', { class: 'now-name' }, x.name),
+            el('span', { class: 'now-sub' }, subOf(x))),
+          el('span', { class: 'now-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+        el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x'))),
+      el('div', { class: 'deck-bar' },
+        el('button', { type: 'button', class: 'deck-step', 'aria-label': 'Lieu précédent', disabled: i === 0, onclick: () => go(i - 1, true) }, ico('chevron-left')),
+        el('span', { class: 'deck-count', 'aria-live': 'polite' }, `${i + 1} / ${n}`),
+        el('button', { type: 'button', class: 'deck-step', 'aria-label': 'Lieu suivant', disabled: i === n - 1, onclick: () => go(i + 1, true) }, ico('chevron-right')),
+        tabs ? el('span', { class: 'deck-days' }, tabs.list.map((t) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(Boolean(t.on)), onclick: t.on ? null : t.fn }, t.label))) : null,
+        back ? el('button', { type: 'button', class: 'deck-list', onclick: () => { endPeek(); back(); } }, ico('list'), 'Liste') : null));
+    // glisser de côté sur le bandeau (comme les photos en grand, v203)
+    let drag = null;
+    peekCard.addEventListener('pointerdown', (e) => { moved = false; drag = e.isPrimary && n > 1 ? { x: e.clientX, y: e.clientY } : null; });
+    peekCard.addEventListener('pointermove', (e) => { if (drag && e.isPrimary && (Math.abs(e.clientX - drag.x) > 8 || Math.abs(e.clientY - drag.y) > 8)) moved = true; });
+    peekCard.addEventListener('pointerup', (e) => { if (!drag) return; const step = swipeStep(e.clientX - drag.x, e.clientY - drag.y); drag = null; if (step) go(swipeIndex(i, n, step), true); });
+    peekCard.addEventListener('pointercancel', () => { drag = null; });
+    if (old) old.replaceWith(peekCard); else document.body.append(peekCard);
+  };
+  const go = (k, move) => {
+    if (k < 0 || k >= n || (k === i && peekCard)) { if (k === i && move) place(items[i]); return; }
+    i = k;
+    card();
+    sel();
+    if (move) place(items[i]);
+  };
+  card();
+  peekOff = onEnd;
+  if (keep) place(items[i]);
+  else map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 230], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
+  setTimeout(sel, 0); // les ronds existent une fois ajoutés à la carte
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
 /* Art dans la rue (v158) : statues, sculptures, installations nommées (OpenStreetMap) ; liste de tout Paris rangée
@@ -5094,7 +5160,7 @@ async function openStreetArt() {
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'summary' }, near.length ? `${plural(near.length, 'œuvre', 'œuvres')} à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.` : `Aucune œuvre connue à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.`),
     near.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Art dans la rue', label: plural(near.length, 'œuvre', 'œuvres'), items: near, icon: 'shapes',
-      open: (x) => openStreetArtCard(x, back), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
+      open: (x, b) => openStreetArtCard(x, b), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
     near.length ? el('ul', { class: 'items ev-list' }, near.map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d,
       tags: [a.mine ? el('span', { class: 'tag open' }, 'Tes artistes') : null] }))) : null,
     el('p', { class: 'help' }, `Statues, sculptures et installations nommées, d'après OpenStreetMap (liste de tout Paris rangée dans l'appli${streetArtUpdated ? ` le ${frenchDate(streetArtUpdated)}` : ''}, rien n'est envoyé). Les fresques, graffitis et mosaïques ne sont pas montrés : ils disparaissent trop souvent. La liste n'est pas complète.`),
@@ -5465,8 +5531,6 @@ function toggleLines() {
   toast(state.showLines ? 'Lignes de métro et RER affichées' : 'Lignes de métro et RER cachées');
 }
 
-const STREET_ICON = { marche: 'gift', brocante: 'tags', fete: 'sparkles', expo: 'palette' };
-const STREET_LABEL = { marche: 'Marché éphémère', brocante: 'Brocante, puces, vide-grenier', fete: 'Fête, festival', expo: 'Expo en plein air' };
 async function drawMarkets() {
   marketsLayer.clearLayers();
   if (!state.showMarkets) return;
@@ -5495,22 +5559,89 @@ async function drawMarkets() {
       .on('click', () => openStreetEvent(e)).addTo(marketsLayer);
   }
 }
+/* Dans la rue : parcourir (v213). Aujourd'hui ou demain, autour de moi (sinon du centre de la carte), 2,5 km au plus. */
+const streetEventsCache = new Map(); // jour → agenda du jour (tout Paris, aucune position envoyée)
+const keepStreetUndated = (e) => isExpo(e) || streetKind(e) === 'marche'; // sans créneau publié : seulement une expo ou un marché éphémère
+async function streetEventsOn(date) {
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return todayOnly(await todayEvents(), now, keepStreetUndated);
+  const k = date.toDateString();
+  if (!streetEventsCache.has(k)) {
+    const from = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    streetEventsCache.set(k, net(eventsUrl(from)).then(async (r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return todayOnly(parseEvents(await r.json(), from), from, keepStreetUndated);
+    }).catch((e) => { streetEventsCache.delete(k); throw e; }));
+  }
+  return streetEventsCache.get(k);
+}
+const tomorrowNoon = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 12);
+/** Les fiches d'un jour : { items, agendaFailed }. */
+async function streetDeckOn(date, from) {
+  let events = [];
+  let agendaFailed = false;
+  try { events = await streetEventsOn(date); } catch { agendaFailed = true; }
+  const items = streetDeck({ markets: await loadMarkets(), events, date, now: new Date(), from, holiday: holidayOn(date) });
+  return { items, agendaFailed };
+}
+/** Le texte sous le nom, dans le bandeau : genre · heures de ce jour-là · marche. */
+const streetSub = (x) => [x.label, x.holiday ? HOLIDAY_NOTE : x.hours, fmtWalk(x.d)].filter(Boolean).join(' · ');
+let streetFrom = null; // point de départ du parcours, gardé quand on change de jour
+async function openStreetDeck(day = null, start = 0) {
+  if (day == null || !streetFrom) { const c = map.getCenter(); streetFrom = freshHere() ? { lat: here.lat, lng: here.lng } : { lat: c.lat, lng: c.lng, kind: 'map' }; }
+  const from = streetFrom;
+  const dates = [new Date(), tomorrowNoon()];
+  toast('Préparation du parcours…');
+  let decks;
+  try { decks = await Promise.all(dates.map((d) => streetDeckOn(d, from))); } catch { toast('Les marchés n\'ont pas pu être lus. Réessaie avec du réseau.', true); return; }
+  if (day == null) day = deckDay(decks[0].items.length, decks[1].items.length);
+  const { items, agendaFailed } = decks[day];
+  const words = ['aujourd\'hui', 'demain'];
+  if (!items.length) { toast(`Rien dans la rue ${words[day]} à moins de 2,5 km${from.kind === 'map' ? ' du centre de la carte' : ''}.`); return; }
+  if (agendaFailed) toast('L\'agenda de la Ville ne répond pas : seulement les marchés.', true); else hideToast();
+  const date = dates[day];
+  endPeek();
+  map.removeLayer(marketsLayer); // les icônes de la tente se cachent le temps du parcours (pas de mélange de deux jours)
+  showPeek({
+    kicker: 'Dans la rue', icon: 'tent', from, start,
+    items: items.map((x) => ({ ...x, sub: streetSub(x) })),
+    open: (x, back) => (x.type === 'market' ? openMarket(x.m, back, date) : openEventPage(x.e, back, { label: STREET_LABEL[x.kind], icon: STREET_ICON[x.kind] })),
+    tabs: { name: day ? 'Demain' : 'Aujourd\'hui', list: [{ label: 'Aujourd\'hui', on: !day, fn: () => openStreetDeck(0) }, { label: 'Demain', on: Boolean(day), fn: () => openStreetDeck(1) }] },
+    onEnd: () => { if (state.showMarkets) marketsLayer.addTo(map); },
+  });
+}
+/** Après un appui sur la tente : « Parcourir (N) » dans le message (aujourd'hui, ou demain s'il ne reste rien). */
+async function offerStreetDeck(msg) {
+  const c = map.getCenter();
+  streetFrom = freshHere() ? { lat: here.lat, lng: here.lng } : { lat: c.lat, lng: c.lng, kind: 'map' };
+  let decks;
+  try { decks = await Promise.all([new Date(), tomorrowNoon()].map((d) => streetDeckOn(d, streetFrom))); } catch { return; }
+  if (!state.showMarkets) return;
+  const [t, m] = decks.map((d) => d.items.length);
+  if (!t && !m) return;
+  const day = deckDay(t, m);
+  toast(msg, false, { label: day ? `Parcourir demain (${m})` : `Parcourir (${t})`, fn: () => openStreetDeck(day) });
+}
 /** Fiche d'un événement de rue (agenda de la Ville) : la page d'une sortie, avec le genre « Dans la rue ». */
 function openStreetEvent(e) {
   const kind = streetKind(e) ?? 'fete';
   openEventPage(e, null, { label: STREET_LABEL[kind], icon: STREET_ICON[kind] });
 }
-function openMarket(m, back = null) {
+function openMarket(m, back = null, date = new Date()) {
   const d = freshHere() ? distanceM(freshHere(), m) : null;
+  const today = date.toDateString() === new Date().toDateString();
+  const hol = holidayOn(date); // v213 : un jour férié, ni heure ni certitude
+  const hrs = hol ? '' : hoursToday(m, date);
   openSheet([ico('store'), ` ${m.name}`], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `Aujourd'hui${hoursToday(m) ? ` : ${hoursToday(m)}` : ''}${d != null ? ` · ${fmtWalk(d)}` : ''}`),
+    el('p', { class: 'summary' }, `${today ? 'Aujourd\'hui' : dayTitle(date).replace(/^./, (c) => c.toUpperCase())}${hrs ? ` : ${hrs}` : ''}${d != null ? ` · ${fmtWalk(d)}` : ''}`),
+    hol ? el('p', { class: 'warn' }, `${hol} : ${HOLIDAY_NOTE.replace(/^Jour férié : /, '')}.`) : null,
     m.place ? el('p', { class: 'where' }, m.place) : null,
     m.products ? el('p', { class: 'help' }, m.products) : null,
     el('p', { class: 'help' }, m.covered ? 'Marché couvert, à l\'abri de la pluie. Ouvert du mardi au dimanche, fermé le lundi.' : `Se tient le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'].filter((_, i) => m.days[i]).join(', ')}.`),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
-      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
+      el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back, date))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Ajouter')),
     back ? backBtn(back) : null,
     el('p', { class: 'help' }, m.covered ? `Horaires relevés sur paris.fr le ${COVERED_CHECKED} ; ils peuvent changer les jours fériés.` : 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
@@ -8038,7 +8169,7 @@ const HELP = [
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, la liste de tes lieux d\'un arrondissement. La rubrique Filtres explique tout.',
-    '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air.',
+    '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
@@ -8072,7 +8203,7 @@ const HELP = [
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
-    '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ.',
+    '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ. Le bandeau en bas les montre une à une : ‹ › ou glisse le doigt de côté sur le bandeau, la carte se place sur chacune ; touche un rond pour le choisir, le bandeau pour ouvrir sa page, « Liste » pour revenir à la liste. Pareil pour tous les « Voir sur la carte ».',
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Voir les … » déroule la suite. Une sortie de Mes salles, montrée en tête de Tout, n\'est pas répétée plus bas.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
@@ -8180,7 +8311,7 @@ const HELP = [
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
-    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis.',
+    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message. Le bandeau montre un lieu à la fois, du plus proche au plus loin (2,5 km au plus, autour de toi ou du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
@@ -8260,6 +8391,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
     '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
@@ -8269,7 +8401,6 @@ const HELP = [
     '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
     '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
     '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
-    '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
   ]],
 ];
 
