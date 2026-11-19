@@ -4,7 +4,7 @@ import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (231)';
+const VERSION = '19 novembre 2026 (232)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -205,6 +205,16 @@ const fmtRing = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toLocaleString('fr-F
 const fmtWalk = (m) => walkLabel(m); // au-delà de 3 h : la distance en km (v217)
 const isFar = (m) => walkMinutes(m) > FAR_WALK_MIN; // plus de 3 h à pied : on ne parle plus de marche (v217)
 const walkPart = (m) => (isFar(m) ? null : fmtWalk(m)); // à côté d'une distance déjà écrite
+/** Texte de la plaque « Y aller » (v231, mes choix 1A 2A du 19 nov.) : des minutes seulement quand Google Maps s'ouvre à pied
+ *  (Réglages → Distances et durées, « À pied jusqu'à ») ; au-delà, il s'ouvre en transports : la distance seule, « de chez toi » gardé.
+ *  « ≈ 170 min de chez toi » sur un lien en transports se lisait comme la durée du trajet. Insécables : la ligne ne se coupe qu'après « · ». */
+const goText = (d, pos) => {
+  if (d == null) return ['Y aller'];
+  const nb = (t) => t.replace(/ /g, '\u00a0');
+  const from = pos?.kind === 'home' ? ' de\u00a0chez\u00a0toi' : '';
+  if (!walkGo(d)) return [`Y aller · ${nb(distText(d))}${from}`];
+  return [`Y aller · ${nb(from ? fmtWalk(d).replace(/ à pied$/, '') : fmtWalk(d))}${from}`, el('small', { class: 'go-dist' }, fmtDist(d))];
+};
 // Cercles d'« Autour de moi » : en mètres, ou en minutes à pied (rayons calculés depuis les minutes).
 const inMinutes = () => state.ringUnit === 'min';
 const nearRings = () => (inMinutes() ? state.minuteRings.map(minutesToMeters) : state.rings);
@@ -2057,7 +2067,7 @@ function openDetail(id, back = null) {
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goBox = el('div', { class: 'stack' },
     el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), d != null && !isFar(d) ? (pos?.kind === 'home' ? `Y aller · ${fmtWalk(d).replace(/ à pied$/, '').replace(/ /g, '\u00a0')} de\u00a0chez\u00a0toi` : `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}`) : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
+      ico('arrow-right'), ...goText(d, pos)), /* v231 : minutes seulement sous la limite « à pied » (goText) */
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -3843,7 +3853,7 @@ function openPlanning(from = null) {
     el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
     next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
     next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), dNext != null && !isFar(dNext) ? `Y aller · ${fmtWalk(dNext).replace(/ /g, '\u00a0')}` : 'Y aller', dNext != null ? el('small', { class: 'go-dist' }, fmtDist(dNext)) : null) : null,
+      ico('arrow-right'), ...goText(dNext, pos)) : null, /* v231 : comme la fiche ; « de chez toi » quand Chez moi est allumé */
     next ? el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(next, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -7671,7 +7681,7 @@ function openSettings(section = null) {
     openSheet([ico('ruler'), ' Distances et durées'], el('div', { class: 'stack' },
       el('div', { class: 'menu' }, row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide')),
       el('h3', { class: 'fiche-sec' }, 'Y aller'),
-      tuneRow('walkM', (v) => `À pied jusqu'à ${v}`, 'Au-delà, en transports'),
+      tuneRow('walkM', (v) => `À pied jusqu'à ${v}`, 'Au-delà, en transports et sans minutes'),
       el('h3', { class: 'fiche-sec' }, 'Sorties'),
       tuneRow('eventsM', (v) => `Jusqu'à ${v}`, 'Tous les onglets, et Dans la rue'),
       el('h3', { class: 'fiche-sec' }, 'Autour de moi'),
@@ -8859,7 +8869,7 @@ const HELP = [
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
-    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
+    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
@@ -8896,6 +8906,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
     '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
     '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
@@ -8905,7 +8916,6 @@ const HELP = [
     '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
     '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
-    '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
   ]],
 ];
 

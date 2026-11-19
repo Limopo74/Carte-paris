@@ -39,11 +39,17 @@ export function routeMinutes(m) {
 
 /** Au-delà de 3 h de marche, une durée à pied ne veut plus rien dire (téléphone loin de Paris, v217) : on écrit la distance. */
 export const FAR_WALK_MIN = 180;
+/** Une distance sans durée : « 770 m », « 7,6 km », « 385 km » (au-delà de 10 km, au km près). */
+export function distText(m) {
+  if (m < 1000) return `${Math.ceil(m / 10) * 10} m`;
+  return `${m >= 10000 ? Math.round(m / 1000).toLocaleString('fr-FR') : (m / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
 /** « ≈ 12 min à pied », ou « à 385 km » quand la marche dépasserait 3 h. */
 export function walkLabel(m) {
   const min = walkMinutes(m);
   if (min <= FAR_WALK_MIN) return `≈ ${min} min à pied`;
-  return `à ${m >= 10000 ? Math.round(m / 1000).toLocaleString('fr-FR') : (m / 1000).toFixed(1).replace('.', ',')} km`;
+  return `à ${distText(m)}`;
 }
 
 /** Minutes de marche estimées depuis une distance à vol d'oiseau, détours compris. 1 minute au minimum. */
@@ -85,8 +91,11 @@ export function groupByRings(points, here, rings, { favBonus = 0 } = {}) {
 
 /** Lien d'itinéraire Google Maps : à pied sous la limite (1 km au départ), en transports au-delà.
  *  Distance inconnue : passe Infinity (transports). À pied imposé (une station toute proche) : passe 0. */
+/** Y aller ouvre Google Maps à pied sous la limite réglée, en transports au-delà (v214). La plaque suit la même limite (v231). */
+export const walkGo = (d, limit = walkLimit) => d < limit;
+
 export function mapsUrl(point, d, limit = walkLimit) {
-  const mode = d < limit ? 'walking' : 'transit';
+  const mode = walkGo(d, limit) ? 'walking' : 'transit';
   return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&travelmode=${mode}`;
 }
 
