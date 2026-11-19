@@ -92,3 +92,14 @@ test('l\'appli : point de départ unique, écrans « là où je suis » inchang�
   assert.equal(readFileSync(new URL('../js/geo.js', import.meta.url), 'utf8').includes('origin='), false);
   assert.ok(readFileSync(new URL('../sw.js', import.meta.url), 'utf8').includes("'js/chezmoi.js'"));
 });
+
+test('v250 : interrupteur toujours sur la page météo dès qu\'une adresse existe ; Autour de moi suit au retour', () => {
+  const w = app.slice(app.indexOf('function openWeather('), app.indexOf("name: 'weather'"));
+  assert.match(w, /home \? el\('div', \{ class: 'menu' \}/); // plus de condition « allumé à l'ouverture »
+  assert.equal(app.includes('wxHomeRow'), false);
+  assert.match(app, /name: 'near', again: nearAgain \}/);
+  const n = app.slice(app.indexOf('function nearAgain('), app.indexOf('\n}\n', app.indexOf('function nearAgain(')));
+  assert.match(n, /homeOn\(\) && \(origin\?\.kind === 'gps' \|\| origin\?\.kind === 'last'\)\) \{ origin = atHome\(\)/);
+  assert.match(n, /!homeOn\(\) && origin\?\.kind === 'home'/);
+  assert.equal(/station/.test(n), false); // une station choisie n'est jamais remplacée
+});

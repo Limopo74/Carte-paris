@@ -57,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (249)';
+const VERSION = '19 novembre 2026 (250)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2922,6 +2922,18 @@ async function openNear() {
   }
 }
 
+/** v250 : en revenant sur Autour de moi (← après la page météo), la liste suit l'interrupteur « Partir de chez moi ».
+ *  Une station choisie reste. Avant : la liste gardait son ancien point de départ jusqu'à sa réouverture. */
+function nearAgain() {
+  if (homeOn() && (origin?.kind === 'gps' || origin?.kind === 'last')) { origin = atHome(); renderNear(true); return; }
+  if (!homeOn() && origin?.kind === 'home') {
+    const fix = freshHere();
+    if (fix) { origin = { ...fix, kind: 'gps' }; renderNear(true); } else openNear(); // pas de position récente : on la demande, comme à l'ouverture
+    return;
+  }
+  renderNear();
+}
+
 /** Pas de GPS : proposer la dernière position connue ou une station. */
 function offerFallback(e) {
   const age = here ? Date.now() - here.time : Infinity;
@@ -3099,7 +3111,7 @@ function renderNear(fit = false) {
     body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
   }
 
-  openSheet([ico('map-pinned'), ` ${nearTitle()}`], body, { name: 'near', again: () => renderNear() });
+  openSheet([ico('map-pinned'), ` ${nearTitle()}`], body, { name: 'near', again: nearAgain });
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
   if (fit) {
     const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
@@ -6246,7 +6258,7 @@ function openHomeSettings() {
         el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))))
       : el('button', { type: 'button', class: 'btn c-guide', onclick: openHomeSearch }, ico('search'), 'Chercher mon adresse'),
     home ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
-    home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille pour l'éteindre en haut de la page Météo.`) : null,
+    home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille : l'interrupteur est en haut de la page Météo, pour l'allumer ou l'éteindre.`) : null,
     el('p', { class: 'help tip' }, 'Ne changent pas : Rentrer, M, la boussole, Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.'),
     el('p', { class: 'help tip' }, `Ton adresse reste sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.${home ? '' : ' Pour la trouver, l\'appli envoie ce que tu tapes à l\'IGN, après ton appui.'}`),
     foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(named('Réglages', () => openSettings())))),
@@ -6350,15 +6362,16 @@ const AIR_ADVICE = {
   mediocre: 'Évite les efforts intenses dehors, surtout près des grands axes.', 'tres-mediocre': 'Limite les efforts dehors ; privilégie les parcs et les rues calmes.',
   extreme: 'Évite les efforts dehors aujourd\'hui.',
 };
-let wxHomeRow = false; // v239 : la ligne Chez moi reste visible tant que la page est ouverte, même éteinte (pour la rallumer)
+// v250 (mon choix A) : la ligne « Partir de chez moi » est toujours en haut de la page, allumée ou éteinte, dès qu'une adresse est enregistrée
+// (avant, v239 : seulement si Chez moi était allumé à l'ouverture ; l'allumer demandait Réglages → Chez moi).
 function openWeather(redraw = false) {
-  if (!redraw) { track('Météo et air'); wxHomeRow = homeOn(); }
+  if (!redraw) track('Météo et air');
   const day = dayNote();
   const on = homeOn();
   const home = cleanHome(state.home);
   const a = arrHere();
   openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
-    home && (on || wxHomeRow) ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
+    home ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, on ? `Distances depuis chez toi · ${homeShort(state.home)}` : 'Distances depuis ta position')),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))) : null,
@@ -9627,6 +9640,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
     '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
@@ -9636,7 +9650,6 @@ const HELP = [
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
     '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
     '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
-    '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
   ]],
 ];
 
