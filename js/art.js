@@ -196,6 +196,8 @@ export function freeBanner(date = new Date()) {
 /* ---------- 5 bis. Théâtre à moitié prix : les Kiosques (places du jour même) ---------- */
 
 export const KIOSQUE_SOURCE = 'https://www.kiosqueculture.com/infos-pratiques/';
+/** Date de la dernière vérification du Kiosque sur son site officiel (v225 : relue par les tâches du 1er mars et du 1er septembre). */
+export const KIOSQUE_CHECKED = '17 novembre 2026';
 // Vérifié sur le site officiel le 17 nov. 2026 : seul le kiosque de la Madeleine est ouvert
 // (Montparnasse : « fermeture provisoire » ; Ternes : n'existe plus).
 export const KIOSQUES = [

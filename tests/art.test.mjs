@@ -305,3 +305,12 @@ test('textMatch : tous les mots, sans accents ni majuscules', async () => {
   assert.ok(!textMatch('ab', 'abc'));
   assert.ok(!textMatch('chez paul', 'Chez Georges'));
 });
+
+test('Kiosque : une date de vérification lisible, affichée dans Données de l\'appli et dans l\'aide (v225)', async () => {
+  const { KIOSQUE_CHECKED } = await import('../js/art.js');
+  assert.match(KIOSQUE_CHECKED, /^\d{1,2} (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre) 20\d\d$/);
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.equal((app.match(/\$\{KIOSQUE_CHECKED\}/g) ?? []).length, 2);
+  assert.match(app, /chaque 1er mars et chaque 1er septembre/);
+});

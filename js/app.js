@@ -18,7 +18,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
@@ -52,7 +52,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (224)';
+const VERSION = '19 novembre 2026 (225)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7333,7 +7333,7 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
       listes: () => [
-        el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), Kiosque Théâtre, grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED}), temps forts de l'année. Une tâche programmée les prépare chaque 1er septembre et te demande ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
+        el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), temps forts de l'année ; Kiosque Théâtre vérifié le ${KIOSQUE_CHECKED} ; grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED}). Deux tâches programmées les préparent, chaque 1er mars et chaque 1er septembre, et te demandent ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
         el('div', { class: 'menu' },
           el('a', { class: 'menu-row c-info', href: FREE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Musées et monuments gratuits'), el('span', { class: 'menu-sub' }, 'Paris je t\'aime, office du tourisme')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
           el('a', { class: 'menu-row c-info', href: KIOSQUE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Kiosque Théâtre'), el('span', { class: 'menu-sub' }, 'Adresses et horaires sur le site officiel')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
@@ -8462,7 +8462,7 @@ const HELP = [
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
-    `**Gratuités** : liste vérifiée le ${FREE_CHECKED} ; **temps forts** : le ${HIGHLIGHTS_CHECKED}. Vérifie aussi sur le site du lieu.`,
+    `**Gratuités** : liste vérifiée le ${FREE_CHECKED} ; **temps forts** : le ${HIGHLIGHTS_CHECKED} ; **Kiosque Théâtre** : le ${KIOSQUE_CHECKED}. Vérifie aussi sur le site du lieu.`,
   ]],
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
@@ -8619,6 +8619,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
     '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
     '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
@@ -8628,7 +8629,6 @@ const HELP = [
     '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
-    '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allée ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
   ]],
 ];
 

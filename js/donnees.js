@@ -62,7 +62,7 @@ export const FIXED_DATA = [
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
   { id: 'merimee', name: 'Monuments : protection et musées', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
-  { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâche programmée Claude chaque 1er septembre
+  { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâches programmées Claude chaque 1er mars et chaque 1er septembre (v225)
 ];
 /** « tous les 6 mois », « tous les ans »… (les données du robot : « chaque mois »). */
 export const everyText = (days) => (days >= 360 ? 'tous les ans' : days <= 45 ? 'chaque mois' : `tous les ${Math.round(days / 30.5)} mois`);
