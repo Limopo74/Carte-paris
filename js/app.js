@@ -19,7 +19,7 @@ import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
-import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay } from './hours.js';
+import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
@@ -56,7 +56,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (245)';
+const VERSION = '19 novembre 2026 (246)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2212,7 +2212,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
-      row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
+      row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
       !ficheShows('uber') ? null : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
@@ -2608,6 +2608,92 @@ function openPlanSpot(x, back = null) {
         el('button', { type: 'button', class: 'btn c-disc', onclick: () => { const y = (state.plans ?? []).find((z) => z.id === x.id); if (y) delete y.by; persist(); updatePlanningCount(); toast(`« ${x.name} » est dans ton planning`); openPlanSpot(y ?? x, back); } }, ico('alarm-clock'), 'L\'ajouter à Mon planning'),
         el('button', { type: 'button', class: 'btn', onclick: () => { state.plans = (state.plans ?? []).filter((z) => z.id !== x.id); persist(); updatePlanningCount(); toast(`« ${x.name} » retiré de Mon planning`); if (back) back(); else closeSheet(); } }, 'Retirer'))
       : el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(x, named(x.name, again), { done: again }) }, ico('alarm-clock'), 'Changer le jour ou retirer') });
+}
+
+/* v244 : noter soi-même les horaires d'un de mes lieux : jours ouverts, ouverture et fermeture par − et + d'un quart d'heure,
+   fermeture à midi facultative ; mêmes heures pour tous les jours cochés ; un jour férié, l'état n'est pas connu (« PH unknown »). */
+const HOURS_DAYS = [['Mo', 'Lun', 'lundi'], ['Tu', 'Mar', 'mardi'], ['We', 'Mer', 'mercredi'], ['Th', 'Jeu', 'jeudi'], ['Fr', 'Ven', 'vendredi'], ['Sa', 'Sam', 'samedi'], ['Su', 'Dim', 'dimanche']];
+const HOURS_STEP = 15;
+/** « 9h30 », « 19h », « minuit » (typo() affiche « 9 h 30 »). */
+const clockText = (m) => (m % 1440 === 0 ? 'minuit' : `${Math.floor(m / 60) % 24}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`);
+function openHours(p, back) {
+  const again = () => openHours(p, back);
+  const toFiche = () => openDetail(p.id, back);
+  const cur = simpleHours(p.hours);
+  const v = cur ? { days: new Set(cur.days), open: cur.open, close: cur.close, pause: cur.pause ? [...cur.pause] : null }
+    : { days: new Set(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']), open: 10 * 60, close: 19 * 60, pause: null };
+  const lastPause = v.pause ?? [12 * 60 + 30, 14 * 60];
+  const err = el('p', { class: 'error', role: 'alert' });
+  const daySeg = el('div', { class: 'seg days', role: 'group', 'aria-label': 'Jours ouverts' },
+    ...HOURS_DAYS.map(([k, short, long]) => el('button', { type: 'button', 'aria-pressed': String(v.days.has(k)), 'aria-label': long, onclick: (e) => {
+      if (v.days.has(k)) v.days.delete(k); else v.days.add(k);
+      e.currentTarget.setAttribute('aria-pressed', String(v.days.has(k))); err.textContent = '';
+    } }, short)));
+  // Une valeur à − et + : « Ouvre à 10h », bornes dites par « Au moins » / « Au plus » (charte § 8).
+  const LIMITS = { open: [0, 1440 - HOURS_STEP], close: [HOURS_STEP, 1440], p0: [HOURS_STEP, 1440 - HOURS_STEP], p1: [HOURS_STEP, 1440 - HOURS_STEP] };
+  const get = (key) => (key === 'p0' ? lastPause[0] : key === 'p1' ? lastPause[1] : v[key]);
+  const set = (key, m) => { if (key === 'p0') lastPause[0] = m; else if (key === 'p1') lastPause[1] = m; else v[key] = m; if (v.pause) v.pause = [...lastPause]; };
+  const label = { open: (m) => `Ouvre à ${clockText(m)}`, p0: (m) => `Ferme à ${clockText(m)}`, p1: (m) => `Rouvre à ${clockText(m)}`, close: (m) => `${v.pause ? 'Ferme le soir' : 'Ferme'} à ${clockText(m)}` };
+  const subOf = (key) => (key === 'close' && !v.pause && v.close <= v.open ? 'Après minuit, la nuit suivante' : '');
+  const rows = {};
+  const draw = (key) => {
+    const r = rows[key]; const t = label[key](get(key));
+    fill(r.name, typo(t).replace(' à ', ' à\u00a0')); fill(r.sub, subOf(key)); r.sub.hidden = !subOf(key);
+    r.less.setAttribute('aria-label', `${typo(t)} : plus tôt`); r.more.setAttribute('aria-label', `${typo(t)} : plus tard`); /* TalkBack dit quelle heure change */
+  };
+  const step = (key, dir) => {
+    const [lo, hi] = LIMITS[key];
+    const m = get(key) + dir * HOURS_STEP;
+    if (m < lo || m > hi) { toast(`${dir < 0 ? 'Au moins' : 'Au plus'} : ${clockText(dir < 0 ? lo : hi)}`); return; }
+    set(key, m); draw(key); if (key === 'open') draw('close'); err.textContent = '';
+  };
+  const stepRow = (key) => {
+    const name = el('span', { class: 'cat-name' }); const sub = el('span', { class: 'menu-sub' });
+    const less = el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, onclick: () => step(key, -1) }, ico('minus'));
+    const more = el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, onclick: () => step(key, 1) }, ico('plus'));
+    rows[key] = { name, sub, less, more };
+    const r = el('div', { class: 'cat-row pace-row' }, el('span', { class: 'pace-text' }, name, sub), less, more);
+    draw(key);
+    return r;
+  };
+  const openRow = stepRow('open');
+  const pauseBox = el('div', { class: 'stack' }, stepRow('p0'), stepRow('p1'));
+  pauseBox.hidden = !v.pause;
+  const closeRow = stepRow('close');
+  const pauseSw = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(Boolean(v.pause)), onclick: () => {
+    v.pause = v.pause ? null : [...lastPause];
+    pauseSw.setAttribute('aria-checked', String(Boolean(v.pause))); pauseSw.querySelector('.switch').classList.toggle('on', Boolean(v.pause));
+    pauseBox.hidden = !v.pause; draw('close'); err.textContent = '';
+  } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('utensils')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Fermé à midi')),
+  el('span', { class: `switch${v.pause ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  const save = () => {
+    if (!v.days.size) { err.textContent = 'Coche au moins un jour ouvert.'; return; }
+    if (v.pause && !(v.open < v.pause[0] && v.pause[0] < v.pause[1] && v.pause[1] < v.close)) { err.textContent = 'Les heures de midi doivent être entre l\'ouverture et la fermeture du soir, dans l\'ordre.'; return; }
+    if (!v.pause && v.close === v.open) { err.textContent = 'L\'heure de fermeture est la même que l\'ouverture.'; return; }
+    p.hours = writeHours({ days: [...v.days], open: v.open, close: v.close, pause: v.pause });
+    p.hoursAt = Date.now();
+    persist(); renderMarkers(); updateNow(true);
+    toFiche(); toast('Horaires notés');
+  };
+  const old = p.hours, oldAt = p.hoursAt;
+  openSheet([ico('clock'), ` Horaires · ${p.name}`], el('div', { class: 'stack' },
+    el('button', { type: 'button', class: 'btn', onclick: () => findHours(p, back) }, ico('search'), 'Chercher sur OpenStreetMap'),
+    el('h3', { class: 'fiche-sec' }, 'Les noter moi-même'),
+    p.hours && !cur ? el('p', { class: 'help' }, 'Les horaires de ce lieu changent selon le jour : les noter ici les remplacera.') : null,
+    el('div', { class: 'field' }, 'Jours ouverts', daySeg),
+    openRow, pauseSw, pauseBox, closeRow,
+    el('p', { class: 'help' }, 'Un jour férié, la fiche ne dira ni ouvert ni fermé : vérifie sur place.'),
+    p.hours ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
+      delete p.hours; delete p.hoursAt; persist(); renderMarkers(); updateNow(true); toFiche();
+      toast('Horaires effacés', false, { label: 'Annuler', fn: () => { p.hours = old; if (Number.isFinite(oldAt)) p.hoursAt = oldAt; persist(); renderMarkers(); updateNow(true); toFiche(); } });
+    } }, ico('trash-2'), 'Effacer les horaires') : null,
+    el('p', { class: 'help tip' }, 'Recopie les horaires écrits sur la porte ou sur le site du lieu. Ici, tous les jours cochés ont les mêmes heures : si elles changent d\'un jour à l\'autre, cherche plutôt sur OpenStreetMap. Au bout d\'un an, la fiche te dira « horaires notés en … » : pense à les vérifier. Rien ne part du téléphone.'),
+    foot(err, el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: toFiche }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
+  ), { name: `hours:${p.id}`, again });
 }
 
 /** Chercher dans OpenStreetMap les horaires d'un lieu déjà enregistré (même nom, à moins de 150 m). */
@@ -9136,7 +9222,7 @@ const HELP = [
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
+    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici. {clock} **Horaires** : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture, fermeture à midi) ; un jour férié, la fiche ne dit alors ni ouvert ni fermé. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
@@ -9232,6 +9318,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
     '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
     '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
@@ -9241,7 +9328,6 @@ const HELP = [
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
     '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
-    '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
   ]],
 ];
 

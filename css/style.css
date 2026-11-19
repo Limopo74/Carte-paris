@@ -850,6 +850,9 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
 .seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 .seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); background: var(--strong); }
+/* v244 : les 7 jours d'ouverture sur une ligne (page Horaires d'un lieu) */
+.seg.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.seg.days button { padding: 0; font-size: var(--t14); }
 .seg.two button { flex-basis: 40%; } /* v208 : 2 par rangée (Prévoir), plus de mot coupé */
 .switch.on { background: var(--add); }
 

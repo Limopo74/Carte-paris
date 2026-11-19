@@ -18,6 +18,9 @@ function parseDays(spec) {
   return days;
 }
 
+/** v244 : « PH unknown » : un jour férié, l'état n'est pas connu (rien ne s'affiche). */
+const UNKNOWN = 'unknown';
+
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
 function parseTimes(spec) {
@@ -45,6 +48,7 @@ function parseRules(hours) {
     let ph = false;
     if (/^PH\b/.test(rule)) { ph = 'only'; rule = rule.replace(/^PH\s*/, ''); } else if (/,\s*PH\b/.test(rule)) { ph = 'also'; rule = rule.replace(/,\s*PH\b/, ''); }
     if (ph === 'only') {
+      if (/^unknown$/i.test(rule)) { week.PH = UNKNOWN; continue; } // v244 : horaires notés à la main, jours fériés inconnus
       if (/^(off|closed)$/i.test(rule)) week.PH = [];
       else { const t = parseTimes(rule.replace(/\s+/g, '')); if (t) week.PH = t; }
       continue;
@@ -69,6 +73,7 @@ function parseRules(hours) {
 export function openState(hours, date = new Date()) {
   const week = parseRules(hours);
   if (!week) return null;
+  if (holidayOn(date) && week.PH === UNKNOWN) return null;
   const now = date.getHours() * 60 + date.getMinutes();
   const today = (holidayOn(date) && week.PH) ? week.PH : (week[DAYS[date.getDay()]] ?? []);
   const yesterday = week[DAYS[(date.getDay() + 6) % 7]] ?? [];
@@ -83,6 +88,7 @@ export function openState(hours, date = new Date()) {
 export function opensThatDay(hours, date = new Date()) {
   const week = parseRules(hours);
   if (!week) return null;
+  if (holidayOn(date) && week.PH === UNKNOWN) return null;
   const today = (holidayOn(date) && week.PH) ? week.PH : (week[DAYS[date.getDay()]] ?? []);
   return today.length > 0;
 }
@@ -116,4 +122,37 @@ export function closedDaysText(hours) {
   if (!closed.length || closed.length >= 6) return '';
   const names = closed.map((d) => `le ${FR_DAYS[d]}`);
   return `Fermé ${names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0]}`;
+}
+
+/**
+ * v244 : horaires « simples » (les mêmes heures chaque jour ouvert, avec ou sans fermeture à midi), pour la page où je les note.
+ * { days: ['Tu', …], open, close, pause: [début, fin] | null } en minutes (close peut valoir 1440), ou null si autre chose.
+ */
+export function simpleHours(hours) {
+  const week = parseRules(hours);
+  if (!week) return null;
+  const days = ORDER.filter((d) => week[d]?.length);
+  if (!days.length) return null;
+  const ref = week[days[0]];
+  const same = (a, b) => a.length === b.length && a.every((iv, i) => iv.from === b[i].from && iv.to === b[i].to);
+  if (!days.every((d) => same(week[d], ref)) || ref.length > 2) return null;
+  const ivs = [...ref].sort((a, b) => a.from - b.from);
+  if (ivs.length === 1) return { days, open: ivs[0].from, close: ivs[0].to % 1440 || 1440, pause: null };
+  if (ivs[0].to > 1440 || ivs[1].to > 1440 || ivs[0].to >= ivs[1].from) return null;
+  return { days, open: ivs[0].from, close: ivs[1].to, pause: [ivs[0].to, ivs[1].from] };
+}
+
+/** v244 : écrit des horaires notés à la main au format OpenStreetMap, jours fériés inconnus (« Tu-Su 10:00-18:00; PH unknown »). */
+export function writeHours({ days, open, close, pause = null }) {
+  const on = ORDER.filter((d) => days.includes(d));
+  if (!on.length) return '';
+  const runs = [];
+  for (const d of on) {
+    const last = runs.at(-1);
+    if (last && ORDER.indexOf(d) === ORDER.indexOf(last.at(-1)) + 1) last.push(d); else runs.push([d]);
+  }
+  const dayText = runs.map((r) => (r.length > 1 ? `${r[0]}-${r.at(-1)}` : r[0])).join(',');
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const times = pause ? `${hm(open)}-${hm(pause[0])},${hm(pause[1])}-${hm(close)}` : `${hm(open)}-${hm(close)}`;
+  return `${dayText} ${times}; PH ${UNKNOWN}`;
 }
