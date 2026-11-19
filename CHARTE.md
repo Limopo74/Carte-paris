@@ -88,6 +88,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - **Deux voix** : les noms d'écrans et de boutons parlent comme moi (Mon planning, Autour de moi, J'ai du temps, Où suis-je ?) ; les phrases me tutoient (« touche… », « tes lieux »). Jamais de vouvoiement. Claude est toujours nommé à la 3e personne.
 - **Accords au féminin** : l'appli sert à deux utilisatrices (« Tu y es allée ? », « Tu es déjà passée ici »).
 - **Typographie à l'affichage** (`js/typo.js`, appliquée par `el()` et `toast()`, jamais dans un champ) : espace insécable avant « : ; ? ! » % » et après « « » ; heures « 9 h 30 » (un module peut écrire « 9h30 », l'écran montre « 9 h 30 ») ; « 1er » pour le premier jour du mois. Un texte posé autrement (`textContent`) passe aussi par `typo()`.
+- **Aide d'un écran** (v234) : les explications (comment faire, astuces, sources) sont marquées `help tip` et rangées par `gatherTips()` dans une seule ligne « Aide » (`ico('info')`), repliée, en bas de la page, juste au-dessus de la barre du bas ; elle reste ouverte si l'écran est redessiné. Restent à leur place : alertes, comptes, « Recherche… », pages vides, aide d'un champ, mises en garde sur ce qui est affiché, ce qui part du téléphone (vérifié par `tests/aide-repliee.test.mjs`).
 - **Retour à la même hauteur** (v150) : revenir à un écran (« ← Nom », bouton retour du téléphone) ou le redessiner le rouvre là où on l'avait laissé ; un écran ouvert pour la première fois commence en haut (`openSheet`, pile `navStack`).
 
 ## 9. Contrôle après chaque changement
