@@ -2,10 +2,10 @@
 """Fabrique le plan des rues à pied de Paris pour « Mes parcours » (mesure du 19 nov. 2026, pas encore dans l'appli).
 
 Usage, depuis la racine du dépôt :
-  python3 -I tools/maj-rues.py demande               -> écrit la demande Overpass (texte) sur la sortie
-  python3 -I tools/maj-rues.py REPONSE.json SORTIE.json AAAA-MM-JJ
+  python3 -I tools/maj-rues.py demandes DOSSIER       -> écrit les demandes Overpass (q-*.txt) dans DOSSIER
+  python3 -I tools/maj-rues.py DOSSIER SORTIE.json AAAA-MM-JJ   (lit les réponses DOSSIER/r-*.json)
 
-Entrée : la réponse JSON d'Overpass (OpenStreetMap, licence ODbL) à la demande ci-dessous : les voies où l'on marche
+Entrée : les réponses JSON d'Overpass (OpenStreetMap, licence ODbL) aux demandes ci-dessous : les voies où l'on marche
 dans Paris (avec leurs nœuds), et les parcs et jardins (pour les éviter : choix 1A du 19 nov.).
 
 Sortie (compacte, un seul fichier) :
@@ -15,24 +15,35 @@ Sortie (compacte, un seul fichier) :
                                               numéro du nom + 1 (0 = sans nom), nombre de points de forme),
     shape: [dlat, dlng, …]                  (points de forme des tronçons, dans l'ordre, relatifs au nœud a) }
 Drapeaux : 1 = dans un parc ou un jardin, 2 = passage couvert ou sous un immeuble, 4 = escalier.
-Seuls les croisements sont des nœuds ; les points entre deux croisements sont des points de forme.
+Seuls les tronçons dont un bout est dans Paris (data/arrondissements.json) sont gardés. Seuls les croisements sont des nœuds ; les points entre deux croisements sont des points de forme.
 Si la réponse est trop petite (moins de 20 000 tronçons), rien n'est écrit.
 """
-import gzip, json, math, sys
+import glob, gzip, json, math, os, sys
 
 SOURCE = 'OpenStreetMap (licence ODbL)'
 MIN_EDGES = 20000
 WALK = ('footway|pedestrian|path|steps|living_street|residential|tertiary|tertiary_link|secondary|secondary_link'
         '|primary|primary_link|unclassified|service|cycleway|track|corridor')
-QUERY = f'''[out:json][timeout:900][maxsize:1073741824];
-area["ref:INSEE"="75056"][boundary=administrative]->.p;
-way(area.p)[highway~"^({WALK})$"][foot!~"^no$"][access!~"^(private|no)$"]["footway"!~"^(sidewalk|crossing)$"]->.w;
-(way(area.p)[leisure~"^(park|garden)$"][access!~"^(private|no)$"]; relation(area.p)[leisure~"^(park|garden)$"][access!~"^(private|no)$"];)->.parcs;
-(.w; .parcs;);
-out body qt;
-(.w; .parcs;); >;
-out skel qt;
-'''
+# 19 nov. : la demande d'un seul tenant (tout Paris, par la zone de la commune) a été refusée par les trois serveurs
+# (504, 502, coupure) ; elle est donc découpée en 9 cases (3 × 3) plus une demande pour les parcs.
+BOX = (48.815, 2.224, 48.903, 2.470)  # sud, ouest, nord, est : Paris et un peu autour (le reste est retiré ensuite)
+CUTS = 3
+WAY_FILTER = f'[highway~"^({WALK})$"][foot!~"^no$"][access!~"^(private|no)$"]["footway"!~"^(sidewalk|crossing)$"]'
+
+
+def queries():
+    """Les demandes Overpass : {nom: texte}."""
+    s, w, n, e = BOX
+    out = {}
+    for i in range(CUTS):
+        for j in range(CUTS):
+            b = (s + (n - s) * i / CUTS, w + (e - w) * j / CUTS, s + (n - s) * (i + 1) / CUTS, w + (e - w) * (j + 1) / CUTS)
+            bb = ','.join(f'{x:.5f}' for x in b)
+            out[f'q-{i}{j}'] = f'[out:json][timeout:300];way({bb}){WAY_FILTER};out body qt;>;out skel qt;'
+    bb = ','.join(f'{x:.5f}' for x in BOX)
+    out['q-parcs'] = (f'[out:json][timeout:300];(way({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];'
+                      f'relation({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];);out body qt;>;out skel qt;')
+    return out
 
 
 def length_m(a, b):
@@ -54,7 +65,17 @@ def inside(pt, ring):
     return hit
 
 
-def build(data):
+def paris_test():
+    """Fonction (lat, lng) -> dans Paris ? d'après data/arrondissements.json (anneaux en [lng, lat])."""
+    rings = []
+    for a in json.load(open('data/arrondissements.json', encoding='utf8'))['arr']:
+        for r in a['rings']:
+            pts = [(p[1], p[0]) for p in r]
+            rings.append((min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts), pts))
+    return lambda pt: any(a <= pt[0] <= b and c <= pt[1] <= d and inside(pt, r) for a, b, c, d, r in rings)
+
+
+def build(data, in_paris=lambda pt: True):
     els = data.get('elements', []) if isinstance(data, dict) else []
     nodes = {e['id']: (e['lat'], e['lon']) for e in els if e.get('type') == 'node' and 'lat' in e}
     ways = {e['id']: e for e in els if e.get('type') == 'way'}
@@ -112,7 +133,7 @@ def build(data):
             if len(seg) > 1 and use.get(n, 0) >= 2:
                 pts = [nodes[x] for x in seg]
                 m = round(sum(length_m(pts[i], pts[i + 1]) for i in range(len(pts) - 1)))
-                if m > 0:
+                if m > 0 and (in_paris(nodes[seg[0]]) or in_paris(nodes[seg[-1]])):
                     mid = pts[len(pts) // 2] if len(pts) > 2 else ((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2)
                     f = flag | (1 if in_park(mid) else 0)
                     for x in (seg[0], seg[-1]):
@@ -134,11 +155,19 @@ def build(data):
 
 
 def main():
-    if sys.argv[1:] == ['demande']:
-        print(QUERY)
+    if sys.argv[1] == 'demandes':
+        os.makedirs(sys.argv[2], exist_ok=True)
+        for k, q in queries().items():
+            open(os.path.join(sys.argv[2], k + '.txt'), 'w', encoding='utf8').write(q)
         return
     src, out, today = sys.argv[1], sys.argv[2], sys.argv[3]
-    g, parks = build(json.load(open(src, encoding='utf8')))
+    seen, els = set(), []
+    for f in sorted(glob.glob(os.path.join(src, 'r-*.json'))):
+        for e in json.load(open(f, encoding='utf8')).get('elements', []):
+            key = (e.get('type'), e.get('id'))
+            if key not in seen:
+                seen.add(key); els.append(e)
+    g, parks = build({'elements': els}, paris_test())
     n_edges = len(g['edges']) // 6
     if n_edges < MIN_EDGES:
         sys.exit(f'Plan des rues : seulement {n_edges} tronçons, rien écrit (source coupée ?)')

@@ -14,26 +14,31 @@ permissions:
 jobs:
   mesure:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - name: Demander les rues à OpenStreetMap et fabriquer le plan
+      - name: Demander les rues à OpenStreetMap (10 demandes) et fabriquer le plan
+        # 19 nov. : une seule grosse demande a été refusée par les trois serveurs ; elle est découpée en 9 cases et les parcs.
         run: |
           set -u
           mkdir -p /tmp/src
-          python3 -I tools/maj-rues.py demande > /tmp/src/q-rues.txt
+          python3 -I tools/maj-rues.py demandes /tmp/src
           UA='Carte-paris, mesure ponctuelle (https://github.com/Limopo74/Carte-paris)'
-          for tour in 1 2; do
-            for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
-              if curl -fsS --compressed --max-time 900 -A "$UA" --data-urlencode "data@/tmp/src/q-rues.txt" -o /tmp/src/rues.json "$server"; then
-                echo "Réponse : $(wc -c < /tmp/src/rues.json) octets depuis $server (tour $tour)"; break 2
-              fi
-              echo "$server ne répond pas (tour $tour)"; rm -f /tmp/src/rues.json; sleep 30
+          for q in /tmp/src/q-*.txt; do
+            k=$(basename "$q" .txt); out="/tmp/src/r-${k#q-}.json"
+            for tour in 1 2 3; do
+              for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+                if curl -fsS --compressed --max-time 360 -A "$UA" --data-urlencode "data@$q" -o "$out" "$server"; then
+                  echo "$k : $(wc -c < "$out") octets depuis $server (tour $tour)"; break 2
+                fi
+                echo "$k : $server ne répond pas (tour $tour)"; rm -f "$out"; sleep 20
+              done
+              sleep 60
             done
-            [ "$tour" = 1 ] && { echo "Second tour dans 2 minutes."; sleep 120; }
+            [ -s "$out" ] || { echo "$k : aucun serveur n'a répondu, pas de mesure."; exit 1; }
+            sleep 5
           done
-          [ -s /tmp/src/rues.json ] || { echo "Aucun serveur n'a répondu : pas de mesure."; exit 1; }
-          python3 -I tools/maj-rues.py /tmp/src/rues.json /tmp/rues.json "$(TZ=Europe/Paris date +%F)"
+          python3 -I tools/maj-rues.py /tmp/src /tmp/rues.json "$(TZ=Europe/Paris date +%F)"
           gzip -9 -k /tmp/rues.json && ls -l /tmp/rues.json /tmp/rues.json.gz
       - uses: actions/upload-artifact@v4
         if: always()
