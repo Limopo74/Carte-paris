@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (241)';
+const VERSION = '19 novembre 2026 (242)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7308,11 +7308,6 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, ico('plus'), 'Nouvelle catégorie'),
-      el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openWordSeries() },
-        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('message-square-text')),
-        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mots tout prêts'),
-          el('span', { class: 'menu-sub' }, `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`)),
-        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
       asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; persist(); refresh(); openSettings('categories'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
       el('p', { class: 'help tip' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
@@ -7866,6 +7861,7 @@ function openSettings(section = null) {
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
+    row('message-square-text', 'Mots tout prêts', `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`, () => openWordSeries(), false, 'c-add'), // v239 : sorti de Catégories et listes
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
@@ -8029,7 +8025,7 @@ function openCategory(id, ret = null) {
     el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
     el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
     el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
-    el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Catégories et listes → Mots tout prêts.'),
+    el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Mots tout prêts.'),
     err, zone,
     foot(el('div', { class: 'row' },
       backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
@@ -8038,7 +8034,7 @@ function openCategory(id, ret = null) {
 }
 
 /* ---------- Mots tout prêts (v226) : des séries de mots à toucher sous « Ce que j'ai vu » ; chaque catégorie en prend une ---------- */
-function openWordSeries(back = named('Catégories et listes', () => openSettings('categories'))) {
+function openWordSeries(back = named('Réglages', () => openSettings())) {
   const words = wordsOf(state);
   const again = () => openWordSeries(back);
   const usedBy = (id) => state.categories.filter((c) => seriesIdOf(c, words) === id).map((c) => c.name);
@@ -8941,7 +8937,7 @@ const HELP = [
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
-    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Catégories et listes → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
+    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
@@ -9045,6 +9041,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
     '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
     '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
@@ -9054,8 +9051,7 @@ const HELP = [
     '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
     '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
     '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
-    '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
-  ]],
+]],
 ];
 
 /** Une ligne d'aide : {icône} devient une icône Lucide, **mots** du gras (v145). Texte toujours en texte brut. */

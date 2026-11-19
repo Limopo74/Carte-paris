@@ -100,10 +100,13 @@ test('une catégorie ajoutée sans choix prend la série de son nom', () => {
   assert.equal(seriesIdOf(c, wordsOf(s)), 'repas');
 });
 
-test('l\'appli : rangée de mots sous « Ce que j\'ai vu », ligne dans Catégories et listes, fichier gardé hors réseau', () => {
+test('l\'appli : rangée de mots sous « Ce que j\'ai vu », ligne dans Réglages → Mes lieux (v239), fichier gardé hors réseau', () => {
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   assert.match(app, /'Ce que j\\'ai vu \(facultatif\)', text\),\n\s+wordBox,/);
-  assert.match(app, /'Mots tout prêts'\),\n\s+el\('span', \{ class: 'menu-sub' \}/);
+  // v239 : une ligne à elle dans Réglages → Mes lieux, juste sous Catégories et listes ; plus dans la page Catégories et listes
+  assert.match(app, /openSettings\('categories'\), false, 'c-add'\),\n\s+row\('message-square-text', 'Mots tout prêts'/);
+  assert.equal((app.match(/\(\) => openWordSeries\(\)/g) ?? []).length, 1);
+  assert.doesNotMatch(app, /Catégories et listes → Mots tout prêts/);
   assert.match(sw, /'js\/mots\.js'/);
 });
