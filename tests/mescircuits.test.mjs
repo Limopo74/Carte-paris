@@ -174,3 +174,16 @@ test('appli : Modifier ce circuit, Revenir au circuit d\'origine, retirer une é
   assert.ok(app.includes('repeated(streets, d.legs, claude ? fixed : null)'), 'circuit de Claude : seuls les bouts changés');
   assert.ok(/Claude a revu ce circuit/.test(app), 'l\'original revu se dit');
 });
+
+test('v253 : « Nouveau circuit » en bas de Circuits de visite, sans parcours gardé', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const c = app.slice(app.indexOf('async function openCircuits('), app.indexOf("/** La page d'un circuit"));
+  assert.match(c, /foot\(el\('div'[^\n]*\n\s*el\('button', \{ type: 'button', class: 'btn c-disc', onclick: \(\) => openNewCircuit\(self\) \}, ico\('plus'\), 'Nouveau circuit'\)/);
+  const t = app.slice(app.indexOf('function showTrace('), app.indexOf('function removeStep('));
+  assert.match(t, /if \(nc\) \{/);
+  assert.equal(/state\.routes =[^\n]*\n[^\n]*/.exec(t)[0].includes('nc'), false);
+  const m = app.slice(app.indexOf('function openMakeCircuit('), app.indexOf('/** Mes circuits dans la page Circuits'));
+  assert.match(m, /\.\.\.\(r\.id \? \{ from: r\.id \} : \{\}\)/); // pas de parcours derrière : pas de « from »
+  assert.match(m, /navStack = navStack\.filter\(/); // le retour ne rouvre pas le formulaire
+});
