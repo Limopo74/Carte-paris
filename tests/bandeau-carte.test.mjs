@@ -13,7 +13,7 @@ test('le petit titre du bandeau dit l\'arrondissement du lieu montré (arrLabel)
 });
 
 test('les minutes partent du centre de la carte ou de la station quand la liste part de là, pas de ma position', () => {
-  assert.match(peek, /from && \(from\.kind === 'map' \|\| from\.kind === 'station'\) \? from : nearHere\(\) \?\? from/);
+  assert.match(peek, /from && \(from\.kind === 'map' \|\| from\.kind === 'station' \|\| from\.kind === 'home'\) \? from : startHere\(\) \?\? from/); // v222 : Chez moi aussi
   assert.doesNotMatch(peek, /const o = (freshHere|nearHere)\(\) \?\? from;/);
 });
 

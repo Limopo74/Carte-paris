@@ -347,6 +347,7 @@ ol.items { padding: 0; }
 /* Bouton « métro le plus proche » */
 .metro-btn { font-weight: 800; font-size: 20px; font-family: system-ui, sans-serif; }
 .metro-pin.small { width: 24px; height: 24px; font-size: 12px; border-width: 2px; }
+.metro-pin.home-pin { color: var(--ink); border-color: var(--ink); } /* Chez moi (v222) : le canapé, au départ d'Autour de moi */
 .metro-mini {
   flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--metro); color: var(--metro);
   display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;
@@ -665,6 +666,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Badge météo et air, sous la barre du haut */
 .wx-badge b { font-size: var(--t16); }
 .wx-badge .wx-sep { color: var(--muted); }
+.wx-badge .wx-home { display: inline-flex; } /* Chez moi allumé (v222) : le canapé à la place de l'arrondissement */
 /* Numéros des arrondissements (v193) : de loin seulement (zoom 14 et moins), gris, sous tout le reste ; limites en trait fin */
 #map:not(.z-far) .leaflet-arrNums-pane, #map.arr-nums-off .leaflet-arrNums-pane { display: none; }
 .leaflet-arrNums-pane { pointer-events: none; }

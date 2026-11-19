@@ -11,6 +11,7 @@ import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
+import { cleanHome, awayFromHome, homeOrigin, homeShort, HOME_AWAY_M } from './chezmoi.js';
 import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
@@ -50,7 +51,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (221)';
+const VERSION = '19 novembre 2026 (222)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -895,7 +896,7 @@ function openListPlaces(listId, query = '', picked = null) {
   const list = (state.lists ?? []).find((l) => l.id === listId);
   if (!list) { openSettings('categories'); return; }
   const sel = picked ?? new Set(state.points.filter((p) => p.lists?.includes(listId)).map((p) => p.id));
-  const from = nearHere() ?? origin;
+  const from = startHere() ?? origin;
   const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const q = norm(query.trim());
   // Ceux de la liste d'abord, puis les plus proches (ou par nom sans position)
@@ -1144,6 +1145,11 @@ const GEO_ERRORS = {
 
 function remember(fix) {
   here = fix;
+  if (homeOn() && fix.time >= homeOnAt && awayFromHome(fix, state.home)) { // v222 : jamais de GPS demandé pour ça
+    state.homeOn = false;
+    persist();
+    toast('Tu n\'es plus chez toi : les distances partent de ta position.');
+  }
   try { storage.setItem(LAST_KEY, JSON.stringify(fix)); } catch { /* facultatif */ }
   updateNow();
   try { drawWx(); } catch { /* pastille pas encore prête au démarrage */ }
@@ -1384,6 +1390,24 @@ function locate({ wait = 6000, good = 25 } = {}) {
 const freshHere = () => (here && Date.now() - here.time < FRESH_MS ? here : null);
 /** Ma position seulement si je suis à Paris ou tout près (12 km du centre) : loin de Paris, les listes partent du centre de la carte (v217). */
 const nearHere = () => { const h = freshHere(); return h && nearParis(h) ? h : null; };
+/* Chez moi (v222, mes choix du 19 nov.) : allumé, les listes, les distances et « Pars à … » partent de mon adresse.
+   Ne changent pas : Rentrer, M, la boussole, Où suis-je ?, Ma position, le bandeau « Maintenant » et les alertes. */
+let homeOnAt = Date.now(); // seules les positions reçues après l'allumage (ou l'ouverture de l'appli) peuvent l'éteindre
+const homeOn = () => state.homeOn === true && Boolean(cleanHome(state.home));
+const atHome = () => (homeOn() ? homeOrigin(cleanHome(state.home)) : null);
+/** Point de départ des listes : chez moi si c'est allumé, sinon ma position dans Paris (jamais de GPS demandé). */
+const startHere = () => atHome() ?? nearHere();
+/** Point de départ de la distance d'une fiche : chez moi si c'est allumé, sinon ma dernière position récente. */
+const startPos = () => atHome() ?? freshHere();
+function setHomeOn(on, { quiet = false } = {}) {
+  const next = Boolean(on) && Boolean(cleanHome(state.home));
+  if (next === homeOn()) return;
+  state.homeOn = next;
+  if (next) homeOnAt = Date.now();
+  persist();
+  drawWx();
+  if (!quiet) toast(next ? `Distances depuis chez toi (${homeShort(state.home)})` : 'Distances depuis ta position', false, { label: 'Annuler', fn: () => setHomeOn(!next, { quiet: true }) });
+}
 
 /* ---------- Ajouter ---------- */
 
@@ -1576,7 +1600,7 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
       if (ctrl.signal.aborted) return;
     }
     // Du plus proche au plus loin : de ma position récente, sinon du centre de la carte (pas de GPS demandé)
-    const ref = nearHere() ?? map.getCenter();
+    const ref = startHere() ?? map.getCenter();
     const near = (list) => list.map((r) => ({ ...r, d: distanceM(ref, r) })).sort((x, y) => x.d - y.d);
     const P = near(inView);
     const M = near(more);
@@ -1969,7 +1993,7 @@ function openForm(draft, existing = null) {
 function openDetail(id, back = null) {
   const p = state.points.find((x) => x.id === id);
   if (!p) { closeSheet(); return; }
-  const pos = freshHere();
+  const pos = startPos();
   const d = pos ? distanceM(pos, p) : null;
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
   const here = named('Fiche', () => openDetail(p.id, back));
@@ -1978,7 +2002,7 @@ function openDetail(id, back = null) {
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goBox = el('div', { class: 'stack' },
     el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), d != null && !isFar(d) ? `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
+      ico('arrow-right'), d != null && !isFar(d) ? (pos?.kind === 'home' ? `Y aller · ${fmtWalk(d).replace(/ à pied$/, '').replace(/ /g, '\u00a0')} de\u00a0chez\u00a0toi` : `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}`) : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -2579,7 +2603,7 @@ function openSearch(initial = '') {
   const info = el('p', { class: 'help' });
 
   const run = () => {
-    const pos = nearHere();
+    const pos = startHere();
     const res = searchPoints(visible(), state.categories, input.value, pos);
     info.textContent = !state.points.length
       ? 'Tu n\'as encore aucun lieu.'
@@ -2615,7 +2639,7 @@ function openSearch(initial = '') {
   const agendaBox = el('div', { class: 'stack' });
   const toAgenda = el('button', { type: 'button', class: 'btn c-disc', onclick: () => searchAgenda() });
   const back = named('Recherche', () => openSearch(input.value));
-  const from = () => nearHere() ?? map.getCenter();
+  const from = () => startHere() ?? map.getCenter();
   const near = (xs) => xs.map((x) => ({ ...x, d: distanceM(from(), x) })).sort((a, b) => a.d - b.d);
   const block = (label, rows) => (rows.length ? [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(rows.length))), el('ul', { class: 'items ev-list' }, rows.slice(0, 8))] : []);
   function updateMore() {
@@ -2660,6 +2684,12 @@ let origin = null; // { lat, lng, acc, time, kind: 'gps' | 'last' | 'station', l
 
 async function openNear() {
   track('Autour de moi');
+  if (homeOn()) { // v222 : chez moi tout de suite ; si la position arrive et dit que je suis loin, Chez moi s'éteint et la liste part de moi
+    origin = atHome();
+    renderNear(true);
+    locate().then((fix) => { if (!homeOn() && view === 'near' && origin?.kind === 'home') { origin = { ...fix, kind: 'gps' }; renderNear(true); } }).catch(() => {});
+    return;
+  }
   toast('Recherche de ta position… (quelques secondes pour plus de précision)');
   try {
     const fix = await locate();
@@ -2683,6 +2713,7 @@ function offerFallback(e) {
         `Utiliser ma dernière position (${timeAgoShort(here.time)})`)
       : null,
     el('button', { type: 'button', class: 'btn', onclick: () => openStationPicker() }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Choisir une station de métro'),
+    cleanHome(state.home) ? el('button', { type: 'button', class: 'btn', onclick: () => { setHomeOn(true, { quiet: true }); origin = atHome(); renderNear(true); } }, ico('sofa'), 'Partir de chez moi') : null,
     el('button', { type: 'button', class: 'btn', onclick: openNear }, ico('rotate-cw'), 'Réessayer'),
   ), { name: 'fallback' });
 }
@@ -2739,6 +2770,8 @@ function drawNear() {
   drawRings(nearLayer, lat, lng, nearRings(), ringText);
   if (kind === 'station') {
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+  } else if (kind === 'home') { // v222 : le canapé, jamais le point bleu (ce n'est pas ma position)
+    L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: `<span class="metro-pin home-pin">${svgIcon('sofa', { size: 16 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
   } else if (!following) {
     if (!following) meMarker(lat, lng, kind === 'last').addTo(nearLayer);
   }
@@ -2746,6 +2779,7 @@ function drawNear() {
 
 function nearTitle() {
   if (origin.kind === 'station') return `Autour de Ⓜ ${origin.label}`;
+  if (origin.kind === 'home') return 'Autour de chez toi';
   if (origin.kind === 'last') return `Autour de moi (${timeAgoShort(origin.time)})`;
   return following ? 'Autour de moi · en direct' : 'Autour de moi';
 }
@@ -3068,7 +3102,7 @@ function renderWay(from, dest) {
 
 function openRoutePicker(selected = new Set()) {
   track('Relier des lieux');
-  const start = origin ?? nearHere();
+  const start = origin ?? startHere();
   const pts = offered()
     .map((p) => ({ p, d: start ? distanceM(start, p) : 0 }))
     .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
@@ -3646,8 +3680,9 @@ function planInfo(p) {
       : ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
   }
   if (!isPart(p.ticket.part) && daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
-    const { leave, travel, how } = departureFor(p, nearHere());
-    if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`));
+    const from = startHere();
+    const { leave, travel, how } = departureFor(p, from);
+    if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`}${from?.kind === 'home' ? ' de chez toi' : ''} · ≈ ${travel} min ${how}`));
   }
   const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
   const w = planWeather(forecast?.days?.[key], p.covered);
@@ -3735,7 +3770,7 @@ function openPlanning(from = null) {
   const timed = groups[0]?.label === todayLabel ? groups.shift().items : [];
   const list = dayList(state.points);
   const next = list[0] ?? null;
-  const pos = nearHere();
+  const pos = startHere();
   const dNext = next && pos ? distanceM(pos, next) : null;
   const tagNext = next ? hoursTag(next) : null; // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
   const todayBlock = [
@@ -3809,7 +3844,7 @@ function openDayPicker(selected = null, query = '') {
   track('Lieux du jour');
   const cur = dayList(state.points);
   const sel = selected ?? new Set(cur.map((p) => p.id));
-  const start = nearHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
+  const start = startHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
   // Un lieu déjà prévu à une heure ou un autre jour garde sa sortie : il ne se coche pas ici
   const busy = (p) => Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && !(isDayList(p.ticket) && daysUntil(p.ticket.at) === 0);
   const all = offered().map((p) => ({ p, d: start ? distanceM(start, p) : 0, key: fold(p.name) }))
@@ -3888,7 +3923,7 @@ function openDayOrder(focus = null) {
   const list = dayList(state.points);
   if (!list.length) { openPlanning(); return; }
   const apply = (next, f = null) => { rankDayList(next); persist(); openDayOrder(f); };
-  const start = nearHere();
+  const start = startHere();
   const shortest = () => {
     apply(start ? orderRoute(start, list) : [list[0], ...orderRoute(list[0], list.slice(1))]);
     toast(start ? 'Parcours le plus court depuis ta position' : 'Parcours le plus court depuis le premier lieu');
@@ -4298,7 +4333,7 @@ function followButton(name, again) {
 }
 
 function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null }) {
-  const d = freshHere() ? distanceM(freshHere(), place) : null;
+  const d = startPos() ? distanceM(startPos(), place) : null;
   const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
@@ -4363,7 +4398,7 @@ const BOOKING_TEXT = { required: 'Réservation obligatoire', advised: 'Réservat
 function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
   const expo = isExpo(e);
   const genre = genreOf(e, { expo });
-  const d = freshHere() ? distanceM(freshHere(), e) : null;
+  const d = startPos() ? distanceM(startPos(), e) : null;
   const again = () => openEventPage(e, back, { label, icon });
   openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
     evPhoto(e),
@@ -4508,7 +4543,7 @@ function openFindOutings(initial = '', tab = 'all') {
   const title = FIND_LABEL[tab] ?? FIND_LABEL.all;
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: tab === 'art' ? 'Un titre, un musée, un artiste…' : 'Un titre, un lieu, un artiste…', value: initial, 'aria-label': title });
   const box = el('div', { class: 'stack' });
-  const from = () => evFrom ?? nearHere() ?? map.getCenter();
+  const from = () => evFrom ?? startHere() ?? map.getCenter();
   const run = async () => {
     const q = input.value.trim();
     if (q.replace(/\s/g, '').length < 3) { fill(box, el('p', { class: 'help' }, 'Tape au moins 3 lettres.')); return; }
@@ -4650,7 +4685,7 @@ function openArtist(name, back = null) {
   const k = artistKey(n);
   const again = () => openArtist(n, back);
   const here = named(n, again);
-  const pos = nearHere() ?? origin;
+  const pos = startHere() ?? origin;
   const works = artistWorks(state.points, n, pos);
   const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
   const link = cleanArtistLinks(state.artistLinks)[k];
@@ -4832,7 +4867,8 @@ function openEventsFrom() {
   openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
     el('div', { class: 'menu' },
       opt(o?.kind === 'map', 'map', 'Le centre de la carte', 'Sans ta position', () => openEvents('map')),
-      opt(o && o.kind !== 'map' && o.kind !== 'station', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', eventsFromMe),
+      opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', eventsFromMe),
+      cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); openEvents('home'); }) : null,
       opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', pickEventsArea)),
     foot(backBtn(openEvents))), { name: 'events-from' });
 }
@@ -4840,8 +4876,11 @@ let evFrom = null; // point de départ des Sorties : ma position (Autour de moi)
 async function openEvents(start = null) {
   track('Sorties');
   if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
+  else if (start === 'home' && homeOn()) evFrom = atHome(); // v222
   else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
-  else if (start === 'near' || !evFrom) evFrom = origin;
+  else if (start === 'near' || !evFrom) evFrom = homeOn() && (!origin || ['gps', 'last', 'home'].includes(origin.kind)) ? atHome() : origin;
+  else if (homeOn() && (evFrom.kind === 'gps' || evFrom.kind === 'last')) evFrom = atHome(); // Chez moi allumé depuis : il remplace ma position
+  if (evFrom?.kind === 'home' && !homeOn()) evFrom = origin?.kind === 'home' ? null : origin; // Chez moi éteint depuis
   if (evFrom && evFrom.kind !== 'map' && !nearParis(evFrom)) { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; } // loin de Paris : le centre de la carte (v217)
   if (!evFrom) { openNear(); return; }
   const o = evFrom;
@@ -4998,11 +5037,11 @@ async function openEvents(start = null) {
     }
   }
   // Le point de départ des distances : un seul contrôle, et « Carte » pour voir la liste de l'onglet sur la carte
-  const fromLabel = fromMap ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : ['Autour de ', 'toi'];
+  const fromLabel = fromMap ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi'];
   const tabName = { all: 'Sorties', free: 'Gratuit', art: 'Expos', navigo: 'Avantages Navigo' }[mode];
   const ctx = el('div', { class: 'ev-ctx' },
     el('button', { type: 'button', class: 'ev-from', onclick: openEventsFrom, 'aria-label': `Point de départ des distances : ${fromLabel.join('')}. Changer` },
-      ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
+      ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
     el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek({ kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
       open: (x, b) => x.go(b), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
   openSheet(title, el('div', { class: 'stack ev-page' },
@@ -5057,6 +5096,7 @@ function pickEventsArea() {
 
 /** Sorties → « Ma position » : la position n'est demandée qu'à cet appui (rien n'est envoyé : tout est trié sur le téléphone). */
 async function eventsFromMe() {
+  setHomeOn(false, { quiet: true }); // v222 : demander ma position, c'est ne plus partir de chez moi
   toast('Recherche de ta position…');
   try {
     const pos = await locate();
@@ -5099,7 +5139,7 @@ function showPeek(opts) {
   const back2 = (k) => named(kicker, () => showPeek({ ...opts, start: k, keep: true }));
   /* v219 : les minutes depuis le même point que la liste (centre de la carte, station) ; ta position récente seulement
      quand la liste est « Autour de toi » (loin de Paris, nearHere ne donne rien : le centre de la carte) */
-  const walkFrom = () => (from && (from.kind === 'map' || from.kind === 'station') ? from : nearHere() ?? from);
+  const walkFrom = () => (from && (from.kind === 'map' || from.kind === 'station' || from.kind === 'home') ? from : startHere() ?? from);
   const subOf = (x) => {
     if (x.sub) return x.sub;
     const o = walkFrom();
@@ -5443,6 +5483,99 @@ function openMyStations() {
   ), { tall: true, name: 'mystations', again: openMyStations });
 }
 
+/* ---------- Chez moi (v222) : Réglages → Chez moi ---------- */
+
+function openHomeSettings() {
+  const home = cleanHome(state.home);
+  const on = homeOn();
+  openSheet([ico('sofa'), ' Chez moi'], el('div', { class: 'stack' },
+    home
+      ? el('div', { class: 'me-line' }, el('span', {}, 'Ton adresse : ', el('b', {}, home.label)),
+        el('button', { type: 'button', class: 'btn', onclick: openHomeSearch }, 'Modifier'))
+      : el('p', {}, 'Enregistre ton adresse une fois. Ensuite, les distances et les durées pourront partir de chez toi au lieu de ta position.'),
+    home
+      ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { setHomeOn(!on); openHomeSettings(); } },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, 'Distances, durées, « Pars à »')),
+        el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))))
+      : el('button', { type: 'button', class: 'btn c-guide', onclick: openHomeSearch }, ico('search'), 'Chercher mon adresse'),
+    home ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
+    home ? el('p', { class: 'help' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche-le pour l'éteindre.`) : null,
+    el('p', { class: 'help' }, 'Ne changent pas : Rentrer, M, la boussole, Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.'),
+    el('p', { class: 'help' }, `Ton adresse reste sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.${home ? '' : ' Pour la trouver, l\'appli envoie ce que tu tapes à l\'IGN, après ton appui.'}`),
+    foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(named('Réglages', () => openSettings())))),
+  { name: 'settings:chezmoi', again: openHomeSettings });
+}
+
+function openHomeSearch() {
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : 12 rue des Martyrs', 'aria-label': 'Ton adresse' });
+  const msg = el('p', { class: 'help', 'aria-live': 'polite' }, 'Paris et proche banlieue. Ce que tu tapes part à l\'IGN (service public) quand tu touches « Chercher ».');
+  const list = el('div', { class: 'menu' });
+  let ctrl = null;
+  const run = async () => {
+    const q = input.value.trim();
+    if (q.length < 3) { msg.textContent = 'Tape au moins 3 lettres.'; return; }
+    ctrl?.abort();
+    ctrl = new AbortController();
+    msg.textContent = 'Recherche…';
+    list.replaceChildren();
+    try {
+      const res = (await searchAddress(q, ctrl.signal, { zone: true })).filter((r) => cleanHome(r));
+      msg.textContent = res.length ? 'Touche ton adresse :' : 'Aucune adresse trouvée à Paris ou tout près. Vérifie l\'orthographe.';
+      list.replaceChildren(...res.map((r) => el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => saveHome(r) },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map-pin')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, r.label)))));
+    } catch (e) {
+      if (e?.name !== 'AbortError') msg.textContent = 'Pas de réponse (réseau ?). Réessaie.';
+    }
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+  openSheet([ico('sofa'), ' Mon adresse'], el('div', { class: 'stack' },
+    el('label', { class: 'field' }, 'Ton adresse', input),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: run }, ico('search'), 'Chercher'),
+    msg, list,
+    el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
+    foot(backBtn(named('Chez moi', openHomeSettings)))),
+  { name: 'settings:chezmoi-adresse', again: openHomeSearch });
+  setTimeout(() => input.focus(), 50);
+}
+
+function saveHome(h) {
+  const home = cleanHome(h);
+  if (!home) { toast('Cette adresse est trop loin de Paris pour servir de point de départ.', true); return; }
+  const first = !cleanHome(state.home);
+  state.home = home;
+  if (first) { state.homeOn = true; homeOnAt = Date.now(); } // la première fois, Chez moi s'allume
+  persist();
+  drawWx();
+  openHomeSettings();
+  toast(first ? `Adresse enregistrée. Distances depuis chez toi (${homeShort(home)}).` : 'Adresse modifiée.');
+}
+
+async function homeFromHere() {
+  toast('Recherche de ta position…');
+  try {
+    const fix = await locate();
+    hideToast();
+    if (fix.acc > 100) { toast(`Position trop imprécise (à ${Math.round(fix.acc)} m près). Cherche plutôt ton adresse.`, true); return; }
+    saveHome({ lat: fix.lat, lng: fix.lng, label: `Ma position du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` });
+  } catch (e) {
+    hideToast();
+    toast(e.message, true);
+  }
+}
+
+function removeHome() {
+  const old = cleanHome(state.home);
+  const wasOn = homeOn();
+  state.home = null;
+  state.homeOn = false;
+  persist();
+  drawWx();
+  openHomeSettings();
+  toast('Adresse retirée', false, { label: 'Annuler', fn: () => { state.home = old; state.homeOn = wasOn; homeOnAt = Date.now(); persist(); drawWx(); if (view === 'settings:chezmoi') openHomeSettings(); } });
+}
+
 /* ---------- Température et qualité de l'air : petit badge sur la carte ---------- */
 
 let air = null;
@@ -5451,18 +5584,20 @@ const wxBadge = document.getElementById('wxBadge');
 const arrHere = () => (arrData ? arrSure(here, arrData) : null);
 function drawWx() {
   const day = dayNote();
-  const a = arrHere();
-  if (!meteo && !air && !day && !a) { wxBadge.hidden = true; return; }
+  const h = homeOn(); // v222 : Chez moi allumé, le canapé prend la place de l'arrondissement
+  const a = h ? null : arrHere();
+  if (!meteo && !air && !day && !a && !h) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
   fill(wxBadge,
+    h ? el('b', { class: 'wx-arr wx-home' }, ico('sofa', { size: 16 })) : null,
     a ? el('b', { class: 'wx-arr' }, arrOrd(a)) : null,
-    a && (day || meteo || air) ? el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·') : null,
+    (a || h) && (day || meteo || air) ? el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·') : null,
     day ? el('span', { class: 'day-tag' }, day.short) : null,
     meteo?.temp != null ? el('b', {}, `${meteo.temp}°`) : null,
     meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
     air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
     air ? `Air ${air.label.toLowerCase()}` : null);
-  wxBadge.setAttribute('aria-label', [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', h ? `Distances depuis chez toi. ${meteo?.temp != null ? `${meteo.temp} degrés. ` : ''}Touche pour revenir à ta position` : [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -5487,7 +5622,7 @@ function openWeather() {
     el('p', { class: 'help' }, 'Source : Open-Meteo (prévisions européennes CAMS pour l\'air). Valeurs pour le quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
   ), { name: 'weather', again: openWeather });
 }
-wxBadge.addEventListener('click', openWeather);
+wxBadge.addEventListener('click', () => (homeOn() ? setHomeOn(false) : openWeather())); // v222 : Chez moi allumé, un appui l'éteint (« Annuler » dans le message)
 
 /* ---------- Marchés découverts : sur la carte le jour où ils se tiennent, et dans Sorties ---------- */
 
@@ -5625,7 +5760,7 @@ async function streetDeckOn(date, from) {
 const streetSub = (x) => [x.label, x.holiday ? HOLIDAY_NOTE : x.hours, fmtWalk(x.d)].filter(Boolean).join(' · ');
 let streetFrom = null; // point de départ du parcours, gardé quand on change de jour
 async function openStreetDeck(day = null, start = 0) {
-  if (day == null || !streetFrom) streetFrom = deckOrigin(freshHere(), map.getCenter());
+  if (day == null || !streetFrom) streetFrom = deckOrigin(startPos(), map.getCenter());
   const from = streetFrom;
   const dates = [new Date(), tomorrowNoon()];
   toast('Préparation du parcours…');
@@ -5649,7 +5784,7 @@ async function openStreetDeck(day = null, start = 0) {
 }
 /** Après un appui sur la tente : « Parcourir (N) » dans le message (aujourd'hui, ou demain s'il ne reste rien). */
 async function offerStreetDeck(msg) {
-  streetFrom = deckOrigin(freshHere(), map.getCenter()); // loin de Paris : le centre de la carte (v217)
+  streetFrom = deckOrigin(startPos(), map.getCenter()); // loin de Paris : le centre de la carte (v217)
   let decks;
   try { decks = await Promise.all([new Date(), tomorrowNoon()].map((d) => streetDeckOn(d, streetFrom))); } catch { return; }
   if (!state.showMarkets) return;
@@ -5664,7 +5799,7 @@ function openStreetEvent(e) {
   openEventPage(e, null, { label: STREET_LABEL[kind], icon: STREET_ICON[kind] });
 }
 function openMarket(m, back = null, date = new Date()) {
-  const d = freshHere() ? distanceM(freshHere(), m) : null;
+  const d = startPos() ? distanceM(startPos(), m) : null;
   const today = date.toDateString() === new Date().toDateString();
   const hol = holidayOn(date); // v213 : un jour férié, ni heure ni certitude
   const hrs = hol ? '' : hoursToday(m, date);
@@ -5701,7 +5836,7 @@ const navigoRow = (x, back) => sortieCard({ genre: navigoGenre(x.kind), name: x.
   buttons: [compassBtn(x), metroBtn(x, back)] });
 
 function openNavigo(x, back = null) {
-  const d = freshHere() ? distanceM(freshHere(), x) : null;
+  const d = startPos() ? distanceM(startPos(), x) : null;
   const again = () => openNavigo(x, back);
   openSheet([ico('badge-percent'), ` ${x.name}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [x.kind, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
@@ -5819,7 +5954,7 @@ function toggleTtb() {
 function openTtbList(back = null, limit = 30) {
   const again = () => openTtbList(back, limit);
   if (!ttbList().length) { openTtb(back); return; }
-  const here = nearHere();
+  const here = startHere();
   const from = here ?? map.getCenter();
   const all = ttbShown().map((x) => ({ ...x, d: distanceM(from, x) })).sort((a, b) => a.d - b.d);
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
@@ -5852,7 +5987,7 @@ function ttbAdd(x) {
 }
 
 function openTtbPlace(x, back = null) {
-  const d = freshHere() ? distanceM(freshHere(), x) : null;
+  const d = startPos() ? distanceM(startPos(), x) : null;
   const again = () => openTtbPlace(x, back);
   const metro = stationFacts(x);
   const mine = navigoFor(x, state.points);
@@ -6171,7 +6306,7 @@ async function openRespire(back = openRoutes) {
   if (!respireData) { openSheet(title, el('p', { class: 'help' }, 'Lecture des secteurs…'), { name: 'respire', again }); await loadRespire(); }
   const sectors = respireSectors(respireData);
   const today = new Date();
-  const from = nearHere() || origin; // jamais de GPS demandé : la dernière position connue, sinon pas de distance
+  const from = startHere() || origin; // jamais de GPS demandé : la dernière position connue, sinon pas de distance
   const self = named('Rues sans voitures', again);
   const rows = (date) => el('ul', { class: 'items' }, respireOn(sectors, date, from).map((x) => el('li', { class: 'item' },
     el('button', { type: 'button', class: 'item-main', onclick: () => showRespireOnMap(x, self) },
@@ -6202,7 +6337,7 @@ let circuitDur = '';
 /** Couleur du tracé d'un circuit : terre cuite (découvrir), lisible sur le fond clair comme sombre. */
 const discInk = () => (isDark() ? '#FFB08A' : '#A54A28');
 /** D'où trier les circuits : ma position si elle est fraîche, sinon le centre de la carte (aucune demande de GPS). */
-const circuitFrom = () => nearHere() ?? { ...map.getCenter(), kind: 'map' };
+const circuitFrom = () => startHere() ?? { ...map.getCenter(), kind: 'map' };
 const dayText = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const circuitDoneTag = (c) => { const d = circuitDone(state.outings, c.id)[0]; return d ? el('span', { class: 'tag open' }, `Fait le ${dayText(d.at)}`) : null; };
 const stepStops = (c) => c.etapes.map((e) => ({ name: e.n, lat: e.lat, lng: e.lng }));
@@ -6487,7 +6622,7 @@ async function monuments() {
 /** Les autres monuments protégés de Paris du même auteur (v198), du plus proche ; un appui ouvre la boussole. */
 function openSameAuthor(rec, back) {
   const who = authorName(rec.a[0]);
-  const from = nearHere() || origin;
+  const from = startHere() || origin;
   const list = sameAuthor(archMap, rec, from);
   const self = named(who, () => openSameAuthor(rec, back));
   openSheet([ico('user'), ` ${who}`], el('div', { class: 'stack' },
@@ -7232,7 +7367,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? »), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu appuies sur le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu appuies sur le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -7375,6 +7510,7 @@ function openSettings(section = null) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
     el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Les distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
     row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
     row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
@@ -7863,7 +7999,7 @@ async function updateApp() {
 async function showMetroPlan(p, back) {
   await stationsReady;
   toast('Calcul du trajet…');
-  let from = freshHere();
+  let from = startPos();
   if (!from) {
     try { from = await locate(); } catch (e) {
       if (here) from = here; else { toast(e.message, true); return; }
@@ -8437,6 +8573,7 @@ const HELP = [
     '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
+    '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche-le pour l\'éteindre. Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
@@ -8478,6 +8615,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
     '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
     '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
     '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
@@ -8487,7 +8625,6 @@ const HELP = [
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
     '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
     '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
-    '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
   ]],
 ];
 
