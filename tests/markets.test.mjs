@@ -60,3 +60,34 @@ test('marchés découverts : noms en casse normale, téléchargement sans les co
   assert.ok(!/geo_shape/.test(MARKETS_URL));
   for (const f of ['nom_long', 'lundi', 'dimanche', 'h_deb_sem_1', 'h_fin_dim', 'geo_point_2d']) assert.ok(MARKETS_URL.includes(f), f);
 });
+
+test('marchés : Télégraphe et Saint-Didier corrigés d\'après paris.fr (v253)', async () => {
+  const { MARKET_FIX } = await import('../js/markets.js');
+  const tel = rec({ nom_court: 'TELEGRAPHE', nom_long: 'MARCHÉ TELEGRAPHE', mercredi: 0, jeudi: 1, h_deb_sem_1: '07:00', h_fin_sem_1: '13:30', h_deb_sam: '07:00', h_fin_sam: '14:30' });
+  const did = rec({ nom_court: 'SAINT DIDIER', nom_long: 'MARCHÉ SAINT DIDIER', mardi: 1, mercredi: 0, jeudi: 1, vendredi: 1, h_deb_sem_1: '08:00', h_fin_sem_1: '13:30', h_deb_sam: '08:00', h_fin_sam: '13:30' });
+  const [t, s, autre] = parseMarkets([tel, did, rec({ nom_court: 'BASTILLE', jeudi: 1 })]);
+  const jour = (d) => new Date(2026, 10, 15 + d, 9); // 15 nov. 2026 = dimanche
+  assert.equal(t.fixed, true); assert.equal(s.fixed, true); assert.equal(autre.fixed, undefined);
+  assert.equal(hoursToday(t, jour(3)), '7h–13h30', 'Télégraphe le mercredi');
+  assert.equal(hoursToday(t, jour(4)), '', 'Télégraphe pas le jeudi');
+  assert.equal(hoursToday(t, jour(6)), '7h–14h30');
+  assert.equal(hoursToday(s, jour(2)), '7h–13h30', 'Saint-Didier le mardi, à 7 h');
+  assert.equal(hoursToday(s, jour(5)), '', 'Saint-Didier pas le vendredi');
+  assert.equal(hoursToday(s, jour(6)), '7h–14h30');
+  assert.deepEqual(marketsOn([t, s], jour(5)).map((m) => m.name), []);
+  assert.deepEqual(marketsOn([t, s], jour(3)).map((m) => m.name), [t.name]);
+  assert.equal(hoursToday(autre, jour(4)), '7h–13h30', 'un autre marché suit le fichier');
+  assert.deepEqual(Object.keys(MARKET_FIX).sort(), ['SAINT DIDIER', 'TELEGRAPHE']);
+});
+
+test('marchés : la correction s\'applique aussi à une copie gardée d\'avant la v253', async () => {
+  const { fixMarket } = await import('../js/markets.js');
+  const vieux = { name: 'Marché Telegraphe', lat: 48.87, lng: 2.39, days: [false, false, false, false, true, false, true], hours: { week: ['7h', '13h30'], sat: ['7h', '14h30'], sun: ['', ''] } };
+  const t = fixMarket(vieux);
+  assert.equal(t.fixed, true);
+  assert.equal(hoursToday(t, new Date(2026, 10, 19, 9)), '', 'plus le jeudi');
+  assert.equal(hoursToday(t, new Date(2026, 10, 18, 9)), '7h–13h30');
+  assert.equal(fixMarket({ ...vieux, name: 'Marché Saint-Didier' }).fixed, true);
+  assert.equal(fixMarket({ ...vieux, name: 'Marché Bastille' }).fixed, undefined);
+  assert.equal(fixMarket(COVERED_MARKETS[0]), COVERED_MARKETS[0], 'un marché couvert ne change pas');
+});

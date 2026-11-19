@@ -34,14 +34,33 @@ function point(r) {
   return null;
 }
 
-/** [{ name, lat, lng, days: [dim..sam], hours: { week, sat, sun }, products, place }] */
+/* v253 : deux marchés dont le fichier de la Ville (avril 2024) donne des jours faux, corrigés d'après le tableau
+   « Les horaires des marchés alimentaires » de paris.fr (lu le 19 nov. 2026 pour les 19 au 28 novembre).
+   Télégraphe : le fichier dit jeudi et samedi ; c'est mercredi et samedi. Saint-Didier : le fichier ajoute le vendredi
+   et dit 8 h au lieu de 7 h, 13 h 30 au lieu de 14 h 30 le samedi. Clé = `nom_court` du fichier, en majuscules.
+   Jours [dim..sam] : null = pas de marché ce jour-là. Les autres écarts relevés (claude/idee-marches-decouverts.md) restent. */
+export const MARKET_FIX_CHECKED = '19 novembre 2026';
+export const MARKET_FIX_SOURCE = 'https://www.paris.fr/lieux/marches-alimentaires/tous-les-horaires';
+export const MARKET_FIX = {
+  TELEGRAPHE: [null, null, null, '07:00-13:30', null, null, '07:00-14:30'],
+  'SAINT DIDIER': [null, null, '07:00-13:30', null, '07:00-13:30', null, '07:00-14:30'],
+};
+/** « Marché Saint-Didier », « SAINT DIDIER » → « SAINT DIDIER » (sans accents ni « Marché »). */
+const fixKey = (n) => str(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/^MARCHE\s+/, '').replace(/[\s-]+/g, ' ').trim();
+/** Un marché découvert avec ses jours corrigés s'il est dans MARKET_FIX (aussi une copie gardée d'avant la v253). */
+export function fixMarket(m, key = m?.name) {
+  const fix = !m || m.covered ? null : MARKET_FIX[fixKey(key)] ?? MARKET_FIX[fixKey(m.name)];
+  return fix ? { ...m, fixed: true, days: fix.map(Boolean), slots: fix.map((x) => (x ? x.split(',').map((y) => y.split('-')) : [])) } : m;
+}
+
+/** [{ name, lat, lng, days: [dim..sam], hours: { week, sat, sun }, products, place, fixed? }] */
 export function parseMarkets(json) {
   const out = [];
   for (const r of Array.isArray(json) ? json : []) {
     const p = point(r);
     if (!p || !(p.lat > 48.7 && p.lat < 49)) continue;
     const name = cap(niceName(str(r.nom_long) || str(r.nom_court) || str(r.nom) || 'Marché'));
-    out.push({
+    out.push(fixMarket({
       name: /^march/i.test(name) ? name : `Marché ${name}`, ...p,
       days: DAYS.map((d) => yes(r[d])),
       hours: {
@@ -51,7 +70,7 @@ export function parseMarkets(json) {
       },
       products: str(r.produit),
       place: str(r.localisation).slice(0, 160),
-    });
+    }, str(r.nom_court) || name));
   }
   return out;
 }

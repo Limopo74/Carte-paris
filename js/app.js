@@ -46,7 +46,7 @@ import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, past
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
-import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName } from './markets.js';
+import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
@@ -57,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (253)';
+const VERSION = '19 novembre 2026 (254)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6449,7 +6449,7 @@ async function loadMarkets(force = false) {
     } catch { if (force) throw new Error('marchés'); /* sinon on garde l'ancienne copie */ }
   }
   // niceName : une copie gardée d'avant la v116 a encore les noms en majuscules
-  markets = [...(cached?.items ?? []).map((m) => ({ ...m, name: niceName(m.name) })), ...COVERED_MARKETS]; // les couverts : liste fixe, toujours là
+  markets = [...(cached?.items ?? []).map((m) => fixMarket({ ...m, name: niceName(m.name) })), ...COVERED_MARKETS]; // v253 : jours corrigés aussi sur une copie gardée // les couverts : liste fixe, toujours là
   marketsTime = cached?.time ?? 0;
   return markets;
 }
@@ -6708,7 +6708,7 @@ function openMarket(m, back = null, date = new Date()) {
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back, date))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Ajouter')),
     back ? backBtn(back) : null,
-    el('p', { class: 'help' }, m.covered ? `Horaires relevés sur paris.fr le ${COVERED_CHECKED} ; ils peuvent changer les jours fériés.` : 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
+    el('p', { class: 'help' }, m.covered ? `Horaires relevés sur paris.fr le ${COVERED_CHECKED} ; ils peuvent changer les jours fériés.` : m.fixed ? `Jours et horaires corrigés d'après paris.fr le ${MARKET_FIX_CHECKED} (le fichier de la Ville se trompait).` : 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
   ), { name: 'market' });
 }
 
@@ -8345,6 +8345,7 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, 'Le serveur d\'OpenStreetMap n\'a sans doute pas répondu ce jour-là : la liste d\'avant reste dans l\'appli. Relance le robot un autre jour. Rien à faire à la main.')],
       marches: () => [
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
+        el('p', { class: 'help tip' }, `Deux marchés en plein air, Télégraphe et Saint-Didier, ont des jours faux dans le fichier de la Ville : corrigés à la main d'après paris.fr le ${MARKET_FIX_CHECKED}.`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
       listes: () => [
         el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), temps forts de l'année ; Kiosque Théâtre vérifié le ${KIOSQUE_CHECKED} ; grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED}). Deux tâches programmées les préparent, chaque 1er mars et chaque 1er septembre, et te demandent ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
