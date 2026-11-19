@@ -52,7 +52,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (223)';
+const VERSION = '19 novembre 2026 (224)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2800,6 +2800,8 @@ function renderNear(fit = false) {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
   }, el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon), label);
   // 8 outils en 2 rangées de 4 (v176) : Où suis-je et Mon Paris rejoignent la grille, la liste commence plus haut.
+  // v224 : les 8 boutons ne changent jamais ; Où suis-je ? reste à la 7e place (avant : « Autre station », doublon de
+  // Station, ou « Réessayer », qui passe sous la grille, avec la phrase sur la dernière position).
   const pickStation = () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() });
   body.push(el('div', { class: 'tools' },
     tool('route', 'Itinéraire', () => openRoutes()),
@@ -2808,9 +2810,7 @@ function renderNear(fit = false) {
     tool('book-open-text', 'Curiosités', () => openCuriosities(), null, 'c-disc'),
     tool('landmark', 'Monuments', () => openMonuments(), null, 'c-disc'),
     tool(el('b', { class: 'm-badge' }), 'Station', pickStation, null, 'c-metro'),
-    origin.kind === 'station' ? tool(el('b', { class: 'm-badge' }), 'Autre station', pickStation, null, 'c-metro')
-      : origin.kind === 'last' ? tool('refresh-cw', 'Réessayer', openNear)
-        : tool('locate', 'Où suis-je\u00a0?', openWhereAmI), /* espace insécable : le « ? » ne passe pas seul à la ligne */
+    tool('locate', 'Où suis-je\u00a0?', openWhereAmI), /* espace insécable : le « ? » ne passe pas seul à la ligne */
     tool('map', 'Mon Paris', () => openMyParis('near'), null, 'c-disc'),
   ));
   if (inside) { /* v209 : rien dans les cercles, c'est le message du bas qui le dit, une seule fois */
@@ -2840,7 +2840,8 @@ function renderNear(fit = false) {
     body.push(el('p', { class: 'warn' }, `Position approximative (à ${Math.round(origin.acc)} m près) : les petits cercles ne sont pas fiables.`));
   }
   if (origin.kind === 'last') {
-    body.push(el('p', { class: 'warn' }, `Position d'${timeAgoShort(origin.time)} : si tu as bougé depuis, actualise.`));
+    body.push(el('p', { class: 'warn' }, `Dernière position connue, ${timeAgoShort(origin.time)} : si tu as bougé depuis, touche Réessayer.`),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: openNear }, ico('rotate-cw'), 'Réessayer'));
   }
   let prev = 0;
   for (const g of groups) {
@@ -8467,7 +8468,7 @@ const HELP = [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Distances et durées → Cercles.',
-    '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
+    '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Relier des lieux, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -8618,6 +8619,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
     '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
     '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
@@ -8627,7 +8629,6 @@ const HELP = [
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
     '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allée ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
-    '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
   ]],
 ];
 
