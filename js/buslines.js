@@ -130,3 +130,21 @@ export function dayText(d) {
   const months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   return `${Number(m[3]) === 1 ? '1er' : Number(m[3])} ${months[Number(m[2]) - 1]} ${m[1]}`;
 }
+
+/** v234 : les lignes du fichier qui ont un arrêt à moins de `m` mètres de `at` (le centre de la carte), de la plus proche.
+ * [{ line, d, stop: nom de l'arrêt le plus proche }], `max` au plus. Seulement les lignes dont le fichier connaît les arrêts. */
+export function linesNear(file, at, m = 400, max = 12) {
+  if (!at || !Array.isArray(file?.names)) return [];
+  const out = [];
+  for (const l of file.lines ?? []) {
+    let best = null;
+    for (const q of l.s ?? []) {
+      const d = distanceM(at, { lat: q[0], lng: q[1] });
+      if (d <= m && (!best || d < best.d)) best = { d, stop: file.names[q[2]] ?? '' };
+    }
+    if (best) out.push({ line: l, ...best });
+  }
+  return out.sort((a, b) => a.d - b.d || lineOrder(a.line.ref, b.line.ref)).slice(0, max);
+}
+/** v234 : la loupe ne cherche une ligne que pour un texte qui ressemble à un numéro (« 38 », « N14 », « 91 », « 20a »). */
+export const looksLikeLine = (q) => /^[a-z]{0,3}\s?\d{1,4}[a-z]?$/i.test(String(q ?? '').trim());

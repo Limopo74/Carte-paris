@@ -1,7 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.js';
-import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX } from './buslines.js';
+import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText } from './geo.js';
@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (233)';
+const VERSION = '19 novembre 2026 (234)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2701,6 +2701,7 @@ function openSearch(initial = '') {
   /* v158 : la loupe cherche aussi dans les listes gardées sur le téléphone (TTB, Navigo, galeries, art dans la rue),
      et dans l'agenda de la semaine sur demande. Rien n'est envoyé : chaque liste est la même pour tout le monde. */
   const moreBox = el('div', { class: 'stack' });
+  const busBox = el('div', { class: 'stack' }); // v234 : lignes de bus, pour un texte qui ressemble à un numéro
   const agendaBox = el('div', { class: 'stack' });
   const toAgenda = el('button', { type: 'button', class: 'btn c-disc', onclick: () => searchAgenda() });
   const back = named('Recherche', () => openSearch(input.value));
@@ -2718,6 +2719,14 @@ function openSearch(initial = '') {
       /* v198 : les plaques qui portent ce nom (mots entiers), le titre d'abord ; le fichier n'est lu qu'à la première recherche */
       ...block('Plaques commémoratives', plaquesFor(plaquesOf(plaquesData), q, from()).map((x) => plaqueRow(x, back))));
     if (!plaquesData && !updateMore.asked && q.replace(/\s/g, '').length >= 3) { updateMore.asked = true; loadPlaques().then((d) => { if (d) updateMore(); }); }
+    /* v234 : « 38 », « N14 » : les lignes de bus de ce numéro ; un appui la montre sur la carte. Le fichier de toutes les
+       lignes n'est téléchargé (en entier) qu'au premier numéro tapé. */
+    if (!looksLikeLine(q)) fill(busBox);
+    else if (busTracesFile) {
+      const found = searchBusLines(busTracesFile, q).slice(0, 6);
+      fill(busBox, ...block('Lignes de bus', found.map((l) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => showBusLine(l, back), 'aria-label': `Voir la ligne ${l.ref} sur la carte, ${busLineSub(l)}` },
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name bus-name' }, el('span', { class: 'bus-tag', style: `--c:${l.c};--t:${l.t}` }, l.ref), ` Ligne ${l.ref}`), el('span', { class: 'item-sub' }, busLineSub(l))))))));
+    } else if (!updateMore.busAsked) { updateMore.busAsked = true; loadBusTraces().then((f) => { if (f) updateMore(); else fill(busBox, el('p', { class: 'help' }, 'Lignes de bus : il faut du réseau pour les chercher.')); }); }
     toAgenda.hidden = q.replace(/\s/g, '').length < 3;
     fill(toAgenda, ico('calendar-days'), ` Chercher « ${q} » dans l'agenda de la semaine`);
     fill(agendaBox);
@@ -2734,8 +2743,8 @@ function openSearch(initial = '') {
   }
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, info, list, bigBox, moreBox, toAgenda, agendaBox, toDirectory,
-    el('p', { class: 'help' }, 'Cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
+  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, info, list, bigBox, busBox, moreBox, toAgenda, agendaBox, toDirectory,
+    el('p', { class: 'help' }, 'Cherche dans tes lieux, les Grands lieux, les lignes de bus (tape un numéro), TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
   { tall: true, name: 'search', again: () => openSearch(input.value) });
   input.focus();
   // Listes pas encore lues : chargées une fois (Navigo dans l'appli ; galeries et œuvres une fois par mois), puis la recherche se refait
@@ -5599,11 +5608,13 @@ async function openMyBusLines(query = '') {
   const homeAt = home ? { lat: home.stop[0], lng: home.stop[1] } : null;
   const results = el('ul', { class: 'items' });
   const input = el('input', { type: 'search', value: query, placeholder: 'ex. 38, 91, N14', 'aria-label': 'Numéro de la ligne', enterkeyhint: 'search', autocomplete: 'off', inputmode: 'text' });
-  const resultRow = (l) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => add(l), 'aria-label': `Ajouter la ligne ${l.ref}, ${busLineSub(l)}` },
+  const resultRow = (l, sub = busLineSub(l)) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => add(l), 'aria-label': `Ajouter la ligne ${l.ref}, ${sub}` },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('plus', { size: 18 })),
     el('span', { class: 'item-text' },
       el('span', { class: 'item-name bus-name' }, tag(l), ` Ligne ${l.ref}`),
-      el('span', { class: 'item-sub' }, busLineSub(l)))));
+      el('span', { class: 'item-sub' }, sub))));
+  // v234 : les lignes qui ont un arrêt à moins de 5 min à pied du centre de la carte (calcul sur le téléphone, rien n'est envoyé)
+  const center = map.getCenter();
   const draw = () => {
     if (!busTracesFile) return;
     const q = input.value.trim();
@@ -5614,7 +5625,11 @@ async function openMyBusLines(query = '') {
       return;
     }
     const atHome = home ? linesAtStop(busTracesFile, homeAt, busLines(busData, home.stop)).filter((l) => !have.has(l.id)) : [];
-    fill(results, ...(atHome.length ? [el('li', { class: 'help' }, `Les lignes de ton arrêt ${home.label} (${home.stop[2]})\u00a0:`), ...atHome.map(resultRow)] : []));
+    const near = nearParis(center) ? linesNear(busTracesFile, center, minutesToMeters(5)).filter((x) => !have.has(x.line.id)) : [];
+    fill(results,
+      el('li', { class: 'help' }, nearParis(center) ? (near.length ? 'Près du centre de la carte (déplace la carte sur un lieu, puis reviens ici)\u00a0:' : 'Aucune ligne avec un arrêt à moins de 5 min du centre de la carte.') : 'Déplace la carte sur Paris pour voir les lignes proches.'),
+      ...near.map((x) => resultRow(x.line, `Arrêt ${x.stop} · ${fmtWalk(x.d)}`)),
+      ...(atHome.length ? [el('li', { class: 'help' }, `Les lignes de ton arrêt ${home.label} (${home.stop[2]})\u00a0:`), ...atHome.map((l) => resultRow(l))] : []));
   };
   input.addEventListener('input', draw);
   const sub = (l) => (kept.missing.includes(l.id) ? 'Plus dans le fichier d\'Île-de-France Mobilités : pas de chemin à montrer'
@@ -5917,6 +5932,28 @@ function drawBusLines() {
   busLinesLayer.addTo(map);
   map.attributionControl.addAttribution(BUS_ATTR);
   drawLayerNote();
+}
+/** v234 : une ligne trouvée par la loupe, sur la carte le temps de la regarder (chemin et arrêts), sans l'ajouter à mes lignes. */
+function showBusLine(l, back) {
+  closeSheet();
+  endPeek();
+  for (const seg of l.p) {
+    L.polyline(seg, { className: 'line-casing', weight: 7, opacity: 0.9, interactive: false }).addTo(peekLayer);
+    L.polyline(seg, { color: l.c, weight: 4, opacity: 1, interactive: false }).addTo(peekLayer);
+  }
+  for (const at of labelSpots(l.p)) L.marker(at, { interactive: false, keyboard: false,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag bus" style="--c:${l.c};--t:${l.t}">${esc(l.ref)}</span>`, iconSize: [0, 0] }) }).addTo(peekLayer);
+  const names = busTracesFile?.names ?? [];
+  for (const q of stopMarks((l.s ?? []).map((x) => [x[0], x[1], names[x[2]] ?? '']))) L.marker([q.lat, q.lng], { interactive: false, keyboard: false,
+    icon: L.divIcon({ className: 'pin-wrap st-wrap', html: `<span class="st-mark"><span class="bus-dot" style="--c:${l.c}"></span>${q.name ? `<span class="st-name">${esc(q.name)}</span>` : ''}</span>`, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(peekLayer);
+  map.fitBounds(L.latLngBounds(l.p.flat()).pad(0.05), { paddingTopLeft: [10, 70], paddingBottomRight: [60, 140], animate: false });
+  showPeekCard('Bus · sans horaires ni sens', `Ligne ${l.ref}`, back, [busLineSub(l), 'touche ici pour revenir'].filter(Boolean).join(' · '));
+  const mine = (state.busLines ?? []).some((x) => x.id === l.id);
+  if (!mine) toast(`Ligne ${l.ref} sur la carte, le temps de la regarder.`, false, { label: 'Ajouter à mes lignes', stay: true, fn: () => {
+    if ((state.busLines ?? []).length >= BUS_LINES_MAX) { toast(`${BUS_LINES_MAX} lignes au plus : retire d'abord une ligne.`, true); return; }
+    state.busLines = addBusLine(state.busLines, l); state.showBusLines = true; persist(); keepBusTraces(busTracesFile); endPeek(); drawBusLines(); refresh();
+    toast(`Ligne ${l.ref} ajoutée à tes lignes`);
+  } });
 }
 function toggleBusLines() {
   if (!(state.busLines ?? []).length) { openMyBusLines(); toast('Choisis d\'abord tes lignes de bus.'); return; }
@@ -8685,7 +8722,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
-    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas.',
+    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près d\'un lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
@@ -8910,6 +8947,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près du centre de la carte » : les lignes qui s\'arrêtent à moins de 5 min du lieu où tu as placé la carte.',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
     '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
     '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
@@ -8919,7 +8957,6 @@ const HELP = [
     '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
     '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
     '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
-    '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
   ]],
 ];
 

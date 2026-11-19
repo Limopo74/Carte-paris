@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cleanBusLines, addBusLine, removeBusLine, cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop,
-  passesNear, busLineSub, refsText, labelSpots, dayText, BUS_LINES_MAX, stopMarks, cleanStops } from '../js/buslines.js';
+  passesNear, busLineSub, refsText, labelSpots, dayText, BUS_LINES_MAX, stopMarks, cleanStops, linesNear, looksLikeLine } from '../js/buslines.js';
 import { loadState, saveState, exportJSON, exportForFriend, mergeImport, backupHash, readSettings, SEND_DEFAULT, FILTER_KEYS } from '../js/store.js';
 
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
@@ -117,4 +117,19 @@ test('appli : ligne de Filtres gardée, tracés téléchargés en entier (GitHub
   assert.doesNotMatch(src('sw.js'), /bus-traces\.json/, 'trop lourd pour la copie sans réseau : seules mes lignes sont gardées');
   assert.match(src('sw.js'), /'js\/buslines\.js'/);
   assert.match(app, /carte-paris\.bus-traces/);
+});
+
+test('v234 : lignes près du centre de la carte, et numéros cherchés par la loupe', () => {
+  const near = linesNear(FILE, { lat: 48.8759, lng: 2.3581 }, 400);
+  assert.deepEqual(near.map((x) => x.line.id), ['C01083'], 'seules les lignes dont un arrêt est assez près');
+  assert.equal(near[0].stop, 'Gare de l\'Est');
+  assert.ok(near[0].d < 20);
+  assert.deepEqual(linesNear(FILE, { lat: 48.7, lng: 2.1 }, 400), []);
+  assert.deepEqual(linesNear({ ...FILE, names: undefined }, { lat: 48.8759, lng: 2.3581 }), [], 'fichier sans arrêts : rien');
+  assert.deepEqual(linesNear(FILE, null), []);
+  for (const q of ['38', ' N14 ', '20a', 'TVM 1', '91']) assert.equal(looksLikeLine(q), true, q);
+  for (const q of ['Musée', 'rue 38 bis', '', 'Gare de l\'Est', '12345']) assert.equal(looksLikeLine(q), false, q);
+  const app = src('js/app.js');
+  assert.match(app, /looksLikeLine\(q\)/, 'la loupe ne télécharge le fichier que pour un numéro');
+  assert.match(app, /linesNear\(busTracesFile, center, minutesToMeters\(5\)\)/);
 });
