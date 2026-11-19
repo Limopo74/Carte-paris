@@ -50,7 +50,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (219)';
+const VERSION = '19 novembre 2026 (220)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4344,6 +4344,16 @@ function eventWhen(e, now = new Date()) {
   return w === 'en cours aujourd\'hui' ? 'En cours' : w.replace(/^à/, 'À').replace(/^j/, 'J');
 }
 
+/* v219 : ce que dit le bandeau de « Carte », sous le nom, en petit : seulement ce que l'agenda ou les horaires disent sûrement. */
+/** Une sortie : « À 20h » (ou « Jusqu'au 30 nov. »), « Gratuit » si l'agenda le dit, « Sur réservation » si elle est obligatoire. */
+const eventInfo = (e) => [eventWhen(e), e.free ? 'Gratuit' : '', e.booking === 'required' ? 'Sur réservation' : ''];
+/** Un marché : « Jusqu'à 13h30 », « À 15h » ; rien si ses heures du jour sont inconnues. */
+const marketInfo = (m) => [marketWhen(m).text];
+/** Une galerie : « Ouverte jusqu'à 19h », « Fermée » ; rien si ses horaires sont inconnus. */
+const galleryInfo = (g) => { const st = openState(g.hours); return [!st ? '' : st.open ? (st.until ? `Ouverte jusqu'à ${hhText(st.until)}` : 'Ouverte') : 'Fermée']; };
+/** Un lieu gratuit aujourd'hui : « Ouvert jusqu'à 18h », « Ouvre à 18h », « Fermé » ; rien si ses horaires sont inconnus. */
+const hoursLineShort = (f) => { const st = openState(spotHours(f)); return !st ? '' : st.open ? (st.until ? `Ouvert jusqu'à ${hhText(st.until)}` : 'Ouvert') : st.opensAt ? `Ouvre à ${hhText(st.opensAt)}` : 'Fermé'; };
+
 /** La page d'une sortie de l'agenda : photo officielle, quand, où, résumé, et les mêmes actions qu'un lieu. */
 /** Un lien vers un site, en ligne de fiche (v164) : une icône de l'appli, ce qu'on y trouve, et le nom du site écrit en clair. */
 const linkRow = (icon, label, href) => el('a', { class: 'fiche-row', href, target: '_blank', rel: 'noopener noreferrer' },
@@ -4441,7 +4451,7 @@ function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; 
   const here = named(`Gratuit ${date.toLocaleDateString('fr-FR', { weekday: 'long' })}`, again);
   openSheet([ico('landmark'), ` Gratuit ${dayTitle(date)}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(list.length, 'lieu gratuit', 'lieux gratuits')} ce jour-là, en plus des musées de la Ville (gratuits toute l'année).`),
-    list.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: `Gratuit ${dayTitle(date)}`, label: plural(list.length, 'lieu', 'lieux'), items: list, icon: 'landmark',
+    list.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: `Gratuit ${dayTitle(date)}`, label: plural(list.length, 'lieu', 'lieux'), items: list.map((f) => ({ ...f, info: () => [hoursOn(f, date)] })), icon: 'landmark',
       open: (x, b) => openFreeDaySpot(x, date, b), back: again, from: o }) }, ico('map'), 'Voir sur la carte') : null,
     el('ul', { class: 'items ev-list' }, list.map((f) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeDaySpot(f, date, here), sub: [hoursOn(f, date), f.when], d: f.d,
       tags: [/réservation/i.test(`${f.note ?? ''} ${f.when}`) ? el('span', { class: 'tag closed' }, 'Sur réservation') : null] }))),
@@ -4870,8 +4880,9 @@ async function openEvents(start = null) {
     return [head(label, rows.length), el('ul', { class: 'items ev-list' }, shown),
       shown.length < rows.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { evOpen.add(`${mode}:${key}`); openEvents(); } }, `Voir les ${rows.length} ${noun}`, ico('chevron-down')) : null];
   };
-  const mapList = []; // ce que montre « Carte » : { name, lat, lng, go }
-  const onMap = (xs, go) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: (b) => go(x, b) }); }; // b : le retour vers le bandeau de la carte (v213)
+  const mapList = []; // ce que montre « Carte » : { name, lat, lng, go, info }
+  // b : le retour vers le bandeau de la carte (v213) ; info : l'heure, Gratuit, Sur réservation, sous le nom (v219)
+  const onMap = (xs, go, info = null) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: (b) => go(x, b), info: info ? () => info(x) : null }); };
 
   // Temps forts de la semaine et gratuité exceptionnelle du jour : sous la plaque (Tout)
   const soon = highlightsSoon();
@@ -4922,8 +4933,8 @@ async function openEvents(start = null) {
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
       .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e))));
-    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b));
-    onMap([...last, ...expos], (e, b) => openEventPage(e, b ?? back));
+    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b), galleryInfo);
+    onMap([...last, ...expos], (e, b) => openEventPage(e, b ?? back), eventInfo);
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
@@ -4952,11 +4963,12 @@ async function openEvents(start = null) {
     const now = items.filter((x) => x.when === 'now');
     const later = items.filter((x) => x.when === 'later').slice(0, 15);
     const card = (x, opts = {}) => (x.m ? marketRow(x.m, back, opts) : eventRow(x.e, back, opts));
-    for (const x of [...now, ...later]) mapList.push({ name: x.m ? x.m.name : x.e.title, lat: (x.m ?? x.e).lat, lng: (x.m ?? x.e).lng, go: (b) => (x.m ? openMarket(x.m, b) : openEventPage(x.e, b ?? back)) });
+    for (const x of [...now, ...later]) mapList.push({ name: x.m ? x.m.name : x.e.title, lat: (x.m ?? x.e).lat, lng: (x.m ?? x.e).lng, go: (b) => (x.m ? openMarket(x.m, b) : openEventPage(x.e, b ?? back)),
+      info: () => (x.m ? marketInfo(x.m) : eventInfo(x.e)) });
     if (mode === 'free') {
       const freeItems = [...now, ...later];
       const freePlaces = whereOn === 'out' ? [] : freeAll; // musées et théâtre : à l'abri
-      onMap(freePlaces, (f, b) => openFreeSpot(f, b));
+      onMap(freePlaces, (f, b) => openFreeSpot(f, b), (f) => [hoursLineShort(f)]);
       body = [
         ...section('sorties', 'Sorties gratuites', freeItems.map((x) => card(x)), 'sorties'),
         ...section('musees', 'Musées gratuits', freePlaces.map((f) => freeRow(f, back)), 'musées'),
@@ -4970,7 +4982,7 @@ async function openEvents(start = null) {
       ];
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
     } else {
-      onMap(last.slice(0, 3), (e, b) => openEventPage(e, b ?? back));
+      onMap(last.slice(0, 3), (e, b) => openEventPage(e, b ?? back), eventInfo);
       // v186 : une sortie déjà montrée dans Mes salles (en tête) n'est pas répétée plus bas ; elle reste sur la Carte
       const inVenues = venueShownKeys();
       const notShown = (e) => !inVenues.has(evKey(e));
@@ -5085,11 +5097,18 @@ function showPeek(opts) {
   if (from) L.marker([from.lat, from.lng], { interactive: false, keyboard: false, zIndexOffset: 350, // point de départ des distances
     icon: L.divIcon({ className: 'pin-wrap', html: `<span class="from-pin" title="Point de départ">${svgIcon(from.kind === 'map' ? 'plus' : 'locate-fixed', { size: 14, stroke: 2.6 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(peekLayer);
   const back2 = (k) => named(kicker, () => showPeek({ ...opts, start: k, keep: true }));
+  /* v219 : les minutes depuis le même point que la liste (centre de la carte, station) ; ta position récente seulement
+     quand la liste est « Autour de toi » (loin de Paris, nearHere ne donne rien : le centre de la carte) */
+  const walkFrom = () => (from && (from.kind === 'map' || from.kind === 'station') ? from : nearHere() ?? from);
   const subOf = (x) => {
     if (x.sub) return x.sub;
-    const o = nearHere() ?? from;
-    return [off(x) ? 'Fermé' : '', o ? fmtWalk(distanceM(o, x)) : ''].filter(Boolean).join(' · ');
+    const o = walkFrom();
+    const info = (typeof x.info === 'function' ? x.info() : x.info ?? []).filter(Boolean).map((t) => String(t).charAt(0).toUpperCase() + String(t).slice(1));
+    // « ≈ 2 min à pied » en insécables : jamais « pied » seul sur sa ligne (le reste se coupe librement : bandeau moins haut)
+    return [...info, off(x) ? 'Fermé' : '', o ? fmtWalk(distanceM(o, x)).replace(/ /g, '\u00a0') : ''].filter(Boolean).join(' · ');
   };
+  /** v219 : « Sorties · 9e » ; rien hors de Paris ou contours pas encore lus. */
+  const kickerOf = (x) => { const a = arrLabel(x); return [kicker, tabs?.name, a].filter(Boolean).join(' · '); };
   const sel = () => pins.forEach((m, k) => m.getElement()?.querySelector('.peek-pin')?.classList.toggle('sel', k === i));
   /** Le lieu au milieu de la carte visible : sous la barre du haut, au-dessus du bandeau. */
   const place = (x) => {
@@ -5108,7 +5127,7 @@ function showPeek(opts) {
       el('div', { class: 'deck-top' },
         el('button', { type: 'button', class: 'now-open', onclick: () => { if (moved) { moved = false; return; } open(x, back2(i)); } },
           el('span', { class: 'now-text' },
-            el('span', { class: 'now-kicker' }, tabs ? `${kicker} · ${tabs.name}` : kicker),
+            el('span', { class: 'now-kicker' }, kickerOf(x)),
             el('span', { class: 'now-name' }, x.name),
             el('span', { class: 'now-sub' }, subOf(x))),
           el('span', { class: 'now-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -8267,7 +8286,7 @@ const HELP = [
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
-    '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ. Le bandeau en bas les montre une à une : ‹ › ou glisse le doigt de côté sur le bandeau, la carte se place sur chacune ; touche un rond pour le choisir, le bandeau pour ouvrir sa page, « Liste » pour revenir à la liste. Pareil pour tous les « Voir sur la carte ».',
+    '{map} **Carte** montre les sorties de l\'onglet sur la carte. Un petit carré marque le point de départ. Le bandeau en bas les montre une à une : ‹ › ou glisse le doigt de côté sur le bandeau, la carte se place sur chacune ; touche un rond pour le choisir, le bandeau pour ouvrir sa page, « Liste » pour revenir à la liste. En haut du bandeau, l\'arrondissement (« Sorties · 9e ») ; sous le nom, l\'heure, « Gratuit » et « Sur réservation » quand l\'agenda le dit, et les minutes à pied depuis le même point que la liste. Pareil pour tous les « Voir sur la carte ».',
     '**Une ligne = une sortie.** L\'icône dit le genre ; un calendrier veut dire « genre pas sûr ». À droite : les minutes à pied.',
     '**Chaque rubrique** montre les 3 plus proches. « Voir les … » déroule la suite. Une sortie de Mes salles, montrée en tête de Tout, n\'est pas répétée plus bas.',
     '**Touche une sortie** pour sa page : quand, où, Y aller, {compass} Boussole, Métro, Prévoir.',
@@ -8459,6 +8478,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
     '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
     '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
@@ -8468,7 +8488,6 @@ const HELP = [
     '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
     '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
-    '{list-filter} Filtres : quand un filtre cache un lieu, l\'appli le dit (Chercher, Autour de moi, message du haut) au lieu de « Aucun lieu ». Masquer la ligne « Vu en passant » dans « Choisir les filtres affichés » reste gardé quand tu rouvres l\'appli. Deux catégories ne peuvent plus porter le même nom.',
   ]],
 ];
 
