@@ -49,7 +49,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (214)';
+const VERSION = '19 novembre 2026 (215)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6762,6 +6762,7 @@ function openSettings(section = null) {
           el('span', { class: 'menu-sub' }, `${kmhText(pace.kmh[m])} km/h · ${perKm(pace.kmh[m])} min par km`)),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:-0.5`, 'aria-label': `${PACE_NAME[m]} : moins vite`, onclick: () => step(m, -0.5) }, ico('minus')),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:0.5`, 'aria-label': `${PACE_NAME[m]} : plus vite`, onclick: () => step(m, 0.5) }, ico('plus')))),
+      el('p', { class: 'help' }, 'Pour trouver ta vitesse : chronomètre un trajet de 1 km dans la rue, feux compris (Google Maps à pied donne la distance). Puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
       el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied (les rues font environ 1,3 fois la ligne droite). De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.`),
       el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'),
       backBtn,
@@ -8218,7 +8219,7 @@ const HELP = [
     '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
-    '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h.',
+    '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
@@ -8259,6 +8260,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
     '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
     '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
     '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
@@ -8268,7 +8270,6 @@ const HELP = [
     '{check} Plus clair : Prévoir et « Lieux du jour » s\'enregistrent en bas (Annuler, Enregistrer), toujours visibles. Dans un lieu, « Commentaire » pour ton texte et « Mes étoiles » pour les étoiles ; Favori est une case à part. Mon planning : « Tu y es allé ? » passe après les jours à venir. Le titre dit « Sorties ».',
     '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
     '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
-    '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
   ]],
 ];
 
