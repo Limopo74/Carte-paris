@@ -12,59 +12,57 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mesure-plan-rues
+  cancel-in-progress: false
+
 jobs:
   mesure:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Demander les rues à OpenStreetMap (10 demandes) et fabriquer le plan
-        # 19 nov. : une seule grosse demande a été refusée par les trois serveurs ; elle est découpée en 9 cases et les parcs.
+      - name: Demander les rues à OpenStreetMap (morceau par morceau, reprenable) et fabriquer le plan
+        # 19 nov. : les serveurs refusent souvent une demande ; chaque réponse reçue est rangée tout de suite dans
+        # mesure/ sur cette branche (jamais sur main), et un nouveau passage ne demande que les morceaux qui manquent.
         run: |
           set -u
-          mkdir -p /tmp/src
+          mkdir -p /tmp/src mesure
+          git config user.name "Robot de mesure"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           python3 -I tools/maj-rues.py demandes /tmp/src
           UA='Carte-paris, mesure ponctuelle (https://github.com/Limopo74/Carte-paris)'
+          manque=""
           for q in /tmp/src/q-*.txt; do
-            k=$(basename "$q" .txt); out="/tmp/src/r-${k#q-}.json"
-            tours="1 2 3"; [ "$k" = q-parcs ] && tours="1"
-            for tour in $tours; do
+            k=$(basename "$q" .txt); r="r-${k#q-}"
+            if [ -s "mesure/$r.json.gz" ]; then echo "$k : déjà reçu"; continue; fi
+            for tour in 1 2; do
               for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
-                if curl -fsS --compressed --max-time 360 -A "$UA" --data-urlencode "data@$q" -o "$out" "$server"; then
-                  echo "$k : $(wc -c < "$out") octets depuis $server (tour $tour)"; break 2
+                if curl -fsS --compressed --max-time 360 -A "$UA" --data-urlencode "data@$q" -o "/tmp/src/$r.json" "$server"; then
+                  echo "$k : $(wc -c < "/tmp/src/$r.json") octets depuis $server (tour $tour)"
+                  gzip -9 -c "/tmp/src/$r.json" > "mesure/$r.json.gz"
+                  git add "mesure/$r.json.gz" && git commit -q -m "Mesure du plan des rues : morceau $k reçu" && git push -q origin HEAD:mesure-plan-rues
+                  break 2
                 fi
-                echo "$k : $server ne répond pas (tour $tour)"; rm -f "$out"; sleep 20
+                echo "$k : $server ne répond pas (tour $tour)"; rm -f "/tmp/src/$r.json"; sleep 20
               done
               sleep 60
             done
-            if [ ! -s "$out" ]; then
-              [ "$k" = q-parcs ] && { echo "Parcs : aucune réponse, mesure sans eux (ils ne changent presque pas le poids)."; continue; }
-              echo "$k : aucun serveur n'a répondu, pas de mesure."; exit 1
-            fi
+            [ -s "mesure/$r.json.gz" ] || { echo "$k : pas reçu cette fois"; manque="$manque $k"; }
             sleep 5
           done
+          if [ -n "$manque" ] && [ "$manque" != " q-parcs" ]; then
+            echo "Il manque :$manque. Relancer un passage : seuls ces morceaux seront demandés."; exit 1
+          fi
+          [ -n "$manque" ] && echo "Seuls les parcs manquent : mesure faite sans eux."
+          for f in mesure/r-*.json.gz; do gzip -dc "$f" > "/tmp/src/$(basename "$f" .gz)"; done
           python3 -I tools/maj-rues.py /tmp/src /tmp/rues.json "$(TZ=Europe/Paris date +%F)"
-          gzip -9 -k /tmp/rues.json && ls -l /tmp/rues.json /tmp/rues.json.gz
-      - name: Garder les réponses brutes (pour ne plus les redemander)
-        if: always()
-        run: tar -czf /tmp/reponses.tar.gz -C /tmp/src . && ls -l /tmp/reponses.tar.gz
-      - name: Ranger les réponses et le plan sur cette branche seulement (jamais sur main)
-        # Les pièces jointes d'Actions ne sont pas lisibles depuis l'espace de travail de Claude ; la branche, si.
-        run: |
-          set -eu
-          mkdir -p mesure
-          cp /tmp/reponses.tar.gz mesure/reponses.tar.gz
+          echo "--- Sans les trottoirs ni les passages piétons, pour comparer :"
           SANS_TROTTOIRS=1 python3 -I tools/maj-rues.py /tmp/src /tmp/rues-sans.json "$(TZ=Europe/Paris date +%F)" || true
-          git config user.name "Robot de mesure"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add mesure/reponses.tar.gz
-          git commit -m "Mesure du plan des rues : réponses brutes d'OpenStreetMap ($(TZ=Europe/Paris date +%F))"
-          git push origin HEAD:mesure-plan-rues
+          gzip -9 -k /tmp/rues.json && ls -l /tmp/rues.json /tmp/rues.json.gz
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: plan-des-rues
-          path: |
-            /tmp/rues.json.gz
-            /tmp/reponses.tar.gz
+          path: /tmp/rues.json.gz
           retention-days: 7
           if-no-files-found: ignore
