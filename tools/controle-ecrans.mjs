@@ -168,6 +168,8 @@ const ECRANS = {
   artiste: async (p) => { await ECRANS.ficheoeuvre(p); await feuille(p).locator('.fiche-row', { hasText: 'Invader' }).click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
   // v162 : l'adresse dans Modifier, le nom de « Déjà visité » dans la catégorie
   modifieradresse: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); },
+  // v241 : Réglages → Catégories et listes, la ligne « Aide » ouverte (exemples de listes)
+  categoriesaide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('details.page-help summary').click(); await p.waitForTimeout(200); await feuille(p).locator('details.page-help').scrollIntoViewIfNeeded(); },
   categorie: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
   // v166 : feuille réduite, Mes salles
   sortiescarte: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-mapbtn').click(); await p.waitForSelector('.peek-card.deck'); await p.waitForTimeout(400); }, // v219 : le bandeau dit « Sorties · 9e » et l'heure

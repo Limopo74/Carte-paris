@@ -671,7 +671,7 @@ export function moveCategory(state, id, delta) {
   return { ...state, categories: list };
 }
 
-/** Crée une liste (« Sous la pluie », « Avec Paul »…), ou reprend celle qui a déjà ce nom. Renvoie { state, id }. */
+/** Crée une liste (« Pour fêter », « Avec Paul »…), ou reprend celle qui a déjà ce nom. Renvoie { state, id }. */
 export function addList(state, name) {
   const n = String(name ?? '').trim().slice(0, 30);
   if (!n) throw new Error('Donne un nom à la liste.');
