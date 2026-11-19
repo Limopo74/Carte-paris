@@ -98,10 +98,10 @@ export function planTimes(t) {
   return out;
 }
 
-/** Sorties d'avant aujourd'hui (30 jours au plus), à confirmer : « Tu y es allé ? ». Les plus récentes d'abord. */
-export function pastPlans(points, now = new Date()) {
+/** Sorties d'avant aujourd'hui (`days` jours au plus : 30 au départ, réglable depuis la v214), à confirmer : « Tu y es allé ? ». Les plus récentes d'abord. */
+export function pastPlans(points, now = new Date(), days = 30) {
   const today = dayStart(now).getTime();
-  return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && !isDayList(p.ticket) && p.ticket.at < today && p.ticket.at >= today - 30 * 864e5)
+  return points.filter((p) => !p.owner && !p.by && Number.isFinite(p.ticket?.at) && !isDayList(p.ticket) && p.ticket.at < today && p.ticket.at >= today - days * 864e5)
     .sort((a, b) => b.ticket.at - a.ticket.at);
 }
 
@@ -117,13 +117,14 @@ export function cleanPlan(t) {
 
 /**
  * Sorties de l'agenda prévues (v153) : gardées à part de mes lieux, sans goutte sur la carte.
- * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées 30 jours après le jour prévu
+ * Forme : { id, name, lat, lng, plan: true, ticket, address?, place?, url? }. Effacées `keepDays` jours après le jour prévu
+ * (30 au départ ; v214 : autant que le réglage « Tu y es allé ? », jamais moins de 30)
  * (avant la v158 : dès le lendemain) ; « Tu y es allé ? » les retire avant.
  */
-export function cleanPlans(list, now = Date.now()) {
+export function cleanPlans(list, now = Date.now(), keepDays = 30) {
   const d = new Date(now);
   // v158 : gardées 30 jours après le jour prévu, le temps de répondre à « Tu y es allé ? » (comme mes lieux)
-  const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 30).getTime();
+  const t0 = new Date(d.getFullYear(), d.getMonth(), d.getDate() - Math.max(30, Number.isFinite(keepDays) ? keepDays : 30)).getTime();
   const seen = new Set();
   return (Array.isArray(list) ? list : []).map((x) => {
     const ticket = cleanPlan(x?.ticket);

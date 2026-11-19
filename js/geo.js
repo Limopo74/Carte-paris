@@ -18,6 +18,9 @@ export const walkMinPerM = () => (minPerKm / 1000) * DETOUR;
 const DETOUR = 1.3;
 /** Sous 1 km à vol d'oiseau, on va à pied (lien Google Maps, et page Métro quand aucun métro n'est trouvé, v211). */
 export const WALK_LIMIT_M = 1000;
+/** Y aller (v214) : la limite « à pied » se règle (Réglages → Distances et durées). La page Métro garde 1 km. */
+let walkLimit = WALK_LIMIT_M;
+export const setWalkLimit = (m = WALK_LIMIT_M) => { walkLimit = Number.isFinite(m) && m > 0 ? m : WALK_LIMIT_M; };
 
 /** Distance à vol d'oiseau en mètres entre deux positions {lat, lng}. */
 export function distanceM(a, b) {
@@ -71,9 +74,10 @@ export function groupByRings(points, here, rings, { favBonus = 0 } = {}) {
   return groups;
 }
 
-/** Lien d'itinéraire Google Maps : à pied sous 1 km, en transports au-delà. */
-export function mapsUrl(point, d) {
-  const mode = d < WALK_LIMIT_M ? 'walking' : 'transit';
+/** Lien d'itinéraire Google Maps : à pied sous la limite (1 km au départ), en transports au-delà.
+ *  Distance inconnue : passe Infinity (transports). À pied imposé (une station toute proche) : passe 0. */
+export function mapsUrl(point, d, limit = walkLimit) {
+  const mode = d < limit ? 'walking' : 'transit';
   return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&travelmode=${mode}`;
 }
 

@@ -3,7 +3,7 @@ import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { busHome, searchBusStops, busPlace, busLines } from './bus.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
@@ -25,14 +25,15 @@ import { cleanAcces, exitFor } from './acces.js';
 import { cleanGares, gareLines, garesNear } from './gares.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
-import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, NEAR_TRACE_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
+import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
-import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_RAIN_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
+import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
+import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -48,7 +49,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (213)';
+const VERSION = '19 novembre 2026 (214)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -67,7 +68,12 @@ const STANDALONE = (() => { try { return matchMedia('(display-mode: standalone)'
 const MY_APP_KEY = 'carte-paris.mon-appli';
 if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ } }
 let state = loadState(storage);
+/** Une valeur réglable (Réglages → Distances et durées, Alertes et bandeau), toujours vérifiée (v214). */
+function tune(key) { return cleanTuning(state.tuning)[key]; }
+/** La fiche d'un lieu montre-t-elle cette ligne ? (Réglages → Fiche d'un lieu, v214) */
+function ficheShows(key) { return !cleanFicheHidden(state.ficheHidden).includes(key); }
 setWalkSpeed(paceKmh(state.pace)); // Mon pas : toutes les durées à pied de l'appli
+setWalkLimit(tune('walkM')); // Y aller : à pied jusqu'à la distance réglée (v214)
 /** Taille du texte (v144) : le CSS multiplie l'échelle selon :root[data-text]. */
 function applyTextSize() { document.documentElement.dataset.text = cleanTextSize(state.textSize); }
 applyTextSize();
@@ -161,7 +167,7 @@ function remindData() {
   try { last = Number(storage.getItem('carte-paris.rappel-transports')) || 0; } catch { /* rien */ }
   if (Date.now() - last < 7 * 864e5) return;
   try { storage.setItem('carte-paris.rappel-transports', String(Date.now())); } catch { /* rien */ }
-  setTimeout(() => toast(`${due.length > 1 ? `${due.length} données de l'appli à mettre à jour` : `${FIXED_DATA.find((d) => d.id === due[0]).name} : à mettre à jour`}. Réglages → Appli → Données de l'appli.`), 2500);
+  setTimeout(() => toast(`${due.length > 1 ? `${due.length} données de l'appli à mettre à jour` : `${FIXED_DATA.find((d) => d.id === due[0]).name} : à mettre à jour`}. Réglages → Mise à jour et confidentialité → Données de l'appli.`), 2500);
 }
 
 
@@ -1180,6 +1186,7 @@ function updateNow(force = false) {
   nowLast = Date.now();
   const pos = freshHere();
   card.dataset.kind = '';
+  const sug = state.suggestNow !== false; // v214 : éteint, il ne reste que mes sorties prévues et « Tu es déjà passé ici »
   // La sortie prévue du jour passe avant tout : à quelle heure partir (à pied, ou en métro si c'est loin ; pas d'heure pour un moment)
   const tk = nowHidden ? null : ticketToday([...state.points, ...(state.plans ?? [])]);
   if (tk) {
@@ -1198,14 +1205,14 @@ function updateNow(force = false) {
     return;
   }
   // « Tu es déjà passé ici » (v157) : une de mes adresses ou notes à moins de 100 m, rappelée une fois par visite, puis pas avant 7 jours
-  const mem = nowHidden ? null : memoryHere(state.points, pos, seenShown);
+  const mem = nowHidden ? null : memoryHere(state.points, pos, seenShown, Date.now(), tune('memoryM'));
   if (mem) {
     seenShown = markShown(seenShown, mem.p.id);
     try { storage.setItem(SEEN_SHOWN_KEY, JSON.stringify(seenShown)); } catch { /* facultatif */ }
     const m = memoryOf(mem.p);
     card.hidden = false;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, `Tu es déjà passé ici${m.at ? ` · ${agoText(m.at)}` : ''}`),
+      el('span', { class: 'now-kicker' }, `${memoryTitle(mem.d, walkMinutes(mem.d))}${m.at ? ` · ${agoText(m.at)}` : ''}`), // v214 : « ici » seulement jusqu'à 100 m
       el('span', { class: 'now-name' }, mem.p.name),
       el('span', { class: 'now-sub' }, m.text || (m.photo ? 'Ta photo' : 'Voir la fiche')));
     buzzNow(`passe:${mem.p.id}`);
@@ -1213,7 +1220,7 @@ function updateNow(force = false) {
     return;
   }
   // « C'est le moment » (v158) : un de mes lieux dont le bon moment est venu, à moins de 10 min, pas fermé
-  const mo = nowHidden ? null : momentHere(state.points, pos, new Date(), minutesToMeters(10), (p) => openState(hoursOf(p))?.open !== false);
+  const mo = nowHidden || !sug ? null : momentHere(state.points, pos, new Date(), minutesToMeters(10), (p) => openState(hoursOf(p))?.open !== false);
   if (mo) {
     card.hidden = false;
     fill(card.querySelector('.now-text'),
@@ -1240,7 +1247,7 @@ function updateNow(force = false) {
   // « Dans la rue, à 5 min » (v158) : brocante, fête, marché éphémère ou expo en plein air, en cours ou dans la demi-heure ;
   // « Gratuit, à 5 min » (v187) : une sortie gratuite en salle, sans réservation obligatoire (js/events.js nowNearEvent).
   // Seulement avec un créneau connu aujourd'hui (agenda de la Ville chargé une fois par jour, sans position)
-  const street = !pos || nowHidden || eventsCache?.day !== new Date().toDateString() ? null
+  const street = !pos || nowHidden || !sug || eventsCache?.day !== new Date().toDateString() ? null
     : nowNearEvent(eventsCache.items, pos, new Date(), minutesToMeters(5));
   if (street) {
     card.hidden = false;
@@ -1255,8 +1262,8 @@ function updateNow(force = false) {
   }
   // Rue sans voitures (v197) : un secteur « Paris Respire » prévu en ce moment, à 10 min à pied au plus (js/respire.js).
   // Jamais « fermé aux voitures » : la Ville peut ajourner, l'appli dit « prévu ». Contours lus seulement un jour prévu.
-  if (!respireData && pos && !nowHidden && respirePlanned(new Date())) loadRespire().then((d) => { if (d) updateNow(true); });
-  const calm = !pos || nowHidden ? null : respireNow(respireSectors(respireData), pos, new Date(), minutesToMeters(10));
+  if (!respireData && pos && !nowHidden && sug && respirePlanned(new Date())) loadRespire().then((d) => { if (d) updateNow(true); });
+  const calm = !pos || nowHidden || !sug ? null : respireNow(respireSectors(respireData), pos, new Date(), minutesToMeters(10));
   if (calm) {
     card.hidden = false;
     fill(card.querySelector('.now-text'),
@@ -1267,7 +1274,7 @@ function updateNow(force = false) {
     return;
   }
   // Bientôt gratuit (v158) : aujourd'hui, demain ou après-demain ; la croix le cache pour la journée, la suggestion revient
-  const fb = nowHidden || storage.getItem(FREE_SEEN_KEY) === new Date().toDateString() ? null : freeBanner();
+  const fb = nowHidden || !sug || storage.getItem(FREE_SEEN_KEY) === new Date().toDateString() ? null : freeBanner();
   // v187 : aujourd'hui, le lieu gratuit du jour le plus proche (15 min à pied au plus), avec son heure seulement si elle est sûre
   const fd = fb && !fb.k && pos ? freeDayNear(pos, new Date(), minutesToMeters(15)) : null;
   if (fd) {
@@ -1301,10 +1308,10 @@ function updateNow(force = false) {
   const fits = (p) => slot && slot.re.test(`${catOf(p.cat).name} ${p.name}`);
   // Un favori (même déjà visité) passe devant un lieu jusqu'à 5 min de marche plus proche
   const score = (x) => x.d - (fits(x.p) ? 400 : 0) - (x.p.fav ? minutesToMeters(5) : 0);
-  const best = !pos || nowHidden ? null : offered().filter((p) => openState(hoursOf(p))?.open !== false)
+  const best = !pos || nowHidden || !sug ? null : offered().filter((p) => openState(hoursOf(p))?.open !== false)
     .map((p) => ({ p, d: distanceM(pos, p) })).filter((x) => x.d <= 1200).sort((a, b) => score(a) - score(b))[0];
   // Le matin, un marché ouvert tout près passe avant un lieu sans rapport avec l'heure
-  const mk = pos && !nowHidden && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
+  const mk = pos && !nowHidden && sug && slot?.markets && markets ? nearestMarkets(markets, pos).filter((m) => m.d <= 800 && marketOpenNow(m))[0] : null;
   const useMarket = mk && (!best || (!fits(best.p) && !best.p.fav) || mk.d < best.d);
   if (!best && !useMarket) {
     if (nx) showNext(); else card.hidden = true;
@@ -1954,7 +1961,7 @@ function openDetail(id, back = null) {
   // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goBox = el('div', { class: 'stack' },
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? 1000), target: '_blank', rel: 'noopener' },
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
       ico('arrow-right'), d != null ? `Y aller · ${fmtWalk(d).replace(/ /g, '\u00a0')}` : 'Y aller', d != null ? el('small', { class: 'go-dist' }, fmtDist(d)) : null), /* insécables : la ligne ne se coupe qu'après « · » (audit du 18 nov.) */
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
@@ -2058,16 +2065,16 @@ function openDetail(id, back = null) {
       p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
       row('pencil', 'Modifier', vanish ? 'Nom, catégorie, commentaire, artiste, listes' : 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
       row('share-2', 'Partager', 'Envoyer à un proche', () => (p.note ? openSharePlace(p, back) : sharePlace(p))),
-      row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back)),
+      ficheShows('qr') ? row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back)) : null,
       row('wrench', 'Rangement', tidySub, openTidy)),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
       navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Mettre à jour depuis OpenStreetMap' : 'Chercher sur OpenStreetMap', () => findHours(p, back)),
-      el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
+      !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
-      el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
+      !ficheShows('uber') ? null : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
         ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Ouvre Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
@@ -2399,7 +2406,7 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     if (part === 'time' && !Number.isFinite(h)) { err.textContent = 'Choisis l\'heure.'; return; }
     delete p.missed; // v199 : une sortie manquée reprévue redevient une sortie comme les autres
     p.ticket = { at: planAt(d, part === 'time' ? null : part, h, mi || 0), ...(who.value.trim() ? { with: who.value.trim().slice(0, 40) } : {}), ...(part !== 'time' ? { part } : {}) };
-    if (p.plan && !stored) state.plans = cleanPlans([...(state.plans ?? []), p]);
+    if (p.plan && !stored) state.plans = cleanPlans([...(state.plans ?? []), p], Date.now(), tune('askDays'));
     rankDayList(dayList(state.points)); // un lieu sorti de la liste du jour ne laisse pas de trou dans les rangs
     persist(); updateNow(true); renderMarkers(); updatePlanningCount();
     toast(`Dans Mon planning : ${planText(p.ticket)}`, false, p.plan ? { label: 'Voir', fn: () => openPlanning() } : null);
@@ -2769,9 +2776,9 @@ function renderNear(fit = false) {
     body.push(el('div', { class: 'rain' }, ico('cloud-rain'),
       el('span', {}, `Il pleut${meteo.temp != null ? ` (${meteo.temp}°)` : ''}. ${n ? plural(n, 'lieu abrité', 'lieux abrités') : 'Aucun lieu coché « abrité »'}.`),
       n ? el('button', { type: 'button', class: 'btn c-guide', 'aria-pressed': String(filt.covered), onclick: () => { filt.covered = !filt.covered; refresh(); renderNear(); } }, filt.covered ? 'Tout voir' : 'Abrités') : null));
-    const arcs = arcadesNear(arcadesData ?? [], origin, ARCADE_RAIN_MIN);
-    if (arcs.length) body.push(el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArcadeList(arcs, ARCADE_RAIN_MIN, named('Autour de moi', renderNear)) },
-      ico('door-open'), arcs.length === 1 ? `1 passage couvert à moins de ${ARCADE_RAIN_MIN} min` : `${arcs.length} passages couverts à moins de ${ARCADE_RAIN_MIN} min`));
+    const arcs = arcadesNear(arcadesData ?? [], origin, tune('rainMin'));
+    if (arcs.length) body.push(el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArcadeList(arcs, tune('rainMin'), named('Autour de moi', renderNear)) },
+      ico('door-open'), arcs.length === 1 ? `1 passage couvert à moins de ${tune('rainMin')} min` : `${arcs.length} passages couverts à moins de ${tune('rainMin')} min`));
   }
   if (following) {
     body.push(el('p', { class: 'help' }, ico('footprints', { size: 15 }), ` Cette balade : ${walkText(walkSession)} · aujourd'hui : ${walkText(todayWalk())}`));
@@ -2810,9 +2817,9 @@ function renderNear(fit = false) {
   }
   if (inside) body.push(el('p', { class: 'help' }, `Temps à pied estimés, détours compris. Le trajet exact est dans « Y aller ».${origin.kind === 'gps' && !following ? ' La liste se met à jour toute seule quand tu as marché 50 m.' : ''}`));
   if (state.showTtb && ttbList().length) {
-    // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min, puis toute la liste
-    const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(15)).sort((a, b) => a.d - b.d);
-    body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'TTB à moins de 15 min'), el('span', {}, String(ttbNear.length))));
+    // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min (réglable, v214), puis toute la liste
+    const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(tune('ttbMin'))).sort((a, b) => a.d - b.d);
+    body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB à moins de ${tune('ttbMin')} min`), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
         ttbDotFor(x.rub),
@@ -2931,7 +2938,7 @@ function startFollow() {
     if (fix.acc > 150 && !first) return; // trop imprécis pour suivre
     if (first) {
       first = false;
-      for (const p of newlyNear(offered(), fix, signaled, 100)) signaled.add(p.id); // déjà proches : pas d'alerte
+      for (const p of newlyNear(offered(), fix, signaled, tune('alertM'))) signaled.add(p.id); // déjà proches : pas d'alerte
       map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), ZOOM_RUE), { animate: false });
       toast(`Position et direction activées${fix.acc > 100 ? ` (à ${Math.round(fix.acc)} m près)` : ''}. Rappuie sur le bouton pour arrêter.`);
     } else if (trackFollow) {
@@ -2942,11 +2949,11 @@ function startFollow() {
     countWalk(fix);
     remember(fix);
     if (view === 'near' && origin?.kind === 'gps') origin = { ...fix, kind: 'gps' };
-    const alerts = newlyNear(offered(), fix, signaled, 100);
-    for (const p of alerts) signaled.add(p.id);
-    if (alerts.length) {
+    const alerts = newlyNear(offered(), fix, signaled, tune('alertM'));
+    for (const p of alerts) signaled.add(p.id); // notés même alerte éteinte : la rallumer en marchant ne signale pas d'un coup tout ce qui est déjà près
+    if (alerts.length && state.alertNear !== false) {
       try { navigator.vibrate?.([200, 100, 200]); } catch { /* pas de vibreur */ }
-      toast(`À moins de 100 m : ${alerts.map((p) => p.name).join(', ')}`);
+      toast(`À moins de ${tuningText('alertM', tune('alertM'))} : ${alerts.map((p) => p.name).join(', ')}`);
       speak(alerts.map((p) => `${p.name}, à ${spokenDistance(distanceM(fix, p))}`).join('. '));
     }
     const moved = distanceM(fix, lastRender);
@@ -3642,7 +3649,7 @@ function openPlanning(from = null) {
   track('Mon planning');
   loadForecast();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  state.plans = cleanPlans(state.plans); // une sortie de l'agenda s'efface 30 jours après (Tu y es allé ? avant)
+  state.plans = cleanPlans(state.plans, Date.now(), tune('askDays')); // une sortie de l'agenda s'efface 30 jours après (Tu y es allé ? avant) ; v214 : plus tard si le réglage est plus long
   dropStaleDayList();
   const items = plannedPoints().filter((p) => !isDayList(p.ticket)).sort((a, b) => a.ticket.at - b.ticket.at);
   const back = named('Mon planning', () => openPlanning());
@@ -3670,7 +3677,7 @@ function openPlanning(from = null) {
     toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : ${didLower(catOf(p.cat))}`, false, { label: 'Écrire une impression',
       fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
-  const past = pastPlans([...state.points, ...(state.plans ?? [])]);
+  const past = pastPlans([...state.points, ...(state.plans ?? [])], new Date(), tune('askDays'));
   const removePlan = (p) => { state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); persist(); renderMarkers(); updateNow(true); openPlanning(); toast(`« ${p.name} » retiré de Mon planning`); };
   const pastBlock = past.length ? [
     el('h3', { class: 'ring-title' }, el('span', {}, 'Tu y es allé ?'), el('span', {}, String(past.length))),
@@ -3713,7 +3720,7 @@ function openPlanning(from = null) {
   const todayBlock = [
     el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
     next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
-    next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? 1000), target: '_blank', rel: 'noopener' },
+    next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
       ico('arrow-right'), dNext != null ? `Y aller · ${fmtWalk(dNext).replace(/ /g, '\u00a0')}` : 'Y aller', dNext != null ? el('small', { class: 'go-dist' }, fmtDist(dNext)) : null) : null,
     next ? el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
@@ -3906,18 +3913,18 @@ function openDayEvents(key = null, back = null) {
   const chips = el('div', { class: 'list-chips' }, days.map((d) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(d.key === day.key), onclick: () => openDayEvents(d.key, back) }, d.label)));
   openSheet([ico('calendar-days'), ' Trouver une sortie'], el('div', { class: 'stack' },
     chips,
-    el('p', { class: 'help' }, 'Autour du centre de la carte (2 km), par heure. Touche une sortie, puis Prévoir.'),
+    el('p', { class: 'help' }, `Autour du centre de la carte (${tuningText('eventsM', tune('eventsM'))}), par heure. Touche une sortie, puis Prévoir.`),
     list,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'joursortie', again });
   eventsOfDay(day.date).then((all) => {
     if (!list.isConnected) return;
-    const near = nearbyEvents(all, from, 2000).sort((a, b) => a.slotStart - b.slotStart).slice(0, 40);
+    const near = nearbyEvents(all, from, tune('eventsM')).sort((a, b) => a.slotStart - b.slotStart).slice(0, 40);
     const hm = (d) => `${d.getHours()}h${d.getMinutes() ? String(d.getMinutes()).padStart(2, '0') : ''}`;
     fill(list, near.length
       ? el('ul', { class: 'items ev-list' }, near.map((e) => sortieCard({ genre: genreOf(e, { expo: isExpo(e) }), name: e.title, onclick: () => openEventPage(e, named('Trouver une sortie', again)),
         sub: [el('b', {}, hm(e.slotStart)), e.place], d: e.d, tags: [e.free ? freeTag() : null] })))
-      : el('p', { class: 'empty' }, 'Aucune sortie avec un horaire publié ce jour-là, à moins de 2 km du centre de la carte. Déplace la carte ou choisis un autre jour.'));
+      : el('p', { class: 'empty' }, `Aucune sortie avec un horaire publié ce jour-là, à moins de ${tuningText('eventsM', tune('eventsM'))} du centre de la carte. Déplace la carte ou choisis un autre jour.`));
   }).catch(() => { if (list.isConnected) fill(list, el('p', { class: 'error' }, 'L\'agenda de la Ville ne répond pas. Vérifie ta connexion, puis réessaie.')); });
 }
 
@@ -4092,7 +4099,7 @@ function receiveMeet(m) {
   openSheet([ico('send'), ' Rejoindre'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${m.name || 'Quelqu\'un'} t'attend ici${ago != null && ago >= 0 ? ` (position envoyée il y a ${ago < 1 ? 'moins d\'une minute' : ago < 120 ? `${ago} min` : `${Math.round(ago / 60)} h`})` : ''}.`),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheetThen(() => openCompass(target)) }, ico('compass'), 'Y aller avec la boussole'),
-    el('a', { class: 'btn', href: mapsUrl(target, 1000), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
+    el('a', { class: 'btn', href: mapsUrl(target, Infinity), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
     el('p', { class: 'help' }, 'La position a été envoyée une seule fois : elle ne bouge pas si la personne se déplace.'),
   ), { name: 'meet' });
   nearLayer.clearLayers();
@@ -4191,7 +4198,7 @@ async function readArtFile(read, parse) {
 }
 /** Le message quand une liste manque : pas encore remplie par le robot, ou illisible. */
 const artFileWarn = (what, e) => (e?.message === 'vide'
-  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Appli → Données de l'appli).`
+  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Mise à jour et confidentialité → Données de l'appli).`
   : `La liste ${what} n'a pas pu être lue. Réessaie plus tard.`);
 let galleries = null;
 let galleriesTime = 0;
@@ -4275,7 +4282,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? 1000), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: title, lat: place.lat, lng: place.lng, id: `spot:${place.lat},${place.lng}` }, named(title, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -4334,7 +4341,7 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
     e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
     e.lead ? el('p', { class: 'help' }, e.lead) : null,
     e.free ? el('p', {}, freeTag()) : null,
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? 1000), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Sortie', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -4825,8 +4832,10 @@ async function openEvents(start = null) {
   const mode = eventsMode;
   const back = openEvents;
   const whereOn = (mode === 'all' || mode === 'free') ? evWhere : '';
-  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? [], new Date(), isExpo), o, 3000).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
-  const all = near3.filter((e) => e.d <= 2000 && (mode !== 'free' || e.free)).slice(0, 40);
+  const evM = tune('eventsM'); // v214 : une seule distance pour tous les onglets (3 km au départ, Réglages → Distances et durées)
+  const evKm = tuningText('eventsM', evM);
+  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? [], new Date(), isExpo), o, evM).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
+  const all = near3.filter((e) => mode !== 'free' || e.free).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
   const notes = []; // sources et précautions : regroupées tout en bas, dans « Aide, sources et mise à jour »
@@ -4844,7 +4853,7 @@ async function openEvents(start = null) {
 
   // Temps forts de la semaine et gratuité exceptionnelle du jour : sous la plaque (Tout)
   const soon = highlightsSoon();
-  const freeAll = freeNear(o, new Date(), 3000, 12);
+  const freeAll = freeNear(o, new Date(), evM, 12);
   const freeSpecial = freeAll.filter((f) => f.rule !== 'always' && spotRank(f) !== 2); // déjà fermé ce soir : plus annoncé
   const top = [
     ...soon.map((h) => el('p', { class: 'hl-line' }, ico('sparkles'), ` ${highlightText(h)} — ${h.what}`)),
@@ -4865,9 +4874,9 @@ async function openEvents(start = null) {
   }
 
   let body;
-  const nvNear = mode === 'navigo' ? navigoNear((navigoItems ?? []).filter((x) => navigoPass(x, navigoKinds)), o, 2000, 5).slice(0, 30) : [];
+  const nvNear = mode === 'navigo' ? navigoNear((navigoItems ?? []).filter((x) => navigoPass(x, navigoKinds)), o, evM, 5).slice(0, 30) : [];
   if (mode === 'navigo') {
-    const within = nvNear.filter((x) => x.d <= 2000).length;
+    const within = nvNear.filter((x) => x.d <= evM).length;
     const present = new Set((navigoItems ?? []).map((x) => navigoGroup(x.kind)));
     const flip = (g) => { if (navigoKinds.has(g)) navigoKinds.delete(g); else navigoKinds.add(g); openEvents(); };
     if (present.size > 1) filters = [el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!navigoKinds.size), onclick: () => { navigoKinds.clear(); openEvents(); } }, 'Tout'),
@@ -4875,7 +4884,7 @@ async function openEvents(start = null) {
     onMap(nvNear, (x) => openNavigo(x));
     body = [
       el('p', { class: 'help' }, ico('ticket'), ' Réductions sur présentation du passe Navigo (annuel, mois, imagine R, Senior, Liberté +).'),
-      ...(nvNear.length ? section('navigo', within ? 'Lieux partenaires à moins de 2 km' : 'Lieux partenaires les plus proches', nvNear.map((x) => navigoRow(x, back)), 'lieux', 5)
+      ...(nvNear.length ? section('navigo', within ? `Lieux partenaires à moins de ${evKm}` : 'Lieux partenaires les plus proches', nvNear.map((x) => navigoRow(x, back)), 'lieux', 5)
         : [el('p', { class: 'empty' }, 'La liste des lieux partenaires n\'a pas pu être lue.')]),
     ];
     notes.push(`Avantages Navigo : liste « Lieux bénéficiant des avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}, gardée dans l'appli (Paris et petite couronne). Les offres « en cours d'élaboration » ou « à venir » sont écartées.`);
@@ -4884,14 +4893,14 @@ async function openEvents(start = null) {
     const galBox = el('div', { class: 'stack' });
     const drawGal = () => {
       if (!galleries) { fill(galBox, head('Galeries', 1), el('p', { class: 'help' }, 'Lecture de la liste des galeries de Paris…')); return; }
-      const g = galleriesNear(galleries, o).slice(0, 15);
-      fill(galBox, ...section('galeries', 'Galeries à moins de 1,5 km', g.map((x) => galleryRow(x, back)), 'galeries'),
-        g.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => openGalleryWalk(openEvents) }, 'Parcours des galeries ouvertes', ico('chevron-right')) : el('p', { class: 'empty' }, 'Aucune galerie connue à moins de 1,5 km.'));
+      const g = galleriesNear(galleries, o, new Date(), evM).slice(0, 15);
+      fill(galBox, ...section('galeries', `Galeries à moins de ${evKm}`, g.map((x) => galleryRow(x, back)), 'galeries'),
+        g.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => openGalleryWalk(openEvents) }, 'Parcours des galeries ouvertes', ico('chevron-right')) : el('p', { class: 'empty' }, `Aucune galerie connue à moins de ${evKm}.`));
     };
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
       .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e))));
-    else onMap(galleriesNear(galleries, o).slice(0, 15), (g) => openGalleryCard(g));
+    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g) => openGalleryCard(g));
     onMap([...last, ...expos], (e) => openEventPage(e, back));
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
@@ -4908,10 +4917,10 @@ async function openEvents(start = null) {
       ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'expos'),
       ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'expos'),
       galBox,
-      !last.length && !expos.length ? el('p', { class: 'help' }, 'Aucune expo de l\'agenda de la Ville à moins de 3 km aujourd\'hui. Les galeries privées n\'y sont souvent pas : regarde les galeries.') : null,
+      !last.length && !expos.length ? el('p', { class: 'help' }, `Aucune expo de l'agenda de la Ville à moins de ${evKm} aujourd'hui. Les galeries privées n'y sont souvent pas : regarde les galeries.`) : null,
     ];
   } else {
-    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= 2500 && passWhere(Boolean(m.covered), whereOn));
+    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= evM && passWhere(Boolean(m.covered), whereOn));
     // En ce moment / plus tard aujourd'hui, chacun du plus proche au plus loin ; un marché déjà fini n'apparaît plus.
     const items = [
       ...mkAll.map((m) => ({ m, d: m.d, when: marketWhen(m).when })),
@@ -4935,7 +4944,7 @@ async function openEvents(start = null) {
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('calendar-days', { size: 18 })),
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, dayTitle(x.date).replace(/^./, (c) => c.toUpperCase())), el('span', { class: 'item-sub' }, x.text.replace(/^./, (c) => c.toUpperCase()))),
           el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))) : null, // v168 : chaque jour s'ouvre
-        !freeItems.length && !freePlaces.length ? el('p', { class: 'empty' }, `Aucune sortie gratuite${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
+        !freeItems.length && !freePlaces.length ? el('p', { class: 'empty' }, `Aucune sortie gratuite${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de ${evKm}.`) : null,
       ];
       if (freeAll.length) notes.push(`Musées gratuits : liste vérifiée le ${FREE_CHECKED} (musées de la Ville de Paris, 1er dimanche des musées nationaux, Louvre le 1er vendredi soir). Les règles changent : vérifie sur le site du musée.`);
     } else {
@@ -4950,7 +4959,7 @@ async function openEvents(start = null) {
         ...section('now', 'En ce moment', now.filter((x) => !x.e || notShown(x.e)).slice(0, 25).map((x) => card(x)), 'sorties'),
         ...section('later', 'Plus tard aujourd\'hui', later.filter((x) => !x.e || notShown(x.e)).map((x) => card(x)), 'sorties'),
         ...section('last', 'Dernière chance', last.filter(notShown).map((e) => eventRow(e, back, { last: true })), 'expos'),
-        !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de 2 km.`) : null,
+        !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de ${evKm}.`) : null,
       ];
     }
   }
@@ -4975,7 +4984,7 @@ async function openEvents(start = null) {
       ico('external-link'), el('span', {}, title, el('small', {}, sub)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
     el('details', { class: 'help-item sources', open: Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5 }, el('summary', {}, ico('info'), 'Aide, sources et mise à jour'),
       el('div', { class: 'stack sources-body' },
-        el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de 2 km ${fromMap ? 'du centre de la carte' : 'de toi'}. Touche une ligne pour Y aller, la Boussole, le Métro ou l'ajouter à ta carte.`),
+        el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de ${evKm} ${fromMap ? 'du centre de la carte' : 'de toi'}. Touche une ligne pour Y aller, la Boussole, le Métro ou l'ajouter à ta carte.`),
         el('p', { class: 'help' }, 'Mise à jour automatique : l\'agenda se recharge chaque jour à la première ouverture, les marchés tous les 7 jours, les galeries tous les 30 jours. Le bouton recharge tout de suite (utile si une sortie vient d\'être annoncée ou si le réseau a manqué).'),
         el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'), 'Mettre à jour maintenant'),
         el('p', { class: 'help' }, [`Agenda : aujourd'hui`, marketsTime ? `marchés : liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : '', mode === 'art' && galleriesTime ? `galeries : liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''].filter(Boolean).join(' · ') + '.'),
@@ -4987,7 +4996,7 @@ async function openEvents(start = null) {
   nearLayer.clearLayers();
   if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
   for (const e of mode === 'navigo' ? nvNear : mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o, new Date(), evM).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
 }
 
 
@@ -5180,7 +5189,7 @@ function showAppQr() {
   openSheet([ico('qr-code'), ' Partager l\'appli'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, 'Ma carte de Paris'), box,
     el('p', { class: 'help' }, `Ton proche le scanne avec l'appareil photo, ouvre le lien dans Chrome, puis menu ⋮ → « Ajouter à l'écran d'accueil ». Sur iPhone : Safari, Partager → « Sur l'écran d'accueil ». Adresse : ${APP_URL()}`),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Appli')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour et confidentialité')),
   ), { name: 'appqr' });
 }
 
@@ -5498,7 +5507,7 @@ function openMarket(m, back = null) {
     m.place ? el('p', { class: 'where' }, m.place) : null,
     m.products ? el('p', { class: 'help' }, m.products) : null,
     el('p', { class: 'help' }, m.covered ? 'Marché couvert, à l\'abri de la pluie. Ouvert du mardi au dimanche, fermé le lundi.' : `Se tient le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'].filter((_, i) => m.days[i]).join(', ')}.`),
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -5533,7 +5542,7 @@ function openNavigo(x, back = null) {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Avantage Navigo'), el('span', {}, '')),
     el('p', {}, x.offer),
     el('p', { class: 'help' }, 'Sur présentation d\'un passe Navigo valide (annuel, mois, imagine R, Senior, Liberté +). L\'offre peut changer : vérifie sur le site du lieu avant d\'y aller.'),
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `nv:${x.lat},${x.lng}` }, named('Avantage Navigo', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -5656,7 +5665,7 @@ function openTtbPlace(x, back = null) {
         el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
         metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
         metro ? el('div', { class: 'fiche-s' }, `≈ ${metro.min} min à pied`) : null)),
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? 1000), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -5959,7 +5968,7 @@ async function openRespire(back = openRoutes) {
   const n = respireOn(sectors, today).length;
   const next = n ? null : respireNextDay(sectors, today);
   openSheet(title, el('div', { class: 'stack' },
-    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Appli → Données de l\'appli).')
+    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Mise à jour et confidentialité → Données de l\'appli).')
       : n ? el('p', { class: 'summary' }, `${cap(dayTitle(today))} : ${plural(n, 'secteur prévu', 'secteurs prévus')}. À gauche, l'heure de fin.`)
         : el('p', { class: 'summary' }, 'Rien de prévu aujourd\'hui.'),
     n ? rows(today) : null,
@@ -5990,7 +5999,7 @@ async function openCircuits(back = null) {
   if (!circuitsData) openSheet([ico('signpost'), ' Circuits'], el('p', { class: 'help' }, 'Chargement des circuits…'), { name: 'circuits' });
   const [list] = await Promise.all([loadCircuits(), loadArcades()]);
   if (!list?.length) {
-    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Appli → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
+    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
     return;
   }
   const from = circuitFrom();
@@ -6023,7 +6032,7 @@ function openCircuit(c, back) {
   const again = () => openCircuit(c, back);
   const t = circuitTimes(c);
   const done = circuitDone(state.outings, c.id);
-  const mine = pointsNearTrace(offered().filter((p) => !p.owner), c.trace, minutesToMeters(NEAR_TRACE_MIN));
+  const mine = pointsNearTrace(offered().filter((p) => !p.owner), c.trace, minutesToMeters(tune('traceMin')));
   const showAll = openCircuit.all === c.id;
   const mineShown = showAll || mine.length <= 4 ? mine : mine.slice(0, 3);
   const stopNames = new Set(c.etapes.map((e) => e.n));
@@ -6046,7 +6055,7 @@ function openCircuit(c, back) {
     el('ol', { class: 'items' }, c.etapes.map((e, i) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCircuitStep(c, i, self) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.n), e.t ? el('span', { class: 'item-sub' }, e.t) : null))))),
-    mine.length ? el('h3', { class: 'fiche-sec' }, `Mes lieux à ${NEAR_TRACE_MIN} min du tracé`) : null,
+    mine.length ? el('h3', { class: 'fiche-sec' }, `Mes lieux à ${tune('traceMin')} min du tracé`) : null,
     mine.length ? el('ul', { class: 'items' }, mineShown.map(({ p, d }) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, self) },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${catOf(p.cat).name} · à ${Math.max(10, Math.round(d / 10) * 10)} m du tracé`)))))) : null,
     mineShown.length < mine.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { openCircuit.all = c.id; again(); } }, `Tous mes lieux près du tracé (${mine.length})`, ico('chevron-down')) : null,
@@ -6201,7 +6210,7 @@ function drawArcadeLayer() {
 async function setArcadeLayer(on) {
   state.showPassages = on; persist();
   if (!on) { arcadeLayer.clearLayers(); return; }
-  if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Appli → Mettre à jour l\'appli.', true); return; }
+  if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
   drawArcadeLayer();
 }
 map.on('zoomend', drawArcadeLayer);
@@ -6363,7 +6372,7 @@ function openCompass(p, step = null) {
     doneBtn.hidden = true;
     toast(`${mine.name} : noté « ${didLower(catOf(mine.cat))} »`);
   };
-  compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : 1000);
+  compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : Infinity);
   compassEl.hidden = false;
   if (!step?.replace) history.pushState({ compass: true }, '');
   keepScreenOn(true);
@@ -6812,7 +6821,7 @@ function openSettings(section = null) {
         minRings.value = state.minuteRings.join(', ');
         if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
       } }, 'Enregistrer les minutes'),
-      backBtn,
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('distances') }, '← Distances et durées')),
     ), { tall: true, name: 'settings:cercles', again: () => openSettings('cercles') });
     return;
   }
@@ -6873,7 +6882,7 @@ function openSettings(section = null) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Adresses TTB'), el('span', { class: 'menu-sub' }, ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} · page du ${ttbDateText() || 'date inconnue'} · à réimporter quand le guide change` : 'Pas encore importées')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
       el('a', { class: 'btn c-info', href: 'https://opendata.paris.fr/', target: '_blank', rel: 'noopener' }, ico('database'), 'Toutes les données de la Ville : opendata.paris.fr'),
-      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Appli')),
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour et confidentialité')),
     ), { tall: true, name: 'settings:donnees', again: () => openSettings('donnees') });
     return;
   }
@@ -6903,7 +6912,7 @@ function openSettings(section = null) {
     const robot = d.robot ? [
       el('p', { class: 'help' }, 'Refait chaque 1er du mois par le robot GitHub, qui télécharge le fichier officiel, le vérifie et publie. Pour le lancer tout de suite :'),
       el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
-      el('p', { class: 'help' }, 'Puis « Run workflow » → « Run workflow », et 2 à 5 minutes plus tard : Appli → Mettre à jour l\'appli.'),
+      el('p', { class: 'help' }, 'Puis « Run workflow » → « Run workflow », et 2 à 5 minutes plus tard : Mise à jour et confidentialité → Mettre à jour l\'appli.'),
       el('h3', { class: 'ring-title' }, el('span', {}, late ? 'Le robot a échoué : à la main' : 'Si le robot échoue'), el('span', {}, '')),
     ] : [];
     const say = (phrase, tool) => el('p', { class: 'help' }, `Dans le projet « Geoloc », envoie-le à Claude avec la phrase : « ${phrase} ».${tool ? ` Claude lance ${tool}, vérifie, puis publie une nouvelle version.` : ''}`);
@@ -6987,7 +6996,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'appli') {
-    openSheet([ico('info'), ' Appli'], el('div', { class: 'stack' },
+    openSheet([ico('info'), ' Mise à jour et confidentialité'], el('div', { class: 'stack' },
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
         dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
@@ -7022,24 +7031,98 @@ function openSettings(section = null) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
-  const voiceOn = state.voice !== false;
-  const voiceSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(voiceOn), onclick: () => {
-    state.voice = !voiceOn; persist(); if (!state.voice) silence(); openSettings();
-    toast(state.voice ? 'Voix activée' : 'Voix désactivée');
+  // v214 : interrupteurs et valeurs à − et + des pages « Alertes et bandeau », « Fiche d'un lieu » et « Distances et durées »
+  const onOff = (key, icon, title, sub, on, flip) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), 'data-sw': key, onclick: () => {
+    flip(); persist(); openSettings(section);
+    requestAnimationFrame(() => document.querySelector(`[data-sw="${key}"]`)?.focus());
   } },
-  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(voiceOn ? 'volume-2' : 'volume-x')),
-  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Voix'), el('span', { class: 'menu-sub' }, 'Boussole et suivi en direct')),
-  el('span', { class: `switch${voiceOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
+  el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  const tuneStep = (key, dir, label) => {
+    const { value, edge } = stepTuning(state.tuning, key, dir);
+    if (edge) { toast(`${edge === 'min' ? 'Au moins' : 'Au plus'} : ${tuningText(key, value)}`); return; }
+    state.tuning = { ...cleanTuning(state.tuning), [key]: value };
+    setWalkLimit(tune('walkM')); persist(); updateNow(true); openSettings(section); toast(label(tuningText(key, value)));
+    requestAnimationFrame(() => document.querySelector(`[data-step="${key}:${dir}"]`)?.focus());
+  };
+  const tuneRow = (key, label, sub) => el('div', { class: 'cat-row pace-row' },
+    el('span', { class: 'pace-text' }, el('span', { class: 'cat-name' }, label(tuningText(key, tune(key)).replace(' ', '\u00a0'))), el('span', { class: 'menu-sub' }, sub)), /* espace insécable : « 100 m » ne se coupe pas en Très grand */
+    el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, 'aria-label': `${label(tuningText(key, tune(key)))} : moins`, onclick: () => tuneStep(key, -1, label) }, ico('minus')),
+    el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, 'aria-label': `${label(tuningText(key, tune(key)))} : plus`, onclick: () => tuneStep(key, 1, label) }, ico('plus')));
 
-  const buzzOn = state.vibrateNow === true; // v189 : éteint au départ
-  const vibrateSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(buzzOn), onclick: () => {
-    state.vibrateNow = !buzzOn; persist(); openSettings();
-    if (state.vibrateNow) { try { navigator.vibrate?.([120, 80, 120]); } catch { /* pas de vibreur */ } } // un essai, tout de suite
-    toast(state.vibrateNow ? 'Le téléphone vibrera quand « Maintenant » a du nouveau, appli ouverte' : 'Vibration coupée');
-  } },
-  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('vibrate')),
-  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Vibrer quand « Maintenant » a du nouveau'), el('span', { class: 'menu-sub' }, 'Seulement appli ouverte, écran allumé')),
-  el('span', { class: `switch${buzzOn ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  if (section === 'alertes') {
+    const voiceOn = state.voice !== false;
+    const buzzOn = state.vibrateNow === true; /* v189 : éteint au départ */
+    openSheet([ico('vibrate'), ' Alertes et bandeau'], el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'Ce que l\'appli te signale d\'elle-même, appli ouverte seulement. Pas de sonnerie : un message, une vibration, ou la voix si elle est allumée.'),
+      el('h3', { class: 'fiche-sec' }, 'Bandeau « Maintenant »'),
+      el('div', { class: 'menu' }, onOff('suggest', 'sparkles', 'Suggestions autour de moi', 'Ce qui se passe près de toi', state.suggestNow !== false, () => {
+        state.suggestNow = state.suggestNow === false; updateNow(true);
+        toast(state.suggestNow ? 'Le bandeau propose de nouveau ce qui se passe près de toi' : 'Le bandeau ne montre plus que tes sorties prévues et « Tu es déjà passé ici »');
+      })),
+      el('p', { class: 'help' }, 'Dans la rue, gratuit, sans voitures, c\'est le moment, le lieu du moment. Éteint, le bandeau ne montre plus que tes sorties prévues et « Tu es déjà passé ici ».'),
+      tuneRow('memoryM', (v) => `Déjà passé ici : ${v}`, 'Près d\'un lieu où tu as écrit'),
+      el('p', { class: 'help' }, 'Au-delà de 100 m, le bandeau dit « Déjà passé · 3 min à pied ».'),
+      el('div', { class: 'menu' }, onOff('buzz', 'vibrate', 'Vibrer quand « Maintenant » a du nouveau', 'Seulement appli ouverte, écran allumé', buzzOn, () => {
+        state.vibrateNow = !buzzOn;
+        if (state.vibrateNow) { try { navigator.vibrate?.([120, 80, 120]); } catch { /* pas de vibreur */ } } /* un essai, tout de suite */
+        toast(state.vibrateNow ? 'Le téléphone vibrera quand « Maintenant » a du nouveau, appli ouverte' : 'Vibration coupée');
+      })),
+      el('h3', { class: 'fiche-sec' }, 'En marchant, Ma position allumée'),
+      el('div', { class: 'menu' }, onOff('near', 'map-pin', 'Prévenir près d\'un de mes lieux', 'Vibration et message', state.alertNear !== false, () => {
+        state.alertNear = state.alertNear === false;
+        toast(state.alertNear ? 'Tu seras prévenu près d\'un de tes lieux, Ma position allumée' : 'Plus d\'alerte près de tes lieux');
+      })),
+      tuneRow('alertM', (v) => `Prévenir à ${v}`, 'De 50 à 500 m, par 50 m'),
+      el('div', { class: 'menu' }, onOff('voice', voiceOn ? 'volume-2' : 'volume-x', 'Voix', 'Boussole, suivi en direct, lieux proches', voiceOn, () => {
+        state.voice = !voiceOn; if (!state.voice) silence();
+        toast(state.voice ? 'Voix activée' : 'Voix désactivée');
+      })),
+      backBtn,
+    ), { tall: true, name: 'settings:alertes', again: () => openSettings('alertes') });
+    return;
+  }
+
+  if (section === 'fiche') {
+    const hid = new Set(cleanFicheHidden(state.ficheHidden));
+    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »']];
+    openSheet([ico('list'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
+      el('p', { class: 'help' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien. Le QR code reste dans Partager.'),
+      el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
+        if (hid.has(key)) hid.delete(key); else hid.add(key);
+        state.ficheHidden = cleanFicheHidden([...hid]);
+      }))),
+      hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.ficheHidden = []; persist(); openSettings('fiche'); } }, 'Tout réafficher') : null,
+      backBtn,
+    ), { tall: true, name: 'settings:fiche', again: () => openSettings('fiche') });
+    return;
+  }
+
+  if (section === 'distances') {
+    const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'traceMin', 'askDays']; /* les deux distances des alertes se règlent sur leur page */
+    openSheet([ico('ruler'), ' Distances et durées'], el('div', { class: 'stack' },
+      el('div', { class: 'menu' }, row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide')),
+      el('h3', { class: 'fiche-sec' }, 'Y aller'),
+      tuneRow('walkM', (v) => `À pied jusqu'à ${v}`, 'Au-delà, en transports'),
+      el('h3', { class: 'fiche-sec' }, 'Sorties'),
+      tuneRow('eventsM', (v) => `Jusqu'à ${v}`, 'Tous les onglets de Sorties'),
+      el('h3', { class: 'fiche-sec' }, 'Autour de moi'),
+      tuneRow('ttbMin', (v) => `TTB à moins de ${v}`, 'Quand le calque TTB est affiché'),
+      tuneRow('rainMin', (v) => `Passages couverts à ${v}`, 'Quand il pleut'),
+      el('h3', { class: 'fiche-sec' }, 'Circuits'),
+      tuneRow('traceMin', (v) => `Mes lieux à ${v} du tracé`, 'Sur la page d\'un circuit'),
+      el('h3', { class: 'fiche-sec' }, 'Mon planning'),
+      tuneRow('askDays', (v) => `« Tu y es allé ? » ${v}`, 'Après la sortie'),
+      el('button', { type: 'button', class: 'btn', onclick: () => {
+        state.tuning = { ...cleanTuning(state.tuning), ...Object.fromEntries(PAGE_KEYS.map((k) => [k, TUNING[k].def])) };
+        setWalkLimit(tune('walkM')); persist(); openSettings('distances'); toast('Distances et durées remises au départ');
+      } }, ico('rotate-ccw'), 'Tout remettre au départ'),
+      backBtn,
+    ), { tall: true, name: 'settings:distances', again: () => openSettings('distances') });
+    return;
+  }
+
 
   // Numéros des arrondissements sur la carte vue de loin (v193), allumés au départ
   const arrNumsSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.showArrNums !== false), onclick: () => {
@@ -7077,7 +7160,7 @@ function openSettings(section = null) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
     el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-    row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide'),
+    row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
     row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
@@ -7088,17 +7171,17 @@ function openSettings(section = null) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(isDark() ? 'moon' : 'sun')),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-    voiceSwitch,
-    vibrateSwitch,
+    row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
     arrNumsSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
     row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton caché', 'boutons cachés') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou caché', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('list', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
-    row('info', 'Appli', 'Mettre à jour · partager l\'appli · confidentialité', () => openSettings('appli')),
+    row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -7667,7 +7750,7 @@ function showNearestMetro(from, note = null) {
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
-      el('a', { class: 'btn primary', href: mapsUrl(st, Math.min(first.d, 999)), target: '_blank', rel: 'noopener' }, 'Y aller')),
+      el('a', { class: 'btn primary', href: mapsUrl(st, 0), target: '_blank', rel: 'noopener' }, 'Y aller')),
     el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
     trafficLink(),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
@@ -7675,13 +7758,13 @@ function showNearestMetro(from, note = null) {
       el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
           el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${stationLabel(o)}`))),
-      el('a', { class: 'go', href: mapsUrl(o, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))),
+      el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))),
     rail.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'RER et tram proches'), el('span', {}, '')) : null,
     rail.length ? el('ul', { class: 'items' }, rail.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: `metro-mini${o.m === 'R' ? ' rer' : ' tram'}`, 'aria-hidden': 'true' }, o.m === 'R' ? 'R' : 'T'),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
           el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${gareLines(o)}`))),
-      el('a', { class: 'go', href: mapsUrl(o, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}, ${gareLines(o)}` }, 'Y aller')))) : null,
+      el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}, ${gareLines(o)}` }, 'Y aller')))) : null,
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [st.lat, st.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
@@ -7770,7 +7853,7 @@ function showPratique(from, fs, ts, cs = []) {
             el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours, walkMinutes(d)) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
           el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
-          el('a', { class: 'go', href: mapsUrl(item, Math.min(d, 999)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
+          el('a', { class: 'go', href: mapsUrl(item, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
       }))
       : el('p', { class: 'empty' }, 'Aucune trouvée.'),
   ];
@@ -7915,7 +7998,7 @@ document.getElementById('btnParis').addEventListener('click', () => {
 
 /* ---------- Mes réglages par défaut ---------- */
 
-function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); drawArrNums(); refresh(); }
+function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); setWalkLimit(tune('walkM')); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); drawArrNums(); refresh(); }
 function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
@@ -7945,8 +8028,8 @@ const HELP = [
     '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
-    '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre à 100 m d\'un de tes lieux.',
-    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé.',
+    '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Alertes et bandeau.',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passé ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passé ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passé ici ».',
     '**Paris** recentre la carte sur Paris. **Perdu ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
@@ -8029,7 +8112,7 @@ const HELP = [
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
-    '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Cercles.',
+    '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans les 8 boutons du haut : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
@@ -8080,12 +8163,12 @@ const HELP = [
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
-    '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
+    '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici.',
+    '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique et celui de « Déjà visité ».',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
@@ -8099,7 +8182,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
-    '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min. Un passage ajouté à ta carte est déjà coché « abrité ».',
+    '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
     '**TTB** : les adresses d\'un guide de bonnes tables, en ronds terre cuite sur la carte. La source est citée dans {settings} → TTB.',
@@ -8132,20 +8215,21 @@ const HELP = [
     '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, passages, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets et tes notes du jour restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à mon planning », ou Retirer.',
-    '**Partager l\'appli** : {settings} → Appli → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
+    '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
-    '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Voix pour l\'éteindre.',
-    '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
+    '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
+    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, tes lieux près d\'un circuit, le nombre de jours de « Tu y es allé ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
+    '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
-    '{database} **Données de l\'appli** : {settings} → Appli. Chaque donnée a sa date.',
+    '{database} **Données de l\'appli** : {settings} → Mise à jour et confidentialité. Chaque donnée a sa date.',
     '**En direct** : fontaines, toilettes, agenda, marchés, Vélib\' et météo se rechargent seuls.',
     '**Un robot** refait le 1er de chaque mois les listes rangées dans l\'appli : lignes et gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres dans la rue, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram. Quand une source manque ou a trop changé, la liste d\'avant reste.',
-    '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : Appli → Mettre à jour l\'appli.',
+    '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Monuments, marchés couverts et listes d\'expos** se refont avec Claude. Touche la ligne pour savoir quoi faire.',
     '**Un rappel** s\'affiche, une fois par semaine au plus, quand une donnée est en retard.',
     '{info} **Sorties → « Aide, sources et mise à jour »**, tout en bas : d\'où viennent les sorties. L\'agenda se recharge chaque jour, les marchés chaque semaine, les galeries chaque mois.',
@@ -8156,25 +8240,26 @@ const HELP = [
   ]],
   ['wrench', 'Ça ne marche pas ?', [
     '**Position refusée** : Chrome ⋮ → Paramètres → Paramètres des sites → Position. Autorise limopo74.github.io et allume la Position du téléphone.',
-    '**Carte grise** : vérifie internet, puis {settings} → Appli → Recharger la carte.',
-    '**Une nouveauté n\'apparaît pas** : {settings} → Appli → Mettre à jour l\'appli.',
+    '**Carte grise** : vérifie internet, puis {settings} → Mise à jour et confidentialité → Recharger la carte.',
+    '**Une nouveauté n\'apparaît pas** : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Un lien reçu ouvre une carte vide** : il s\'est ouvert dans le navigateur de Messages ou de WhatsApp. Appuie sur « Ouvrir dans Chrome ».',
     '**Pour que ça n\'arrive plus** : Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome.',
     '**Puis** Paramètres → Applis → Ma carte de Paris → Ouvrir par défaut : active « Ouvrir les liens compatibles ».',
     '**Dans Messages ou WhatsApp**, désactive « Ouvrir les liens dans l\'appli » s\'il existe. Les noms varient selon les téléphones.',
     '**Style Épuré vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
-    '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Voix.',
+    '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Alertes et bandeau → Voix.',
     '**Vélib\', Curiosités ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, les galeries et Art dans la rue, eux, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
     '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
-    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Appli → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
-    '**Puis, quelques minutes après** : {settings} → Appli → Mettre à jour l\'appli.',
+    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Mise à jour et confidentialité → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
+    '**Puis, quelques minutes après** : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} Réglages plus souples. « Alertes et bandeau » : la voix, la vibration, les suggestions du bandeau, l\'alerte près de tes lieux et sa distance. « Distances et durées » : les cercles, jusqu\'où « Y aller » propose la marche, la distance des Sorties (une seule, 3 km au départ), TTB, passages couverts, circuits, « Tu y es allé ? ». « Fiche d\'un lieu » : masquer QR code, Avis Google ou Uber. La ligne « Appli » s\'appelle « Mise à jour et confidentialité ».',
     '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
     '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
     '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
@@ -8184,7 +8269,6 @@ const HELP = [
     '{book-open-text} Aide et Confidentialité relues après les nouveautés du 18 novembre : les listes du robot, les boutons rangés dans Plus, ce que contient la sauvegarde, ce que reçoit Google Maps pour un parcours. « Envoyer à un proche » n\'envoie plus que tes sorties à venir (plus celles déjà passées, ni celles prévues par un autre proche). La liste du jour ne déclenche plus le rappel de sauvegarde. Un lieu partagé par lien ou QR code garde la date où ses horaires ont été notés. Dans « Envoyer à un proche », la case « Notes » s\'appelle maintenant « Commentaires ».',
     '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
     '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
-    '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
   ]],
 ];
 

@@ -63,11 +63,11 @@ export const MEMORY_VISIT_MS = 3600e3; // une même visite : la note reste affic
 export const MEMORY_AGAIN_MS = 7 * 864e5; // puis plus avant 7 jours
 
 /**
- * « Tu es déjà passé ici » : le plus proche de mes lieux à moins de 100 m qui a une note ou une photo,
+ * « Tu es déjà passé ici » : le plus proche de mes lieux à moins de `maxM` (100 m au départ, réglable depuis la v214) qui a une note ou une photo,
  * gardé depuis plus d'un jour (pas ce que je viens d'ajouter), et pas déjà rappelé ces 7 derniers jours
  * (sauf pendant la même visite). `shown` : { id: date du premier rappel }. Renvoie { p, d } ou null.
  */
-export function memoryHere(points, pos, shown = {}, now = Date.now()) {
+export function memoryHere(points, pos, shown = {}, now = Date.now(), maxM = MEMORY_M) {
   if (!pos) return null;
   let best = null;
   for (const p of points) {
@@ -77,10 +77,13 @@ export function memoryHere(points, pos, shown = {}, now = Date.now()) {
     const s = shown[p.id];
     if (s && now - s >= MEMORY_VISIT_MS && now - s < MEMORY_AGAIN_MS) continue;
     const d = distanceM(pos, p);
-    if (d <= MEMORY_M && (!best || d < best.d)) best = { p, d };
+    if (d <= maxM && (!best || d < best.d)) best = { p, d };
   }
   return best;
 }
+
+/** Le titre du rappel (v214) : « ici » n'est vrai que jusqu'à 100 m ; au-delà, la distance réglée peut aller à 500 m, on donne les minutes à pied. */
+export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passé ici' : `Déjà passé · ${minutes} min à pied`);
 
 /** Le carnet des rappels : remis à zéro pour un lieu après 7 jours ; les vieux rappels (plus de 7 jours) sont oubliés. */
 export function markShown(shown, id, now = Date.now()) {

@@ -5,6 +5,10 @@ import { cleanArtists, cleanArtist, cleanArtistLinks, cleanVenues } from './art.
 import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
 import { cleanCircuitNotes, cleanHiddenCircuits } from './circuits.js';
 import { cleanNotes } from './notes.js';
+import { cleanTuning, cleanFicheHidden } from './reglages.js';
+
+/** Jours pendant lesquels une sortie de l'agenda prévue est gardée : ceux du réglage « Tu y es allé ? » (v214). */
+const keepDays = (s) => cleanTuning(s?.tuning).askDays;
 
 export const KEY = 'carte-paris.v1';
 export const PALETTE = ['#d9480f', '#1971c2', '#7b2cbf', '#2b8a3e', '#9c6644', '#c2255c', '#0c8599', '#495057'];
@@ -161,7 +165,7 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
-  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, startOnMe: true, vibrateNow: false, showArrNums: true, pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], artistLinks: {}, venues: [], outings: [], circuitNotes: [], hiddenCircuits: [], notes: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, showPassages: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
+  const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, startOnMe: true, vibrateNow: false, showArrNums: true, tuning: cleanTuning(), suggestNow: true, alertNear: true, ficheHidden: [], pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], artists: [], artistLinks: {}, venues: [], outings: [], circuitNotes: [], hiddenCircuits: [], notes: [], showMarkets: false, showLines: false, showTtb: false, showPratique: false, showPassages: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [] });
   let raw;
   try {
     raw = storage.getItem(KEY);
@@ -179,9 +183,9 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    const st = { points, plans: cleanPlans(obj.plans), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), circuitNotes: cleanCircuitNotes(obj.circuitNotes), hiddenCircuits: cleanHiddenCircuits(obj.hiddenCircuits), notes: cleanNotes(obj.notes), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, showPassages: obj.showPassages === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(withNewChips(obj.moreChips, obj.chipsV), cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
+    const st = { points, plans: cleanPlans(obj.plans, Date.now(), keepDays(obj)), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), circuitNotes: cleanCircuitNotes(obj.circuitNotes), hiddenCircuits: cleanHiddenCircuits(obj.hiddenCircuits), notes: cleanNotes(obj.notes), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, showPassages: obj.showPassages === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(withNewChips(obj.moreChips, obj.chipsV), cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
-      toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, startOnMe: obj.startOnMe !== false, vibrateNow: obj.vibrateNow === true, showArrNums: obj.showArrNums !== false, pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
+      toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, startOnMe: obj.startOnMe !== false, vibrateNow: obj.vibrateNow === true, showArrNums: obj.showArrNums !== false, tuning: cleanTuning(obj.tuning), suggestNow: obj.suggestNow !== false, alertNear: obj.alertNear !== false, ficheHidden: cleanFicheHidden(obj.ficheHidden), pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
       essentials: cleanEssentials(obj.essentials), layoutBefore: cleanLayout(obj.layoutBefore),
       walk: obj.walk && typeof obj.walk.day === 'string' && Number.isFinite(obj.walk.m) ? { day: obj.walk.day, m: obj.walk.m } : { day: '', m: 0 },
       ok: true };
@@ -205,7 +209,7 @@ export function cleanSettings(o = {}) {
     rings: normalizeRings(o.rings ?? []), minuteRings: normalizeMinuteRings(o.minuteRings ?? []), ringUnit: o.ringUnit === 'min' ? 'min' : 'm',
     voice: o.voice !== false, fav: cleanFav(o.fav), chipIcons: o.chipIcons === true,
     mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(withNewInMore(o.moreTools ?? DEFAULT_MORE, o.mapTools), cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
-    toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, startOnMe: o.startOnMe !== false, vibrateNow: o.vibrateNow === true, showArrNums: o.showArrNums !== false, pace: cleanPace(o.pace), textSize: cleanTextSize(o.textSize), essentials: cleanEssentials(o.essentials),
+    toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, startOnMe: o.startOnMe !== false, vibrateNow: o.vibrateNow === true, showArrNums: o.showArrNums !== false, tuning: cleanTuning(o.tuning), suggestNow: o.suggestNow !== false, alertNear: o.alertNear !== false, ficheHidden: cleanFicheHidden(o.ficheHidden), pace: cleanPace(o.pace), textSize: cleanTextSize(o.textSize), essentials: cleanEssentials(o.essentials),
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
 }
@@ -244,7 +248,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, startOnMe: state.startOnMe !== false, vibrateNow: state.vibrateNow === true, showArrNums: state.showArrNums !== false, pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), circuitNotes: cleanCircuitNotes(state.circuitNotes), hiddenCircuits: cleanHiddenCircuits(state.hiddenCircuits), notes: cleanNotes(state.notes), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans, Date.now(), keepDays(state)), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, startOnMe: state.startOnMe !== false, vibrateNow: state.vibrateNow === true, showArrNums: state.showArrNums !== false, tuning: cleanTuning(state.tuning), suggestNow: state.suggestNow !== false, alertNear: state.alertNear !== false, ficheHidden: cleanFicheHidden(state.ficheHidden), pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), circuitNotes: cleanCircuitNotes(state.circuitNotes), hiddenCircuits: cleanHiddenCircuits(state.hiddenCircuits), notes: cleanNotes(state.notes), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
     return true;
   } catch {
     return false;
@@ -272,7 +276,7 @@ export function exportJSON(state) {
     // Chaque lieu porte le prénom de qui l'a ajouté, même si le fichier passe ensuite de main en main.
     points: state.points.map((p) => ({ ...p, owner: p.owner || state.me || '' })),
     // Sorties de l'agenda prévues (gardées à part de mes lieux)
-    plans: cleanPlans(state.plans),
+    plans: cleanPlans(state.plans, Date.now(), keepDays(state)),
     // Mes artistes (v158) et mon carnet de sorties de l'agenda (v158) : seulement s'il y en a
     ...(cleanArtists(state.artists).length ? { artists: cleanArtists(state.artists) } : {}),
     ...(Object.keys(cleanArtistLinks(state.artistLinks)).length ? { artistLinks: cleanArtistLinks(state.artistLinks) } : {}), // sites des artistes (v161)
@@ -383,12 +387,12 @@ export function mergeFriend(state, obj, owner, choice) {
   const artists = cleanArtists([...(state.artists ?? []), ...cleanArtists(obj.artists).filter((a) => choice.artists?.has(a))]);
   const venues = cleanVenues([...(state.venues ?? []), ...cleanVenues(obj.venues).filter((v) => choice.venues?.has(v))]);
   const theirPlans = cleanPlans(obj.plans).filter((x) => choice.plans?.has(x.id)).map((x) => ({ ...x, by: who || x.by || '' }));
-  const plans = cleanPlans([...(state.plans ?? []), ...theirPlans.filter((x) => !(state.plans ?? []).some((y) => y.id === x.id || (y.name === x.name && Math.abs(y.ticket.at - x.ticket.at) < 864e5)))]);
+  const plans = cleanPlans([...(state.plans ?? []), ...theirPlans.filter((x) => !(state.plans ?? []).some((y) => y.id === x.id || (y.name === x.name && Math.abs(y.ticket.at - x.ticket.at) < 864e5)))], Date.now(), keepDays(state));
   return {
     state: { ...state, points, categories, lists, artists, venues, plans },
     added, updated, dups, skipped,
     artists: artists.length - cleanArtists(state.artists).length, venues: venues.length - cleanVenues(state.venues).length,
-    plans: plans.length - cleanPlans(state.plans).length,
+    plans: plans.length - cleanPlans(state.plans, Date.now(), keepDays(state)).length,
   };
 }
 
@@ -462,7 +466,8 @@ export function mergeImport(state, text, owner = '') {
   // Réglages du fichier (seulement ma propre sauvegarde) : l'appli les remet quand elle était vide. Anciens fichiers : favori et cercles.
   const settings = owner ? null : readSettings(obj);
   // Mes sorties de l'agenda prévues : seulement depuis ma propre sauvegarde (même id = déjà là)
-  const plans = !owner ? cleanPlans([...(state.plans ?? []), ...cleanPlans(obj.plans).filter((x) => !(state.plans ?? []).some((y) => y.id === x.id))]) : (state.plans ?? []);
+  const keep = Math.max(keepDays(state), keepDays(obj?.settings)); /* v214 : la durée réglée ici ou dans le fichier, la plus longue */
+  const plans = !owner ? cleanPlans([...(state.plans ?? []), ...cleanPlans(obj.plans, Date.now(), keep).filter((x) => !(state.plans ?? []).some((y) => y.id === x.id))], Date.now(), keep) : (state.plans ?? []);
   // Mes artistes et mon carnet : seulement depuis ma propre sauvegarde, ajoutés à ce qui est déjà là
   const artists = !owner ? cleanArtists([...(state.artists ?? []), ...cleanArtists(obj.artists)]) : cleanArtists(state.artists);
   const venues = !owner ? cleanVenues([...(state.venues ?? []), ...cleanVenues(obj.venues)]) : cleanVenues(state.venues);
