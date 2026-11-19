@@ -25,6 +25,7 @@ import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
 import { cleanAcces, exitFor } from './acces.js';
 import { typo } from './typo.js';
+import { wordsOf, seriesOf, seriesIdOf, hasWord, toggleWord, saveSeries, deleteSeries, WORDS_MAX, WORD_MAX, SERIES_NAME_MAX, SERIES_MAX } from './mots.js';
 import { cleanGares, gareLines, garesNear } from './gares.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
@@ -52,7 +53,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (225)';
+const VERSION = '19 novembre 2026 (226)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -544,6 +545,19 @@ function openPassage(p, back, at = null) {
   const date = el('input', { type: 'date', max: iso(today), value: oldIso });
   const dateField = el('label', { class: 'field' }, 'Date', date);
   const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : la glycine en fleur' });
+  // Mots tout prêts (v226) : la série de la catégorie ; un appui ajoute le mot à la fin du texte, un second le retire
+  const series = seriesOf(catOf(p.cat), wordsOf(state));
+  const wordBox = series ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': `Mots tout prêts : ${series.name}` }) : null;
+  const drawWords = () => {
+    if (!wordBox) return;
+    fill(wordBox, series.words.map((w) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(hasWord(text.value, w)), onclick: () => {
+      const next = toggleWord(text.value, w);
+      if (next.length > 200) { toast('Le texte est trop long pour ajouter ce mot.', true); return; }
+      text.value = next; drawWords();
+    } }, w)));
+  };
+  text.addEventListener('input', drawWords);
+  drawWords();
   let photo = old?.photo ?? null; let newBlob = null;
   let stars = old?.stars ?? 0;
   const pick = starPicker(stars, (n) => { stars = n; });
@@ -588,6 +602,7 @@ function openPassage(p, back, at = null) {
     el('p', { class: 'summary' }, p.name),
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
     el('label', { class: 'field' }, 'Ce que j\'ai vu (facultatif)', text),
+    wordBox,
     el('div', { class: 'field' }, 'Mes étoiles (facultatif)', pick),
     preview, camera,
     el('div', { class: 'row' },
@@ -6952,6 +6967,11 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, ico('plus'), 'Nouvelle catégorie'),
+      el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openWordSeries() },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('message-square-text')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mots tout prêts'),
+          el('span', { class: 'menu-sub' }, `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`)),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
       asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; persist(); refresh(); openSettings('categories'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
       el('p', { class: 'help' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
@@ -7592,13 +7612,21 @@ function openCategory(id, ret = null) {
   const log = el('input', { type: 'text', value: c?.log ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Mes impressions' });
   const did = el('input', { type: 'text', value: c?.did ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Déjà visité' });
   const err = el('p', { class: 'error', role: 'alert' });
+  // Mots tout prêts (v226) : la série de la catégorie ; pas touchée, la catégorie garde son choix (ou celui de son nom)
+  const series = wordsOf(state);
+  let wordsId = c ? seriesIdOf(c, series) : '';
+  let wordsTouched = false;
+  const wordsBox = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Mots tout prêts' });
+  const drawSeries = () => fill(wordsBox, [['', 'Aucun'], ...series.map((x) => [x.id, x.name])].map(([v, label]) =>
+    el('button', { type: 'button', class: 'chip', 'aria-pressed': String(wordsId === v), onclick: () => { wordsId = v; wordsTouched = true; drawSeries(); } }, label)));
+  drawSeries();
   const swatches = picker(PALETTE, color, (v) => { color = v; }, { colors: true, names: COLOR_NAMES });
   const icons = picker(ICONS, icon, (v) => { icon = v; });
   const zone = el('div', { class: 'stack' });
 
   const save = () => {
     try {
-      const f = { name: name.value, color, icon, log: cleanLog(log.value), did: cleanLog(did.value) };
+      const f = { name: name.value, color, icon, log: cleanLog(log.value), did: cleanLog(did.value), ...(wordsTouched ? { words: wordsId } : {}) };
       state = id ? updateCategory(state, id, f) : addCategory(state, f);
     } catch (e) { err.textContent = e.message; return; }
     persist(); refresh();
@@ -7658,11 +7686,64 @@ function openCategory(id, ret = null) {
     el('p', { class: 'help' }, 'Ex. : « Mes repas » pour des restos, « Mes visites » pour des musées. Vide : « Mes impressions ».'),
     el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
     el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
+    el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
+    el('p', { class: 'help' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Catégories et listes → Mots tout prêts.'),
     err, zone,
     foot(el('div', { class: 'row' },
       backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
   ), { tall: true, name: `category:${id ?? 'new'}`, again: () => openCategory(id, ret) });
+}
+
+/* ---------- Mots tout prêts (v226) : des séries de mots à toucher sous « Ce que j'ai vu » ; chaque catégorie en prend une ---------- */
+function openWordSeries(back = named('Catégories et listes', () => openSettings('categories'))) {
+  const words = wordsOf(state);
+  const again = () => openWordSeries(back);
+  const usedBy = (id) => state.categories.filter((c) => seriesIdOf(c, words) === id).map((c) => c.name);
+  openSheet([ico('message-square-text'), ' Mots tout prêts'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Des mots à toucher sous « Ce que j\'ai vu » quand tu écris une impression. Chaque catégorie prend une série : Réglages → Catégories et listes → la catégorie.'),
+    words.length ? el('div', { class: 'menu' }, words.map((x) => el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openWordSerie(x.id, named('Mots tout prêts', again)) },
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name),
+        el('span', { class: 'menu-sub' }, `${plural(x.words.length, 'mot', 'mots')} · ${usedBy(x.id).join(', ') || 'aucune catégorie'}`)),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))) : el('p', { class: 'empty' }, 'Aucune série.'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => {
+      if (words.length >= SERIES_MAX) { toast(`${SERIES_MAX} séries au plus.`, true); return; }
+      openWordSerie(null, named('Mots tout prêts', again));
+    } }, ico('plus'), 'Nouvelle série'),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'settings:mots', again });
+}
+function openWordSerie(id, back) {
+  const old = id ? wordsOf(state).find((x) => x.id === id) : null;
+  const name = el('input', { type: 'text', value: old?.name ?? '', maxlength: String(SERIES_NAME_MAX), autocomplete: 'off', placeholder: 'Ex. : Repas' });
+  const fields = Array.from({ length: WORDS_MAX }, (_, i) => el('input', { type: 'text', value: old?.words[i] ?? '', maxlength: String(WORD_MAX), autocomplete: 'off' }));
+  const err = el('p', { class: 'error', role: 'alert' });
+  const zone = el('div', { class: 'stack' });
+  const used = old ? state.categories.filter((c) => seriesIdOf(c, wordsOf(state)) === id).map((c) => c.name) : [];
+  const save = () => {
+    try {
+      const r = saveSeries(wordsOf(state), id, name.value, fields.map((x) => x.value), newPhotoId);
+      state = { ...state, words: r.words };
+    } catch (e) { err.textContent = e.message; return; }
+    persist(); back(); toast(old ? 'Série modifiée' : 'Série ajoutée');
+  };
+  const showButtons = () => fill(zone, old ? el('button', { type: 'button', class: 'btn danger', onclick: askDelete }, 'Supprimer cette série') : null);
+  const askDelete = () => fill(zone,
+    el('p', { class: 'warn', role: 'alert' }, `Supprimer la série « ${old.name} » ?${used.length ? ` ${used.join(', ')} n'${used.length > 1 ? 'auront' : 'aura'} plus de mots tout prêts.` : ''} Tes impressions déjà écrites ne changent pas.`),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: showButtons }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => { state = deleteSeries(state, id); persist(); back(); toast('Série supprimée'); } }, 'Oui, supprimer')));
+  showButtons();
+  openSheet([ico('message-square-text'), old ? ` Série « ${old.name} »` : ' Nouvelle série'], el('div', { class: 'stack' },
+    el('label', { class: 'field' }, 'Nom de la série', name),
+    el('div', { class: 'legend' }, `Les mots, dans cet ordre (${WORDS_MAX} au plus)`),
+    fields.map((x, i) => el('label', { class: 'field' }, `Mot ${i + 1}`, x)),
+    el('p', { class: 'help' }, `Vide un champ pour retirer un mot.${used.length ? ` Prise par : ${used.join(', ')}.` : ' Pour la donner à une catégorie : Réglages → Catégories et listes → la catégorie.'}`),
+    err, zone,
+    foot(el('div', { class: 'row' },
+      backBtn(back),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
+  ), { tall: true, name: `serie:${id ?? 'new'}`, again: () => openWordSerie(id, back) });
 }
 
 /** Rappel de sauvegarde avec un bouton pour le faire tout de suite. */
@@ -8515,7 +8596,7 @@ const HELP = [
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
-    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
+    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Catégories et listes → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
@@ -8525,7 +8606,7 @@ const HELP = [
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
     '**En bas de la fiche** : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer), Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
-    '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique et celui de « Déjà visité ».',
+    '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
     '**Favori** : son icône et sa couleur dans {settings} → Favoris. Un cœur évite la confusion avec les étoiles.',
@@ -8563,7 +8644,7 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le-toi aussi par courriel ou sur ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux (avec tes impressions), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes problèmes notés sur les circuits, catégories, listes, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux (avec tes impressions), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
@@ -8571,7 +8652,7 @@ const HELP = [
     '{copy} **Partager une sortie** : Mon planning → la sortie → « Prévu » → Copier le lien d\'invitation. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps ou Parcours.',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets et tes notes du jour restent à toi. Ta sauvegarde, elle, reste complète.',
+    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour et tes mots tout prêts restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à Mon planning », ou Retirer.',
     '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
@@ -8619,6 +8700,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
     '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
     '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
@@ -8628,7 +8710,6 @@ const HELP = [
     '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
     '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
     '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
-    '{footprints} Mon pas : la page explique maintenant comment trouver ta vitesse. Chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ». {settings} → Mon pas.',
   ]],
 ];
 

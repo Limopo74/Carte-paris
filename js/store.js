@@ -7,6 +7,7 @@ import { cleanCircuitNotes, cleanHiddenCircuits } from './circuits.js';
 import { cleanNotes } from './notes.js';
 import { cleanTuning, cleanFicheHidden } from './reglages.js';
 import { cleanHome } from './chezmoi.js';
+import { cleanWords, wordsAsStart, wordsOf } from './mots.js';
 
 /** Jours pendant lesquels une sortie de l'agenda prévue est gardée : ceux du réglage « Tu y es allée ? » (v214). */
 const keepDays = (s) => cleanTuning(s?.tuning).askDays;
@@ -114,6 +115,7 @@ const cleanCategory = (c) => ({
   icon: ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id),
   ...(cleanLog(c.log) ? { log: cleanLog(c.log) } : {}), // nom de l'historique (« Mes repas »…), v157
   ...(cleanLog(c.did) ? { did: cleanLog(c.did) } : {}), // nom de « Déjà visité » (« Déjà goûté »…), v162
+  ...(typeof c.words === 'string' && /^[\w-]{0,64}$/.test(c.words) ? { words: c.words } : {}), // série de Mots tout prêts ('' : aucune), v226
 });
 
 function cleanCategories(list) {
@@ -184,7 +186,7 @@ export function loadState(storage) {
       .filter(okShape)
       .map((p) => clean({ ...p, cat: catIds.includes(p.cat) ? p.cat : catIds[0] }));
     const lastExport = Number.isFinite(obj.lastExport) ? obj.lastExport : null;
-    const st = { points, plans: cleanPlans(obj.plans, Date.now(), keepDays(obj)), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), circuitNotes: cleanCircuitNotes(obj.circuitNotes), hiddenCircuits: cleanHiddenCircuits(obj.hiddenCircuits), notes: cleanNotes(obj.notes), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, showPassages: obj.showPassages === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(withNewChips(obj.moreChips, obj.chipsV), cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters),
+    const st = { points, plans: cleanPlans(obj.plans, Date.now(), keepDays(obj)), rings: normalizeRings(obj.rings ?? []), categories, fav: cleanFav(obj.fav), lastExport, voice: obj.voice !== false, ringUnit: obj.ringUnit === 'min' ? 'min' : 'm', minuteRings: normalizeMinuteRings(obj.minuteRings ?? []), chipIcons: obj.chipIcons === true, mapTools: obj.layoutV >= 3 ? normalizeTools(obj.mapTools) : [...normalizeTools(obj.mapTools).filter((t) => t !== 'locate'), 'locate'], hiddenTools: obj.layoutV >= 2 ? cleanHidden(obj.hiddenTools) : cleanHidden([...(obj.hiddenTools ?? []), ...DEFAULT_HIDDEN]), lists: cleanLists(obj.lists), mapStyle: MAP_STYLES.includes(obj.mapStyle) ? obj.mapStyle : 'classic', theme: ['light', 'dark'].includes(obj.theme) ? obj.theme : 'auto', toolsSide: obj.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(obj.mySettings), myStations: cleanMyStations(obj.myStations), artists: cleanArtists(obj.artists), artistLinks: cleanArtistLinks(obj.artistLinks), venues: cleanVenues(obj.venues), outings: cleanOutings(obj.outings), circuitNotes: cleanCircuitNotes(obj.circuitNotes), hiddenCircuits: cleanHiddenCircuits(obj.hiddenCircuits), notes: cleanNotes(obj.notes), showMarkets: obj.showMarkets === true, showLines: obj.showLines === true, showTtb: obj.showTtb === true, showPratique: obj.showPratique === true, showPassages: obj.showPassages === true, hiddenChips: cleanChips(obj.hiddenChips), moreChips: cleanMoreChips(withNewChips(obj.moreChips, obj.chipsV), cleanChips(obj.hiddenChips)), hiddenFilters: cleanFilterKeys(obj.hiddenFilters), words: Array.isArray(obj.words) ? cleanWords(obj.words) : undefined,
       me: typeof obj.me === 'string' ? obj.me.trim().slice(0, 30) : '',
       toolNames: cleanToolNames(obj.toolNames), toolLabels: obj.toolLabels === true, startOnMe: obj.startOnMe !== false, vibrateNow: obj.vibrateNow === true, showArrNums: obj.showArrNums !== false, tuning: cleanTuning(obj.tuning), suggestNow: obj.suggestNow !== false, alertNear: obj.alertNear !== false, ficheHidden: cleanFicheHidden(obj.ficheHidden), pace: cleanPace(obj.pace), textSize: cleanTextSize(obj.textSize),
       essentials: cleanEssentials(obj.essentials), layoutBefore: cleanLayout(obj.layoutBefore),
@@ -250,7 +252,7 @@ export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.str
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {
   try {
-    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans, Date.now(), keepDays(state)), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, startOnMe: state.startOnMe !== false, vibrateNow: state.vibrateNow === true, showArrNums: state.showArrNums !== false, tuning: cleanTuning(state.tuning), suggestNow: state.suggestNow !== false, alertNear: state.alertNear !== false, ficheHidden: cleanFicheHidden(state.ficheHidden), pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), home: cleanHome(state.home), homeOn: state.homeOn === true && Boolean(cleanHome(state.home)), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), circuitNotes: cleanCircuitNotes(state.circuitNotes), hiddenCircuits: cleanHiddenCircuits(state.hiddenCircuits), notes: cleanNotes(state.notes), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) }));
+    storage.setItem(KEY, JSON.stringify({ points: state.points, plans: cleanPlans(state.plans, Date.now(), keepDays(state)), rings: state.rings, categories: state.categories, fav: state.fav, lastExport: state.lastExport ?? null, backup: cleanBackup(state.backup), voice: state.voice !== false, ringUnit: state.ringUnit ?? 'm', minuteRings: state.minuteRings, me: state.me ?? '', walk: state.walk ?? { day: '', m: 0 }, chipIcons: state.chipIcons === true, mapTools: normalizeTools(state.mapTools), hiddenTools: cleanHidden(state.hiddenTools), moreTools: cleanMore(state.moreTools, cleanHidden(state.hiddenTools)), toolNames: cleanToolNames(state.toolNames), toolLabels: state.toolLabels === true, startOnMe: state.startOnMe !== false, vibrateNow: state.vibrateNow === true, showArrNums: state.showArrNums !== false, tuning: cleanTuning(state.tuning), suggestNow: state.suggestNow !== false, alertNear: state.alertNear !== false, ficheHidden: cleanFicheHidden(state.ficheHidden), pace: cleanPace(state.pace), textSize: cleanTextSize(state.textSize), essentials: cleanEssentials(state.essentials), layoutBefore: cleanLayout(state.layoutBefore), layoutV: 4, lists: cleanLists(state.lists), mapStyle: MAP_STYLES.includes(state.mapStyle) ? state.mapStyle : 'classic', theme: ['light', 'dark'].includes(state.theme) ? state.theme : 'auto', toolsSide: state.toolsSide === 'left' ? 'left' : 'right', mySettings: cleanMySettings(state.mySettings), myStations: cleanMyStations(state.myStations), home: cleanHome(state.home), homeOn: state.homeOn === true && Boolean(cleanHome(state.home)), artists: cleanArtists(state.artists), artistLinks: cleanArtistLinks(state.artistLinks), venues: cleanVenues(state.venues), outings: cleanOutings(state.outings), circuitNotes: cleanCircuitNotes(state.circuitNotes), hiddenCircuits: cleanHiddenCircuits(state.hiddenCircuits), notes: cleanNotes(state.notes), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters), ...(Array.isArray(state.words) ? { words: cleanWords(state.words) } : {}) }));
     return true;
   } catch {
     return false;
@@ -273,6 +275,7 @@ export function exportJSON(state) {
     categories: state.categories, fav: state.fav, rings: state.rings, lists: state.lists ?? [],
     mySettings: cleanMySettings(state.mySettings),
     myStations: cleanMyStations(state.myStations),
+    ...(Array.isArray(state.words) ? { words: cleanWords(state.words) } : {}), // Mots tout prêts (v226) : jamais dans le fichier pour un proche
     ...(cleanHome(state.home) ? { home: cleanHome(state.home) } : {}), // Chez moi (v222) : jamais dans le fichier pour un proche
     // Mes réglages du moment (affichage, cercles, favori…), remis tels quels quand je restaure sur une appli vide
     settings: { ...cleanSettings(state), showMarkets: state.showMarkets === true, showLines: state.showLines === true, showTtb: state.showTtb === true, showPratique: state.showPratique === true, showPassages: state.showPassages === true, hiddenChips: cleanChips(state.hiddenChips), moreChips: cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)), chipsV: CHIPS_V, hiddenFilters: cleanFilterKeys(state.hiddenFilters) },
@@ -327,7 +330,7 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
     plans.length ? 'plans' : '', artists.length ? 'artists' : '', venues.length ? 'venues' : ''].filter(Boolean);
   return {
     app: 'carte-paris', version: 2, kind: 'proche', exported: new Date().toISOString(), owner: state.me ?? '', sent,
-    categories: (state.categories ?? []).filter((c) => used.has(c.id)),
+    categories: (state.categories ?? []).filter((c) => used.has(c.id)).map(({ words: _w, ...c }) => c), // mes Mots tout prêts restent à moi (v226)
     lists: (state.lists ?? []).filter((l) => pts.some((p) => (p.lists ?? []).includes(l.id))),
     points,
     ...(plans.length ? { plans } : {}),
@@ -482,15 +485,18 @@ export function mergeImport(state, text, owner = '') {
   const hiddenCircuits = !owner ? cleanHiddenCircuits([...(state.hiddenCircuits ?? []), ...cleanHiddenCircuits(obj.hiddenCircuits)]) : cleanHiddenCircuits(state.hiddenCircuits);
   // Note du jour (v205) : seulement depuis ma propre sauvegarde ; un jour déjà noté sur le téléphone garde sa note
   const notes = !owner ? cleanNotes([...cleanNotes(state.notes), ...cleanNotes(obj.notes)]) : cleanNotes(state.notes);
-  return { state: { ...state, points, plans, artists, artistLinks, venues, outings, circuitNotes, hiddenCircuits, notes, categories, lists, ...(myStations ? { myStations } : {}), ...(home ? { home } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
+  // Mots tout prêts (v226) : seulement depuis ma propre sauvegarde ; restaurés tels quels sur une appli vide, sinon les séries manquantes s'ajoutent
+  const fileWords = !owner && Array.isArray(obj.words) ? cleanWords(obj.words) : null;
+  const words = !fileWords ? state.words : restore ? fileWords : cleanWords([...wordsOf(state), ...fileWords]);
+  return { state: { ...state, points, plans, artists, artistLinks, venues, outings, circuitNotes, hiddenCircuits, notes, categories, lists, words, ...(myStations ? { myStations } : {}), ...(home ? { home } : {}), ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
 }
 
-function checkFields({ name, color, icon = DEFAULT_ICON, log = '', did = '' }, keepColor = null) {
+function checkFields({ name, color, icon = DEFAULT_ICON, log = '', did = '', words }, keepColor = null) {
   const n = String(name ?? '').trim();
   if (!n) throw new Error('Donne un nom à la catégorie.');
   if (!PALETTE.includes(color) && color !== keepColor) throw new Error('Choisis une couleur dans la liste.');
   if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
-  return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}), ...(cleanLog(did) ? { did: cleanLog(did) } : {}) };
+  return { name: n.slice(0, NAME_MAX), color, icon, ...(cleanLog(log) ? { log: cleanLog(log) } : {}), ...(cleanLog(did) ? { did: cleanLog(did) } : {}), ...(typeof words === 'string' && /^[\w-]{0,64}$/.test(words) ? { words } : {}) };
 }
 
 /** v209 : deux catégories ne portent pas le même nom (majuscules et accents comptent pour rien), comme les listes. */
@@ -733,7 +739,9 @@ export function backupHash(state) {
   // v207 : la liste du jour (billet sans heure, effacé à minuit) ne compte pas comme un changement à sauvegarder ;
   // « Fait » (Déjà visité) compte toujours. Sans liste du jour, l'empreinte est exactement celle d'avant.
   const points = (state.points ?? []).map((p) => { if (!isDayList(p.ticket)) return p; const { ticket: _t, ...rest } = p; return rest; });
-  const text = JSON.stringify([points, state.categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : []), ...(Object.keys(state.artistLinks ?? {}).length ? [state.artistLinks] : []), ...(state.venues?.length ? [state.venues] : []), ...(state.circuitNotes?.length ? [state.circuitNotes] : []), ...(state.hiddenCircuits?.length ? [state.hiddenCircuits] : []), ...(state.notes?.length ? [state.notes] : []), ...(cleanHome(state.home) ? [cleanHome(state.home)] : [])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
+  // v226 : le choix des Mots tout prêts n'entre dans l'empreinte que s'il a changé : celle des sauvegardes d'avant reste la même
+  const categories = (state.categories ?? []).map(({ words: _w, ...c }) => c);
+  const text = JSON.stringify([points, categories, state.lists ?? [], state.fav, state.myStations ?? [], ...(state.plans?.length ? [state.plans] : []), ...(state.artists?.length ? [state.artists] : []), ...(state.outings?.length ? [state.outings] : []), ...(Object.keys(state.artistLinks ?? {}).length ? [state.artistLinks] : []), ...(state.venues?.length ? [state.venues] : []), ...(state.circuitNotes?.length ? [state.circuitNotes] : []), ...(state.hiddenCircuits?.length ? [state.hiddenCircuits] : []), ...(state.notes?.length ? [state.notes] : []), ...(cleanHome(state.home) ? [cleanHome(state.home)] : []), ...(wordsAsStart(state) ? [] : [[state.words ?? null, (state.categories ?? []).map((c) => c.words ?? null)]])]); // les sorties prévues seulement s'il y en a : l'empreinte des sauvegardes d'avant ne change pas
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(36);
