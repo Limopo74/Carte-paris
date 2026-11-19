@@ -28,7 +28,9 @@ WALK = ('footway|pedestrian|path|steps|living_street|residential|tertiary|tertia
 # (504, 502, coupure) ; elle est donc découpée en 9 cases (3 × 3) plus une demande pour les parcs.
 BOX = (48.815, 2.224, 48.903, 2.470)  # sud, ouest, nord, est : Paris et un peu autour (le reste est retiré ensuite)
 CUTS = 3
-WAY_FILTER = f'[highway~"^({WALK})$"][foot!~"^no$"][access!~"^(private|no)$"]["footway"!~"^(sidewalk|crossing)$"]'
+# Trottoirs et passages piétons demandés aussi (19 nov. : sans eux, le plus grand morceau d'un seul tenant n'avait que
+# 74 % des croisements) ; le script peut les retirer ensuite (SANS_TROTTOIRS=1) pour comparer.
+WAY_FILTER = f'[highway~"^({WALK})$"][foot!~"^no$"][access!~"^(private|no)$"]'
 
 
 def queries():
@@ -80,7 +82,8 @@ def build(data, in_paris=lambda pt: True):
     els = data.get('elements', []) if isinstance(data, dict) else []
     nodes = {e['id']: (e['lat'], e['lon']) for e in els if e.get('type') == 'node' and 'lat' in e}
     ways = {e['id']: e for e in els if e.get('type') == 'way'}
-    walk = [w for w in ways.values() if 'highway' in w.get('tags', {})]
+    skip = ('sidewalk', 'crossing') if os.environ.get('SANS_TROTTOIRS') == '1' else ()
+    walk = [w for w in ways.values() if 'highway' in w.get('tags', {}) and w['tags'].get('footway') not in skip]
 
     # Parcs : anneaux extérieurs des chemins fermés et des relations (assemblés bout à bout)
     rings = []

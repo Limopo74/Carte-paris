@@ -1,7 +1,8 @@
 # Mesure du plan des rues à pied (19 nov. 2026, « Mes parcours » : choix A de la mesure).
 # Ne tourne que sur la branche mesure-plan-rues, quand elle reçoit un envoi. Ne publie rien, ne change ni l'appli
 # ni ses données : il télécharge les rues de Paris chez OpenStreetMap, fabrique le plan et écrit son poids dans le
-# journal ; le fichier est gardé 7 jours comme pièce jointe du passage (onglet Actions).
+# journal ; le fichier est gardé 7 jours comme pièce jointe du passage (onglet Actions), et les réponses brutes
+# sont rangées dans mesure/ sur cette branche seulement.
 name: Mesure du plan des rues
 
 on:
@@ -9,7 +10,7 @@ on:
     branches: [mesure-plan-rues]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   mesure:
@@ -47,6 +48,17 @@ jobs:
       - name: Garder les réponses brutes (pour ne plus les redemander)
         if: always()
         run: tar -czf /tmp/reponses.tar.gz -C /tmp/src . && ls -l /tmp/reponses.tar.gz
+      - name: Ranger les réponses et le plan sur cette branche seulement (jamais sur main)
+        # Les pièces jointes d'Actions ne sont pas lisibles depuis l'espace de travail de Claude ; la branche, si.
+        run: |
+          set -eu
+          mkdir -p mesure
+          cp /tmp/reponses.tar.gz mesure/reponses.tar.gz
+          SANS_TROTTOIRS=1 python3 -I tools/maj-rues.py /tmp/src /tmp/rues-sans.json "$(TZ=Europe/Paris date +%F)" || true
+          git config user.name "Robot de mesure"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mesure/reponses.tar.gz
+          git commit -m "Mesure du plan des rues : réponses brutes d'OpenStreetMap ($(TZ=Europe/Paris date +%F))"
+          git push origin HEAD:mesure-plan-rues
       - uses: actions/upload-artifact@v4
         if: always()
         with:
