@@ -6,7 +6,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText } from './geo.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
-  KEY, PALETTE, ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
+  KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (239)';
+const VERSION = '19 novembre 2026 (240)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7865,7 +7865,7 @@ function openSettings(section = null) {
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
-    row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
+    row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
     el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.startOnMe !== false), onclick: () => {
@@ -7917,7 +7917,7 @@ function openFavStyle() {
   drawPreview();
   openSheet([glyph(state.fav.icon, { filled: true }), ' Favoris'], el('div', { class: 'stack' },
     preview,
-    el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(ICONS, icon, (v) => { icon = v; drawPreview(); })),
+    el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(FAV_ICONS, icon, (v) => { icon = v; drawPreview(); })),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
     foot(el('div', { class: 'row' },
       backBtn(named('Réglages', () => openSettings())),
@@ -8953,7 +8953,7 @@ const HELP = [
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** regroupe des lieux de catégories différentes (« Sous la pluie »). « Nouvelle liste », puis coche ses lieux.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
-    '**Favori** : son icône et sa couleur dans {settings} → Favoris. Un cœur évite la confusion avec les étoiles.',
+    '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Favoris.',
     '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, Vu en passant, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
@@ -9044,6 +9044,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
     '{sofa} Chez moi : toucher la pastille météo ouvre toujours la météo, même avec le canapé. Chez moi ne s\'éteint plus par erreur : l\'interrupteur « Partir de chez moi » est en haut de cette page.',
     '{door-open} Passages couverts : en haut de la page d\'un passage, {camera} « Prendre une photo » : un appui, la photo, et le passage s\'ajoute seul à tes lieux, dans Culture (« Annuler » dans le message). Ensuite, ta photo illustre sa page, en haut (touche-la pour la voir en grand), et « Ma fiche » remplace « Ajouter ». Si l\'appli te dit « Tu as déjà ce lieu », {camera} « Y ajouter la photo » la range sur ce lieu au lieu de la perdre.',
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
@@ -9053,7 +9054,6 @@ const HELP = [
     '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
     '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
-    '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
   ]],
 ];
 

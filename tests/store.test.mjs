@@ -536,8 +536,8 @@ test('Mon billet : « avec qui » est gardé, coupé à 40 signes, vide = absent
 });
 
 test('sauvegarde : restaurer sur une appli vide garde mes lieux à moi et remet mes réglages', async () => {
-  const { loadState, exportJSON, mergeImport, readSettings, ICONS } = await import('../js/store.js');
-  const icon = ICONS.find((i) => i !== '⭐');
+  const { loadState, exportJSON, mergeImport, readSettings, FAV_ICONS } = await import('../js/store.js');
+  const icon = FAV_ICONS.find((i) => i !== '⭐');
   const mem = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
   let st = loadState(mem());
   const cat = st.categories[0].id;
@@ -622,4 +622,16 @@ test('catégories : pas deux fois le même nom (v209)', () => {
   // un doublon d'avant la v209 se modifie encore sans changer de nom
   const old = { ...s1, categories: [...s1.categories, { id: 'x2', name: 'Cafés', color: PALETTE[4], icon: ICONS[0] }] };
   assert.equal(updateCategory(old, 'x2', { name: 'Cafés', color: PALETTE[5], icon: ICONS[0] }).categories.at(-1).color, PALETTE[5]);
+});
+
+test('favoris : seulement l\'étoile ou le cœur (v240)', async () => {
+  const { loadState, setFavStyle, FAV_ICONS, DEFAULT_FAV, KEY } = await import('../js/store.js');
+  assert.deepEqual(FAV_ICONS, ['⭐', '❤️']);
+  const m = new Map(); const st = { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  st.setItem(KEY, JSON.stringify({ points: [], fav: { icon: '🍷', color: DEFAULT_FAV.color } }));
+  assert.equal(loadState(st).fav.icon, '⭐', 'une ancienne icône de catégorie redevient l\'étoile');
+  st.setItem(KEY, JSON.stringify({ points: [], fav: { icon: '❤️', color: DEFAULT_FAV.color } }));
+  assert.equal(loadState(st).fav.icon, '❤️');
+  assert.throws(() => setFavStyle(loadState(st), { icon: '🍷', color: DEFAULT_FAV.color }));
+  assert.equal(setFavStyle(loadState(st), { icon: '⭐', color: DEFAULT_FAV.color }).fav.icon, '⭐');
 });

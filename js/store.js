@@ -25,6 +25,8 @@ export const ICONS = [
 export const DEFAULT_ICON = '📍';
 export const FAV_COLORS = ['#f2a900', ...PALETTE];
 export const DEFAULT_FAV = { icon: '⭐', color: '#f2a900' };
+/** Icônes proposées pour les favoris : étoile ou cœur seulement (v240 ; avant, toutes celles des catégories). */
+export const FAV_ICONS = ['⭐', '❤️'];
 /** Catégories proposées en un appui dans « Nouvelle catégorie ». */
 export const PRESETS = [
   { name: 'Restos', icon: '🍽️', color: '#d9480f' },
@@ -54,7 +56,7 @@ const makeId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const defaults = () => DEFAULT_CATEGORIES.map((c) => ({ ...c }));
 const cleanFav = (f) => ({
-  icon: ICONS.includes(f?.icon) ? f.icon : DEFAULT_FAV.icon,
+  icon: FAV_ICONS.includes(f?.icon) ? f.icon : DEFAULT_FAV.icon,
   color: FAV_COLORS.includes(f?.color) ? f.color : DEFAULT_FAV.color,
 });
 
@@ -706,7 +708,7 @@ export function deleteList(state, id) {
 
 /** Change l'icône et la couleur des favoris. Renvoie un nouvel état. */
 export function setFavStyle(state, { icon, color }) {
-  if (!ICONS.includes(icon)) throw new Error('Choisis une icône dans la liste.');
+  if (!FAV_ICONS.includes(icon)) throw new Error('Choisis une icône : l\'étoile ou le cœur.');
   if (!FAV_COLORS.includes(color)) throw new Error('Choisis une couleur dans la liste.');
   return { ...state, fav: { icon, color } };
 }

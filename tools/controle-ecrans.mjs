@@ -222,6 +222,8 @@ const ECRANS = {
   // v214 : les trois pages de réglages souples, et Cercles rangé dans Distances et durées
   alertes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Alertes et bandeau' }).click(); await p.waitForTimeout(300); },
   fichelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Fiche d\'un lieu' }).click(); await p.waitForTimeout(300); },
+  // v240 : Réglages → Favoris (étoile ou cœur)
+  favstyle: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Favoris' }).first().click(); await p.waitForTimeout(300); },
   distances: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await p.waitForTimeout(300); },
   cercles: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Cercles' }).click(); await p.waitForTimeout(300); },
   essentiel: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.menu-row', { hasText: 'Choisir l\'essentiel' }).click(); await p.waitForTimeout(300); },
