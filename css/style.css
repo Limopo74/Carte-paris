@@ -978,7 +978,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
   transform: translate(-50%, -50%); }
 .line-casing { stroke: #ffffff; }
 :root[data-theme="dark"] .line-casing { stroke: #10131C; }
-.line-tag.rer { border-radius: 4px; }
+.line-tag.rer, .line-tag.bus { border-radius: 4px; } /* v228 : le numéro d'une de mes lignes de bus, carré comme le RER */
 /* Stations sur les lignes : rond + numéros de lignes, nom en zoomant */
 .st-wrap { overflow: visible; }
 .st-mark { position: absolute; left: -7px; top: -7px; display: none; align-items: center; gap: 2px; white-space: nowrap; pointer-events: none; }
@@ -1061,9 +1061,9 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }
 .chip.street .ico svg { width: 20px; height: 20px; }
 .chip.street[aria-pressed="true"] { background: var(--disc); border-color: var(--disc); color: var(--bg); }
-.chip.lines, .chip.velib { color: var(--metro); min-width: 44px; justify-content: center; padding: 0 12px; }
-.chip.lines .ico svg, .chip.velib .ico svg, .chip.pratique .ico svg, .chip.more-chip .ico svg { width: 20px; height: 20px; }
-.chip.lines[aria-pressed="true"], .chip.velib[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
+.chip.lines, .chip.velib, .chip.buslines { color: var(--metro); min-width: 44px; justify-content: center; padding: 0 12px; }
+.chip.lines .ico svg, .chip.velib .ico svg, .chip.buslines .ico svg, .chip.pratique .ico svg, .chip.more-chip .ico svg { width: 20px; height: 20px; }
+.chip.lines[aria-pressed="true"], .chip.velib[aria-pressed="true"], .chip.buslines[aria-pressed="true"] { background: var(--metro); border-color: var(--metro); color: var(--bg); }
 /* Fontaines et toilettes, ⋯ Plus (v151) : encre, comme les boutons « Aller » */
 .chip.pratique, .chip.more-chip { min-width: 44px; justify-content: center; padding: 0 12px; }
 
@@ -1181,6 +1181,9 @@ a.menu-row .menu-chev { font-size: 20px; }
 .tool-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .seg.tool-where { gap: 4px; flex-wrap: nowrap; }
 /* v148 : lignes de bus (contour bleu transport) et choix de l'arrêt sous une de mes stations */
+/* v228 : Mes lignes de bus — le numéro dans la couleur de la ligne (signalétique IDFM, comme les pastilles du métro) */
+.bus-tag { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: calc(34px * var(--ts)); height: calc(24px * var(--ts)); padding: 0 6px; border-radius: var(--r); background: var(--c); color: var(--t); font: 800 var(--t13) var(--display); }
+.bus-name { display: flex; align-items: center; gap: 8px; }
 .bus-line { display: inline-flex; align-items: center; min-width: 24px; height: 22px; padding: 0 6px; border: 1.5px solid var(--metro-bd); border-radius: var(--r); color: var(--metro); font: 700 var(--t13) var(--display); }
 .mystation-row { flex-wrap: wrap; }
 .mystation-row .cat-name { flex: 1; min-width: 0; }

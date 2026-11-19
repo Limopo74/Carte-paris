@@ -1,6 +1,7 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
-import { busHome, searchBusStops, busPlace, busLines } from './bus.js';
+import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.js';
+import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN } from './geo.js';
@@ -53,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (228)';
+const VERSION = '19 novembre 2026 (229)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -774,6 +775,7 @@ function chipItems(chip = null, catChip = null) {
   const toggleVelib = () => { setVelibLayer(!velibOn); refresh(); toast(velibOn ? 'Vélib\' : les stations sur la carte (en zoomant)' : 'Vélib\' : masqué'); };
   const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
   const toggleArc = () => { setArcadeLayer(!state.showPassages); refresh(); toast(state.showPassages ? 'Passages couverts sur la carte (le trait en zoomant)' : 'Passages couverts : masqués'); };
+  const busOn = () => Boolean(state.showBusLines && (state.busLines ?? []).length);
   const fixed = [
     { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: () => { filterCats.clear(); favOnly = false; refresh(); },
       make: () => chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) },
@@ -793,6 +795,8 @@ function chipItems(chip = null, catChip = null) {
       make: () => chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) },
     { key: 'velib', name: 'Vélib\'', icon: ico('bike'), active: velibOn, act: toggleVelib,
       make: () => chip(ico('bike'), velibOn, toggleVelib, { class: 'velib', aria: 'Vélib\' : les stations sur la carte' }) },
+    { key: 'buslines', name: 'Mes lignes de bus', icon: ico('bus'), active: busOn(), act: toggleBusLines,
+      make: () => chip(ico('bus'), busOn(), toggleBusLines, { class: 'buslines', aria: 'Mes lignes de bus sur la carte' }) },
     { key: 'pratique', name: 'Fontaines et toilettes', icon: ico('droplets'), active: Boolean(state.showPratique), act: togglePrat,
       make: () => chip(ico('droplets'), Boolean(state.showPratique), togglePrat, { class: 'pratique', aria: 'Fontaines et toilettes sur la carte' }) },
     { key: 'passages', name: 'Passages couverts', icon: ico('door-open'), active: Boolean(state.showPassages), act: toggleArc,
@@ -806,14 +810,14 @@ function openChipsMore() {
   const where = chipPlace();
   const list = chipItems().filter((x) => where(x.key) === 'more');
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant' }[x.key] ?? '');
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
       const opens = x.key === 'filters' || x.key === 'all';
       return el('button', { type: 'button', class: 'menu-row c-guide', ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
         x.act();
-        if (!opens) openChipsMore();
+        if (!opens && view === 'chips-more') openChipsMore(); /* v228 : un bouton qui ouvre un autre écran (Mes lignes de bus sans ligne) le laisse ouvert */
       } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, x.icon),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, sub(x))),
@@ -898,8 +902,12 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
+    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Choisis d\'abord tes lignes (Réglages → Mes lignes de bus)', () => {
+      if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
+      state.showBusLines = !state.showBusLines; persist(); drawBusLines(); if (state.showBusLines) refreshBusTraces();
+    }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\'', 'Les stations visibles en zoomant, avec leurs vélos (ou leurs places). S\'éteint quand tu fermes l\'appli', () => { setVelibLayer(!velibOn); }),
@@ -951,7 +959,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -3497,17 +3505,26 @@ function openPratSpot(x) {
 }
 
 /** L'étiquette sous la barre du haut : « Zoome pour voir… », ou l'heure des Vélib' et « Mettre à jour ». */
+/** v228 : sinon, quand mes lignes de bus sont sur la carte, le rappel « sans horaires ni sens » (un appui ouvre Mes lignes de bus). */
+function busNote() {
+  if (!state.showBusLines || !(state.busLines ?? []).length) return null;
+  const drawn = busLinesDrawn();
+  return drawn.length ? { text: `Bus ${refsText(drawn)} · sans horaires ni sens`, act: 'buslines' }
+    : { text: 'Bus : le chemin n\'est pas encore chargé (il faut du réseau)', act: 'buslines' };
+}
+const layerNoteNow = () => layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote();
 function drawLayerNote() {
-  const n = layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed });
+  const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : 'bike'), n.text);
+  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : 'bike'), n.text);
   layerNoteBtn.disabled = !n.act;
 }
 layerNoteBtn.addEventListener('click', () => {
-  const n = layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed });
+  const n = layerNoteNow();
   if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
+  else if (n?.act === 'buslines') openMyBusLines();
 });
 map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
 // Chaque minute, tant que le calque Vélib' est allumé : l'heure reste juste, et après 10 min les nombres s'effacent.
@@ -5532,6 +5549,79 @@ function openMyStations() {
   ), { tall: true, name: 'mystations', again: openMyStations });
 }
 
+/** Mon arrêt de bus « maison » (le premier choisi dans Mes stations) : { label, stop } ou null. */
+function myHomeBusStop() {
+  const s = (state.myStations ?? []).find((x) => x.bus);
+  const stop = s && busReady() ? findBusStop(busData, `${s.bus.n}|${s.bus.c}`) : null;
+  return stop ? { label: s.label, stop } : null;
+}
+/** Réglages → Mes lignes de bus (v228) : ajouter ou retirer une ligne s'enregistre tout de suite, comme Mes stations (mon choix A). */
+async function openMyBusLines(query = '') {
+  const mine = state.busLines ?? [];
+  const kept = keptBusTraces();
+  const back = () => openMyBusLines(input?.value ?? '');
+  const add = (l) => {
+    if (mine.length >= BUS_LINES_MAX) { toast(`${BUS_LINES_MAX} lignes au plus : retire d'abord une ligne.`, true); return; }
+    state.busLines = addBusLine(state.busLines, l); persist();
+    if (busTracesFile) keepBusTraces(busTracesFile);
+    drawBusLines();
+    openMyBusLines('');
+    toast(`Ligne ${l.ref} ajoutée`, false, state.showBusLines ? null : { label: 'Voir sur la carte', fn: () => { state.showBusLines = true; persist(); drawBusLines(); refresh(); closeSheet(); } });
+  };
+  const remove = (l) => {
+    state.busLines = removeBusLine(state.busLines, l.id); persist();
+    keepBusTraces({ ...kept, lines: Object.entries(kept.lines).map(([id, p]) => ({ id, p })) });
+    drawBusLines(); refresh(); openMyBusLines(input?.value ?? '');
+    toast(`Ligne ${l.ref} retirée`);
+  };
+  const tag = (l) => el('span', { class: 'bus-tag', style: `--c:${l.c};--t:${l.t}` }, l.ref);
+  const home = myHomeBusStop();
+  const homeAt = home ? { lat: home.stop[0], lng: home.stop[1] } : null;
+  const results = el('ul', { class: 'items' });
+  const input = el('input', { type: 'search', value: query, placeholder: 'ex. 38, 91, N14', 'aria-label': 'Numéro de la ligne', enterkeyhint: 'search', autocomplete: 'off', inputmode: 'text' });
+  const resultRow = (l) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => add(l), 'aria-label': `Ajouter la ligne ${l.ref}, ${busLineSub(l)}` },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('plus', { size: 18 })),
+    el('span', { class: 'item-text' },
+      el('span', { class: 'item-name bus-name' }, tag(l), ` Ligne ${l.ref}`),
+      el('span', { class: 'item-sub' }, busLineSub(l)))));
+  const draw = () => {
+    if (!busTracesFile) return;
+    const q = input.value.trim();
+    const have = new Set((state.busLines ?? []).map((l) => l.id));
+    if (q) {
+      const found = searchBusLines(busTracesFile, q).filter((l) => !have.has(l.id));
+      fill(results, ...(found.length ? found.map(resultRow) : [el('li', { class: 'empty' }, `Aucune autre ligne « ${q} » à Paris et en petite couronne.`)]));
+      return;
+    }
+    const atHome = home ? linesAtStop(busTracesFile, homeAt, busLines(busData, home.stop)).filter((l) => !have.has(l.id)) : [];
+    fill(results, ...(atHome.length ? [el('li', { class: 'help' }, `Les lignes de ton arrêt ${home.label} (${home.stop[2]})\u00a0:`), ...atHome.map(resultRow)] : []));
+  };
+  input.addEventListener('input', draw);
+  const sub = (l) => (kept.missing.includes(l.id) ? 'Plus dans le fichier d\'Île-de-France Mobilités : pas de chemin à montrer'
+    : [busLineSub(l), homeAt && kept.lines[l.id] && passesNear(kept.lines[l.id], homeAt) ? `passe à ton arrêt ${home.stop[2]}` : ''].filter(Boolean).join(' · '));
+  const date = busDayText(busTracesFile?.data || kept.data);
+  openSheet([ico('bus'), ' Mes lignes de bus'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Les lignes à voir sur la carte. Touche « Mes lignes de bus » dans ⋯ Plus pour les montrer ou les masquer. Le chemin des bus, sans horaires ni sens.'),
+    mine.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Tes lignes'), el('span', {}, String(mine.length))) : null,
+    mine.length ? el('div', {}, mine.map((l) => el('div', { class: 'cat-row mystation-row' },
+      tag(l),
+      el('span', { class: 'cat-name' }, `Ligne ${l.ref}`, el('br'), el('span', { class: 'cat-count' }, sub(l))),
+      el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer la ligne ${l.ref}`, onclick: () => remove(l) }, ico('x'))))) : null,
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Ajouter une ligne'), el('span', {}, '')),
+    mine.length >= BUS_LINES_MAX ? el('p', { class: 'help' }, `${BUS_LINES_MAX} lignes au plus, pour que la carte reste lisible : retire une ligne pour en ajouter une autre.`) : el('label', { class: 'field' }, 'Numéro de la ligne', input),
+    mine.length >= BUS_LINES_MAX ? null : results,
+    date ? el('p', { class: 'help' }, `Chemin des lignes\u00a0: Île-de-France Mobilités, ${date}. Une déviation pour travaux ne se voit pas.`) : null,
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+  ), { tall: true, name: 'buslines', again: back });
+  if (busTracesFile || mine.length >= BUS_LINES_MAX) { draw(); return; }
+  fill(results, el('li', { class: 'empty' }, 'Chargement des lignes…'));
+  await Promise.all([loadBusTraces(), (state.myStations ?? []).some((x) => x.bus) ? loadBus() : null]);
+  if (view !== 'buslines') return; /* l'écran a été quitté pendant le chargement */
+  if (!busTracesFile) { fill(results, el('li', { class: 'empty' }, 'Les lignes ne sont pas chargées : il faut du réseau pour en ajouter une. Tes lignes restent sur la carte.')); return; }
+  if (keptBusTraces().updated !== busTracesFile.updated && (state.busLines ?? []).length) { keepBusTraces(busTracesFile); drawBusLines(); }
+  openMyBusLines(input.value);
+}
+
 /* ---------- Chez moi (v222) : Réglages → Chez moi ---------- */
 
 function openHomeSettings() {
@@ -5750,6 +5840,65 @@ async function drawLines() {
 function toggleLines() {
   state.showLines = !state.showLines; persist(); drawLines(); refresh();
   toast(state.showLines ? 'Lignes de métro et RER affichées' : 'Lignes de métro et RER masquées');
+}
+
+/* ---------- Mes lignes de bus (v228, mes choix 1A 2A 3A 4A du 19 nov.) ----------
+   Le chemin des lignes que j'ai choisies (Réglages → Mes lignes de bus), dans leur couleur, aller et retour, sans
+   horaires ni sens. Le fichier de toutes les lignes (data/bus-traces.json, robot) est téléchargé en entier, seulement
+   quand j'ouvre l'écran pour en ajouter une ou quand ma copie a plus d'un mois : GitHub ne sait pas lesquelles je
+   choisis. Le téléphone n'en garde que mes lignes (localStorage carte-paris.bus-traces, hors sauvegarde : le fichier
+   les redonne), donc la carte les montre aussi sans réseau. */
+const BUS_TRACES_KEY = 'carte-paris.bus-traces';
+const BUS_ATTR = 'Bus : <a href="https://data.iledefrance-mobilites.fr/">Île-de-France Mobilités</a> (ODbL)'; /* tracés sur OpenStreetMap, déjà cité par le fond de carte */
+const busLinesLayer = L.layerGroup();
+let busTracesFile = null; // le fichier entier, le temps de la session
+let busTracesBusy = null;
+function keptBusTraces() {
+  try { return cleanTraces(JSON.parse(storage.getItem(BUS_TRACES_KEY) || 'null')); } catch { return cleanTraces(null); }
+}
+function keepBusTraces(file) {
+  const k = keepTraces(file, state.busLines);
+  try { storage.setItem(BUS_TRACES_KEY, JSON.stringify(k)); } catch { /* stockage plein : la carte n'aura pas les tracés */ }
+  return k;
+}
+/** Le fichier de toutes les lignes (environ 500 Ko à télécharger), ou null sans réseau. */
+async function loadBusTraces() {
+  if (busTracesFile) return busTracesFile;
+  busTracesBusy ??= fetch('data/bus-traces.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    .then((j) => { busTracesBusy = null; if (j?.lines?.length) busTracesFile = j; return busTracesFile; });
+  return busTracesBusy;
+}
+/** Redemande le fichier seulement si ma copie manque une de mes lignes ou a plus d'un mois. */
+async function refreshBusTraces() {
+  if (!tracesDue(keptBusTraces(), state.busLines)) return;
+  const f = await loadBusTraces();
+  if (f) { keepBusTraces(f); drawBusLines(); }
+}
+/** Mes lignes qui ont un tracé gardé (celles dessinées sur la carte). */
+const busLinesDrawn = () => { const k = keptBusTraces(); return (state.busLines ?? []).filter((l) => k.lines[l.id]); };
+function drawBusLines() {
+  busLinesLayer.clearLayers();
+  if (!state.showBusLines || !(state.busLines ?? []).length) { map.removeLayer(busLinesLayer); map.attributionControl.removeAttribution(BUS_ATTR); drawLayerNote(); return; }
+  const k = keptBusTraces();
+  for (const l of [...state.busLines].reverse()) { // la première de ma liste dessinée par-dessus
+    const p = k.lines[l.id];
+    if (!p) continue;
+    for (const seg of p) {
+      L.polyline(seg, { className: 'line-casing', weight: 7, opacity: 0.9, interactive: false }).addTo(busLinesLayer);
+      L.polyline(seg, { color: l.c, weight: 4, opacity: 1, interactive: false }).addTo(busLinesLayer);
+    }
+    for (const at of labelSpots(p)) L.marker(at, { interactive: false, keyboard: false, zIndexOffset: -200,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="line-tag bus" style="--c:${l.c};--t:${l.t}">${esc(l.ref)}</span>`, iconSize: [0, 0] }) }).addTo(busLinesLayer);
+  }
+  busLinesLayer.addTo(map);
+  map.attributionControl.addAttribution(BUS_ATTR);
+  drawLayerNote();
+}
+function toggleBusLines() {
+  if (!(state.busLines ?? []).length) { openMyBusLines(); toast('Choisis d\'abord tes lignes de bus.'); return; }
+  state.showBusLines = !state.showBusLines; persist(); drawBusLines(); refresh();
+  toast(state.showBusLines ? `Bus ${refsText(state.busLines)} sur la carte : le chemin, sans horaires ni sens` : 'Mes lignes de bus : masquées');
+  if (state.showBusLines) refreshBusTraces();
 }
 
 async function drawMarkets() {
@@ -7421,10 +7570,10 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
-      el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
+      el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
     ), { tall: true, name: 'settings:appli', again: () => openSettings('appli') });
     return;
@@ -7553,6 +7702,7 @@ function openSettings(section = null) {
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
     row('map', 'Mon Paris', 'Planning, arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
+    row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Icône et couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
@@ -8046,7 +8196,7 @@ function importText(text, owner) {
       let at = Date.now();
       try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
       if (!state.me) state.me = fileOwner(text);
-      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
+      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); drawBusLines(); refreshBusTraces(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
       state.backup = savedBackup(state);
     }
@@ -8351,6 +8501,7 @@ document.getElementById('btnMetro').addEventListener('click', nearestMetro);
 // Appui long sur M : afficher ou cacher les lignes
 document.getElementById('btnMetro').addEventListener('contextmenu', (e) => { e.preventDefault(); toggleLines(); });
 drawLines();
+drawBusLines(); refreshBusTraces(); /* v228 : mes lignes de bus, sans réseau depuis la copie gardée */
 document.getElementById('btnLocate').addEventListener('click', locateOnMap);
 document.getElementById('btnVelib').addEventListener('click', () => showVelib());
 document.getElementById('btnHome').addEventListener('click', goHome);
@@ -8506,6 +8657,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
+    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur : ni horaires ni sens, et une déviation pour travaux ne se voit pas.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
@@ -8730,6 +8882,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
     '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
     '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
     '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
@@ -8739,7 +8892,6 @@ const HELP = [
     '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
     '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
     '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
-    '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
   ]],
 ];
 

@@ -30,6 +30,7 @@ SOFT = {
     'data/architectes.json': ('items', 300),
     'data/acces.json': ('items', 800),
     'data/gares.json': ('stations', 100),
+    'data/bus-traces.json': ('lines', 400),   # v228 : chemin des lignes de bus (856 en septembre 2026)
 }
 
 

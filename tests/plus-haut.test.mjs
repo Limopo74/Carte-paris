@@ -6,13 +6,13 @@ import { loadState, saveState, exportJSON, readSettings, KEY, cleanChips, cleanM
 
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 
-test('Plus du haut : au départ Vélib\', Fontaines et toilettes, Passages couverts, rien d\'autre ne bouge', () => {
-  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'pratique', 'passages']);
-  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'pratique', 'passages']);
+test('Plus du haut : au départ Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts, rien d\'autre ne bouge', () => {
+  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'buslines', 'pratique', 'passages']);
+  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'buslines', 'pratique', 'passages']);
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav'] })); // appli d'avant la v151
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'pratique', 'passages']);
+  assert.deepEqual(s.moreChips, ['velib', 'buslines', 'pratique', 'passages']);
   assert.deepEqual(s.hiddenChips, ['fav']);
 });
 
@@ -20,11 +20,11 @@ test('Plus du haut (v168) : Passages couverts arrive sous ⋯ Plus, pas dans la 
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [] })); // réglages de la v167
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'passages']);
+  assert.deepEqual(s.moreChips, ['velib', 'passages', 'buslines']);
   assert.equal(s.showPassages, false, 'calque éteint au départ');
   const st2 = memStorage();
   st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['passages'], chipsV: 1 }));
-  assert.deepEqual(loadState(st2).moreChips, [], 'caché : pas aussi dans Plus');
+  assert.deepEqual(loadState(st2).moreChips, ['buslines'], 'caché : pas aussi dans Plus (Mes lignes de bus, v228, arrive seul)');
   saveState(st, { ...s, moreChips: ['velib'], showPassages: true }); // remis dans la barre, calque allumé
   const r = loadState(st);
   assert.deepEqual(r.moreChips, ['velib'], 'la migration ne se refait pas');
@@ -32,7 +32,7 @@ test('Plus du haut (v168) : Passages couverts arrive sous ⋯ Plus, pas dans la 
   const back = readSettings(JSON.parse(exportJSON(r)));
   assert.deepEqual(back.moreChips, ['velib']);
   assert.equal(back.showPassages, true);
-  assert.deepEqual(readSettings({ settings: { moreChips: ['lines'] } }).moreChips, ['lines', 'passages'], 'une sauvegarde d\'avant la v167 aussi');
+  assert.deepEqual(readSettings({ settings: { moreChips: ['lines'] } }).moreChips, ['lines', 'passages', 'buslines'], 'une sauvegarde d\'avant la v167 aussi');
 });
 
 test('Plus du haut : nettoyé, gardé, jamais en même temps caché', () => {
@@ -63,4 +63,14 @@ test('Plus du haut : le bouton ⋯ et sa page existent, le réglage a ses trois 
   assert.match(app, /\[\['bar', 'Barre'\], \['more', 'Plus'\], \['hidden', 'Masqué'\]\]/);
   // un bouton rangé ou caché reste visible dans la barre tant qu'il est actif
   assert.match(app, /where\(x\.key\) !== 'bar' && x\.active/);
+});
+
+test('Plus du haut (v228) : Mes lignes de bus arrive sous ⋯ Plus une seule fois, sans ramener Passages couverts', () => {
+  const st = memStorage();
+  st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [], chipsV: 2 })); // Passages couverts remis dans la barre
+  const s = loadState(st);
+  assert.deepEqual(s.moreChips, ['velib', 'buslines']);
+  assert.equal(s.showBusLines, false);
+  saveState(st, { ...s, moreChips: ['velib'] }); // remis dans la barre
+  assert.deepEqual(loadState(st).moreChips, ['velib'], 'la migration ne se refait pas');
 });

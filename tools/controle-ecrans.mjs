@@ -228,6 +228,7 @@ const ECRANS = {
     await feuille(p).getByText('Aucun de tes lieux dans cet arrondissement').waitFor({ timeout: 3000 });
   },
   filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Afficher aussi sur la carte' }).scrollIntoViewIfNeeded(); },
+  mesbus: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mes lignes de bus' }).click(); await p.waitForTimeout(1500); await feuille(p).locator('input[type="search"]').fill('38'); await p.waitForTimeout(300); }, // v228
   plushaut: async (p) => { await p.locator('.chip.more-chip').click(); await p.waitForTimeout(300); },
   barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
