@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (240)';
+const VERSION = '19 novembre 2026 (241)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1477,6 +1477,7 @@ function setHomeOn(on, { quiet = false } = {}) {
   persist();
   drawWx();
   if (view === 'weather') openWeather(true); // v239 : la ligne Chez moi de la page Météo suit
+  else if (view === 'settings:chezmoi') openHomeSettings(); // v241 : l'interrupteur de Réglages → Chez moi suit aussi « Annuler » du message
   if (!quiet) toast(next ? `Distances depuis chez toi (${homeShort(state.home)})` : 'Distances depuis ta position', false, { label: 'Annuler', fn: () => setHomeOn(!next, { quiet: true }) });
 }
 
@@ -5720,7 +5721,7 @@ function openHomeSettings() {
         el('button', { type: 'button', class: 'btn', onclick: openHomeSearch }, 'Modifier'))
       : el('p', {}, 'Enregistre ton adresse une fois. Ensuite, les distances et les durées pourront partir de chez toi au lieu de ta position.'),
     home
-      ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { setHomeOn(!on); openHomeSettings(); } },
+      ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, 'Distances, durées, « Pars à »')),
         el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))))

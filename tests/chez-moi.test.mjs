@@ -80,6 +80,8 @@ test('l\'appli : point de départ unique, écrans « là où je suis » inchang�
   assert.match(w, /role: 'switch'/);
   assert.match(w, /'Partir de chez moi'/);
   assert.match(app, /if \(view === 'weather'\) openWeather\(true\);/);
+  // v241 : la page Réglages → Chez moi suit aussi (« Annuler » du message)
+  assert.match(app, /else if \(view === 'settings:chezmoi'\) openHomeSettings\(\);/);
   // Rentrer, la boussole et Où suis-je ? partent toujours de ma vraie position
   for (const fn of ['async function openHomePlan', 'function openCompass', 'async function openWhereAmI']) {
     const i = app.indexOf(fn); assert.ok(i > 0, fn);
