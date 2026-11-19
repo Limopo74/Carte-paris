@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (235)';
+const VERSION = '19 novembre 2026 (236)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5641,7 +5641,9 @@ async function openMyBusLines(query = '') {
       el('span', { class: 'item-name bus-name' }, tag(l), ` Ligne ${l.ref}`),
       el('span', { class: 'item-sub' }, sub))));
   // v234 : les lignes qui ont un arrêt à moins de 5 min à pied du centre de la carte (calcul sur le téléphone, rien n'est envoyé)
-  const center = map.getCenter();
+  // v236 : de ma position si l'appli la connaît déjà (moins de 10 min, à Paris), sans jamais la demander exprès
+  const me = nearHere();
+  const center = me ?? map.getCenter();
   const draw = () => {
     if (!busTracesFile) return;
     const q = input.value.trim();
@@ -5654,7 +5656,8 @@ async function openMyBusLines(query = '') {
     const atHome = home ? linesAtStop(busTracesFile, homeAt, busLines(busData, home.stop)).filter((l) => !have.has(l.id)) : [];
     const near = nearParis(center) ? linesNear(busTracesFile, center, minutesToMeters(5)).filter((x) => !have.has(x.line.id)) : [];
     fill(results,
-      el('li', { class: 'help' }, nearParis(center) ? (near.length ? 'Près du centre de la carte (déplace la carte sur un lieu, puis reviens ici)\u00a0:' : 'Aucune ligne avec un arrêt à moins de 5 min du centre de la carte.') : 'Déplace la carte sur Paris pour voir les lignes proches.'),
+      el('li', { class: 'help' }, me ? (near.length ? 'Près de toi\u00a0:' : 'Aucune ligne avec un arrêt à moins de 5 min de toi.')
+        : nearParis(center) ? (near.length ? 'Près du centre de la carte (déplace la carte sur un lieu, puis reviens ici)\u00a0:' : 'Aucune ligne avec un arrêt à moins de 5 min du centre de la carte.') : 'Déplace la carte sur Paris pour voir les lignes proches.'),
       ...near.map((x) => resultRow(x.line, `Arrêt ${x.stop} · ${fmtWalk(x.d)}`)),
       ...(atHome.length ? [el('li', { class: 'help' }, `Les lignes de ton arrêt ${home.label} (${home.stop[2]})\u00a0:`), ...atHome.map((l) => resultRow(l))] : []));
   };
@@ -8750,7 +8753,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
-    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près d\'un lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
+    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué. Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
@@ -8976,7 +8979,7 @@ const HELP = [
   ]],
   ['sparkles', 'Nouveautés', [
     '{info} Écrans plus courts : les explications de chaque écran sont rangées tout en bas, dans la ligne « Aide », repliée (touche-la pour la lire). Les alertes, les mises en garde et ce qui part du téléphone restent visibles. Dans {settings} → Mise à jour et confidentialité, le texte « Confidentialité » est replié lui aussi.',
-    '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près du centre de la carte » : les lignes qui s\'arrêtent à moins de 5 min du lieu où tu as placé la carte.',
+    '{search} Bus : tape un numéro dans la loupe (« 38 ») pour voir la ligne et ses arrêts sur la carte, sans l\'ajouter. Dans {settings} → Mes lignes de bus, « Près de toi » : les lignes qui s\'arrêtent à moins de 5 min de toi, si l\'appli connaît ta position ; sinon, « Près du centre de la carte ».',
     '{bus} Mes lignes de bus : en zoomant, leurs arrêts, un point de chaque côté de la rue, dans la couleur de la ligne ; plus près, le nom de l\'arrêt. Seulement à Paris et en petite couronne.',
     '{arrow-right} Y aller (fiche d\'un lieu, prochain lieu de Mon planning) : au-delà de la distance « À pied jusqu\'à » ({settings} → Distances et durées, 1 km au départ), la plaque donne la distance (« Y aller · 7,6 km de chez toi ») et plus de minutes à pied : Google Maps s\'ouvre alors en transports. Le prochain lieu de Mon planning dit aussi « de chez toi » quand Chez moi est allumé.',
     '{user} Mes artistes (Sorties → Expos) : sur la page d\'un artiste que tu suis, « Toute l\'année dans les musées » liste les musées de Paris qui ont ses œuvres, du plus proche au plus loin (Claude Monet : l\'Orangerie, Orsay, le Petit Palais, Rodin). Un appui ouvre le musée : Y aller, Boussole, Métro, son site. D\'après la liste de la Région : elle ne cite pas tout, et un nom de famille porté par plusieurs artistes (David) ne compte pas.',
