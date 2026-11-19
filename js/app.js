@@ -53,7 +53,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (227)';
+const VERSION = '19 novembre 2026 (228)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1230,14 +1230,16 @@ function updateNow(force = false) {
   if (tk) {
     const at = tk.ticket.at;
     // Un moment de la journée (matin, soir…) n'a pas d'heure : pas de « Pars à », qui serait faux.
-    const { leave, travel, how } = isPart(tk.ticket.part) ? {} : departureFor(tk, pos);
+    // v228 : fermé à l'heure prévue (horaires connus) : « Fermé à cette heure-là » à la place de « Pars à », qui mènerait à une porte close.
+    const shut = planClosed(tk);
+    const { leave, travel, how } = isPart(tk.ticket.part) || shut ? {} : departureFor(tk, pos);
     card.hidden = false;
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, isPart(tk.ticket.part) ? `Prévu ${planText(tk.ticket)}` : `Prévu · ${hmText(new Date(at))}`),
       el('span', { class: 'now-name' }, tk.name),
-      el('span', { class: 'now-sub' }, leave
+      el('span', { class: 'now-sub' }, shut || (leave
         ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`
-        : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`));
+        : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`)));
     if (leave && leave <= new Date()) buzzNow(`pars:${tk.name}:${at}`);
     card.querySelector('.now-open').onclick = () => openPlanned(tk);
     return;
@@ -1275,10 +1277,14 @@ function updateNow(force = false) {
   const showNext = () => {
     card.hidden = false;
     const n = plannedPoints().length;
+    // v228 : demain, ce que dit Mon planning : fermé à l'heure prévue, pluie probable (lieu pas abrité) ou chaleur ; prévisions de tout Paris, sans position
+    const tomorrow = daysUntil(nx.ticket.at) === 1;
+    if (tomorrow) loadForecast();
+    const extra = tomorrow ? [planClosed(nx), planWeather(forecast?.days?.[dayKey(new Date(nx.ticket.at))], nx.covered)].filter(Boolean).join(' · ') : '';
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `Prévu ${planText(nx.ticket)}`),
       el('span', { class: 'now-name' }, nx.name),
-      el('span', { class: 'now-sub' }, n > 1 ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Voir Mon planning'));
+      el('span', { class: 'now-sub' }, extra || (n > 1 ? `Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')}` : 'Voir Mon planning')));
     card.querySelector('.now-open').onclick = () => openPlanning('map');
   };
   if (nx && daysUntil(nx.ticket.at) === 1) { showNext(); return; }
@@ -3709,25 +3715,25 @@ function updatePlanningCount() {
   mc.hidden = !inMore || !n;
   more.setAttribute('aria-label', inMore && n ? `Plus de boutons (Mon planning : ${plural(n, 'sortie prévue', 'sorties prévues')})` : 'Plus de boutons');
 }
+/** Une sortie prévue dans un lieu fermé (v228, partagé par Mon planning et « Maintenant ») : heure précise, fermé à cette heure-là ;
+ * moment de la journée, fermé seulement s'il l'est à chaque demi-heure du moment. '' si ouvert ou horaires inconnus. */
+function planClosed(p) {
+  const sts = hoursOf(p) ? planTimes(p.ticket).map((t) => openState(hoursOf(p), t)) : [];
+  if (!sts.length || !sts.every((st) => st && !st.open)) return '';
+  return isPart(p.ticket.part) ? `Fermé ${PARTS[p.ticket.part].when}` : `Fermé à cette heure-là${sts[0].opensAt ? ` (ouvre à ${hhText(sts[0].opensAt)})` : ''}`;
+}
 /** Ce que la ligne d'une sortie doit dire en plus : départ (aujourd'hui), lieu fermé à cette heure-là, météo du jour. */
 function planInfo(p) {
   const at = new Date(p.ticket.at);
   const out = [];
-  // Heure précise : fermé à cette heure-là. Moment de la journée : fermé seulement s'il l'est à chaque demi-heure du moment.
-  const sts = hoursOf(p) ? planTimes(p.ticket).map((t) => openState(hoursOf(p), t)) : [];
-  if (sts.length && sts.every((st) => st && !st.open)) {
-    const st = sts[0];
-    out.push(el('span', { class: 'plan-note bad' }, ico('clock'), isPart(p.ticket.part)
-      ? ` Fermé ${PARTS[p.ticket.part].when} ce jour-là`
-      : ` Fermé à cette heure-là${st.opensAt ? ` (ouvre à ${hhText(st.opensAt)})` : ''}`));
-  }
+  const shut = planClosed(p);
+  if (shut) out.push(el('span', { class: 'plan-note bad' }, ico('clock'), ` ${shut}${isPart(p.ticket.part) ? ' ce jour-là' : ''}`));
   if (!isPart(p.ticket.part) && daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
     const from = startHere();
     const { leave, travel, how } = departureFor(p, from);
     if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`}${from?.kind === 'home' ? ' de chez toi' : ''} · ≈ ${travel} min ${how}`));
   }
-  const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-  const w = planWeather(forecast?.days?.[key], p.covered);
+  const w = planWeather(forecast?.days?.[dayKey(at)], p.covered);
   if (w) out.push(el('span', { class: 'plan-note' }, ico(w.startsWith('Pluie') ? 'cloud-rain' : 'thermometer-sun'), ` ${w}`));
   return out;
 }
@@ -3739,6 +3745,7 @@ function loadForecast() {
   net(forecastUrl()).then((r) => (r.ok ? r.json() : null)).then((j) => {
     forecast = { time: Date.now(), days: readForecast(j) };
     if (view === 'planning') openPlanning();
+    updateNow(true); // v228 : la sortie de demain dans « Maintenant » 
   }).catch(() => {});
 }
 let planningBack = 'myparis'; // d'où l'on vient : la carte (bouton de la colonne) ou Mon Paris
@@ -7414,7 +7421,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Confidentialité'), el('span', {}, '')),
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Relier des lieux, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire ». Comme tout site, ces services voient l\'adresse internet du téléphone.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran : une appli web n'a pas accès au podomètre. Pas estimés avec 70 cm par pas.`),
       el('p', { class: 'help' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
@@ -8488,7 +8495,7 @@ const HELP = [
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Alertes et bandeau.',
-    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour, « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain, ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
@@ -8723,6 +8730,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
     '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
     '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
     '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
@@ -8732,7 +8740,6 @@ const HELP = [
     '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
     '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
     '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
-    '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
   ]],
 ];
 
