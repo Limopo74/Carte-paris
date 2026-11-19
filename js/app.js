@@ -58,7 +58,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (255)';
+const VERSION = '20 novembre 2026 (256)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7187,7 +7187,7 @@ function openRoutes() {
   openSheet([ico('route'), ' Itinéraire'], el('div', { class: 'menu' },
     row('hourglass', 'J\'ai du temps', 'Une boucle à pied qui revient ici, selon ton temps libre', () => openFreeTime()),
     row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
-    row('route', 'Mes parcours', 'Touche la carte pour poser tes étapes ; le chemin suit les rues', () => openMyRoutes()),
+    row('route', 'Mes parcours', 'La distance et la durée à pied entre tes étapes, par les rues', () => openMyRoutes()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
     row('signpost', 'Circuits de visite', 'Des balades d\'un métro à l\'autre, avec leur tracé', () => openCircuits(openRoutes)),
     row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
@@ -9802,6 +9802,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
     '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
@@ -9811,7 +9812,6 @@ const HELP = [
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
     '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
-    '{landmark} Monuments (Autour de moi) : en haut, les immeubles **protégés par la Ville** à moins de 150 m, avec ce qu\'il faut regarder sur la façade (« Lire la suite » pour tout le texte) ; la distance se règle dans {settings} → Distances et durées. Parmi les monuments, les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Centre Pompidou…).',
   ]],
 ];
 
