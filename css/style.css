@@ -1149,6 +1149,7 @@ a.menu-row .menu-chev { font-size: 20px; }
 .seg.seg-scroll button { flex: none; padding: 6px 14px; }
 .seg .seg-new { border-style: dashed; border-color: var(--add); color: var(--add); background: transparent; }
 .form-more summary { min-height: 48px; }
+.form-photo { display: block; width: 100%; max-height: 22vh; object-fit: cover; border-radius: var(--r); background: var(--line); }
 .form-more summary .help-title { flex: none; }
 .form-more-sub { flex: 1; min-width: 0; color: var(--muted); font-size: var(--t14); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .form-more > .stack { padding: 4px 14px 14px; }

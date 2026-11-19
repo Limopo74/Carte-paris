@@ -53,7 +53,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (226)';
+const VERSION = '19 novembre 2026 (227)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1898,6 +1898,26 @@ function openForm(draft, existing = null) {
   // v208 : Favori est indépendant de l'état : une case à part, plus deux cases noires à la fois
   const favBox = el('input', { type: 'checkbox', class: 'check', checked: fav });
   favBox.addEventListener('change', () => { fav = favBox.checked; });
+  // Nouveau lieu (maquette) : Photo et Favori sur une ligne, comme dans la fiche ; le commentaire sort du repli
+  const favBtn = el('button', { type: 'button', class: 'btn c-fav' });
+  const drawFav = () => { favBtn.setAttribute('aria-pressed', String(fav)); fill(favBtn, glyph(state.fav.icon, { filled: fav }), 'Favori'); };
+  favBtn.addEventListener('click', () => { fav = !fav; draft.fav = fav; favBox.checked = fav; drawFav(); });
+  drawFav();
+  const photoBox = el('div', { class: 'stack', style: 'gap:8px' });
+  const photoBtn = el('button', { type: 'button', class: 'btn c-add' });
+  const drawPhoto = () => {
+    fill(photoBtn, ico('camera'), draft.photoFile ? 'Reprendre' : 'Photo');
+    photoBtn.setAttribute('aria-label', draft.photoFile ? 'Reprendre la photo' : 'Prendre une photo');
+    const old = photoBox.querySelector('img'); if (old) { URL.revokeObjectURL(old.src); old.remove(); }
+    if (draft.photoFile) photoBox.prepend(el('img', { class: 'form-photo', src: URL.createObjectURL(draft.photoFile), alt: 'Ta photo' }));
+  };
+  photoBtn.addEventListener('click', () => {
+    const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+    camera.addEventListener('change', () => { const f = camera.files?.[0]; camera.remove(); if (f) { draft.photoFile = f; drawPhoto(); } });
+    document.body.append(camera); camera.click();
+  });
+  photoBox.append(el('div', { class: 'row' }, photoBtn, favBtn));
+  drawPhoto();
 
   const whereText = el('span', {}, v.address || (draft.acc != null ? `Ta position (à ${Math.round(draft.acc)} m près)` : 'Endroit choisi sur la carte'));
   draft.onAddress = (label) => {
@@ -1967,11 +1987,12 @@ function openForm(draft, existing = null) {
   };
 
   // Le détail facultatif est replié pour un nouveau lieu : la fiche reste courte et la carte garde la moitié de l'écran.
+  const noteField = el('label', { class: 'field' }, 'Commentaire (facultatif)', note);
   const details = [
-    el('label', { class: 'field' }, 'Commentaire (facultatif)', note),
+    existing ? noteField : null,
     artistField,
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
-    el('label', { class: 'item-main check-row' }, favBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Favori'))),
+    existing ? el('label', { class: 'item-main check-row' }, favBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Favori'))) : null,
     el('div', {}, el('div', { class: 'legend' }, 'Mes étoiles (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
       el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
@@ -1980,7 +2001,7 @@ function openForm(draft, existing = null) {
     momentBox,
   ];
   syncArtist();
-  const filled = Boolean(v.note || v.artist || draft.artist || v.done || (v.fav && !favOnly) || stars || covered || lists.size || moments.size);
+  const filled = Boolean(v.artist || draft.artist || v.done || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
       el('p', { class: 'help' }, 'Corrige le texte : le point ne bouge pas. Pour le déplacer : fiche → Rangement → Déplacer le point (l\'adresse est alors recalculée).'))
@@ -1991,9 +2012,11 @@ function openForm(draft, existing = null) {
     !existing && Number.isFinite(draft.ticketAt) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Sortie ${planText(draftPlan(draft))}${draft.ticketWith ? ` avec ${draft.ticketWith}` : ''} : elle ira dans Mon planning.`) : null,
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Catégorie'), catSeg),
+    existing ? null : photoBox,
+    existing ? null : noteField,
     existing ? el('div', { class: 'stack' }, ...details)
       : el('details', { class: 'help-item form-more', open: filled },
-        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'commentaire, état, étoiles, listes…')),
+        el('summary', {}, el('span', { class: 'help-title' }, 'Plus de détails'), el('span', { class: 'form-more-sub' }, 'état, étoiles, listes…')),
         el('div', { class: 'stack' }, ...details)),
     err,
     foot(el('div', { class: 'row' },
@@ -8589,7 +8612,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
-    '**Le formulaire** : catégorie, commentaire, état, Favori, étoiles, listes, « Abrité de la pluie » et « Le bon moment ».',
+    '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
@@ -8700,6 +8723,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
     '{message-square-text} Mots tout prêts : quand tu écris une impression, des mots à toucher sous « Ce que j\'ai vu », selon la catégorie (« Très bon », « J\'y retourne » pour un resto). Un appui ajoute le mot, un second le retire ; tu écris toujours ce que tu veux. Tes séries de mots : {settings} → Catégories et listes → Mots tout prêts ; le choix de la série : dans chaque catégorie.',
     '{database} Réglages → Mise à jour et confidentialité → Données de l\'appli → listes annuelles : le Kiosque Théâtre a sa date de vérification (17 novembre 2026). Les listes tenues à la main sont maintenant revues deux fois par an, le 1er mars et le 1er septembre, toujours avec ton accord avant publication.',
     '{locate} Autour de moi : « Où suis-je ? » reste toujours à la même place, 7e des 8 boutons du haut, même depuis une station ou ta dernière position. « Autre station » disparaît (le bouton Station le fait déjà) ; « Réessayer » est sous les boutons, avec la phrase sur ta dernière position.',
@@ -8709,7 +8733,6 @@ const HELP = [
     '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
     '{tent} Dans la rue : le bouton « Parcourir » reste dans le message jusqu\'à ce que tu touches la carte. Loin de Paris (de chez toi, par exemple), les listes et « Parcourir » partent du centre de la carte au lieu de ta position, et un lieu affiche « à 385 km » au lieu d\'une durée à pied qui ne veut rien dire.',
     '{check} TTB, encore ouvert ? Sur la fiche d\'une adresse, après Avis Google, réponds « Toujours ouvert » ou « Fermé définitivement ». Une adresse vérifiée porte une coche noire pendant 6 mois ; l\'étiquette à côté de « TTB » le dit. Pour tout vérifier d\'affilée : {settings} → TTB → Vérifier les adresses. Avec un arrondissement choisi dans Filtres, seuls ses ronds TTB restent.',
-    '{tent} Dans la rue : touche la tente, puis « Parcourir » : un lieu à la fois en bas de la carte, aujourd\'hui ou demain, à la distance de Sorties (3 km au départ, réglable), la carte se place sur chacun. Tous les « Voir sur la carte » se parcourent pareil (‹ ›, ou glisser de côté sur le bandeau ; « Liste » pour revenir).',
   ]],
 ];
 
