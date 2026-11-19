@@ -111,7 +111,7 @@ export function snap(P, pt, maxM = SNAP_MAX_M) {
 }
 
 /** Coût d'un tronçon : sa longueur, multipliée si c'est un parc ou un passage couvert qu'on n'a pas choisi. */
-const cost = (P, i, allow) => P.em[i] * ((P.ef[i] & (PARK | COVERED)) & ~allow ? AVOID : 1);
+const cost = (P, i, allow) => P.em[i] * ((P.ef[i] & (PARK | COVERED)) & ~allow ? AVOID : 1) * (P.pen ? P.pen[i] : 1); // pen : outil des circuits (tools/circuits/sans-retour.mjs), jamais dans l'appli
 
 /** Petit tas binaire (nœud, coût). */
 class Heap {

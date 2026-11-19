@@ -57,7 +57,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (250)';
+const VERSION = '19 novembre 2026 (251)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -9640,6 +9640,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
     '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
     '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
@@ -9649,7 +9650,6 @@ const HELP = [
     '{route} Mes parcours (Autour de moi → Itinéraire, à la place de Relier des lieux) : touche la carte pour poser tes étapes, le chemin suit les rues. La première fois, l\'appli télécharge le plan des rues de Paris ; ensuite tout se calcule sur ton téléphone, même sans réseau. Tes parcours sont gardés, avec Balade guidée et Google Maps.',
     '{list} Mes listes : dans {settings} → Catégories et listes, la ligne « Aide » donne des exemples de listes (« Pour fêter », « Quand on reçoit des amis »…) et dit la différence avec une catégorie. L\'exemple « Sous la pluie » est remplacé par « Pour fêter » : pour la pluie, il y a déjà la case Abrité.',
     '{message-square-text} Mots tout prêts : la ligne a quitté le bas de Catégories et listes. Elle est maintenant dans {settings} → Mes lieux, juste sous « Catégories et listes ». Le choix de la série d\'une catégorie ne change pas (Catégories et listes → la catégorie).',
-    '{star} Favoris : dans {settings} → Favoris, l\'icône se choisit entre l\'étoile et le cœur, au lieu des icônes des catégories (un 🍷 en favori se confondait avec un bar). Si tu avais pris une autre icône, c\'est de nouveau l\'étoile. La couleur se choisit comme avant.',
   ]],
 ];
 

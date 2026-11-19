@@ -1,6 +1,6 @@
 {
- "source": "Étapes vérifiées le 18 novembre 2026 ; tracés à pied calculés avec OpenStreetMap (routing.openstreetmap.de, ODbL).",
- "updated": "2026-11-18",
+ "source": "Étapes vérifiées le 18 novembre 2026 ; tracés à pied calculés avec OpenStreetMap (routing.openstreetmap.de, ODbL) ; le 19 novembre, un bout du Marais, de Saint-Germain et des Passages refait avec le plan des rues de l'appli (OpenStreetMap, ODbL) pour ne pas revenir sur ses pas.",
+ "updated": "2026-11-19",
  "items": [
   {
    "id": "marais",
@@ -12,7 +12,7 @@
    ],
    "depart": "Saint-Paul",
    "arrivee": "Rambuteau",
-   "m": 2731,
+   "m": 2743,
    "confort": "Plat, sans escalier.",
    "etapes": [
     {
@@ -79,7 +79,7 @@
      "m": true
     }
    ],
-   "trace": "e`eiHmblM@I@G@GVaB@EFYJm@JDB@@@RmABB\\mABE@@??VVZXDBb@`@^XHF?@@?@@B@?@C^Aj@CJIf@GX?DB@ZXVTb@^\\Z][@?FUNu@DKECEGICAG????Ea@BMFO?ABG??EEBI?A}@w@WQc@_@?CAAEGEEAA[WMBa@_@EGT}@b@eBAACCCAAAECEEAABICAA?KGc@W?AA?ACOGCAOIA?A?Je@[M[KAAAAA?A?CAEA?GwBm@@A@M????ALA@gBi@A?ADAJGt@CPBHEHADCF?BGAA?AAAAAAs@jDCBETQx@CB?BAFABABSMAD?@?A@EgBgAiAs@MGs@a@ID[v@c@fB?D?@EHAF?@C@_@xA?B?B?@??LP~@lA?A@A@BFH\\d@JL??JL@BHHJNLPLP@EBD`@f@?DDEdAeD@@@B@@@BBG@?DAjAx@DDJPFJd@hA?@AJA@_A|BEFGPQ`@?JIR[fA_@p@[l@c@pAEIUa@CAAAC@ABw@tAECA@AAA?ABA@KK?AA?A???A@CAEEAAEEg@k@IIGCACCGCG}A~B}A~Bg@r@AAGMAA@@FL[h@?@@@BB@@?FA@@@CJAHABGFS|@ENA@?@ADAB?@EP}@rDAP?@CDADABCFs@|Cm@dCBBBBA@?BAHGA?D",
+   "trace": "e`eiHmblMMx@Ij@ADCPFFFDDD@@BBBBB@`@^hAhAp@p@Du@?KBe@@K@QBI@M@@@?B@Jk@XmBLk@@IB@B@TR@EVTb@`@ZX[[@?FUNu@DKECEGICAGEa@BMFO?ABGEEBI?A}@w@WQc@_@?CAAEGEEAA[WMBa@_@EGT}@b@eBAACCCAAAECEEAABICAA?KGc@W?AA?ACOGCAOIA?A?Je@[M[KAAAAA?A?CAEA?GwBm@@A@MALA@gBi@A?ADAJGt@CPBHEHADCF?BGAA?AAAAAAs@jDCBETQx@CB?BAFABABSMAD?@?A@EgBgAiAs@MGs@a@ID[v@c@fB?D?@EHAF?@C@_@xA?B?B?@LP~@lA?A@A@BFH\\d@JLJL@BHHJNLPLP@EBD`@f@?DDEdAeD@@@B@@@BBG@?DAjAx@DDJPFJd@hA?@AJA@_A|BEFGPQ`@?JIR[fA_@p@[l@c@pAEIUa@CAAAC@ABw@tAECA@AAA?ABA@KK?AA?A?A@CAEEAAEEg@k@IIGCACCGCG}A~B}A~Bg@r@AAGMAA@@FL[h@?@@@BB@@?FA@@@CJAHABGFS|@ENA@?@ADAB?@EP}@rDAP?@CDADABCFs@|Cm@dCBBBBA@?BAHGA?D",
    "note": "Carnavalet et Cognacq-Jay ferment le lundi."
   },
   {
@@ -177,7 +177,7 @@
    ],
    "depart": "Grands Boulevards",
    "arrivee": "Palais-Royal",
-   "m": 2326,
+   "m": 2489,
    "confort": "Plat, en partie à l'abri de la pluie.",
    "etapes": [
     {
@@ -242,7 +242,7 @@
      "m": true
     }
    ],
-   "trace": "iehiHa{hMS|BE`@Gt@AFAD?BALCPAB?B?FIt@UtCGAkCw@MECZkAYAAA?EAC?AAC?sAOi@GIUCGHGp@s@`AW^K@??B@AF?DA@?@A@Ax@I@?\\Cv@Ef@FB?t@JD@@@?@?B?FF@B@LD??@?FBD@D@Ed@CTSvBCREh@~BdA@@DB`Bp@??@A?AB@DBB@?@?@@B@@@?|@`@@?@A@?DBD@?@@B?@HD@??ABI@@F@DBB?BN|@^XJZL\\L@A@C@DDBFBFBD@B]`@{CDUBApCnAXND@rD`Bf@THDD@EAA@QnAGAgAe@_@hC?@v@^jBx@B@?CB@@?DB@@?BTJBA@A@?B@@@@?AL@@\\NB?FD?@l@VO~@rAj@`@PDJDFFDB?B@F?HE\\NtAj@d@RL}@Fe@BSLD?@@?B@d@RFc@Gb@@@v@ZLu@@C?CRJt@Zb@RHD?BB@FDHD@@@?AFAFAFFzAF^",
+   "trace": "iehiHa{hMS|BE`@Gt@AFAD?BALCPAB?B?FIt@UtCGAkCw@MECZkAYAAA?EAC?AAC?sAOi@GIUCGc@b@?@A??@?@GjH?@?@@@@?|BXJBDA@?D@F??@@@@?v@L@A@C@@HBF@@??B@B`@NbBn@BABEBIDB@?FBJe@f@mFHBFu@@?F@FBMd@~BdA@@DB`Bp@@A?AB@DBB@?@?@@B@@@?|@`@@?@A@?DBD@?@@B?@HD@??ABI@@F@DBB?BN|@^XJZL\\L@A@C@DDBFBFBD@B]`@{CDUBApCnAXND@rD`Bf@THDD@EAA@QnAGAgAe@_@hC?@v@^jBx@B@?CB@@?DB@@?BTJBA@A@?B@@@@?AL@@\\NB?FD?@l@VO~@rAj@`@PDJDFFDB?B@F?HE\\NtAj@d@RL}@Fe@BSLD?@@?B@d@RFc@Gb@@@v@ZLu@@C?CRJt@Zb@RHD?BB@FDHD@@@?AFAFAFFzAF^",
    "note": "La plupart des passages ferment le soir : fais ce circuit en journée."
   },
   {
@@ -392,7 +392,7 @@
    ],
    "depart": "Odéon",
    "arrivee": "Notre-Dame-des-Champs",
-   "m": 2988,
+   "m": 2965,
    "confort": "Plat, sans escalier.",
    "etapes": [
     {
@@ -459,7 +459,7 @@
      "m": true
     }
    ],
-   "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@RKBc@LA?o@NE@A?KpA?BB?ABAJAJ?@rA]v@[@?FB\\MPDD?NDJBD?B?z@?~@l@BH??DBFB@@D?LH@N@?D@D@@@AP@`@B|@BfA@LB??@?H?F?@?FH|APrC?B@B?F?@B?TCD?JAd@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@AD@?ADGDI?AHO@?D@F?@@NBBF@F@B@B@DBHBH^_@@DBBtAiATQUP@X?NHZ?^ETGTPr@R@NDJFPTHXDZ?j@J@?R?N?O?SzABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@???@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
+   "trace": "skdiHixgME?EDUASCAAAA?C?CAAECCCAAGCAACAKCKEGCGPWH?CEYEg@s@RKBc@LA?u@PA?KpA?BB??BCLAH?BILGp@?@AFzC\\THRDHDJ@dBh@~@ND@?L?f@B?@??BB??@?Hd@AH?@PB?@?H|APrC@B?B?F@?VAD?LAb@AF@?B@J?B?CAKB?HADA@?@ClBQ?A?IAG?ANAHBfAKt@GHEBGBEAeA?KCo@?ICeAECAC?W?U?GHs@?EAC@EBG@E?CB?JyAAC?A?I?G?A?A?A?C?UAcA?Co@@n@AD@?ADGDI?AHO@?D@F?@@NBBF@F@B@B@DBHBH^_@@DBBtAiATQUP@X?NHZ?^ETGTPr@R@NDJFPTHXDZ?j@J@?R?N?O?SzABx@BbAB|@Bp@@VFNLJRF\\@PFj@@@NF?v@P@f@@nBFz@BH@B?H?D?N@AHB?H@vGPH?J@@?@??BGjIAD?B@H@F@FcA`AKJyErEA@MJOP_BxACF?Bf@pAvBrFABCBABC??FEF@@BF@D@@W^[r@A@A?CFCHABE@}@nBEJp@v@HC?D@F?H@H@Ja@H",
    "note": "Le jardin du Luxembourg ferme la nuit. Le musée Zadkine ferme le lundi."
   },
   {

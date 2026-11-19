@@ -99,6 +99,6 @@ for cid, d in S.items():
          'm': round(float(raw[0])), 'confort': d['confort'], 'etapes': etapes, 'trace': poly}
     if d['note']: c['note'] = d['note']
     out.append(c)
-json.dump({'source': 'Étapes vérifiées le 18 novembre 2026 ; tracés à pied calculés avec OpenStreetMap (routing.openstreetmap.de, ODbL).', 'updated': '2026-11-18', 'items': out},
+json.dump({'source': 'Étapes vérifiées le 18 novembre 2026 ; tracés à pied calculés avec OpenStreetMap (routing.openstreetmap.de, ODbL) ; le 19 novembre, un bout du Marais, de Saint-Germain et des Passages refait avec le plan des rues de l\'appli (OpenStreetMap, ODbL) pour ne pas revenir sur ses pas.', 'updated': '2026-11-19', 'items': out},
           open(os.path.join(HERE, '..', '..', 'data', 'circuits.json'), 'w'), ensure_ascii=False, indent=1)
 print('ok', len(out))
