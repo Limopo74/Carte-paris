@@ -3,19 +3,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cleanBusLines, addBusLine, removeBusLine, cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop,
-  passesNear, busLineSub, refsText, labelSpots, dayText, BUS_LINES_MAX } from '../js/buslines.js';
+  passesNear, busLineSub, refsText, labelSpots, dayText, BUS_LINES_MAX, stopMarks, cleanStops } from '../js/buslines.js';
 import { loadState, saveState, exportJSON, exportForFriend, mergeImport, backupHash, readSettings, SEND_DEFAULT, FILTER_KEYS } from '../js/store.js';
 
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 const src = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 // Deux vraies lignes simplifiées (formes du fichier du robot)
-const L38 = { id: 'C01083', ref: '38', op: 'RATP', c: '#0055C8', t: '#FFFFFF', v: ['Paris'], p: [[[48.8975, 2.3592], [48.8759, 2.3581], [48.8235, 2.3253]]] };
+const L38 = { id: 'C01083', ref: '38', op: 'RATP', c: '#0055C8', t: '#FFFFFF', v: ['Paris'], p: [[[48.8975, 2.3592], [48.8759, 2.3581], [48.8235, 2.3253]]], s: [[48.87592, 2.35795, 0], [48.87588, 2.35828, 0], [48.8600, 2.3480, 1]] };
 const L26 = { id: 'C01076', ref: '26', op: 'RATP', c: '#FF5A00', t: '#000000', v: ['Paris'], p: [[[48.8757, 2.3273], [48.8480, 2.3960]]] };
 const L1A = { id: 'C00189', ref: '1', op: 'Transdev', c: '#00814F', t: '#FFFFFF', v: ['Le Blanc-Mesnil'], p: [[[48.94, 2.46], [48.95, 2.50]]] };
 const L1B = { id: 'C01826', ref: '1', op: 'Mobicité', c: '#FF0000', t: '#FFFFFF', v: ['Rosny-sous-Bois'], p: [[[48.87, 2.48], [48.88, 2.49]]] };
 const L100 = { id: 'C01999', ref: '100', op: 'X', c: '#123456', t: '#FFFFFF', v: [], p: [[[48.8, 2.3], [48.81, 2.31]]] };
-const FILE = { source: 'IDFM', updated: '2026-11-01', data: '2026-09-07', lines: [L1A, L1B, L26, L38, L100] };
-const mine = (...ls) => ls.map(({ p, ...l }) => l);
+const FILE = { source: 'IDFM', updated: '2026-11-01', data: '2026-09-07', names: ['Gare de l\'Est', 'Châtelet'], lines: [L1A, L1B, L26, L38, L100] };
+const mine = (...ls) => ls.map(({ p, s: _s, ...l }) => l);
 
 test('cleanBusLines : vérifiées, sans tracé, sans doublon, 8 au plus', () => {
   assert.equal(BUS_LINES_MAX, 8);
@@ -41,6 +41,22 @@ test('tracés gardés : seulement mes lignes, une ligne disparue est notée, red
   assert.equal(tracesDue(k, mine(L38), Date.parse('2026-12-05T12:00:00')), true);
   assert.equal(tracesDue(null, [], now), false, 'pas de ligne : rien à télécharger');
   assert.deepEqual(cleanTraces({ lines: { C01083: [[[91, 2], [48, 2]]], bad: L38.p } }).lines, {});
+});
+
+test('arrêts (v233) : gardés avec leur nom pour mes lignes ; une copie de la v229, sans arrêts, se redemande une fois', () => {
+  const k = keepTraces(FILE, mine(L38, L26));
+  assert.equal(k.sv, 1);
+  assert.deepEqual(k.stops.C01083, [[48.87592, 2.35795, 'Gare de l\'Est'], [48.87588, 2.35828, 'Gare de l\'Est'], [48.86, 2.348, 'Châtelet']]);
+  assert.equal(k.stops.C01076, undefined, 'ligne sans arrêt connu : rien');
+  const now = Date.parse('2026-11-19T12:00:00');
+  const old = { updated: '2026-11-19', data: '2026-09-07', lines: { C01083: L38.p } }; // copie gardée par la v229
+  assert.equal(tracesDue(old, mine(L38), now), true, 'redemandée une fois pour avoir les arrêts');
+  assert.equal(tracesDue(k, mine(L38), now), false);
+  const sansNoms = keepTraces({ ...FILE, names: undefined }, mine(L38));
+  assert.equal(sansNoms.sv, 0, 'fichier sans arrêts');
+  assert.deepEqual(sansNoms.stops, {});
+  assert.deepEqual(stopMarks(k.stops.C01083).map((q) => q.name), ['Gare de l\'Est', '', 'Châtelet'], 'le nom une fois par arrêt');
+  assert.deepEqual(cleanStops([[91, 2, 'x'], 'x', [48.8, 2.3, 7]]), [[48.8, 2.3, '']]);
 });
 
 test('chercher par numéro : exact d\'abord, puis ceux qui commencent pareil ; les deux « 1 » restent distincts', () => {

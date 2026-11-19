@@ -991,6 +991,8 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .st-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: var(--r); background: color-mix(in srgb, var(--bg) 88%, transparent);
   font-family: var(--display); font-weight: 700; font-size: var(--t115); color: var(--ink); }
 #map.z-name .st-name { display: inline; }
+/* v233 : arrêt d'une de mes lignes de bus (un point par quai), dans la couleur de la ligne */
+.bus-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 3px solid var(--c); box-sizing: border-box; margin: 1px 3px 0 1px; flex: none; }
 
 /* Bleu modernisé : plus vif et plus franc que l'ancien bleu émail (contrastes ≥ 4,5:1 vérifiés) */
 .me-dot { display: block; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent), 0 1px 4px rgba(0, 0, 0, .4); position: relative; z-index: 1; background: #1B56E8; }

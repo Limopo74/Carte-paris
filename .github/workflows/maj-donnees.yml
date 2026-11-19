@@ -71,8 +71,12 @@ jobs:
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 600 -G -o /tmp/src/traces-bus.json "$IDFM/traces-des-lignes-regulieres-de-bus-en-ile-de-france/exports/json" \
             --data-urlencode 'select=lineid,lineshortn,linename,operatorid,linecolor,linetextco,updated,geo_shape' || rm -f /tmp/src/traces-bus.json
           [ -s /tmp/src/traces-bus.json ] && echo "/tmp/src/traces-bus.json : $(wc -c < /tmp/src/traces-bus.json) octets" || echo "Chemin des bus : pas de réponse"
+          # Arrêts des bus, un point par quai (v233, référentiel des arrêts) : environ 18 Mo, jamais bloquant
+          curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 600 -G -o /tmp/src/arrets-bus.geojson "$IDFM/arrets/exports/geojson" \
+            --data-urlencode 'where=arrtype="bus"' || rm -f /tmp/src/arrets-bus.geojson
+          [ -s /tmp/src/arrets-bus.geojson ] && echo "/tmp/src/arrets-bus.geojson : $(wc -c < /tmp/src/arrets-bus.geojson) octets" || echo "Arrêts des bus : pas de réponse"
           python3 -I -c "import json,sys; print(sys.argv[1], len(json.load(open(sys.argv[1],encoding='utf8'))), 'couples arrêt-ligne')" /tmp/src/bus.json
-          for f in /tmp/src/*.geojson; do python3 -I -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf8')); print(sys.argv[1], len(d['features']), 'éléments')" "$f"; done
+          for f in /tmp/src/*.geojson; do [ "$f" = /tmp/src/arrets-bus.geojson ] && continue; python3 -I -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf8')); print(sys.argv[1], len(d['features']), 'éléments')" "$f"; done
 
       - name: Demander les œuvres et les galeries à OpenStreetMap
         # Jamais bloquant : si aucun serveur ne répond, tools/maj-art.mjs garde les listes d'avant.
@@ -110,7 +114,7 @@ jobs:
           python3 -I tools/maj-arrondissements.py /tmp/src/arrondissements.geojson "$TODAY"
           python3 -I tools/maj-bus.py /tmp/src/bus.json "$TODAY"
           # Chemin des lignes de bus (v228) : après maj-bus.py (il lit data/bus.json), jamais bloquant
-          if [ -s /tmp/src/traces-bus.json ]; then python3 -I tools/maj-bus-traces.py /tmp/src/traces-bus.json "$TODAY" || echo "Chemin des bus : fichier d'avant gardé"; else echo "Chemin des bus : pas de réponse, fichier d'avant gardé"; fi
+          if [ -s /tmp/src/traces-bus.json ]; then python3 -I tools/maj-bus-traces.py /tmp/src/traces-bus.json "$TODAY" $( [ -s /tmp/src/arrets-bus.geojson ] && echo /tmp/src/arrets-bus.geojson ) || echo "Chemin des bus : fichier d'avant gardé"; else echo "Chemin des bus : pas de réponse, fichier d'avant gardé"; fi
           python3 -I tools/maj-plaques.py /tmp/src/plaques.geojson "$TODAY"
           # Jamais bloquant : si la source manque ou a changé, data/respire.json reste tel quel
           if [ -s /tmp/src/respire.json ]; then python3 -I tools/maj-respire.py /tmp/src/respire.json "$TODAY" || echo "Paris Respire : fichier d'avant gardé"; else echo "Paris Respire : pas de réponse, fichier d'avant gardé"; fi

@@ -41,27 +41,43 @@ export function cleanTrace(p) {
     && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180).map((q) => [q[0], q[1]])).filter((seg) => seg.length >= 2);
   return parts.length ? parts : null;
 }
-/** Les tracés gardés sur le téléphone ({ updated, data, lines: { id: tracé }, missing: [ids absents du fichier] }), vérifiés. */
+/** Les quais d'une ligne vérifiés : [[lat, lng, nom]…] (v233). */
+export function cleanStops(s) {
+  return (Array.isArray(s) ? s : []).filter((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]) && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180)
+    .map((q) => [q[0], q[1], typeof q[2] === 'string' ? q[2].replace(/\s+/g, ' ').trim().slice(0, 60) : '']).slice(0, 400);
+}
+/** Les tracés gardés sur le téléphone ({ updated, data, lines: { id: tracé }, stops: { id: quais }, sv, missing: [ids absents du fichier] }), vérifiés.
+ * sv = 1 : copie faite depuis un fichier qui porte les arrêts (v233) ; une copie de la v229 n'en a pas et se redemande une fois. */
 export function cleanTraces(o) {
   const lines = {};
+  const stops = {};
   for (const [id, p] of Object.entries(o?.lines ?? {})) { const t = /^C\d{5}$/.test(id) ? cleanTrace(p) : null; if (t) lines[id] = t; }
+  for (const [id, q] of Object.entries(o?.stops ?? {})) if (lines[id]) { const c = cleanStops(q); if (c.length) stops[id] = c; }
   const day = (x) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : '');
   const missing = Array.isArray(o?.missing) ? o.missing.filter((id) => typeof id === 'string' && /^C\d{5}$/.test(id)).slice(0, 20) : [];
-  return { updated: day(o?.updated), data: day(o?.data), lines, missing };
+  return { updated: day(o?.updated), data: day(o?.data), lines, stops, sv: o?.sv === 1 ? 1 : 0, missing };
 }
 /** Garder, pour mes lignes seulement, les tracés du fichier téléchargé. Une ligne absente du fichier n'a plus de tracé. */
 export function keepTraces(file, mine) {
   const ids = new Set(cleanBusLines(mine).map((l) => l.id));
   const lines = {};
-  for (const l of file?.lines ?? []) if (ids.has(l.id)) { const t = cleanTrace(l.p); if (t) lines[l.id] = t; }
-  return cleanTraces({ updated: file?.updated, data: file?.data, lines, missing: [...ids].filter((id) => !lines[id]) });
+  const stops = {};
+  const names = Array.isArray(file?.names) ? file.names : null;
+  for (const l of file?.lines ?? []) {
+    if (!ids.has(l.id)) continue;
+    const t = cleanTrace(l.p);
+    if (!t) continue;
+    lines[l.id] = t;
+    if (names) stops[l.id] = (l.s ?? []).map((q) => [q[0], q[1], typeof names[q[2]] === 'string' ? names[q[2]] : '']);
+  }
+  return cleanTraces({ updated: file?.updated, data: file?.data, lines, stops, sv: names ? 1 : 0, missing: [...ids].filter((id) => !lines[id]) });
 }
 /** Vrai si la copie gardée est à redemander (absente, incomplète pour mes lignes, ou de plus de BUS_TRACES_EVERY_DAYS jours). */
 export function tracesDue(kept, mine, now = Date.now()) {
   const list = cleanBusLines(mine);
   if (!list.length) return false;
   const k = cleanTraces(kept);
-  if (!k.updated || list.some((l) => !k.lines[l.id] && !k.missing.includes(l.id))) return true;
+  if (!k.updated || !k.sv || list.some((l) => !k.lines[l.id] && !k.missing.includes(l.id))) return true;
   return now - Date.parse(`${k.updated}T12:00:00`) > BUS_TRACES_EVERY_DAYS * 864e5;
 }
 
@@ -95,6 +111,11 @@ export const busLineSub = (l) => [l.op, (l.v ?? []).join(', ')].filter(Boolean).
 export function refsText(mine) {
   const r = cleanBusLines(mine).map((l) => l.ref);
   return r.length < 2 ? (r[0] ?? '') : `${r.slice(0, -1).join(', ')} et ${r[r.length - 1]}`;
+}
+/** Les quais à dessiner : chacun a son point ; le nom n'est écrit qu'une fois par arrêt (le premier de ses quais). */
+export function stopMarks(stops) {
+  const named = new Set();
+  return cleanStops(stops).map(([lat, lng, n]) => { const first = n && !named.has(n); if (first) named.add(n); return { lat, lng, name: first ? n : '' }; });
 }
 /** Où poser les pastilles du numéro : deux points du plus long morceau (au tiers et aux trois quarts). */
 export function labelSpots(p) {
