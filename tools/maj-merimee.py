@@ -60,9 +60,16 @@ def museum_name(n):
     return n[:80]
 
 
+# Musées de France que la liste de la Région garde alors qu'ils ne se visitent pas : jamais de « Se visite » pour eux.
+# Vérifié le 19 nov. 2026 : Hébert fermé depuis 2004 (Conseil du 6e, 5 nov. 2024) ; AP-HP fermé au public (aphp.fr) ;
+# Musée national d'Art moderne : Centre Pompidou fermé jusqu'en 2030 (voir ART_PLACES, js/art.js). À revoir à chaque mise à jour.
+CLOSED = {'M5007', 'M1076', 'M5050'}
+
 museums = {}
 for f in json.load(open(MUSEES, encoding='utf8'))['features']:
     p = f.get('properties') or {}
+    if p.get('identifiant') in CLOSED:
+        continue
     for ref in txt(p.get('refmer')).split(';'):
         ref = ref.strip()
         if re.fullmatch(r'PA\w{8}', ref):

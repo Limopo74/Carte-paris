@@ -36,6 +36,7 @@ test('data/merimee.json : monuments de Paris, date, musées', async () => {
   assert.match(updated, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(items.size > 1800, `${items.size} monuments`);
   assert.deepEqual(items.get('PA00086125').m, ['Musée Carnavalet']);
+  assert.deepEqual(items.get('PA00088650').m, [], 'v228 : le musée Hébert, fermé depuis 2004, ne « se visite » pas');
 });
 
 test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel ne compte que celles en retard', async () => {

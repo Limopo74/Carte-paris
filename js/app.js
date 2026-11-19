@@ -54,7 +54,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (229)';
+const VERSION = '19 novembre 2026 (230)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -8882,6 +8882,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} Monuments (Autour de moi) : « Se visite : Musée Hébert » n\'apparaît plus sous l\'hôtel du 6e, rue du Cherche-Midi. Ce musée est fermé depuis 2004 ; la liste des musées de la Région le garde quand même. Les musées fermés sont maintenant écartés.',
     '{bus} Mes lignes de bus : choisis ta ligne et d\'autres dans {settings} → Mes lignes de bus (par le numéro, ou parmi les lignes de ton arrêt Maison), puis touche ⋯ Plus → Mes lignes de bus : seulement elles sur la carte, dans leur couleur, aller et retour. Ni horaires ni sens. Aussi dans Filtres.',
     '{alarm-clock} Bandeau « Maintenant » : ta sortie du jour dit « Fermé à cette heure-là (ouvre à 16h) » quand les horaires du lieu le disent, au lieu de « Pars à … ». La veille, ta sortie de demain dit aussi « Fermé » ou « Pluie probable (60 %) » pour un lieu pas abrité. Ce sont les informations de Mon planning ; rien quand les horaires sont inconnus.',
     '{map-pin-plus} Nouveau lieu (+ Ajouter, ou le doigt appuyé sur la carte) : {camera} Photo et {star} Favori sont sous la catégorie, et le commentaire n\'est plus replié. Une photo prise s\'affiche en petit, avec « Reprendre ». La case Favori a quitté « Plus de détails ». Modifier un lieu ne change pas.',
@@ -8891,7 +8892,6 @@ const HELP = [
     '{pencil} Les mots de l\'appli, rendus homogènes : « Tu y es allée ? », « Tu es déjà passée ici » ; « impression » pour une visite écrite (« passage » ne veut plus dire que passage couvert) ; « Masquer » partout ; « Enregistrer » sur tous les formulaires ; « Tu voulais dire… ? ». Les heures s\'écrivent « 9 h 30 », le premier du mois « 1er décembre », et « : », « ? » ou « » » ne passent plus seuls au début d\'une ligne.',
     '{sofa} Chez moi : enregistre ton adresse dans {settings} → La carte → Chez moi. Allumé, les distances et les durées partent de chez toi (« Y aller · ≈ 8 min de chez toi », « Pars à 14h10 de chez toi ») ; un canapé dans la pastille météo te le rappelle, un appui l\'éteint. Il s\'éteint tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Dans Sorties : Distances depuis… → Chez moi.',
     '{tent} Dans la rue : un concert, un spectacle ou une projection d\'un festival en salle n\'est plus pris pour une fête de rue (l\'agenda de la Ville marque « Festival » des centaines de concerts en club). Une fête ou un marché de Noël ne va dans la rue que s\'il a lieu dehors (rue, place, square… ou « dehors » dans l\'agenda). Dans Sorties, l\'icône dit l\'activité d\'après l\'agenda : musique, spectacle, cinéma, balade, atelier.',
-    '{map} Bandeau de « Carte » et des « Voir sur la carte » : l\'arrondissement en haut (« Sorties · 9e »), et sous le nom l\'heure (« À 20h », « Jusqu\'au 30 nov. »), « Gratuit » et « Sur réservation » quand l\'agenda le dit. Les minutes partent du même point que la liste (centre de la carte, station, ou toi).',
   ]],
 ];
 
