@@ -100,3 +100,13 @@ test('bouton « Note du jour » : avant Ma position, rangé dans Plus, arrive da
   assert.ok(st.moreTools.includes('notes'), 'jamais posé sur la carte tout seul');
   assert.equal(st.mapTools.at(-1), 'locate', 'Ma position reste en bas');
 });
+
+test('v213 : effacer une note, puis « Annuler » la remet avec son heure et à sa place', () => {
+  const notes = [{ day: '2026-11-17', at: at - 864e5, text: 'hier' }, { day: '2026-11-18', at, text: 'librairie rue des Martyrs' }];
+  const old = noteOf(notes, '2026-11-17');
+  const sans = setNote(notes, '2026-11-17', '');
+  assert.equal(noteOf(sans, '2026-11-17'), null);
+  assert.equal(sans.length, 1);
+  const remis = setNote(sans, old.day, old.text, old.at);
+  assert.deepEqual(remis, cleanNotes(notes));
+});

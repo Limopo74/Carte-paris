@@ -48,7 +48,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '19 novembre 2026 (212)';
+const VERSION = '19 novembre 2026 (213)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -579,7 +579,7 @@ function openPassage(p, back, at = null) {
 }
 /* ---------- Note du jour (v205) : une page de texte par jour, sans lieu ni position ; Mon journal la range à sa date ---------- */
 const noteDayTitle = (day) => { const [y, m, d] = day.split('-').map(Number); const s = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: y === new Date().getFullYear() ? undefined : 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); };
-/** Écrire ou compléter la note d'un jour (aujourd'hui par défaut). Enregistrer un texte vide l'efface. */
+/** Écrire ou compléter la note d'un jour (aujourd'hui par défaut). « Effacer cette note » (v213) ou enregistrer un texte vide l'efface. */
 function openDayNote(back = null, day = dayKey()) {
   track('Note du jour');
   const old = noteOf(state.notes, day);
@@ -596,6 +596,19 @@ function openDayNote(back = null, day = dayKey()) {
     if (!now) { if (had) toast('Note effacée'); return; }
     toast(had ? 'Note enregistrée' : 'Note gardée dans Mon journal', false, back ? null : { label: 'Voir', fn: () => openJournal() });
   };
+  /* v213 : effacer d'un appui, sans question ; « Annuler » dans le message remet la note avec son heure (sauf si le jour a été réécrit entre-temps) */
+  const erase = () => {
+    state.notes = setNote(state.notes, day, '');
+    persist();
+    leave();
+    toast('Note effacée', false, { label: 'Annuler', fn: () => {
+      if (noteOf(state.notes, day)) return;
+      state.notes = setNote(state.notes, day, old.text, old.at);
+      persist();
+      if (back && view === 'journal') back();
+      toast('Note remise');
+    } });
+  };
   openSheet([ico('notebook-pen'), ' Note du jour'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, noteDayTitle(day)),
     el('label', { class: 'field' }, old ? 'À noter (tu peux compléter)' : 'À noter', text),
@@ -606,8 +619,9 @@ function openDayNote(back = null, day = dayKey()) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mes notes des autres jours'), el('span', { class: 'menu-sub' }, 'Dans Mon journal, à leur date')),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))) : null,
-    el('p', { class: 'help' }, old && !today ? 'Pour l\'effacer : vide le texte, puis Enregistrer.' : 'Du texte seulement, sans position. Une page par jour : rouvre-la pour la compléter. Elle reste sur ce téléphone et part dans ta sauvegarde, jamais chez un proche.'),
-  ), { name: `note:${day}`, again: () => openDayNote(back, day) });
+    old ? el('button', { type: 'button', class: 'btn danger', onclick: erase }, ico('trash-2'), 'Effacer cette note') : null,
+    el('p', { class: 'help' }, 'Du texte seulement, sans position. Une page par jour : rouvre-la pour la compléter. Elle reste sur ce téléphone et part dans ta sauvegarde, jamais chez un proche.'),
+  ), { tall: true, name: `note:${day}`, again: () => openDayNote(back, day) }); /* v213 : page haute, pour que « Effacer cette note » reste visible à 360 × 740 */
 }
 /** Mon journal : tous mes passages, toutes adresses, par mois. */
 /** Mon journal : mes passages et mon carnet de sorties de l'agenda (v158), du plus récent au plus ancien. */
@@ -8065,7 +8079,7 @@ const HELP = [
     '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
     '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes passages », « Mes repas »…).',
     '**Tous tes passages** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allé. Cocher « Déjà visité » note aussi le jour.',
-    '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; vide le texte pour l\'effacer. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
+    '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : Réglages → Boutons de la carte.',
     '**En repassant** à moins de 100 m, « Maintenant » te rappelle ce que tu avais vu (une fois par visite).',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
@@ -8161,6 +8175,7 @@ const HELP = [
     '**Perdu sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{notebook-pen} Note du jour : un bouton « Effacer cette note » sur la page d\'une note déjà écrite. Un appui l\'efface ; « Annuler » dans le message la remet. La page s\'ouvre plus haut pour tout montrer.',
     '{search} Sorties : un bouton « Chercher » sous le point de départ, dans Tout, Gratuit et Expos. Tape un titre, un lieu ou un artiste : l\'appli cherche dans l\'agenda de la semaine, tout Paris, seulement ce que montre l\'onglet.',
     '{train-front} Bouton Métro d\'un lieu : « À pied, c\'est le plus simple » ne s\'affiche plus quand l\'appli n\'a trouvé aucun métro (pas de station à moins de 1,2 km, ou plus d\'une correspondance). Elle écrit « Pas de trajet simple en métro » et garde Google Maps et l\'appli Île-de-France Mobilités. Pareil dans Rentrer.',
     '{train-front} Sortie de métro plus sûre : une sortie plus proche d\'une autre station n\'est plus affichée (mieux vaut rien qu\'une sortie fausse). Sans réseau : les bus, le RER et le tram de Rentrer, les sorties de métro et les rues sans voitures restent là après une mise à jour.',
@@ -8170,7 +8185,6 @@ const HELP = [
     '{notebook-pen} Note du jour : ⋯ Plus → Note du jour, pour écrire sans lieu. Une page par jour, que tu complètes en la rouvrant ; tes notes sont dans Mon journal, à leur date, et partent dans ta sauvegarde.',
     '{pencil} Mon planning → Aujourd\'hui : « Changer l\'ordre » devient « Modifier la liste », dès un lieu. Un × retire un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message).',
     '{train-front} Sortie de métro : plus de « Sortie 0 » ni de « Entrée / Sortie » ; quand la sortie n\'a ni numéro ni nom de rue, la fiche n\'en dit rien.',
-    '{camera} Photos d\'un lieu en grand : avec plusieurs photos, glisse le doigt de côté pour passer à la suivante ou à la précédente. Le repère « 2 / 6 » dit où tu en es ; un appui ferme, comme avant.',
   ]],
 ];
 
