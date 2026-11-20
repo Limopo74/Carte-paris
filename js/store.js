@@ -246,13 +246,15 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
  * Barre du haut : Dans la rue et Lignes ; les catégories et Vu en passant sous ⋯ Plus (2e capture, 18 h 50) ; Favoris masqué,
  * TTB aussi tant qu'aucune liste n'est importée. Colonne : FRESH_TOOLS. Mon téléphone et les « comme au début » ne changent pas. */
 export const FRESH_HIDDEN_CHIPS = ['ttb', 'fav'];
+/** v323 (mon choix 2a du 20 nov.) : la fiche d'un nouveau venu sans « Uber jusqu'ici » (Réglages → Autres réglages → Fiche d'un lieu pour le remettre). */
+export const FRESH_FICHE_HIDDEN = ['uber'];
 /** Colonne de la carte d'un nouveau venu (3e capture, 18 h 53) : Ma position en tête, Paris, M, Sorties, Mon planning ;
  * sous ⋯ Plus, dans cet ordre : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué. */
 export const FRESH_TOOLS = { mapTools: ['locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes'] };
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
-  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci' }; // v316 : le fond « Éclairci », sans clé
+  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci', ficheHidden: [...FRESH_FICHE_HIDDEN] }; // v323 : Uber masqué dans la fiche (mon choix 2a) // v316 : le fond « Éclairci », sans clé
 }
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */

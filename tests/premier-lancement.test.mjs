@@ -135,3 +135,12 @@ test('v319 : le bouton qui avance est vert plein ; une seule plaque pleine par �
   assert.match(page(4), /openWelcome\(nextOf\(4\)\)/);
   assert.match(page(6), /'Voir ma carte'/);
 });
+
+test('v323 (mon choix 2a) : un nouveau venu a la fiche sans Uber ; QR code, Avis Google et étoiles restent ; mon téléphone ne change pas', () => {
+  const s = loadState(memStorage());
+  assert.deepEqual(s.ficheHidden, ['uber']);
+  const st = memStorage(); saveState(st, { ...s, points: [{ id: 'a', name: 'Lieu', lat: 48.85, lng: 2.35, cat: 'resto' }] });
+  assert.deepEqual(loadState(st).ficheHidden, ['uber'], 'gardé après le premier enregistrement');
+  const old = memStorage(); old.setItem(KEY, JSON.stringify({ points: [] }));
+  assert.deepEqual(loadState(old).ficheHidden, [], 'une mémoire existante garde toutes les lignes');
+});

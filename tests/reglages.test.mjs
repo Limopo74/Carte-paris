@@ -78,7 +78,7 @@ test('nouveaux réglages : valeurs de départ, gardés, exportés, relus', () =>
   assert.deepEqual(s0.tuning, cleanTuning());
   assert.equal(s0.suggestNow, true, 'Suggestions autour de moi : allumé au départ');
   assert.equal(s0.alertNear, true, 'Prévenir près d\'un de mes lieux : allumé au départ');
-  assert.deepEqual(s0.ficheHidden, [], 'toutes les lignes de la fiche au départ');
+  assert.deepEqual(s0.ficheHidden, ['uber'], 'v323 : un nouveau venu a la fiche sans Uber (mon choix 2a)');
   assert.equal(s0.vibrateNow, false, 'la vibration de « Maintenant » reste éteinte au départ');
   assert.ok(saveState(st, { ...s0, tuning: { ...s0.tuning, alertM: 250, eventsM: 1500, askDays: 90 }, suggestNow: false, alertNear: false, ficheHidden: ['uber', 'qr'] }));
   const back = loadState(st);
