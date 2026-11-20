@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (294)';
+const VERSION = '20 novembre 2026 (295)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -85,6 +85,11 @@ const STANDALONE = (() => { try { return matchMedia('(display-mode: standalone)'
 const MY_APP_KEY = 'carte-paris.mon-appli';
 if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ } }
 let state = loadState(storage);
+/** v295 (mon choix A du 20 nov.) : mes marques TTB (vérifiée, fermée, masquée) comptent dans les changements à sauvegarder. Elles sont
+ * gardées à part (TTB_MARKS_KEY) : l'empreinte les reçoit ici, lues sur le téléphone (fonction appelée tôt : pas de variable d'en bas). */
+function withMarks(s) { let m = {}; try { m = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { /* illisibles : aucune */ } return { ...s, ttbMarks: m }; }
+// Au démarrage, l'empreinte gardée a pu être faite sans les marques (avant la v295) : on la refait, sans compter de changement
+if (state.backup) { const h = backupHash(withMarks(state)); state.backup = state.backup.n || !state.backup.saved ? { ...state.backup, last: h } : { ...state.backup, saved: h, last: h }; }
 /** Une valeur réglable (Réglages → Distances et durées, Alertes et bandeau), toujours vérifiée (v214). */
 function tune(key) { return cleanTuning(state.tuning)[key]; }
 /** La fiche d'un lieu montre-t-elle cette ligne ? (Réglages → Fiche d'un lieu, v214) */
@@ -108,7 +113,7 @@ if (!state.ok) {
 try { navigator.storage?.persist?.(); } catch { /* facultatif */ }
 
 function persist() {
-  state.backup = trackChange(state); // tout changement de lieux, catégories ou listes compte pour la sauvegarde
+  state.backup = trackChange(withMarks(state)); // tout changement de lieux, catégories ou listes compte pour la sauvegarde
   if (!saveState(storage, state)) {
     toast('Attention : ce téléphone n\'a pas pu enregistrer. Sauvegarde tes lieux : Réglages → Sauvegarde.', true);
     return false;
@@ -6946,6 +6951,7 @@ function putTtbMark(x, mark) {
   if (mark) m[ttbKey(x)] = mark; else delete m[ttbKey(x)];
   ttbMarks = cleanTtbMarks(m);
   try { storage.setItem(TTB_MARKS_KEY, JSON.stringify(ttbMarks)); } catch { toast('Le téléphone n\'a pas pu le garder (plus de place).', true); }
+  persist(); // v295 : une marque compte comme un changement à sauvegarder
   drawTtb();
 }
 const ttbOpen = () => ttbList().filter((x) => !ttbMark(ttbMarksNow(), x)); // ni masquées ni fermées
@@ -9244,7 +9250,7 @@ async function backupText(withPhotos, withTtb = false) {
   return JSON.stringify(obj);
 }
 function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
-function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(state); persist(); }
+function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(withMarks(state)); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
 async function saveBackup(withPhotos = true, withTtb = true) {
   const f = backupFile(await backupText(withPhotos, withTtb));
@@ -9483,7 +9489,7 @@ function importText(text, owner) {
       if (!state.me) state.me = fileOwner(text);
       if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); drawBusLines(); refreshBusTraces(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); if (state.showVelo) setVeloLayer(true); else veloLayer.clearLayers(); if (state.showJardins) setJardinLayer(true); else jardinLayer.clearLayers(); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
-      state.backup = savedBackup(state);
+      state.backup = savedBackup(withMarks(state));
     }
     persist(); refresh();
     if (wasEmpty && state.points.length) {
