@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (277)';
+const VERSION = '20 novembre 2026 (278)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6983,6 +6983,13 @@ function toggleTtb() {
   else toast('TTB : masqué');
 }
 
+/** L'interrupteur « Seulement les vérifiées » (v262), le même dans la liste TTB et, depuis la v278, dans Réglages → TTB :
+ * sa petite ligne est le compteur ; un appui l'allume ou l'éteint partout (carte, liste, Autour de moi, loupe), puis redessine l'écran. */
+const ttbOkSwitch = (sub, again) => el('button', { type: 'button', class: 'menu-row', role: 'switch', 'aria-checked': String(Boolean(state.ttbOk)), onclick: () => { state.ttbOk = !state.ttbOk; persist(); drawTtb(); again(); } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('check')), /* coche encre = adresse TTB vérifiée (la verte veut dire « Déjà visité ») */
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Seulement les vérifiées'), el('span', { class: 'menu-sub' }, sub)),
+  el('span', { class: `switch${state.ttbOk ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+
 /** Liste des adresses, de la plus proche à la plus loin (ma position récente, sinon le centre de la carte : pas de GPS demandé). */
 function openTtbList(back = null, limit = 30) {
   const again = () => openTtbList(back, limit);
@@ -6995,10 +7002,7 @@ function openTtbList(back = null, limit = 30) {
   openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbOkWord(all.length)}${ttbRubs.size || ttbBudgets.size ? (state.ttbOk ? ', avec ces filtres' : all.length > 1 ? ' choisies' : ' choisie') : filt.arr ? ` dans le ${arrOrd(filt.arr)}` : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
     /* v262 : le compteur devient la petite ligne de l'interrupteur « Seulement les vérifiées » (gardé d'un jour à l'autre, comme « Sur la carte ») */
-    el('button', { type: 'button', class: 'menu-row', role: 'switch', 'aria-checked': String(Boolean(state.ttbOk)), onclick: () => { state.ttbOk = !state.ttbOk; persist(); drawTtb(); openTtbList(back, limit); } },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('check')), /* coche encre = adresse TTB vérifiée (la verte veut dire « Déjà visité ») */
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Seulement les vérifiées'), el('span', { class: 'menu-sub' }, ttbCountText(ttbList().filter((x) => !filt.arr || x.arr === filt.arr)))),
-      el('span', { class: `switch${state.ttbOk ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    ttbOkSwitch(ttbCountText(ttbList().filter((x) => !filt.arr || x.arr === filt.arr)), () => openTtbList(back, limit)),
     el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDotFor('')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite, icône selon la rubrique, avec ces filtres')),
@@ -7097,7 +7101,7 @@ function openTtb(back = named('Réglages', () => openSettings()), confirm = fals
     el('p', { class: 'summary' }, n ? `${plural(n, 'adresse', 'adresses')} à Paris${ttbDateText() ? `, liste du ${ttbDateText()}` : ''}` : 'Les adresses du guide TTB, sur ta carte.'),
     n ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(named('TTB', again)) }, ico('list'), 'Voir la liste') : null,
     n ? el('h3', { class: 'ring-title' }, el('span', {}, 'Encore ouvertes ?'), el('span', {}, '')) : null,
-    n ? el('p', {}, ttbCountText()) : null,
+    n ? ttbOkSwitch(ttbCountText(), again) : null, /* v278 : le compteur devient la petite ligne de l'interrupteur, comme dans la liste (v262) */
     n ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openTtbCheck(named('TTB', again)) }, ico('check'), 'Vérifier les adresses') : null,
     n ? el('p', { class: 'help tip' }, 'Une adresse à la fois : Avis Google, puis ta réponse. Une vérification vaut 6 mois ; elle se fait aussi sur chaque fiche, sous « Avis Google ».') : null,
     ...ttbMarkedSection(again),
@@ -10069,7 +10073,7 @@ const HELP = [
     '{check} **Encore ouvert ?** Sur la fiche, touche Avis Google, reviens, puis réponds : « Toujours ouvert » ou « Fermé définitivement ». À côté de « TTB », l\'étiquette dit Pas vérifiée, Vérifiée ou À revoir.',
     '**Vérifiée** vaut 6 mois : le rond porte une coche noire (un bord noir vu de loin), puis l\'adresse passe « À revoir ». **Fermée** : le rond disparaît ; {settings} → TTB pour la remettre.',
     '**Tout vérifier d\'affilée** : {settings} → TTB → Vérifier les adresses. Une adresse à la fois, par arrondissement ; le compteur dit ce qui reste.',
-    '{check} **Seulement les vérifiées** : l\'interrupteur en haut de la liste TTB, sous le nombre d\'adresses. La carte, la liste, Autour de moi et la loupe ne gardent alors que les adresses vérifiées depuis moins de 6 mois. Il reste allumé d\'un jour à l\'autre : éteins-le pour tout revoir.',
+    '{check} **Seulement les vérifiées** : l\'interrupteur de {settings} → TTB, sous « Encore ouvertes ? », et le même en haut de la liste TTB. La carte, la liste, Autour de moi et la loupe ne gardent alors que les adresses vérifiées depuis moins de 6 mois. Il reste allumé d\'un jour à l\'autre : éteins-le pour tout revoir.',
     '**Un arrondissement choisi** (Filtres) : seuls ses ronds TTB restent sur la carte, comme tes lieux.',
     '{plus} **Ajouter** garde l\'adresse dans tes lieux, pour Favori, Déjà visité, étoiles, photos ou Prévoir. Sa goutte remplace alors le rond TTB.',
     '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
@@ -10148,7 +10152,7 @@ const HELP = [
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
-    '{check} TTB, seulement les adresses vérifiées : {settings} → TTB → Voir la liste (ou un appui long sur le bouton TTB), puis l\'interrupteur « **Seulement les vérifiées** », en haut. La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
+    '{check} TTB, seulement les adresses vérifiées : {settings} → TTB, l\'interrupteur « **Seulement les vérifiées** », sous « Encore ouvertes ? » (le même est en haut de la liste TTB). La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
   ]],

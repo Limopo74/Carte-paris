@@ -85,5 +85,16 @@ test('TTB Seulement les vérifiées : l\'interrupteur est gardé d\'un jour à l
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /const ttbHere = \(\) => ttbOnlyOk\(/, 'la carte, la liste, Autour de moi et la loupe passent par ttbHere');
   assert.match(app, /role: 'switch', 'aria-checked': String\(Boolean\(state\.ttbOk\)\)/, 'un interrupteur qui dit l\'état réel (v262, mon choix B)');
-  assert.match(app, /'Seulement les vérifiées'\), el\('span', \{ class: 'menu-sub' \}, ttbCountText\(/, 'le compteur est sa petite ligne');
+  assert.match(app, /'Seulement les vérifiées'\), el\('span', \{ class: 'menu-sub' \}, sub\)/, 'sa petite ligne est reçue d\'appel (le compteur : test v278 ci-dessous)');
+});
+
+// v278 (ta demande du 20 nov.) : le même interrupteur « Seulement les vérifiées » dans Réglages → TTB, à la place du compteur de « Encore ouvertes ? ».
+test('TTB, Seulement les vérifiées : le même interrupteur dans la liste TTB et dans Réglages → TTB (v278)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const body = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
+  assert.match(body('const ttbOkSwitch', '\n\n'), /state\.ttbOk = !state\.ttbOk; persist\(\); drawTtb\(\); again\(\);/);
+  assert.match(body('function openTtb(', '\n}\n'), /n \? ttbOkSwitch\(ttbCountText\(\), again\) : null/, 'Réglages → TTB a l\'interrupteur, avec le compteur pour petite ligne');
+  assert.doesNotMatch(body('function openTtb(', '\n}\n'), /el\('p', \{\}, ttbCountText\(\)\)/, 'le compteur seul ne reste pas en double');
+  assert.match(body('function openTtbList(', '\n}\n'), /ttbOkSwitch\(ttbCountText\(/, 'la liste TTB garde le même interrupteur');
 });
