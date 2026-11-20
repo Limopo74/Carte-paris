@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (297)';
+const VERSION = '20 novembre 2026 (298)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5774,6 +5774,13 @@ function openEventsFrom() {
     foot(backBtn(openEvents))), { name: 'events-from' });
 }
 let evFrom = null; // point de départ des Sorties : ma position (Autour de moi) ou le centre de la carte (bouton de la colonne)
+/** Les onglets de Sorties, soulignés, toujours à la même place (aussi quand l'agenda ne répond pas, v298). */
+function evTabs(mode) {
+  return el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
+    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false).map(([m, label]) => /* v282 : le dernier, les autres ne bougent pas */
+      el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
+}
+
 async function openEvents(start = null) {
   track('Sorties');
   if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
@@ -5796,9 +5803,13 @@ async function openEvents(start = null) {
     try {
       await todayEvents();
     } catch {
-      openSheet(title, el('div', { class: 'stack' },
+      // v298 : les onglets restent (Navigo n'a pas besoin de l'agenda), « Réessayer », et Mes salles reste joignable
+      openSheet(title, el('div', { class: 'stack ev-page' },
+        evTabs(eventsMode),
         el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'),
-        foot(backNear())), { name: 'events' });
+        el('button', { type: 'button', class: 'btn c-disc', onclick: () => openEvents() }, ico('refresh-cw'), 'Réessayer'),
+        venueBox(openEvents),
+        foot(backNear())), { name: 'events', again: openEvents });
       return;
     }
   }
@@ -5835,9 +5846,7 @@ async function openEvents(start = null) {
     listsStale() ? el('p', { class: 'hl-line' }, ico('refresh-cw'), ' Listes des temps forts et des musées gratuits à mettre à jour : demande-le à Claude.') : null,
   ];
   // Onglets soulignés, toujours à la même place
-  const seg = el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
-    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false).map(([m, label]) => /* v282 : le dernier, les autres ne bougent pas */
-      el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
+  const seg = evTabs(mode);
   const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => spotRank(a) - spotRank(b) || a.d - b.d); // fermé à la fin
   const soonFree = freeSoon().slice(0, 3);
   let filters = null; // une seule rangée de puces sous le point de départ
