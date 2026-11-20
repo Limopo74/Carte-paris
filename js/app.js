@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (269)';
+const VERSION = '20 novembre 2026 (270)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1303,7 +1303,7 @@ function buzzNow(key) {
 }
 
 /* « Maintenant » : sur la carte, le lieu le plus proche et ouvert (15 min à pied au plus).
-   Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture. */
+   Calculé sur le téléphone ; un appui ouvre sa fiche, la croix le cache jusqu'à la prochaine ouverture, au plus tard jusqu'au lendemain (v270). */
 function updateNow(force = false) {
   const card = document.getElementById('nowCard');
   if (!card) return;
@@ -8280,6 +8280,7 @@ function openSettings(section = null) {
           requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
         const where = cleanHidden(state.hiddenTools).includes(t) ? 'hidden' : moreList().includes(t) ? 'more' : 'map';
         const put = (to) => {
+          const was = following; // v270 : masquer « Ma position » arrête le suivi, le message le dit
           const h = new Set(cleanHidden(state.hiddenTools));
           const m = new Set(moreList());
           h.delete(t); m.delete(t);
@@ -8287,7 +8288,7 @@ function openSettings(section = null) {
           if (to === 'more') m.add(t);
           state.hiddenTools = [...h]; state.moreTools = [...m]; persist(); applyToolOrder(); openSettings('outils');
           requestAnimationFrame(() => document.querySelector(`[data-put="${t}:${to}"]`)?.focus());
-          toast(`${toolName(t)} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'masqué'}`);
+          toast(`${toolName(t)} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'masqué'}${was && !following ? '. Le suivi de ta position est arrêté.' : ''}`);
         };
         return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
           el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
@@ -9743,8 +9744,8 @@ const moreList = () => cleanMore(state.moreTools, cleanHidden(state.hiddenTools)
 function openMore() {
   fill(morePanel, normalizeTools(state.mapTools).filter((t) => moreList().includes(t)).map((t) => {
     const info = TOOL_INFO[t];
-    const extra = t === 'planning' ? document.querySelector('#btnPlanning .map-count:not([hidden])')?.textContent : '';
-    return el('button', { type: 'button', class: 'more-item', onclick: () => { closeMore(); document.getElementById(info.el).click(); } },
+    const extra = t === 'planning' ? document.querySelector('#btnPlanning .map-count:not([hidden])')?.textContent : t === 'locate' && following ? 'allumée' : ''; // v270 : « Ma position » rangée dans Plus dit si elle suit
+    return el('button', { type: 'button', class: 'more-item', ...(t === 'locate' ? { 'aria-pressed': String(following) } : {}), onclick: () => { closeMore(); document.getElementById(info.el).click(); } },
       el('span', { class: `more-ico${t === 'paris' || t === 'metro' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
       el('span', { class: 'more-name' }, toolName(t)), extra ? el('span', { class: 'more-count' }, extra) : null);
   }));
@@ -9775,6 +9776,7 @@ function applyToolOrder() {
   const hidden = cleanHidden(state.hiddenTools);
   const more = moreList();
   const order = normalizeTools(state.mapTools);
+  if (following && hidden.includes('locate')) stopFollow(); /* v270 : bouton masqué, plus rien pour arrêter le suivi (GPS et écran allumé) */
   box.classList.toggle('labels', state.toolLabels === true);
   for (const t of order) {
     const b = document.getElementById(TOOL_INFO[t].el);
@@ -10197,7 +10199,7 @@ document.querySelector('#nowCard .now-close').addEventListener('click', () => {
   updateNow(true);
 });
 let markersDay = new Date().toDateString(); // à minuit, les pastilles agenda des épingles changent
-setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); dropStaleDayList(); renderMarkers(); } }, 5 * 60000);
+setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); nowHidden = false; /* v270 : la croix cache le bandeau pour la journée, pas pour les jours suivants (appli restée en mémoire) */ dropStaleDayList(); renderMarkers(); updateNow(true); } }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
