@@ -453,6 +453,9 @@ export function mergeFriend(state, obj, owner, choice) {
       if (!Number.isFinite(c.hoursAt) && c.hours !== old.hours) delete next.hoursAt;
       // v291 : « Toujours ouvert » (v274) revu par lui depuis : la date la plus récente des deux reste (« a pu fermer » ne revient pas à tort)
       if (Number.isFinite(c.checked) && !(old.checked >= c.checked)) next.checked = c.checked;
+      // v292 (mon choix A du 20 nov.) : ses étoiles, « Abrité » et « Le bon moment » suivent aussi, comme son commentaire
+      next.stars = c.stars; next.covered = c.covered;
+      if (c.moments) next.moments = c.moments; else delete next.moments;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
       continue;
     }

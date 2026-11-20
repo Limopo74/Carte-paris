@@ -37,3 +37,13 @@ test('ses horaires inchangés gardent leur date', () => {
   const r = mergeFriend(moi(), envoi(lieu({ note: 'Toujours bien' })), 'Paul', choix);
   assert.equal(r.state.points[0].hoursAt, now - AN);
 });
+
+// v292 (mon choix A du 20 nov.) : ses étoiles, « Abrité » et « Le bon moment » suivent aussi, comme son commentaire
+test('ses étoiles, « Abrité » et « Le bon moment » changés suivent sa nouvelle version', () => {
+  const r = mergeFriend(moi(), envoi(lieu({ stars: 5, covered: true, moments: ['soir'] })), 'Paul', choix);
+  const p = r.state.points[0];
+  assert.equal(p.stars, 5); assert.equal(p.covered, true); assert.deepEqual(p.moments, ['soir']);
+  const r2 = mergeFriend(r.state, envoi(lieu({ stars: 0, covered: false })), 'Paul', choix);
+  const q = r2.state.points[0];
+  assert.equal(q.stars, 0); assert.equal(q.covered, false); assert.equal(q.moments, undefined);
+});
