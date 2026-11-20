@@ -61,7 +61,8 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (298)';
+const VERSION = '20 novembre 2026 (299)';
+const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -8910,7 +8911,7 @@ function openSettings(section = null) {
   el('span', { class: `switch${state.showArrNums !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
-  openSheet([ico('settings'), ' Réglages'], el('div', { class: 'menu' },
+  openSheet([ico('settings'), ' Réglages', VERSION_NUM ? el('span', { class: 'title-ver' }, ` v${VERSION_NUM}`) : null], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
     row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),

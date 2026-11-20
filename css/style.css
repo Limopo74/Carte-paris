@@ -569,6 +569,7 @@ ol.items { padding: 0; }
 .icon-choice { height: 44px; border-radius: var(--r); border: 2px solid var(--neutral-bd); background: var(--surface); font-size: 22px; line-height: 1; color: var(--ink); }
 #sheetTitle .ico svg { width: 22px; height: 22px; }
 #sheetTitle .ico { margin-right: 4px; vertical-align: -3px; }
+#sheetTitle .title-ver { margin-left: 4px; font: 600 var(--t15) var(--display); letter-spacing: 0; color: var(--muted); } /* v299 : numéro de version à côté du titre Réglages */
 .tool-prev .ico svg { width: 20px; height: 20px; }
 .seg .ico svg, .btn .ico svg { vertical-align: middle; }
 .btn.c-fav .ico { color: var(--fav-icon); }
