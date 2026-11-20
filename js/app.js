@@ -42,7 +42,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (300)';
+const VERSION = '20 novembre 2026 (301)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -647,11 +647,22 @@ function openPassage(p, back, at = null) {
     done();
     offerStars(p, stars, old ? 'Impression corrigée' : `Noté dans « ${logName(catOf(p.cat))} »`);
   };
-  const remove = () => {
+  // v300 (mon choix 2A) : pas de question, un message avec « Annuler » ; la photo est lue avant d'être effacée, pour être remise
+  const remove = async () => {
+    const blob = old.photo ? await getPhoto(old.photo).catch(() => null) : null;
     if (old.photo) deletePhoto(old.photo).catch(() => {});
     p.passages = cleanPassages(p.passages).filter((x) => x.at !== old.at);
     if (!p.passages.length) delete p.passages;
-    persist(); toast('Impression supprimée'); done();
+    persist(); done();
+    toast('Impression supprimée', false, { label: 'Annuler', fn: async () => {
+      if (!state.points.includes(p)) return;
+      const entry = { ...old };
+      if (old.photo) { try { if (!blob) throw new Error('photo'); await putPhoto(old.photo, blob); } catch { delete entry.photo; } }
+      p.passages = cleanPassages([...cleanPassages(p.passages).filter((x) => x.at !== old.at), entry]);
+      persist(); renderMarkers();
+      redrawIf(`detail:${p.id}`); redrawIf('journal');
+      toast(entry.photo || !old.photo ? 'Impression remise' : 'Impression remise, sans sa photo', !(entry.photo || !old.photo));
+    } });
   };
   openSheet([ico('footprints'), old ? ' Cette impression' : ' Écrire une impression'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, p.name),
@@ -794,6 +805,24 @@ function markDone(p, done, at = Date.now()) {
   if (!done && p.done) p.passages = dropAutoPassage(p.passages, Number.isFinite(p.visited) ? p.visited : at); // le passage du jour où je l'avais coché (v161)
   if (!p.passages?.length) delete p.passages;
   setDone(p, done, at);
+}
+
+/** « Déjà visité » décoché (v300, mon choix 1A) : la date s'efface, un message avec « Annuler » la remet (6 s), sans question. */
+function undoDone(p, again) { // again : redessine la fiche
+  const before = doneSnapshot(p);
+  markDone(p, false);
+  persist(); renderMarkers(); again();
+  toast(undoneText(didName(catOf(p.cat)), before.visited, formatDate), false, { label: 'Annuler', fn: () => {
+    if (!state.points.includes(p)) return; // le lieu a été supprimé entre-temps
+    restoreDone(p, before);
+    persist(); renderMarkers();
+    redrawIf(`detail:${p.id}`);
+  } });
+}
+
+/** Redessine l'écran affiché s'il s'appelle `name` (après un « Annuler », sans perdre son retour ni sa hauteur de lecture). */
+function redrawIf(name) {
+  if (!sheet.hidden && view === name) navStack.at(-1)?.again?.();
 }
 
 /** Centre la carte sur une position, au milieu de la partie visible au-dessus de la feuille. */
@@ -2224,10 +2253,10 @@ function openDetail(id, back = null) {
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')));
 
-  // Favori et Déjà visité : deux interrupteurs à libellé fixe, l'état est dit par aria-pressed (v95).
+  // Favori et Déjà visité : deux interrupteurs à libellé fixe, l'état est dit par aria-pressed (v95) et par l'icône vide ou pleine (v301).
   const toggles = el('div', { class: 'row' },
     el('button', { type: 'button', class: 'btn c-fav', 'aria-pressed': String(!!p.fav), onclick: () => update(() => { p.fav = !p.fav; }) }, glyph(state.fav.icon, { filled: !!p.fav }), 'Favori'),
-    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => update(() => { markDone(p, !p.done); }) }, ico('check'), didName(catOf(p.cat))));
+    el('button', { type: 'button', class: 'btn c-add', 'aria-pressed': String(!!p.done), onclick: () => (p.done ? undoDone(p, () => openDetail(id, back)) : update(() => { markDone(p, true); })) }, ico(p.done ? 'circle-check-full' : 'circle'), didName(catOf(p.cat)))); // v301 (mon choix 1B) : rond vide / rond plein, comme l'étoile de Favori ; la ✓ seule faisait croire « coché »
   // Prévoir (v152) : juste sous les interrupteurs, il dit aussi quand la sortie est prévue.
   const planned = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
   const planBtn = el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(p, back) },
@@ -2639,6 +2668,25 @@ function freeNote(p) {
   return el('p', { class: 'help' }, el('b', {}, `Gratuit ici ${day}`), ` : ${n.when}.`);
 }
 
+/** Retire une sortie de Mon planning et renvoie la fonction « Annuler » qui la remet à sa place (v300, mon choix 3A).
+ * Un lieu de la liste du jour reprend son rang ; une sortie de l'agenda revient dans Mon planning. */
+function unplan(p) {
+  const ticket = p.ticket ? { ...p.ticket } : null;
+  const plan = p.plan ? (state.plans ?? []).find((x) => x.id === p.id) ?? null : null;
+  if (p.plan) state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); else delete p.ticket;
+  rankDayList(dayList(state.points));
+  return () => {
+    if (plan) { if (!(state.plans ?? []).some((x) => x.id === plan.id)) state.plans = [...(state.plans ?? []), plan]; }
+    else if (ticket && state.points.includes(p)) {
+      p.ticket = isDayList(ticket) ? { ...ticket, list: ticket.list - 0.5 } : ticket; // juste avant le lieu qui a pris sa place
+      rankDayList(dayList(state.points));
+    } else return;
+    persist(); updateNow(true); renderMarkers(); updatePlanningCount();
+    redrawIf('planning');
+    if (!p.plan) redrawIf(`detail:${p.id}`);
+  };
+}
+
 function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -2706,10 +2754,10 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
     old && stored && !isDayList(old) ? inviteNote?.row : null, /* la liste du jour n'a ni heure ni moment à annoncer : pas d'invitation */
     old && stored && !isDayList(old) ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
     old && stored ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
-      if (p.plan) state.plans = (state.plans ?? []).filter((x) => x.id !== p.id); else delete p.ticket;
-      rankDayList(dayList(state.points));
-      persist(); updateNow(true); renderMarkers(); updatePlanningCount(); toast('Sortie retirée de Mon planning');
+      const undo = unplan(p);
+      persist(); updateNow(true); renderMarkers(); updatePlanningCount();
       if (p.plan) openPlanning(); else done();
+      toast('Sortie retirée de Mon planning', false, { label: 'Annuler', fn: undo }); // v300 (mon choix 3A)
     } }, 'Retirer de Mon planning') : null,
     el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
     /* v208 : Annuler | Enregistrer en bas, comme le formulaire d'un lieu (charte § 8) ; l'erreur juste au-dessus, toujours visible */
@@ -4577,16 +4625,22 @@ function openPlanning(from = null) {
     const at = p.ticket.at;
     // v199 : « Non » sur une expo encore à l'affiche la garde, avec « Prévoir un autre jour » ou « Retirer »
     if (!yes && p.plan && !p.missed && stillOn(p)) { p.missed = true; persist(); openPlanning(); toast(`« ${p.name} » : encore à l'affiche jusqu'au ${untilText(p)}`); return; }
+    if (!yes) { // v300 (mon choix 3A) : « Non » est juste à côté de « Oui » : un message avec « Annuler »
+      const undo = unplan(p);
+      persist(); renderMarkers(); updateNow(true);
+      openPlanning();
+      toast(`« ${p.name} » retiré de Mon planning`, false, { label: 'Annuler', fn: undo });
+      return;
+    }
     if (p.plan) {
       state.plans = (state.plans ?? []).filter((x) => x.id !== p.id);
-      if (yes) state.outings = cleanOutings([outingOf(p), ...(state.outings ?? [])].filter(Boolean));
+      state.outings = cleanOutings([outingOf(p), ...(state.outings ?? [])].filter(Boolean));
     } else {
-      if (yes) markDone(p, true, at);
+      markDone(p, true, at);
       delete p.ticket;
     }
     persist(); renderMarkers(); updateNow(true);
     openPlanning();
-    if (!yes) { toast(`« ${p.name} » retiré de Mon planning`); return; }
     toast(p.plan ? `« ${p.name} » : dans Mon journal` : `« ${p.name} » : ${didLower(catOf(p.cat))}`, false, { label: 'Écrire une impression',
       fn: () => (p.plan ? openOuting(p.id, named('Mon planning', () => openPlanning())) : openPassage(p, named('Mon planning', () => openPlanning()), cleanPassages(p.passages).find((x) => new Date(x.at).toDateString() === new Date(at).toDateString())?.at ?? null)) });
   };
@@ -5188,7 +5242,7 @@ function followButton(name, again) {
     state.venues = on ? cleanVenues(state.venues).filter((v) => artistKey(v) !== artistKey(name)) : cleanVenues([...cleanVenues(state.venues), name]);
     persist(); again();
     toast(on ? `${name} : retiré de Mes salles` : `${name} : dans Mes salles`, false, on ? null : { label: 'Voir', fn: () => openVenues(named(name, again)) });
-  } }, ico('heart'), on ? 'Suivie (Mes salles)' : 'Suivre');
+  } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
 function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null }) {
@@ -10241,6 +10295,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
@@ -10250,7 +10305,6 @@ const HELP = [
     '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
     '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
-    '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
   ]],
 ];
 

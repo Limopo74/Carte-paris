@@ -134,6 +134,22 @@ export function dropAutoPassage(list, at) {
   return cleanPassages(list).filter((x) => x.text || x.photo || x.stars || dayKey(x.at) !== dayKey(at));
 }
 
+/** « Déjà visité » décoché (v300, mon choix 1A) : ce qu'il efface, pour que « Annuler » remette exactement la date et les passages. */
+export const doneSnapshot = (p) => ({
+  done: Boolean(p?.done),
+  visited: p?.visited,
+  passages: Array.isArray(p?.passages) ? p.passages.map((x) => ({ ...x })) : undefined,
+});
+/** Remet un lieu comme dans `doneSnapshot`. Modifie le lieu reçu. */
+export function restoreDone(p, s) {
+  p.done = s.done;
+  if (s.visited === undefined) delete p.visited; else p.visited = s.visited;
+  if (s.passages?.length) p.passages = s.passages.map((x) => ({ ...x })); else delete p.passages;
+  return p;
+}
+/** Le message après « Déjà visité » décoché : « « Déjà visité » retiré (noté le 3 mars 2026) ». `fmt` met la date en clair. */
+export const undoneText = (did, visited, fmt) => `« ${did} » retiré${Number.isFinite(visited) ? ` (noté le ${fmt(visited)})` : ''}`;
+
 /** Toutes les photos d'une adresse : celles de la fiche et celles des passages (sauvegarde, suppression). */
 export const photoIds = (p) => [...new Set([...(p?.photos ?? []), ...(p?.passages ?? []).map((x) => x.photo).filter(Boolean)])];
 
