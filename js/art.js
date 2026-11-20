@@ -237,7 +237,8 @@ export function freeDayNear(here, date = new Date(), maxM = 1200) {
 
 export const ART_PLACES_CHECKED = '17 novembre 2026';
 export const ART_MUSIC_CHECKED = '20 novembre 2026'; // v290 : les 11 salles de concert ajoutées ce jour-là
-// kind : art (art contemporain et photo), expo (musées aux grandes expositions temporaires), musique.
+export const ART_SCENE_CHECKED = '20 novembre 2026'; // v300 : les 6 scènes de théâtre et de danse ajoutées ce jour-là
+// kind : art (art contemporain et photo), expo (musées aux grandes expositions temporaires), musique, scene (théâtre et danse).
 // Musée Maillol écarté : fermé pour travaux jusqu'au 13 janvier 2027. Centre Pompidou : fermé jusqu'en 2030 (ses expos sont au Grand Palais).
 // match : morceau du nom du lieu tel que l'agenda « Que faire à Paris ? » l'écrit (sans accents ni majuscules).
 // late (v158) : nocturnes habituelles, vérifiées le 17 nov. 2026 sur le site de chaque lieu (ou paris.fr) ; d = jours (0 dimanche),
@@ -293,17 +294,34 @@ export const ART_PLACES = [
   { name: 'Opéra Bastille', kind: 'musique', address: 'Place de la Bastille, 12e', lat: 48.8519, lng: 2.3706, site: 'https://www.operadeparis.fr', match: 'opera bastille' },
   { name: 'L\'Olympia', kind: 'musique', address: '28 boulevard des Capucines, 9e', lat: 48.8702, lng: 2.3284, site: 'https://www.olympiahall.com', match: 'l\'olympia' },
   { name: 'La Seine Musicale', kind: 'musique', address: 'Île Seguin, Boulogne-Billancourt', lat: 48.8260, lng: 2.2298, site: 'https://www.laseinemusicale.com', match: 'seine musicale' },
+  // v300 : Théâtre et danse (mes choix 1A 2A du 20 nov.) : les grandes scènes publiques que l'agenda « Que faire à Paris ? »
+  // annonçait le 20 nov. (Chaillot 31 rendez-vous, Théâtre de la Ville 9 et Abbesses 2, Centquatre 4, Colline 2, Rond-Point 1).
+  // Pas prises, rien dans l'agenda ce jour-là : Comédie-Française, Odéon, Bouffes du Nord, Théâtre du Soleil.
+  // Adresses : site officiel (Colline, Rond-Point, Centquatre), ministère de la Culture (Chaillot), agenda de la Ville
+  // (Théâtre de la Ville, ses deux salles). Positions : base des adresses de l'IGN, sauf Chaillot (Wikidata Q1342159,
+  // à 70 m du point de l'agenda ; « place du Trocadéro » sans numéro trouvé par l'IGN). Site de Chaillot lu sur
+  // culture.gouv.fr (le site ne s'ouvrait pas depuis le navigateur dans le cloud le 20 nov.).
+  // match : les Abbesses avant le Théâtre de la Ville (sinon ses spectacles iraient place du Châtelet) ; pas « abbesses »
+  // seul (Métro Abbesses, Studios de Danse des Abbesses, Manufacture des Abbesses) ; pas « chaillot » seul (musée de la Marine).
+  { name: 'Chaillot – Théâtre national de la Danse', kind: 'scene', address: '1 place du Trocadéro, 16e', lat: 48.8623, lng: 2.2882, site: 'https://theatre-chaillot.fr', match: 'theatre national de la danse' },
+  { name: 'Théâtre de la Ville – Les Abbesses', kind: 'scene', address: '31 rue des Abbesses, 18e', lat: 48.8848, lng: 2.3374, site: 'https://www.theatredelaville-paris.com', match: ['theatre de la ville - abbesses', 'theatre de la ville - les abbesses'] },
+  { name: 'Théâtre de la Ville – Sarah Bernhardt', kind: 'scene', address: '2 place du Châtelet, 4e', lat: 48.8573, lng: 2.3478, site: 'https://www.theatredelaville-paris.com', match: 'theatre de la ville' },
+  { name: 'La Colline – théâtre national', kind: 'scene', address: '15 rue Malte-Brun, 20e', lat: 48.8645, lng: 2.3977, site: 'https://www.colline.fr', match: 'la colline - theatre' },
+  { name: 'Théâtre du Rond-Point', kind: 'scene', address: '2 bis avenue Franklin-D.-Roosevelt, 8e', lat: 48.8678, lng: 2.3105, site: 'https://www.theatredurondpoint.fr', match: 'theatre du rond-point' },
+  { name: 'Le Centquatre (104)', kind: 'scene', address: '5 rue Curial, 19e', lat: 48.8900, lng: 2.3715, site: 'https://www.104.fr', match: 'centquatre' },
 ];
 
 const plain = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, '\'').replace(/\s+/g, ' ');
 /** Le grand lieu d'un événement de l'agenda (par le nom du lieu), ou null. */
-export const artPlaceOf = (e, places = ART_PLACES) => { const n = plain(e?.place); return n ? places.find((p) => n.includes(p.match)) ?? null : null; };
+// v300 : `match` peut être une liste de graphies (les Abbesses).
+const matches = (p) => [].concat(p.match);
+export const artPlaceOf = (e, places = ART_PLACES) => { const n = plain(e?.place); return n ? places.find((p) => matches(p).some((m) => n.includes(m))) ?? null : null; };
 
 /** Les grands lieux dont le nom contient tous les mots tapés (sans accents ; au moins 3 lettres en tout). */
 export function findArtPlaces(q, places = ART_PLACES) {
   const words = plain(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
   if (plain(q).replace(/\s/g, '').length < 3 || !words.length) return [];
-  return places.filter((p) => { const hay = plain(`${p.name} ${p.match}`); return words.every((w) => hay.includes(w)); });
+  return places.filter((p) => { const hay = plain(`${p.name} ${matches(p).join(' ')}`); return words.every((w) => hay.includes(w)); });
 }
 
 /** Chaque grand lieu avec ses événements de l'agenda, ceux qui finissent le plus tôt d'abord, sans doublon de titre. */

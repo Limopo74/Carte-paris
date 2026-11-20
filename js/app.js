@@ -21,7 +21,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, VELO_FILE, JARDINS_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (299)';
+const VERSION = '20 novembre 2026 (300)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -5492,18 +5492,18 @@ async function openArtPlaces(focus = '', from = null) {
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
       el('div', { class: 'row' },
         el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
-        favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167
+        favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique', scene: 'theatre' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167, v300 : scene
       followButton(p.name, () => openArtPlaces(p.name, from)), // v170
       p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
   const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
-  const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique']];
+  const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique'], ['scene', 'Théâtre et danse']]; // v300 : scene
   openSheet(title, el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Les grands musées et fondations, et les grandes salles de concert, où que tu sois. Touche un lieu pour voir ce que l\'agenda de la Ville annonce cette semaine, et son programme officiel.'),
+    el('p', { class: 'help tip' }, 'Les grands musées et fondations, les grandes salles de concert et les grandes scènes de théâtre et de danse, où que tu sois. Touche un lieu pour voir ce que l\'agenda de la Ville annonce cette semaine, et son programme officiel.'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
       open: (x) => openArtPlaces(x.name), back: () => openArtPlaces() }) }, ico('map'), 'Voir sur la carte'),
     ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
     el('p', { class: 'help' }, 'Le Centre Pompidou est fermé jusqu\'en 2030 (ses expositions au Grand Palais) ; le musée Maillol rouvre le 13 janvier 2027. L\'agenda n\'a pas tous les rendez-vous : le programme officiel fait foi.'),
-    el('p', { class: 'help tip' }, `Lieux vérifiés le ${ART_PLACES_CHECKED}, salles de concert le ${ART_MUSIC_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
+    el('p', { class: 'help tip' }, `Lieux vérifiés le ${ART_PLACES_CHECKED}, salles de concert le ${ART_MUSIC_CHECKED}, théâtre et danse le ${ART_SCENE_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
     back,
   ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from) });
   if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
@@ -5893,7 +5893,7 @@ async function openEvents(start = null) {
     body = [
       el('h3', { class: 'ring-title' }, el('span', {}, 'Tout Paris'), el('span', {}, '')),
       el('div', { class: 'menu' },
-        entry('landmark', 'Grands lieux', `${ART_PLACES.length} musées, fondations, salles de concert`, () => openArtPlaces()),
+        entry('landmark', 'Grands lieux', `${ART_PLACES.length} musées, salles de concert, théâtres`, () => openArtPlaces()),
         entry('calendar-days', 'Expos de la semaine', 'Par arrondissement, celles qui ferment d\'abord', () => openWeekExpos()),
         entry('moon', 'Ouvert tard', (() => { const t = lateTonight(new Date(), ART_PLACES, holidayOn()); return t.length ? `Ce soir : ${t.slice(0, 3).map((p) => p.name.replace(/^Musée (du |de l'|d')?/, '')).join(', ')}${t.length > 3 ? '…' : ''}` : 'Les nocturnes des musées et fondations'; })(), () => openLate()),
         entry('shapes', 'Art dans la rue', 'Statues et sculptures à moins de 1 km', () => openStreetArt()),
@@ -8746,7 +8746,7 @@ function openSettings(section = null) {
           el('a', { class: 'menu-row c-info', href: BAGUETTES_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Grand Prix de la baguette'), el('span', { class: 'menu-sub' }, 'Ville de Paris, paris.fr')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
           el('a', { class: 'menu-row c-info', href: CROISSANT_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Meilleur croissant du Grand Paris'), el('span', { class: 'menu-sub' }, 'Syndicat des boulangers du Grand Paris')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))))],
       listes: () => [
-        el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), temps forts de l'année ; Kiosque Théâtre vérifié le ${KIOSQUE_CHECKED} ; grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED} ; salles de concert le ${ART_MUSIC_CHECKED}). Deux tâches programmées les préparent, chaque 1er mars et chaque 1er septembre, et te demandent ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
+        el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), temps forts de l'année ; Kiosque Théâtre vérifié le ${KIOSQUE_CHECKED} ; grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED} ; salles de concert le ${ART_MUSIC_CHECKED} ; théâtre et danse le ${ART_SCENE_CHECKED}). Deux tâches programmées les préparent, chaque 1er mars et chaque 1er septembre, et te demandent ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
         el('div', { class: 'menu' },
           el('a', { class: 'menu-row c-info', href: FREE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Musées et monuments gratuits'), el('span', { class: 'menu-sub' }, 'Paris je t\'aime, office du tourisme')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
           el('a', { class: 'menu-row c-info', href: KIOSQUE_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Kiosque Théâtre'), el('span', { class: 'menu-sub' }, 'Adresses et horaires sur le site officiel')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
@@ -10054,7 +10054,7 @@ const HELP = [
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
     '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
-    `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations et salles de concert, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
+    `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations, salles de concert et théâtres, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
     '**Dernière chance** : les expos qui ferment dans moins de 7 jours.',
     '{route} **Parcours galeries** : une boucle de 1 à 3 h par les galeries ouvertes à ton arrivée.',
@@ -10241,6 +10241,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
     '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
@@ -10250,7 +10251,6 @@ const HELP = [
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
     '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
     '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
-    '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
   ]],
 ];
 

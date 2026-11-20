@@ -42,6 +42,7 @@ test('une salle déjà suivie n\'est pas proposée ; sans point de départ, rien
 });
 
 test('deux salles différentes au nom voisin restent deux', () => {
-  const two = [ev('A', 'Théâtre de la Ville', 48.8573, 2.3477, 'Théâtre'), ev('B', 'Théâtre de la Ville-Sarah Bernhardt', 48.8800, 2.3800, 'Théâtre')];
+  // v300 : le Théâtre de la Ville est devenu un Grand lieu ; même cas avec deux autres noms
+  const two = [ev('A', 'Théâtre Montmartre', 48.8573, 2.3477, 'Théâtre'), ev('B', 'Théâtre Montmartre-Galabru', 48.8800, 2.3800, 'Théâtre')];
   assert.equal(venuesNear(two, here, 9000, { isShow }).length, 2, 'à plus de 100 m l\'une de l\'autre');
 });

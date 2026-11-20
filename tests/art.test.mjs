@@ -91,7 +91,7 @@ test('grands lieux : reconnus par le nom de l\'agenda, sans confondre Cartier et
   assert.equal(artPlaceOf({ place: 'Palais  Galliera - musée de la Mode de Paris' })?.name, 'Palais Galliera');
   assert.equal(artPlaceOf({ place: 'Musée du quai Branly - Jacques Chirac' })?.name, 'Musée du quai Branly');
   assert.equal(artPlaceOf({ place: 'L\'Institut du Monde Arabe' })?.name, 'Institut du monde arabe');
-  assert.equal(new Set(ART_PLACES.map((p) => p.match)).size, ART_PLACES.length, 'un match par lieu');
+  assert.equal(new Set(ART_PLACES.map((p) => String(p.match))).size, ART_PLACES.length, 'un match par lieu');
   assert.deepEqual(findArtPlaces('orsay').map((p) => p.name), ['Musée d\'Orsay']);
   assert.deepEqual(findArtPlaces('Musée Orsay').map((p) => p.name), ['Musée d\'Orsay']);
   assert.ok(findArtPlaces('cartier').length === 2, 'Cartier et Cartier-Bresson');
