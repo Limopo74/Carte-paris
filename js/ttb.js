@@ -203,19 +203,24 @@ const metres = (a, b) => {
   const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
   return 2 * 6371000 * Math.asin(Math.sqrt(h));
 };
-export function ttbRubByName(place, items) {
-  if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return '';
+/** Le lieu de `items` qui est le même que `place` : à moins de 150 m, avec un vrai mot du nom en commun, ou exactement le même nom
+ * (v289 : aussi pour la ligne TTB de mes fiches, le rond TTB caché par ma goutte et « Mon lieu » ; avant, la seule distance,
+ * moins de 30 m, suffisait : le resto d'à côté). Le plus proche ; sinon null. */
+export function ttbSame(place, items, keep = () => true) {
+  if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return null;
   const mine = new Set(nameKeys(place.name));
-  if (!mine.size) return '';
+  const full = foldName(place.name).replace(/[^a-z0-9]+/g, ' ').trim();
   let best = null;
   for (const x of Array.isArray(items) ? items : []) {
-    if (!RESTO_RUBS.includes(x?.rub)) continue;
+    if (!x || !Number.isFinite(x.lat) || !Number.isFinite(x.lng) || !keep(x)) continue;
     const d = metres(place, x);
-    if (d > 150 || !nameKeys(x.name).some((w) => mine.has(w))) continue;
-    if (!best || d < best.d) best = { rub: x.rub, d };
+    if (d > 150) continue;
+    if (!nameKeys(x.name).some((w) => mine.has(w)) && !(full && foldName(x.name).replace(/[^a-z0-9]+/g, ' ').trim() === full)) continue;
+    if (!best || d < best.d) best = { item: x, d };
   }
-  return best?.rub ?? '';
+  return best?.item ?? null;
 }
+export const ttbRubByName = (place, items) => ttbSame(place, items, (x) => RESTO_RUBS.includes(x.rub))?.rub ?? '';
 
 /* Adresses TTB masquées ou fermées (v165) : notées par moi, gardées sur le téléphone avec la liste (hors sauvegarde),
    et retrouvées après un nouvel import (même nom et même adresse, sans accents ni majuscules).

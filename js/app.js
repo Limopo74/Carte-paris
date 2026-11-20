@@ -37,7 +37,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (288)';
+const VERSION = '20 novembre 2026 (289)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6991,7 +6991,7 @@ const TTB_MARK = 'TTB';
 const ttbDot = () => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, el('b', {}, TTB_MARK));
 /** Le rond d'une adresse ou d'une rubrique : l'icône de sa rubrique (couverts, bol, sandwich, croissant, panier, verre). */
 const ttbDotFor = (rub) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico(ttbIcon(rub), { size: 15, stroke: 2.4 }));
-const ttbOf = (p) => (ttbList().length ? navigoFor(p, ttbList()) : null); // l'adresse du guide qui correspond à un de mes lieux
+const ttbOf = (p) => (ttbList().length ? ttbSame(p, ttbList()) : null); // l'adresse du guide qui correspond à un de mes lieux (v289 : par le nom, jamais par la seule distance)
 const ttbDateText = () => (ttbData?.date ? frenchDate(ttbData.date) : '');
 /** v288 : le genre d'un de mes restos (La Table, Boui-boui, Street-food) : celui choisi dans Modifier ('' = aucun),
  * sinon celui du guide TTB quand un mot du nom est commun à moins de 150 m. Rien pour un lieu qui n'est pas un resto. */
@@ -7007,7 +7007,7 @@ function drawTtb() {
   const mine = state.points.filter((p) => !p.owner);
   const marks = ttbMarksNow();
   for (const x of ttbShown()) {
-    if (navigoFor(x, mine)) continue; // déjà dans mes lieux : sa goutte suffit (sa fiche a la ligne TTB)
+    if (ttbSame(x, mine)) continue; // déjà dans mes lieux : sa goutte suffit (sa fiche a la ligne TTB)
     const ok = ttbState(marks, x) === 'ok'; /* v218 : vérifiée par moi depuis moins de 6 mois */
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin${ok ? ' ok' : ''}">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}${ok ? `<i class="ttb-ok">${svgIcon('check', { size: 11, stroke: 3.4 })}</i>` : ''}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
@@ -7065,7 +7065,7 @@ function openTtbList(back = null, limit = 30) {
 
 /** Garder une adresse du guide dans mes lieux (formulaire prérempli). Si elle y est déjà : sa fiche. */
 function ttbAdd(x) {
-  const mine = navigoFor(x, state.points);
+  const mine = ttbSame(x, state.points);
   if (mine) { openDetail(mine.id); toast('Déjà dans tes lieux'); return; }
   // Catégorie d'après la rubrique du guide quand une des miennes correspond ; sinon aucune : je la choisis (v155)
   openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}`, cat: ttbCategory(x.rub, state.categories) ?? '', rub: x.rub });
@@ -7075,7 +7075,7 @@ function openTtbPlace(x, back = null) {
   const d = startPos() ? distanceM(startPos(), x) : null;
   const again = () => openTtbPlace(x, back);
   const metro = stationFacts(x);
-  const mine = navigoFor(x, state.points);
+  const mine = ttbSame(x, state.points);
   const today = ttbToday(x);
   const kick = `TTB · ${x.arr}${x.arr === 1 ? 'er' : 'e'}`;
   const insta = /instagram\.com/i.test(x.url), fb = /facebook\.com/i.test(x.url);
