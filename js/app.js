@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (305)';
+const VERSION = '20 novembre 2026 (306)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1602,6 +1602,9 @@ function openAddChoice() {
   openSheet([ico('plus'), ' Ajouter'], el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'),
     el('p', { class: 'help tip' }, 'Une photo et une ligne, posées là où tu es. Pour les trouvailles de la rue : une cour, une vitrine, une plaque.'),
+    // v306 (mon choix du 20 nov.) : la mosaïque de mes photos prises en passant, sous le bouton qui les prend, avec leur nombre
+    el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openSeenPhotos(back) }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('images')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Mes Vu en passant · ${seenPhotoCount()}`), el('span', { class: 'menu-sub' }, 'Toutes tes photos, par catégorie')), ico('chevron-right')),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, back) }, ico('search'), 'Avec un nom ou une adresse'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
@@ -1613,6 +1616,63 @@ function openAddChoice() {
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'),
     el('p', { class: 'help tip' }, 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
   ), { name: 'add', again: openAddChoice });
+}
+
+/* ---------- Mes Vu en passant (v306, mes choix du 20 nov.) : la mosaïque de mes photos prises en passant ----------
+   En haut, une vignette par catégorie (sa dernière photo et le nombre) ; puis ses sous-catégories, ou ses artistes pour
+   Street art, une à la fois ; dessous, la mosaïque, les plus récentes d'abord ; un appui ouvre le diaporama en grand.
+   Exception de la charte (§ 7 bis, mon choix du 20 nov.) : des photos dans une page de liste. */
+let seenPick = { cat: '', sub: '' }; // le choix du haut, le temps de la session
+/** Mes lieux pris en passant qui ont une photo, du plus récent au plus ancien. */
+const seenPlaces = () => state.points.filter((p) => !p.owner && isPass(p) && p.photos?.length).sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+const seenPhotoCount = () => seenPlaces().reduce((n, p) => n + p.photos.length, 0);
+function openSeenPhotos(from = null) {
+  track('Mes Vu en passant');
+  const back = from ?? named('Ajouter', openAddChoice);
+  const again = () => openSeenPhotos(back);
+  const all = seenPlaces();
+  const byCat = new Map();
+  for (const p of all) { if (!byCat.has(p.cat)) byCat.set(p.cat, []); byCat.get(p.cat).push(p); }
+  if (seenPick.cat && !byCat.has(seenPick.cat)) seenPick = { cat: '', sub: '' };
+  const inCat = seenPick.cat ? byCat.get(seenPick.cat) : all;
+  const street = Boolean(seenPick.cat) && isStreetCat(catOf(seenPick.cat));
+  const subsHere = !seenPick.cat ? [] : street
+    ? [...new Set(inCat.map((p) => p.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr')).map((a) => ({ id: `a:${a}`, name: a }))
+    : (catOf(seenPick.cat).subs ?? []).filter((x) => inCat.some((p) => p.sub === x.id));
+  if (seenPick.sub && !subsHere.some((x) => x.id === seenPick.sub)) seenPick.sub = '';
+  const shown = !seenPick.sub ? inCat : inCat.filter((p) => (seenPick.sub.startsWith('a:') ? p.artist === seenPick.sub.slice(2) : p.sub === seenPick.sub));
+  const photos = shown.flatMap((p) => p.photos.map((id) => ({ id, p })));
+  const pick = (cat, sub = '') => { seenPick = { cat, sub }; again(); };
+  const tile = (label, n, photoId, pressed, onclick, color = null) => {
+    const b = el('button', { type: 'button', class: 'seen-tile', 'aria-pressed': String(pressed), onclick, 'aria-label': `${label}, ${plural(n, 'photo', 'photos')}` },
+      el('span', { class: 'seen-tile-img' }, photoId ? el('img', { alt: '', 'data-photo': photoId }) : ico('images')),
+      el('span', { class: 'seen-tile-name', 'aria-hidden': 'true' }, label), el('span', { class: 'seen-tile-n', 'aria-hidden': 'true' }, String(n)));
+    if (color) b.style.setProperty('--tile', color);
+    return b;
+  };
+  const count = (list) => list.reduce((n, p) => n + p.photos.length, 0);
+  const tiles = all.length ? el('div', { class: 'seen-tiles', role: 'group', 'aria-label': 'Catégories' },
+    tile('Tout', count(all), all[0].photos[0], !seenPick.cat, () => pick('')),
+    ...[...byCat].map(([id, list]) => tile(catOf(id).name, count(list), list[0].photos[0], seenPick.cat === id, () => pick(seenPick.cat === id ? '' : id), catOf(id).color))) : null;
+  const subChips = subsHere.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': street ? 'Artistes' : 'Sous-catégories' },
+    el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!seenPick.sub), onclick: () => pick(seenPick.cat) }, street ? 'Tous les artistes' : 'Toutes'),
+    ...subsHere.map((x) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(seenPick.sub === x.id), onclick: () => pick(seenPick.cat, seenPick.sub === x.id ? '' : x.id) }, x.name))) : null;
+  const grid = photos.length ? el('div', { class: 'seen-grid' }, photos.map(({ id, p }, i) =>
+    el('button', { type: 'button', class: 'seen-cell', 'aria-label': `${p.name}, ${[catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(', ')}`, onclick: () => openSeenSlides(photos, i, again) },
+      el('img', { alt: '', 'data-photo': id })))) : null;
+  openSheet([ico('images'), ' Mes Vu en passant'], el('div', { class: 'stack' }, // le nombre est sous « Tout » : le titre tient sur une ligne
+    all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant. + Ajouter → Vu en passant : une photo, une ligne, et elle arrive ici.'),
+    tiles, subChips, grid,
+    foot(backBtn(back)),
+  ), { tall: true, name: 'seen-photos', again });
+  requestAnimationFrame(() => document.querySelector('#sheet .seen-tile[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  // les vignettes arrivent une à une (96 px, faites une fois par session)
+  for (const img of document.querySelectorAll('#sheet img[data-photo]')) thumbUrl(img.dataset.photo).then((u) => { if (u && img.isConnected) img.src = u; });
+}
+/** Le diaporama : la photo en grand, glisser de côté pour la suivante ; sous la photo, son nom, sa catégorie, sa date et « Voir la fiche ». */
+function openSeenSlides(photos, i, back) {
+  const caps = photos.map(({ p }) => [p.name, [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '), shortDate(p.created)].filter(Boolean).join('\n'));
+  viewPhoto(photos.map((x) => x.id), i, 'Vu en passant', { caps, open: (k) => openDetail(photos[k].p.id, back) });
 }
 
 /* ---------- Vu en passant (v157) : la position se cherche pendant la photo ; une ligne facultative ; Garder ---------- */
@@ -2590,10 +2650,10 @@ function askDeletePhoto(p, id, back) {
 }
 
 /** Photos en plein écran ; le retour d'Android ou un appui ferme. Avec plusieurs photos, glisser de côté passe à la suivante ou à la précédente (v201). */
-async function viewPhoto(ids, i, name) {
+async function viewPhoto(ids, i, name, extra = null) {
   const u = await photoUrl(ids[i]);
   if (!u) { toast('Photo introuvable.', true); return; }
-  viewerSet = { ids, i, name };
+  viewerSet = { ids, i, name, ...(extra ?? {}) }; // v306 : `caps` (une légende par photo) et `open` (sa fiche), pour le diaporama Vu en passant
   showViewerPhoto(u);
   document.getElementById('viewer').hidden = false;
   viewerOpen = true;
@@ -2612,6 +2672,9 @@ function showViewerPhoto(u, from = 0) {
   count.textContent = photoCount(i, ids.length);
   count.hidden = !many;
   v.querySelector('.viewer-hint').textContent = many ? 'Glisse de côté : autre photo.\nTouche pour fermer.' : 'Touche pour fermer';
+  const cap = v.querySelector('.viewer-cap'); // v306 : la légende du diaporama Vu en passant
+  cap.hidden = !viewerSet.caps;
+  if (viewerSet.caps) fill(cap, el('span', { class: 'viewer-cap-text' }, viewerSet.caps[i] ?? ''), viewerSet.open ? el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); const k = viewerSet.i; const go = viewerSet.open; window.addEventListener('popstate', () => setTimeout(() => go(k), 0), { once: true }); closeViewer(); } }, 'Voir la fiche', ico('chevron-right')) : null);
   // la nouvelle photo arrive du côté où on l'a tirée (sans mouvement si le téléphone le demande : voir style.css)
   img.classList.add('drag');
   img.style.transform = from ? `translateX(${from * 48}px)` : '';
@@ -2648,6 +2711,7 @@ function closeViewer(fromHistory = false) {
   globalThis.visualViewport?.addEventListener('resize', () => v.classList.toggle('zoomed', zoomed()));
   v.addEventListener('pointerdown', (e) => {
     moved = false;
+    if (e.target.closest('.viewer-cap button')) { drag = null; return; } // v306 : « Voir la fiche » n'est pas un glissement
     drag = e.isPrimary && !zoomed() && viewerSet?.ids.length > 1 ? { x: e.clientX, y: e.clientY } : null;
     if (drag) v.setPointerCapture?.(e.pointerId);
   });
@@ -10254,6 +10318,7 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
+    '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
     '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les sous-catégories se renomment dans {settings} → Catégories et listes → la catégorie, tout en bas.',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
@@ -10384,6 +10449,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
     '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
     '{camera} Vu en passant, ranger ta photo : après la photo, choisis la **catégorie** (toutes les tiennes, sur une ligne qui défile ; Vu en passant en premier), puis sa **sous-catégorie** (« Portes », « Cours »… : « Créer » en tape une), ou l\'**artiste** pour Street art. Elles restent choisies pour la photo suivante. Rangée dans Culture, la photo reste « prise en passant » : Filtres → Vu en passant la montre toujours. « Enregistrer » reste visible en bas.',
@@ -10393,7 +10459,6 @@ const HELP = [
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
     '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
-    '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
   ]],
 ];
 

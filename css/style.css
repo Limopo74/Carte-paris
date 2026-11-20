@@ -1260,3 +1260,20 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 
 /* v245 : un immeuble protégé par la Ville ; son icône reste en haut quand le texte est déroulé */
 .pvp .item-main { align-items: flex-start; }
+
+/* v306 : Mes Vu en passant, la mosaïque. Vignettes des catégories sur une ligne qui défile, puis la mosaïque (3 photos par rangée). */
+.seen-tiles { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 2px 18px 6px; }
+.seen-tiles::-webkit-scrollbar { display: none; }
+.seen-tile { --tile: var(--ink); flex: none; width: 92px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.seen-tile-img { width: 88px; height: 88px; border-radius: var(--r); overflow: hidden; display: grid; place-items: center; background: var(--line); border: 3px solid transparent; }
+.seen-tile-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.seen-tile[aria-pressed="true"] .seen-tile-img { border-color: var(--tile); outline: 2px solid var(--ink); outline-offset: 1px; }
+.seen-tile-name { font-size: var(--t14); font-weight: 700; line-height: 1.2; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seen-tile-n { font-size: var(--t14); color: var(--muted); line-height: 1; }
+.seen-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin: 0 -18px; }
+.seen-cell { aspect-ratio: 1; padding: 0; border: 0; background: var(--line); overflow: hidden; cursor: pointer; }
+.seen-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.viewer-cap { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 560px; padding: 0 16px; color: #fff; }
+.viewer-cap[hidden] { display: none; }
+.viewer-cap-text { white-space: pre-line; font-size: var(--t16); line-height: 1.35; }
+.viewer-cap .btn { flex: none; background: #fff; color: #15181D; }
