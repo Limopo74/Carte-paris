@@ -491,7 +491,7 @@ test('barre du haut : boutons masqués gardés, valeurs inconnues écartées', (
   assert.deepEqual(s.hiddenChips, ['fav', 'cat:resto', 'all', 'street', 'lines']);
   saveState(st, { ...s, hiddenChips: ['filters'] });
   assert.deepEqual(loadState(st).hiddenChips, ['filters']);
-  assert.deepEqual(loadState(memStorage()).hiddenChips, ['ttb'], 'v312 : TTB masqué au départ d\'un nouveau venu');
+  assert.deepEqual(loadState(memStorage()).hiddenChips, ['ttb', 'fav'], 'v312 : TTB et Favoris masqués au départ d\'un nouveau venu');
 });
 
 test('feuille Filtres : lignes masquées gardées, inconnues écartées', () => {

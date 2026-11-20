@@ -11,11 +11,10 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 test('Mémoire vide : le départ d\'un nouveau venu (d\'après ma capture)', () => {
   const s = loadState(memStorage());
   assert.equal(s.fresh, true);
-  assert.deepEqual(s.hiddenChips, ['ttb'], 'TTB masqué tant qu\'aucune liste n\'est importée');
-  assert.ok(s.moreChips.includes('fav'), 'Favoris sous ⋯ Plus');
-  for (const id of ['resto', 'boutique', 'culture']) assert.ok(s.moreChips.includes(`cat:${id}`), `catégorie ${id} sous ⋯ Plus`);
+  assert.deepEqual(s.hiddenChips, ['ttb', 'fav'], 'TTB masqué tant qu\'aucune liste n\'est importée ; Favoris masqué (2e capture)');
+  assert.ok(!s.moreChips.includes('fav'));
+  for (const id of ['resto', 'boutique', 'culture', 'vu']) assert.ok(s.moreChips.includes(`cat:${id}`), `catégorie ${id} sous ⋯ Plus`);
   assert.ok(s.categories.some((c) => c.id === 'vu'), 'Vu en passant existe dès le départ');
-  assert.ok(!s.moreChips.includes('cat:vu') && !s.hiddenChips.includes('cat:vu'), 'Vu en passant dans la barre');
   for (const k of ['street', 'lines']) assert.ok(!s.moreChips.includes(k) && !s.hiddenChips.includes(k), `${k} dans la barre`);
   assert.ok(!s.moreTools.includes('notes'), 'Note du jour sur la carte');
   assert.ok(s.moreTools.includes('home'), 'Rentrer reste dans ⋯ Plus');
@@ -37,10 +36,10 @@ test('Une mémoire déjà là ne change pas (mon téléphone, l\'autre personne)
   saveState(st2, f);
   const again = loadState(st2);
   assert.equal(again.fresh, undefined);
-  assert.deepEqual(again.hiddenChips, ['ttb']);
+  assert.deepEqual(again.hiddenChips, ['ttb', 'fav']);
   assert.deepEqual(again.moreChips, f.moreChips);
   assert.ok(!JSON.parse(st2.getItem(KEY)).fresh);
-  assert.deepEqual(cleanSettings(again).hiddenChips, ['ttb']);
+  assert.deepEqual(cleanSettings(again).hiddenChips, ['ttb', 'fav']);
 });
 
 test('freshStart : ne double pas Vu en passant', () => {
