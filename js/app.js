@@ -955,7 +955,7 @@ function openFilters() {
       state.showBusLines = !state.showBusLines; persist(); drawBusLines(); if (state.showBusLines) refreshBusTraces();
     }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
-    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} du guide` : 'Importer d\'abord la liste (Réglages)', () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
+    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', !ttbList().length ? 'Importer d\'abord la liste (Réglages)' : chipPlace()('ttb') === 'bar' || state.showTtb ? 'Appui long en haut : trier' : `${plural(ttbList().length, 'adresse', 'adresses')} du guide`, /* v287 (mon choix 2A ; « rubriques et budgets » passait sur 2 lignes, mesuré à 360 px) : le chemin vers le tri, seulement quand le bouton TTB est dans la barre (rangé dans ⋯ Plus ou masqué, il n'y reste qu'allumé, v151) */ () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
     !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\'', 'Les stations visibles en zoomant, avec leurs vélos (ou leurs places). S\'éteint quand tu fermes l\'appli', () => { setVelibLayer(!velibOn); }),
     !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et toilettes', 'Celles de la zone, visibles en zoomant', () => { setPratLayer(!state.showPratique); }),
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
@@ -10098,7 +10098,7 @@ const HELP = [
     '**Dans Chrome**, menu ⋮ → flèche Télécharger. La page va dans Téléchargements.',
     '**Reviens dans l\'appli** et touche « Choisir le fichier ». Même chose pour mettre la liste à jour.',
     '**Le bouton TTB**, en haut : un appui affiche ou cache les adresses.',
-    '**La liste** : Autour de moi → Liste TTB, ou {settings} → TTB → Voir la liste. La plus proche d\'abord, avec un tri par rubrique et par budget.',
+    '**La liste** : appui long sur TTB en haut, Autour de moi → Liste TTB, ou {settings} → TTB → Voir la liste. La plus proche d\'abord, avec un tri par rubrique et par budget, qui vaut aussi pour la carte : « Seulement … · Tout voir » en haut le rappelle.',
     '**Chaque icône** dit la rubrique : {utensils} La Table, {soup} Boui-boui, {sandwich} Street-food, {croissant} Bec sucré, {shopping-basket} Le panier, {wine} Cave.',
     '**La fiche** : cuisine, budget, horaires selon le guide, station, site, Avis Google et + Ajouter.',
     '{check} **Encore ouvert ?** Sur la fiche, touche Avis Google, reviens, puis réponds : « Toujours ouvert » ou « Fermé définitivement ». À côté de « TTB », l\'étiquette dit Pas vérifiée, Vérifiée ou À revoir.',

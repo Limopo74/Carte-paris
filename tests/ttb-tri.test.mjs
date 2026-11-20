@@ -25,3 +25,9 @@ test('TTB trié : l\'étiquette du haut existe, passe juste après celle des pas
   const draw = app.slice(app.indexOf('function drawTtb()'), app.indexOf('function toggleTtb()'));
   assert.equal((draw.match(/drawLayerNote\(\)/g) ?? []).length, 2);
 });
+
+test('TTB trié : Filtres annonce l\'appui long, seulement quand le bouton TTB est dans la barre, ou allumé (v287, mon choix 2A)', () => {
+  const row = app.slice(app.indexOf("sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB',"), app.indexOf("sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB',") + 400);
+  assert.match(row, /chipPlace\(\)\('ttb'\) === 'bar' \|\| state\.showTtb \? 'Appui long en haut : trier' : `\$\{plural\(ttbList\(\)\.length, 'adresse', 'adresses'\)\} du guide`/);
+  assert.match(app, /'\*\*La liste\*\* : appui long sur TTB en haut, Autour de moi → Liste TTB/);
+});
