@@ -526,9 +526,10 @@ export function mergeImport(state, text, owner = '') {
   const points = [...state.points];
   let added = 0;
   let skipped = 0;
+  let already = 0; // v293 : lieux déjà sur le téléphone (même id), gardés tels quels : le message le dit
   for (const p of obj.points) {
     if (!validatePoint(p, [...catIds])) { skipped++; continue; }
-    if (known.has(p.id)) continue;
+    if (known.has(p.id)) { already++; continue; }
     known.add(p.id);
     const c = clean(p);
     c.lists = c.lists.filter((x) => listIds.has(x));
@@ -566,7 +567,7 @@ export function mergeImport(state, text, owner = '') {
   // Mots tout prêts (v226) : seulement depuis ma propre sauvegarde ; restaurés tels quels sur une appli vide, sinon les séries manquantes s'ajoutent
   const fileWords = !owner && Array.isArray(obj.words) ? cleanWords(obj.words) : null;
   const words = !fileWords ? state.words : restore ? fileWords : cleanWords([...wordsOf(state), ...fileWords]);
-  return { state: { ...state, points, plans, artists, artistLinks, venues, outings, circuitNotes, hiddenCircuits, notes, categories, lists, words, routes, myCircuits, ...(myStations ? { myStations } : {}), ...(home ? { home } : {}), busLines, ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, settings };
+  return { state: { ...state, points, plans, artists, artistLinks, venues, outings, circuitNotes, hiddenCircuits, notes, categories, lists, words, routes, myCircuits, ...(myStations ? { myStations } : {}), ...(home ? { home } : {}), busLines, ...(mine && !state.mySettings ? { mySettings: mine } : {}) }, added, skipped, already, settings };
 }
 
 function checkFields({ name, color, icon = DEFAULT_ICON, log = '', did = '', words }, keepColor = null) {

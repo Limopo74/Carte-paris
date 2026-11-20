@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (292)';
+const VERSION = '20 novembre 2026 (293)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -9490,7 +9490,7 @@ function importText(text, owner) {
       closeSheet();
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
-    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`);
+    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
   }
