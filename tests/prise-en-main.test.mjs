@@ -27,7 +27,7 @@ test('ses icônes existent', () => {
 test('la Prise en main est fermée, sauf depuis « Ta carte est vide »', () => {
   assert.match(app, /const openFirst = first === true;/);
   assert.match(app, /el\('details', \{ class: 'help-item', open: openFirst && i === 0 \}/);
-  assert.match(app, /row\('circle-help', 'Aide', [^\n]*, openHelp\)/, 'depuis les Réglages : l\'événement du clic n\'ouvre rien');
+  assert.match(app, /row\('circle-help', 'Aide de l\\'appli', [^\n]*, openHelp\)/, 'depuis les Réglages : l\'événement du clic n\'ouvre rien'); // v303 : « Aide de l'appli »
 });
 
 test('la fenêtre « Ta carte est vide » propose la Prise en main', () => {

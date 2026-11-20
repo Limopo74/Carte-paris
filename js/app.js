@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (302)';
+const VERSION = '20 novembre 2026 (303)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1009,7 +1009,7 @@ function openFilters() {
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
     !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', 'Trait plein : sans voitures. Pointillé : rue calme', async () => { await setVeloLayer(!state.showVelo); }),
     !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', 'Squares, jardins, parcs et bois de la Ville, en zoomant ; vert clair : ouverts maintenant', () => { setJardinLayer(!state.showJardins); }),
-    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
+    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('sliders-horizontal'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
 
@@ -1056,7 +1056,7 @@ function openListPlaces(listId, query = '', picked = null) {
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
   const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics']];
-  openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
+  openSheet([ico('sliders-horizontal'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
       const on = !hid.has(key);
@@ -8931,7 +8931,7 @@ function openSettings(section = null) {
   if (section === 'fiche') {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
     const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
-    openSheet([ico('list'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
+    openSheet([ico('file-text'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
         if (hid.has(key)) hid.delete(key); else hid.add(key);
@@ -8982,7 +8982,7 @@ function openSettings(section = null) {
   openSheet([ico('settings'), ' Réglages', VERSION_NUM ? el('span', { class: 'title-ver' }, ` v${VERSION_NUM}`) : null], el('div', { class: 'menu' },
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
-    row('circle-help', 'Aide', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp),
+    row('circle-help', 'Aide de l\'appli', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
     el('h3', { class: 'ring-title menu-group' }, 'Mes données'),
     // En tête : l'état de la sauvegarde se voit dès l'ouverture des Réglages.
     el('button', { type: 'button', class: `menu-row c-add${unsaved ? ' warn-row' : ''}`, onclick: () => openSettings('sauvegarde') },
@@ -9029,10 +9029,10 @@ function openSettings(section = null) {
     arrNumsSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
-    row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
-    row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('list', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
+    row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
@@ -10310,6 +10310,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
     '{list} Vu en passant, ranger dans une liste : après la photo, sous « Ranger dans », « **Mes listes** » (facultatif). Touche une ou plusieurs listes, ou crée-en une ; elles restent choisies pour la photo suivante tant que l\'appli est ouverte. « Enregistrer » reste toujours visible en bas.',
     '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
@@ -10319,7 +10320,6 @@ const HELP = [
     '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
     '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
     '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
-    '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
   ]],
 ];
 
