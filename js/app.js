@@ -1,5 +1,6 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
+import { DEPART_KEY, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
 import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.js';
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
@@ -64,7 +65,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (320)';
+const VERSION = '20 novembre 2026 (321)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -82,8 +83,11 @@ const ESSAI_KEY = 'carte-paris.essai';
 const ESSAI = (() => { try { return sessionStorage.getItem(ESSAI_KEY) === '1'; } catch { return false; } })();
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
 try { storage = ESSAI ? memStorage() : window.localStorage; storage.getItem('test'); } catch { storage = failingStorage; }
-function startEssai() { try { sessionStorage.setItem(ESSAI_KEY, '1'); } catch { toast('Ce téléphone ne permet pas l\'essai.', true); return; } location.reload(); }
-function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); } catch { /* rien */ } location.reload(); }
+// v321 : l'essai peut partir d'un démarrage préparé pour un proche (gardé le temps de l'onglet, avec l'essai)
+const ESSAI_DEPART = 'carte-paris.essai-depart';
+let prepDraft = null; // v321 : { id (null = nouvelle), name, p, step } : la préparation pour un proche en cours, le temps de la session
+function startEssai(preset = null) { try { sessionStorage.setItem(ESSAI_KEY, '1'); if (preset?.steps) sessionStorage.setItem(ESSAI_DEPART, JSON.stringify(preset)); else sessionStorage.removeItem(ESSAI_DEPART); } catch { toast('Ce téléphone ne permet pas l\'essai.', true); return; } location.reload(); }
+function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); sessionStorage.removeItem(ESSAI_DEPART); } catch { /* rien */ } location.reload(); }
 // v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
 let usage = readUsage(storage.getItem(USAGE_KEY));
 let usageTimer = 0;
@@ -4715,18 +4719,19 @@ const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _s
 const ttbNote = () => {
   try { return state.showTtb && ttbList().length && (ttbRubs.size || ttbBudgets.size) ? { text: `Seulement ${ttbFilterText(ttbRubs, ttbBudgets)}\u00a0· Tout\u00a0voir`, act: 'ttb' } : null; } catch { return null; } // au démarrage, avant que la partie TTB soit lue
 };
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' ? 'x' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
 layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
   if (n?.act === 'essai') endEssai(); // v315
+  else if (n?.act === 'prep') stopPrep(); // v321
   else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
@@ -9518,7 +9523,9 @@ function openSettings(section = null) {
     ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › */
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
-      : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', startEssai, false, 'c-guide'),
+      : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
+    // v321 (mes choix du 20 nov.) : tout en bas, sous l'essai
+    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -10935,6 +10942,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Préparer le démarrage d\'un proche** : {settings} → tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
     '{footprints} **Mesurer ton pas** : {settings} → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
@@ -10944,7 +10952,6 @@ const HELP = [
     '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
     '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
-    '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
   ]],
 ];
 
@@ -10963,7 +10970,7 @@ function openHelp(first) {
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
       el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l)))),
-      i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openWelcome(2) }, 'Refaire les réglages du début') : null))), // v314 : le circuit du premier lancement, sans la page Bienvenue
+      i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { forgetGot(); openWelcome(2); } }, 'Refaire les réglages du début') : null))), // v314 : le circuit du premier lancement, sans la page Bienvenue
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { name: 'help', again: () => openHelp(openFirst), tall: true });
@@ -10976,6 +10983,14 @@ const WELCOME_STEPS = 6;
 const WELCOME_TITLES = ['Bienvenue', 'Taille du texte', 'Pour toi', 'Rentrer', 'Ta position', 'C\'est prêt'];
 let installEvt = null; // l'installation proposée par Chrome, gardée pour le bouton de la dernière étape
 function firstDone() { try { return storage.getItem(FIRST_KEY) === '1'; } catch { return false; } }
+// v321 : un démarrage préparé par un proche (#depart=…) : ses étapes et son mot ; gardé le temps du circuit
+const DEPART_RECU = 'carte-paris.depart-recu';
+let welcomeGot = (() => { try { const o = JSON.parse(storage.getItem(DEPART_RECU) ?? 'null'); return o && typeof o === 'object' ? o : null; } catch { return null; } })();
+const welcomeFlow = () => [1, ...STEP_KEYS.map((k, i) => (welcomeGot?.steps?.[k] === false ? 0 : i + 2)).filter(Boolean), WELCOME_STEPS];
+const nextOf = (step) => { const f = welcomeFlow(); return f[Math.min(f.indexOf(step) + 1, f.length - 1)] ?? WELCOME_STEPS; };
+const prevOf = (step) => { const f = welcomeFlow(); return f[Math.max(f.indexOf(step) - 1, 0)] ?? 1; };
+/** Le circuit fini (ou relancé depuis l'Aide) : le démarrage reçu s'efface, toutes les étapes reviennent. */
+function forgetGot() { welcomeGot = null; try { storage.removeItem(DEPART_RECU); } catch { /* rien */ } }
 let welcomeNext = 0; // après « Importer les lieux d'un proche » depuis le circuit : l'étape où reprendre
 window.addEventListener('beforeinstallprompt', (e) => {
   // Pendant le circuit, la barre de Chrome attend : l'installation est proposée à la dernière étape. Après, Chrome fait comme d'habitude.
@@ -10988,9 +11003,9 @@ window.addEventListener('appinstalled', () => { installEvt = null; if (view === 
 function openWelcome(step = 1) {
   if (step === 1) { try { storage.setItem(FIRST_KEY, '1'); } catch { /* rien */ } }
   const go = (n) => () => openWelcome(n);
-  const back = el('button', { type: 'button', class: 'btn', onclick: go(step - 1) }, `← ${WELCOME_TITLES[step - 2] ?? 'Bienvenue'}`);
+  const back = el('button', { type: 'button', class: 'btn', onclick: go(prevOf(step)) }, `← ${WELCOME_TITLES[prevOf(step) - 1] ?? 'Bienvenue'}`);
   // v319 (mon choix du 20 nov.) : le bouton qui avance est vert plein, toujours en bas, à la place de « Commencer les réglages »
-  const next = (label = 'Suivant →') => el('button', { type: 'button', class: 'btn c-add solid', onclick: go(step + 1) }, label);
+  const next = (label = 'Suivant →') => el('button', { type: 'button', class: 'btn c-add solid', onclick: go(nextOf(step)) }, label);
   const seg = (label, opts, cur, pick) => el('div', {},
     el('p', { class: 'legend' }, label),
     el('div', { class: 'seg', role: 'group', 'aria-label': label }, opts.map(([k, name]) =>
@@ -11002,14 +11017,15 @@ function openWelcome(step = 1) {
   const pages = {
     1: ['Bienvenue', [
       // v314 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
+      welcomeGot?.msg || welcomeGot?.de ? el('p', {}, el('b', {}, welcomeGot.de ? `De la part ${deOf(welcomeGot.de)}` : 'Préparé pour toi'), welcomeGot.msg ? ` : « ${welcomeGot.msg} »` : '') : null, // v321
       el('div', { class: 'help-list' }, ...['{locate-fixed} **Où suis-je** : le point bleu, c\'est toi.', '**Autour de moi** : tes lieux, du plus proche au plus loin.',
         '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.', '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
       el('p', { class: 'help' }, 'Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
       el('h3', { class: 'fiche-sec' }, 'Tu as déjà des lieux ?'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 0; pickImport('mine'); } }, ico('upload'), 'Restaurer ma sauvegarde'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 2; pickImport('friend'); } }, ico('users'), 'Importer les lieux d\'un proche'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = nextOf(1); pickImport('friend'); } }, ico('users'), 'Importer les lieux d\'un proche'),
       el('p', { class: 'help tip' }, 'Ta sauvegarde est dans tes Téléchargements. Les lieux d\'un proche : le fichier qu\'il t\'a envoyé.'),
-    ], [el('button', { type: 'button', class: 'btn c-add solid', onclick: go(2) }, 'Commencer les réglages ', ico('arrow-right'))]],
+    ], [el('button', { type: 'button', class: 'btn c-add solid', onclick: go(nextOf(1)) }, 'Commencer les réglages ', ico('arrow-right'))]],
     2: ['Taille du texte', [
       el('p', { class: 'help tip' }, 'Choisis la taille que tu lis sans effort, même au soleil.'),
       el('div', { class: 'seg', role: 'group', 'aria-label': 'Taille du texte' }, TEXT_SIZES.map((t) => el('button', { type: 'button', 'aria-pressed': String(cleanTextSize(state.textSize) === t),
@@ -11032,7 +11048,7 @@ function openWelcome(step = 1) {
         home ? el('p', { class: 'ok-line' }, ico('house'), ` ${home.label} : ${home.station}`) : null,
         el('button', { type: 'button', class: 'btn c-metro', onclick: () => openStationPicker((st) => {
           state = home ? { ...state, myStations: state.myStations.map((x) => (x.id === home.id ? { ...x, station: st.n } : x)) } : addMyStation(state, st.n, 'Maison');
-          persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(5); // v319 : un appui de moins
+          persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(nextOf(4)); // v319 : un appui de moins
         }, { name: 'Rentrer', fn: go(4) }) }, ico('house'), home ? 'Changer de station' : 'Choisir ma station Maison'),
         el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, dans la colonne de boutons.'),
       ];
@@ -11040,12 +11056,12 @@ function openWelcome(step = 1) {
     5: ['Ta position', [
       el('p', {}, 'Pour te montrer où tu es et ce qui est près de toi, Chrome va te demander ta position. Touche « Autoriser » dans sa fenêtre.'),
       el('p', { class: 'help' }, 'L\'appli ne garde aucune trace de tes déplacements.'),
-      el('button', { type: 'button', class: 'btn c-guide', onclick: go(6) }, 'Pas maintenant →'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: go(nextOf(5)) }, 'Pas maintenant →'),
     ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => { // v319 : l'action utile en vert plein, à la place de Suivant ; elle avance seule après la réponse
-      if (!navigator.geolocation) { toast('Ce navigateur ne donne pas la position.', true); openWelcome(6); return; }
+      if (!navigator.geolocation) { toast('Ce navigateur ne donne pas la position.', true); openWelcome(nextOf(5)); return; }
       toast('Recherche de ta position…');
-      navigator.geolocation.getCurrentPosition(() => { toast('Position autorisée'); if (view === 'welcome:5') openWelcome(6); },
-        (err) => { toast(GEO_ERRORS[err.code] ?? 'Position introuvable pour l\'instant.', true); if (view === 'welcome:5') openWelcome(6); },
+      navigator.geolocation.getCurrentPosition(() => { toast('Position autorisée'); if (view === 'welcome:5') openWelcome(nextOf(5)); },
+        (err) => { toast(GEO_ERRORS[err.code] ?? 'Position introuvable pour l\'instant.', true); if (view === 'welcome:5') openWelcome(nextOf(5)); },
         { enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 });
     } }, ico('locate'), 'Autoriser ma position')]],
     6: ['C\'est prêt', [
@@ -11058,14 +11074,216 @@ function openWelcome(step = 1) {
         : STANDALONE ? null : el('p', { class: 'help' }, 'Pour l\'installer sur l\'écran d\'accueil : menu ⋮ de Chrome → « Ajouter à l\'écran d\'accueil » (ou « Installer l\'application », selon le téléphone).'),
       el('p', { class: 'warn' }, 'Tes lieux restent sur ce téléphone seulement : sauvegarde-les de temps en temps (Réglages → Sauvegarde).'),
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'),
-    ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => closeSheet() }, 'Voir ma carte')]],
+    ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => { forgetGot(); closeSheet(); } }, 'Voir ma carte')]],
   };
   const [title, body, feet] = pages[step];
   // L'étape dans le titre, en petit (comme le numéro de version de Réglages) : la page « Pour toi » tient sans cacher Navigo
-  openSheet([title, el('span', { class: 'title-ver', 'aria-label': `étape ${step} sur ${WELCOME_STEPS}` }, ` ${step}/${WELCOME_STEPS}`)], el('div', { class: 'stack welcome' },
+  const flow = welcomeFlow(); const pos = Math.max(flow.indexOf(step), 0) + 1;
+  openSheet([title, el('span', { class: 'title-ver', 'aria-label': `étape ${pos} sur ${flow.length}` }, ` ${pos}/${flow.length}`)], el('div', { class: 'stack welcome' },
     ...body.filter(Boolean),
     foot(...feet),
   ), { tall: true, name: `welcome:${step}`, again: go(step) });
+}
+
+/* ---------- Préparer le démarrage d'un proche (v321, mes choix du 20 nov., maquette validée) : mes préparations nommées,
+   10 étapes qui ne touchent jamais mes réglages, puis un lien et un QR code. Le nom reste pour moi seule. ---------- */
+const prepsNow = () => { try { return cleanPreps(JSON.parse(storage.getItem(DEPART_KEY) ?? 'null')); } catch { return []; } };
+const savePreps = (list) => { try { storage.setItem(DEPART_KEY, JSON.stringify(cleanPreps(list))); return true; } catch { toast('Le téléphone n\'a pas pu garder la préparation.', true); return false; } };
+const PREP_STEPS = 10;
+const prepId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Son fond de carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
+const PREP_CHIPS = { street: ['tent', 'Dans la rue'], lines: ['lines', 'Lignes de métro et RER'], fav: ['star', 'Favoris'], ttb: ['circle', 'TTB (avec sa liste)'], velib: ['bike', 'Vélib\' sur la carte'], buslines: ['bus', 'Mes lignes de bus'], pratique: ['droplets', 'Fontaines et WC sur la carte'], passages: ['door-open', 'Passages couverts'], velo: ['spline', 'Pistes à vélo'], jardins: ['trees', 'Jardins publics'] };
+const deOf = (name) => (/^[aeiouyhâéèêîôûAEIOUYHÂÉÈÊÎÔÛ]/.test(name) ? `d'${name}` : `de ${name}`);
+const dayOf = (at) => (at ? new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '');
+const styleNames = () => Object.fromEntries(Object.entries(STYLE_INFO).map(([id, st]) => [id, st.name]));
+
+function openPrepList() {
+  const list = prepsNow();
+  openSheet([ico('users'), ' Mes proches'], el('div', { class: 'stack' },
+    el('p', { class: 'help tip' }, 'Tes préparations, rangées sous un nom pour toi seule : le proche ne le voit pas. Il reçoit un lien ou scanne un QR code ; son appli démarre avec tes choix. Tes lieux, ta liste TTB et ta clé CARTO ne partent jamais.'),
+    prepDraft ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openPrep(prepDraft.step || 1) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('pencil')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Reprendre la préparation en cours'), el('span', { class: 'menu-sub' }, prepDraft.name || 'Pas encore enregistrée')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'))) : null,
+    list.length ? el('div', { class: 'menu' }, list.map((x) => el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openPrepOne(x.id) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('users')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, [x.at ? `Préparée le ${dayOf(x.at)}` : '', presetSummary(x.p, styleNames())].filter(Boolean).join(' · '))),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))) : el('p', {}, 'Aucune préparation pour l\'instant.'),
+    el('button', { type: 'button', class: 'btn c-add', disabled: list.length >= DEPART_MAX, onclick: () => { prepDraft = { id: null, name: '', p: defaultPreset(state.me ?? ''), step: 1 }; drawLayerNote(); openPrep(1); } }, ico('plus'), 'Nouvelle préparation'),
+    list.length >= DEPART_MAX ? el('p', { class: 'help' }, `${DEPART_MAX} préparations au plus : supprime-en une d'abord.`) : null,
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+  ), { tall: true, name: 'preps', again: openPrepList });
+}
+
+function openPrepOne(id) {
+  const x = prepsNow().find((y) => y.id === id);
+  if (!x) { openPrepList(); return; }
+  const remove = () => {
+    const before = prepsNow();
+    savePreps(before.filter((y) => y.id !== id)); openPrepList();
+    toast(`« ${x.name} » supprimée`, false, { label: 'Annuler', fn: () => { savePreps(before); openPrepOne(id); } });
+  };
+  const dup = () => {
+    const list = prepsNow();
+    if (list.length >= DEPART_MAX) { toast(`${DEPART_MAX} préparations au plus : supprime-en une d'abord.`, true); return; }
+    const copy = { id: prepId(), name: `${x.name} (copie)`.slice(0, PREP_NAME_MAX), at: Date.now(), p: cleanPreset(x.p) };
+    savePreps([...list, copy]); openPrepOne(copy.id); toast(`« ${copy.name} » créée : reprends-la pour l'adapter`);
+  };
+  const row = (icon, title, sub, fn) => el('button', { type: 'button', class: 'menu-row c-guide', onclick: fn },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+  openSheet([ico('users'), ` ${x.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, [x.at ? `Préparée le ${dayOf(x.at)}` : '', presetSummary(x.p, styleNames())].filter(Boolean).join(' · ')),
+    el('div', { class: 'menu' },
+      row('pencil', 'Reprendre', 'Changer ses choix, étape par étape', () => { prepDraft = { id: x.id, name: x.name, p: cleanPreset(x.p), step: 1 }; drawLayerNote(); openPrep(1); }),
+      row('send', 'Envoyer le lien', 'Avec son QR code', () => openPrepSend(x)),
+      row('hand', 'Essayer ce démarrage', 'Comme sur son téléphone ; tes réglages ne bougent pas', () => startEssai(x.p)),
+      row('copy', 'Dupliquer', 'Pour un autre proche', dup)),
+    el('button', { type: 'button', class: 'btn danger', onclick: remove }, ico('trash-2'), 'Supprimer cette préparation'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: openPrepList }, '← Mes proches')),
+  ), { tall: true, name: `prep-one:${id}`, again: () => openPrepOne(id) });
+}
+
+/** Le lien du proche et son QR code ; « Envoyer le lien » passe par le menu de partage du téléphone (sinon il est copié). */
+async function openPrepSend(x) {
+  const url = presetLink(APP_URL(), await encodePreset(x.p));
+  const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': 'QR code du démarrage préparé' });
+  const q = qrcode(0, 'M'); q.addData(url); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  const share = async () => {
+    const text = x.p.de ? `${x.p.de} t'a préparé « Ma carte de Paris » : ouvre ce lien dans Chrome.` : 'Ma carte de Paris, préparée pour toi : ouvre ce lien dans Chrome.';
+    try { if (navigator.share) { await navigator.share({ title: 'Ma carte de Paris', text, url }); return; } } catch { return; /* annulé */ }
+    try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message'); } catch { toast('Le lien n\'a pas pu être copié.', true); }
+  };
+  openSheet([ico('send'), ` ${x.name}`], el('div', { class: 'stack' }, box,
+    el('p', { class: 'help' }, 'Il scanne ce code avec l\'appareil photo, ou tu lui envoies le lien. Le lien porte ton mot et tes choix, jamais tes lieux ni ce nom.'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openPrepOne(x.id) }, `← ${x.name}`), el('button', { type: 'button', class: 'btn c-add solid', onclick: share }, ico('send'), 'Envoyer le lien')),
+  ), { tall: true, name: `prep-send:${x.id}`, again: () => openPrepSend(x) });
+}
+
+function stopPrep() {
+  const d = prepDraft; prepDraft = null; drawLayerNote();
+  if (String(view ?? '').startsWith('prep:')) closeSheet();
+  if (d) toast('Préparation arrêtée, pas enregistrée', false, { label: 'Annuler', fn: () => { prepDraft = d; drawLayerNote(); openPrep(d.step || 1); } });
+}
+
+function openPrep(step = 1) {
+  const d = prepDraft;
+  if (!d) { openPrepList(); return; }
+  d.step = step;
+  const p = d.p;
+  const again = () => openPrep(step);
+  const back = step === 1 ? el('button', { type: 'button', class: 'btn', onclick: openPrepList }, '← Mes proches')
+    : el('button', { type: 'button', class: 'btn', onclick: () => openPrep(step - 1) }, `← ${PREP_TITLES[step - 2]}`);
+  const next = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => openPrep(step + 1) }, 'Suivant →');
+  const seg = (label, opts, cur, pick) => el('div', {}, el('p', { class: 'legend' }, label),
+    el('div', { class: 'seg', role: 'group', 'aria-label': label }, opts.map(([k, name]) => el('button', { type: 'button', 'aria-pressed': String(cur === k), onclick: () => { if (cur !== k) { pick(k); again(); } } }, name))));
+  const sw = (icon, title, sub, on, flip) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { flip(); again(); } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
+    el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  const check = (label, sub, on, flip) => el('label', { class: 'item-main check-row' }, el('input', { type: 'checkbox', class: 'check', checked: on, onchange: () => { flip(); again(); } }),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, label), sub ? el('span', { class: 'item-sub' }, sub) : null));
+  const placeRow = (icon, name, place, opts, set) => el('div', { class: 'cat-row tool-row' },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, typeof icon === 'string' ? ico(icon) : icon),
+    el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, name),
+      el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place de ${name}` }, opts.map(([k, label]) =>
+        el('button', { type: 'button', 'aria-pressed': String(place === k), onclick: () => { if (place !== k) { set(k); again(); } } }, label)))));
+  const chipPlace = (k) => (p.hiddenChips.includes(k) ? 'hidden' : p.moreChips.includes(k) ? 'more' : 'bar');
+  const setChip = (k, to) => { p.hiddenChips = p.hiddenChips.filter((x) => x !== k); p.moreChips = p.moreChips.filter((x) => x !== k); if (to === 'hidden') p.hiddenChips.push(k); if (to === 'more') p.moreChips.push(k); };
+  const toolPlace = (t) => (p.hiddenTools.includes(t) ? 'hidden' : p.moreTools.includes(t) ? 'more' : 'map');
+  const setTool = (t, to) => { p.hiddenTools = p.hiddenTools.filter((x) => x !== t); p.moreTools = p.moreTools.filter((x) => x !== t); if (to === 'hidden') p.hiddenTools.push(t); if (to === 'more') p.moreTools.push(t); };
+  const starts = defaultPreset().categories; // Restos, Boutiques, Culture
+  const allCats = [...starts, ...state.categories.filter((c) => c.id !== SEEN_CAT.id && !starts.some((x) => x.id === c.id))];
+  const nameInput = el('input', { type: 'text', maxlength: String(PREP_NAME_MAX), value: d.name, placeholder: 'Ex. : Pour Paul', oninput: (e) => { d.name = e.target.value; } });
+  const pages = {
+    1: [
+      el('label', { class: 'field' }, 'De la part de', el('input', { type: 'text', maxlength: String(PREP_NAME_MAX), value: p.de, autocomplete: 'given-name', placeholder: 'Ton prénom', oninput: (e) => { p.de = e.target.value; } })),
+      el('label', { class: 'field' }, `Ton mot (${MSG_MAX} signes au plus)`, el('textarea', { maxlength: String(MSG_MAX), rows: '3', placeholder: 'Ex. : Commence par Autour de moi !', oninput: (e) => { p.msg = e.target.value; } }, p.msg)),
+      el('p', { class: 'help' }, 'Il le lit en tête de sa page Bienvenue. Toute personne qui a le lien peut le lire.'),
+    ],
+    2: [
+      el('div', { class: 'menu' },
+        sw('a-large-small', 'Taille du texte', 'Avec ton choix déjà coché', p.steps.taille, () => { p.steps.taille = !p.steps.taille; }),
+        sw('user', 'Pour toi', 'Féminin ou masculin, pas, côté, noms, Navigo', p.steps.pourtoi, () => { p.steps.pourtoi = !p.steps.pourtoi; }),
+        sw('house', 'Rentrer', 'Sa station Maison', p.steps.rentrer, () => { p.steps.rentrer = !p.steps.rentrer; }),
+        sw('locate', 'Ta position', 'La demande de Chrome', p.steps.position, () => { p.steps.position = !p.steps.position; })),
+      el('p', { class: 'help' }, 'Bienvenue et « C\'est prêt » sont toujours là. Une étape cachée garde quand même tes choix.'),
+    ],
+    3: [
+      el('p', { class: 'help' }, 'La taille qu\'il aura en ouvrant ; il peut la changer.'),
+      el('div', { class: 'seg', role: 'group', 'aria-label': 'Taille du texte' }, TEXT_SIZES.map((t) => el('button', { type: 'button', 'aria-pressed': String(p.textSize === t), onclick: () => { p.textSize = t; again(); } }, TEXT_NAME[t]))),
+    ],
+    4: [
+      seg('L\'appli lui écrit', [['f', 'Au féminin'], ['m', 'Au masculin']], p.masculin ? 'm' : 'f', (k) => { p.masculin = k === 'm'; }),
+      seg('Son pas (les durées à pied)', PACES.map((m) => [m, PACE_NAME[m]]), p.pace, (m) => { p.pace = m; }),
+      seg('Boutons de la carte', [['right', 'À droite'], ['left', 'À gauche']], p.side, (k) => { p.side = k; }),
+      el('div', { class: 'menu' },
+        sw('tags', 'Noms à côté des boutons', '', p.labels, () => { p.labels = !p.labels; }),
+        sw('badge-percent', 'Passe Navigo', 'Sorties, fiches, loupe', p.navigo, () => { p.navigo = !p.navigo; })),
+    ],
+    5: [
+      el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête.'),
+      el('div', {}, [...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => placeRow(icon, name, chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to))),
+        ...[...p.categories, SEEN_CAT].map((c) => placeRow(catDot(c.id) ?? ico('tags'), c.name, chipPlace(`cat:${c.id}`), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(`cat:${c.id}`, to)))]),
+    ],
+    6: [
+      el('div', {}, normalizeTools(p.mapTools).map((t) => placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to)))),
+      el('p', { class: 'help' }, 'Autour de moi, Ajouter et Réglages restent toujours en bas.'),
+    ],
+    7: [
+      el('p', { class: 'help' }, 'Seulement les fonds sans clé : ta clé CARTO ne part jamais.'),
+      el('div', { class: 'style-grid' }, FREE_STYLES.map((id) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(p.mapStyle === id), onclick: () => { p.mapStyle = id; again(); } },
+        el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, STYLE_INFO[id].name), el('span', { class: 'menu-sub' }, STYLE_INFO[id].sub)))),
+    ],
+    8: [
+      el('p', { class: 'legend' }, 'Ses catégories (vides, sans tes lieux)'),
+      el('div', {}, allCats.map((c) => check(c.name, '', p.categories.some((x) => x.id === c.id), () => {
+        if (p.categories.some((x) => x.id === c.id)) {
+          if (p.categories.length === 1) { toast('Au moins une catégorie.', true); return; }
+          p.categories = p.categories.filter((x) => x.id !== c.id); setChip(`cat:${c.id}`, 'none');
+        } else { p.categories = [...p.categories, { id: c.id, name: c.name, color: c.color, icon: c.icon }]; setChip(`cat:${c.id}`, 'more'); }
+      }))),
+      el('p', { class: 'help' }, 'Vu en passant est toujours là.'),
+      (state.lists ?? []).length ? el('p', { class: 'legend' }, 'Ses listes (vides)') : null,
+      (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => check(l.name, '', p.lists.some((x) => x.id === l.id), () => {
+        p.lists = p.lists.some((x) => x.id === l.id) ? p.lists.filter((x) => x.id !== l.id) : [...p.lists, { id: l.id, name: l.name }];
+      }))) : null,
+    ],
+    9: [
+      el('p', { class: 'legend' }, 'Sur la fiche d\'un lieu'),
+      el('div', { class: 'menu' }, [['qr', 'qr-code', 'QR code'], ['avis', 'star', 'Avis Google'], ['uber', 'car-taxi-front', 'Uber'], ['stars', 'star', 'Mes étoiles']].map(([k, icon, name]) =>
+        sw(icon, name, '', !p.ficheHidden.includes(k), () => { p.ficheHidden = p.ficheHidden.includes(k) ? p.ficheHidden.filter((x) => x !== k) : [...p.ficheHidden, k]; }))),
+      el('p', { class: 'legend' }, 'Alertes et bandeau'),
+      el('div', { class: 'menu' },
+        sw(p.voice ? 'volume-2' : 'volume-x', 'Voix', 'Boussole, suivi en direct, lieux proches', p.voice, () => { p.voice = !p.voice; }),
+        sw('vibrate', 'Vibrer quand « Maintenant » a du nouveau', '', p.vibrateNow, () => { p.vibrateNow = !p.vibrateNow; }),
+        sw('sparkles', 'Suggestions autour de lui', '', p.suggestNow, () => { p.suggestNow = !p.suggestNow; }),
+        sw('map-pin', 'Prévenir près d\'un de ses lieux', '', p.alertNear, () => { p.alertNear = !p.alertNear; })),
+    ],
+    10: [
+      el('label', { class: 'field' }, 'Nom de cette préparation (pour toi seule)', nameInput),
+      el('p', { class: 'summary' }, presetSummary(cleanPreset(p), styleNames())),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => startEssai(cleanPreset(p)) }, ico('hand'), 'Essayer ce démarrage'),
+      el('p', { class: 'help' }, 'L\'essai ouvre son démarrage avec une mémoire à part ; tes réglages ne bougent pas.'),
+    ],
+  };
+  const save = () => {
+    const name = d.name.trim();
+    if (!name) { toast('Donne un nom à cette préparation (pour toi seule).', true); nameInput.focus(); return; }
+    const list = prepsNow();
+    if (!d.id && list.length >= DEPART_MAX) { toast(`${DEPART_MAX} préparations au plus : supprime-en une d'abord.`, true); return; }
+    const x = { id: d.id ?? prepId(), name, at: Date.now(), p: cleanPreset(p) };
+    if (!savePreps(d.id ? list.map((y) => (y.id === d.id ? x : y)) : [...list, x])) return;
+    prepDraft = null; drawLayerNote();
+    toast(`« ${name} » enregistrée`);
+    openPrepSend(x);
+  };
+  openSheet([`Un proche`, el('span', { class: 'title-ver', 'aria-label': `étape ${step} sur ${PREP_STEPS}` }, ` ${step}/${PREP_STEPS}`)], el('div', { class: 'stack' },
+    el('h3', { class: 'fiche-sec' }, PREP_TITLES[step - 1]),
+    ...pages[step].filter(Boolean),
+    foot(back, step < PREP_STEPS ? next : el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer et envoyer')),
+  ), { tall: true, name: `prep:${step}`, again });
 }
 
 /* ---------- Démarrage ---------- */
@@ -11092,11 +11310,41 @@ document.addEventListener('keydown', (e) => {
   if (!sheet.hidden) { e.preventDefault(); closeSheet(); }
 });
 
+// v321 : un essai parti d'une préparation pour un proche : son départ, sur la mémoire à part de l'essai
+const departCode = readPresetCode(location.hash); // lu avant que runLaunchAction n'efface l'adresse
+if (ESSAI && state.fresh) {
+  let ep = null;
+  try { ep = JSON.parse(sessionStorage.getItem(ESSAI_DEPART) ?? 'null'); } catch { ep = null; }
+  if (ep?.steps) { const pp = cleanPreset(ep); state = { ...applyPreset(state, pp), fresh: true }; receiveGot(pp); applyAllSettings(); }
+}
+/** Le démarrage reçu (ou essayé) : ses étapes et son mot, gardés le temps du circuit. */
+function receiveGot(pp) { welcomeGot = { de: pp.de, msg: pp.msg, steps: pp.steps }; try { storage.setItem(DEPART_RECU, JSON.stringify(welcomeGot)); } catch { /* rien */ } }
+/** Le lien d'un démarrage préparé (#depart=…) : appli neuve → son départ et le circuit ; appli déjà là → la question « Remplacer ». */
+async function receiveDepart(code) {
+  const pp = await decodePreset(code);
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* rien */ }
+  if (!pp) { toast('Ce lien de démarrage est abîmé : demande-le à nouveau.', true); if (state.fresh && !firstDone()) openWelcome(1); return; }
+  if (state.fresh || (!state.points.length && !firstDone())) {
+    state = applyPreset(state, pp); receiveGot(pp); persist(); applyAllSettings(); renderChips(); renderMarkers(); drawLayerNote();
+    openWelcome(1); return;
+  }
+  const de = pp.de ? ` préparés par ${pp.de}` : ' de ce lien';
+  openSheet([ico('users'), ' Réglages reçus'], el('div', { class: 'stack' },
+    pp.msg ? el('p', { class: 'ok-line' }, `${pp.de ? `${pp.de} : ` : ''}« ${pp.msg} »`) : null,
+    el('p', { class: 'warn', role: 'alert' }, `Remplacer tes réglages par ceux${de} ? Tes lieux ne changent pas ; les tiens restent dans « Revenir aux miens », en bas des Réglages.`),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
+        state = replaceWithPreset(state, pp); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); renderChips(); renderMarkers(); closeSheet();
+        toast(`Réglages${pp.de ? ` ${deOf(pp.de)}` : ''} appliqués. Pour revenir aux tiens : « Revenir aux miens », en bas des Réglages.`);
+      } }, 'Remplacer')),
+  ), { name: 'depart-recu' });
+}
+
 renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
-} else if (state.ok && !/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
+} else if (state.ok && !/(lieu|balade|rdv|ouvrir|depart)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
   // v314 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
   if (state.fresh) { openWelcome(1); persist(); } else openSheet('Ta carte est vide', el('div', { class: 'stack' },
     el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
@@ -11185,6 +11433,7 @@ showRemarkBtn();
 
 const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
 runLaunchAction();
+if (departCode && state.ok && !ESSAI) receiveDepart(departCode); // v321
 if (!launched && state.ok && backupDue(state)) {
   let last = 0;
   try { last = Number(storage.getItem('carte-paris.rappel-sauvegarde')) || 0; } catch { /* rien */ }

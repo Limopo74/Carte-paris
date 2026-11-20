@@ -136,7 +136,7 @@ export function cleanSubs(list) {
   return out.slice(0, 40);
 }
 
-function cleanCategories(list) {
+export function cleanCategories(list) {
   const seen = new Set();
   const out = [];
   for (const c of Array.isArray(list) ? list : []) {

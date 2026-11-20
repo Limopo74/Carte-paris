@@ -58,7 +58,7 @@ test('Le circuit : 6 étapes, une fois, pas par-dessus un lien reçu, pas après
   assert.match(app, /if \(state\.fresh\) \{ openWelcome\(1\); persist\(\); \} else openSheet\('Ta carte est vide'/);
   assert.match(pages, /if \(step === 1\) \{ try \{ storage\.setItem\(FIRST_KEY, '1'\)/, 'ouvert une fois : ne revient pas');
   assert.match(pages, /welcomeNext = 0; pickImport\('mine'\)/, 'après ma sauvegarde restaurée, le circuit s\'arrête');
-  assert.match(pages, /welcomeNext = 2; pickImport\('friend'\)/, 'après les lieux d\'un proche, il reprend');
+  assert.match(pages, /welcomeNext = nextOf\(1\); pickImport\('friend'\)/, 'après les lieux d\'un proche, il reprend');
   assert.match(app, /if \(welcomeNext && owner\)/);
   assert.match(app, /'Refaire les réglages du début'/, 'relancé depuis Aide → Prise en main');
 });
@@ -82,7 +82,7 @@ test('v315 : Essayer le premier lancement (Réglages) : une mémoire à part, me
   assert.match(app, /if \(n\?\.act === 'essai'\) endEssai\(\)/);
   const end = app.indexOf('mySettingsBlock(),\n  ), { name: \'settings\'');
   const row = app.lastIndexOf("'Essayer le premier lancement'", end);
-  assert.ok(row > 0 && end - row < 400, 'tout en bas de Réglages, au-dessus de mes réglages par défaut');
+  assert.ok(row > 0 && end - row < 900, 'tout en bas de Réglages, au-dessus de mes réglages par défaut (v321 : « Préparer le démarrage d\'un proche » entre les deux)');
   assert.match(app, /'Terminer l\\'essai'/);
 });
 
@@ -121,7 +121,7 @@ test('v317 : Style de la carte en deux groupes : « Sans clé » puis « Avec la
 });
 
 test('v319 : le bouton qui avance est vert plein ; une seule plaque pleine par étape ; la station choisie mène à l\'étape 5', () => {
-  const w = app.slice(app.indexOf('function openWelcome('), app.indexOf('/* ---------- Démarrage ---------- */'));
+  const w = app.slice(app.indexOf('function openWelcome('), app.indexOf('/* ---------- Préparer le démarrage d\'un proche'));
   assert.match(w, /const next = \(label = 'Suivant →'\) => el\('button', \{ type: 'button', class: 'btn c-add solid'/);
   const page = (n) => w.slice(w.indexOf(`    ${n}: [`), w.indexOf(`    ${n + 1}: [`) > 0 ? w.indexOf(`    ${n + 1}: [`) : w.indexOf('  };'));
   for (const n of [1, 2, 3, 4, 5, 6]) {
@@ -129,6 +129,6 @@ test('v319 : le bouton qui avance est vert plein ; une seule plaque pleine par �
     const solids = (p.match(/solid/g) ?? []).length + (/next\(/.test(p) ? 1 : 0);
     assert.equal(solids, 1, `étape ${n} : une seule plaque pleine`);
   }
-  assert.match(page(4), /openWelcome\(5\); \/\/ v319/);
+  assert.match(page(4), /openWelcome\(nextOf\(4\)\)/);
   assert.match(page(6), /'Voir ma carte'/);
 });
