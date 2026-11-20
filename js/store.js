@@ -242,7 +242,7 @@ export function moveChip(state, key, delta, catIds = []) {
 export const FILTER_KEYS = ['open', 'top', 'lines', 'buslines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'velo', 'jardins', 'covered', 'seen', 'lists', 'people', 'arr'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
-/** v312 (mes choix du 20 nov., d'après ma capture) : le départ d'un nouveau venu, seulement quand la mémoire est vide.
+/** v313 (mes choix du 20 nov., d'après ma capture) : le départ d'un nouveau venu, seulement quand la mémoire est vide.
  * Barre du haut : Dans la rue et Lignes ; les catégories et Vu en passant sous ⋯ Plus (2e capture, 18 h 50) ; Favoris masqué,
  * TTB aussi tant qu'aucune liste n'est importée. Colonne : FRESH_TOOLS. Mon téléphone et les « comme au début » ne changent pas. */
 export const FRESH_HIDDEN_CHIPS = ['ttb', 'fav'];
@@ -252,7 +252,7 @@ export const FRESH_TOOLS = { mapTools: ['locate', 'paris', 'pratique', 'metro', 
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
-  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci' }; // v314 : le fond « Éclairci », sans clé
+  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci' }; // v315 : le fond « Éclairci », sans clé
 }
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
@@ -264,7 +264,7 @@ export function loadState(storage) {
   } catch {
     return { ...empty(), ok: false };
   }
-  if (raw == null) return { ...freshStart(empty()), ok: true, fresh: true }; // v312 : mémoire vide = premier lancement
+  if (raw == null) return { ...freshStart(empty()), ok: true, fresh: true }; // v313 : mémoire vide = premier lancement
   try {
     const obj = JSON.parse(raw);
     let categories = cleanCategories(obj.categories);

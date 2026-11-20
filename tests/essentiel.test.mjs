@@ -42,6 +42,6 @@ test('l\'essentiel et la disposition d\'avant sont gardés ; l\'essentiel part a
   const back = loadState(st);
   assert.deepEqual(back.essentials, ['home', 'locate']);
   assert.deepEqual(back.moreTools, MAP_TOOLS.filter((t) => !['home', 'locate'].includes(t)));
-  assert.deepEqual(back.layoutBefore.moreTools, ['velib', 'home', 'circuits', 'notes'], 'v312 : la disposition d\'un nouveau venu (Fontaine et WC masqué)');
+  assert.deepEqual(back.layoutBefore.moreTools, ['velib', 'home', 'circuits', 'notes'], 'v313 : la disposition d\'un nouveau venu (Fontaine et WC masqué)');
   assert.deepEqual(readSettings(JSON.parse(exportJSON(back))).essentials, ['home', 'locate']);
 });

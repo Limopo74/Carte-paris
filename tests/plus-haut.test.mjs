@@ -8,7 +8,7 @@ const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(
 
 test('Plus du haut : au départ Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts, Pistes à vélo, Jardins publics, rien d\'autre ne bouge', () => {
   assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins']);
-  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'cat:resto', 'cat:boutique', 'cat:culture', 'cat:vu'], 'v312 : un nouveau venu a aussi les catégories et Vu en passant sous ⋯ Plus');
+  assert.deepEqual(loadState(memStorage()).moreChips, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'cat:resto', 'cat:boutique', 'cat:culture', 'cat:vu'], 'v313 : un nouveau venu a aussi les catégories et Vu en passant sous ⋯ Plus');
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav'] })); // appli d'avant la v151
   const s = loadState(st);

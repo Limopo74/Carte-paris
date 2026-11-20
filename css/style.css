@@ -616,8 +616,8 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Styles de carte : filtres faits par le téléphone */
 #map[data-style="pastel"] .leaflet-tile-pane { filter: saturate(1.35) brightness(1.06) hue-rotate(-12deg) contrast(.92); }
 #map[data-style="night"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
-#map:is([data-style="night"], [data-style="darkmatter"]) { background: #1d2230; } /* v315 : Nuit épurée, déjà sombre */
-#map[data-style="eclairci"] .leaflet-tile-pane { filter: saturate(.5) brightness(1.06); } /* v314 : couleurs adoucies, textes plus nets sur un fond plus clair (5,6:1 au lieu de 5,0:1, mesuré sur une tuile du Louvre) */
+#map:is([data-style="night"], [data-style="darkmatter"]) { background: #1d2230; } /* v316 : Nuit épurée, déjà sombre */
+#map[data-style="eclairci"] .leaflet-tile-pane { filter: saturate(.5) brightness(1.06); } /* v315 : couleurs adoucies, textes plus nets sur un fond plus clair (5,6:1 au lieu de 5,0:1, mesuré sur une tuile du Louvre) */
 .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: none; }
 .style-card b { font-size: var(--t16); }

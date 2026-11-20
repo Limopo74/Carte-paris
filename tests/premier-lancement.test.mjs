@@ -1,4 +1,4 @@
-// v312 : premier lancement (mes choix du 20 nov.) : le départ d'un nouveau venu et le circuit de réglage en 6 étapes.
+// v313 : premier lancement (mes choix du 20 nov.) : le départ d'un nouveau venu et le circuit de réglage en 6 étapes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -74,7 +74,7 @@ test('TTB : le bouton revient avec la première liste importée (page du guide o
   assert.match(app, /if \(r\.list && !had\) ttbChipBack\(\);/);
 });
 
-test('v313 : Essayer le premier lancement (Réglages) : une mémoire à part, mes données jamais lues ni écrites', () => {
+test('v314 : Essayer le premier lancement (Réglages) : une mémoire à part, mes données jamais lues ni écrites', () => {
   assert.match(app, /storage = ESSAI \? memStorage\(\) : window\.localStorage/);
   assert.match(app, /sessionStorage\.setItem\(ESSAI_KEY, '1'\)/, 'l\'essai ne dure que le temps de l\'onglet');
   assert.ok(!/localStorage\.(get|set)Item\(JOURNAL_KEY/.test(app), 'Mes chiffres passent aussi par la mémoire de l\'essai');
@@ -86,7 +86,7 @@ test('v313 : Essayer le premier lancement (Réglages) : une mémoire à part, me
   assert.match(app, /'Terminer l\\'essai'/);
 });
 
-test('v314 : le fond « Éclairci » (sans clé) est celui d\'un nouveau venu ; mon style ne change pas', async () => {
+test('v315 : le fond « Éclairci » (sans clé) est celui d\'un nouveau venu ; mon style ne change pas', async () => {
   const { MAP_STYLES } = await import('../js/store.js');
   assert.ok(MAP_STYLES.includes('eclairci'));
   assert.equal(loadState(memStorage()).mapStyle, 'eclairci');
@@ -100,7 +100,7 @@ test('v314 : le fond « Éclairci » (sans clé) est celui d\'un nouveau venu ; 
   assert.match(css, /\.s-eclairci \{/);
 });
 
-test('v315 : Très épuré (Positron) et Nuit épurée (Dark Matter) avec la même clé CARTO', async () => {
+test('v316 : Très épuré (Positron) et Nuit épurée (Dark Matter) avec la même clé CARTO', async () => {
   const { MAP_STYLES } = await import('../js/store.js');
   for (const id of ['positron', 'darkmatter']) assert.ok(MAP_STYLES.includes(id), id);
   assert.match(app, /positron: \{ name: 'Très épuré', [^\n]*rastertiles\/light_all\/[^\n]*\?key=\{k\}/);
@@ -109,4 +109,13 @@ test('v315 : Très épuré (Positron) et Nuit épurée (Dark Matter) avec la mê
   assert.match(app, /if \(needsKey\(id\) && !cartoKey\(\)\) \{ openCartoKey\(undefined, id\)/);
   const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
   assert.match(css, /:root\[data-theme="dark"\] #map:not\(\[data-style="darkmatter"\]\) \.leaflet-tile-pane/, 'le mode sombre ne retourne pas une carte déjà sombre');
+});
+
+test('v316 : Style de la carte en deux groupes : « Sans clé » puis « Avec la clé CARTO »', () => {
+  const page = app.slice(app.indexOf("if (section === 'style') {"), app.indexOf("if (section === 'outils') {"));
+  const a = page.indexOf("'Sans clé'"), b = page.indexOf("'Avec la clé CARTO'");
+  assert.ok(a > 0 && b > a);
+  assert.ok(page.indexOf('!needsKey(id)).map(card)') > a && page.indexOf('!needsKey(id)).map(card)') < b);
+  assert.ok(page.indexOf('=> needsKey(id)).map(card)') > b);
+  assert.match(page, /'Saisir ma clé CARTO'/, 'sans clé, le bouton pour la saisir est dans son groupe');
 });
