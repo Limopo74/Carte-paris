@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (281)';
+const VERSION = '20 novembre 2026 (282)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2302,7 +2302,7 @@ function openDetail(id, back = null) {
       row('wrench', 'Rangement', tidySub, openTidy)),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
     el('div', { class: 'fiche-toc' },
-      navigoOf(p) ? row('badge-percent', 'Avantage Navigo', shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
+      state.navigo !== false && navigoOf(p) ? row('badge-percent', 'Avantage Navigo', /* v282 : « J'ai un passe Navigo » éteint, rien */ shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
@@ -2937,7 +2937,7 @@ function openSearch(initial = '') {
     const hit = (xs, ...keys) => near((xs ?? []).filter((x) => textMatch(q, ...keys.map((k) => x[k]))));
     fill(moreBox,
       ...block(`TTB${ttbOkWord(2)}`, hit(ttbHere(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
-      ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
+      ...(state.navigo === false ? [] : block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back)))), /* v282 */
       ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
       ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))),
       /* v198 : les plaques qui portent ce nom (mots entiers), le titre d'abord ; le fichier n'est lu qu'à la première recherche */
@@ -5722,6 +5722,7 @@ async function openEvents(start = null) {
   const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties'];
+  if (eventsMode === 'navigo' && state.navigo === false) eventsMode = 'all'; // v282 : onglet masqué, on repart de Tout
   if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
   else if (!eventsCache || eventsCache.day !== day) {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris…'), { name: 'events' });
@@ -5768,7 +5769,7 @@ async function openEvents(start = null) {
   ];
   // Onglets soulignés, toujours à la même place
   const seg = el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
-    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].map(([m, label]) =>
+    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false).map(([m, label]) => /* v282 : le dernier, les autres ne bougent pas */
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
   const kiosks = KIOSQUES.map((k) => ({ ...k, d: distanceM(o, k) })).sort((a, b) => spotRank(a) - spotRank(b) || a.d - b.d); // fermé à la fin
   const soonFree = freeSoon().slice(0, 3);
@@ -8889,6 +8890,11 @@ function openSettings(section = null) {
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
+    // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
+    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Avantages Navigo : Sorties, fiches, loupe' : 'Avantages Navigo masqués partout', state.navigo !== false, () => {
+      state.navigo = state.navigo === false;
+      toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
+    }),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -9942,7 +9948,7 @@ const HELP = [
   ]],
   ['calendar-days', 'Trouver une sortie', [
     '{calendar-days} **Sorties**, dans la colonne de droite : ce qui se passe aujourd\'hui autour du centre de la carte. La carte ne bouge pas.',
-    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo.',
+    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Sans passe Navigo : {settings} → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
@@ -10151,6 +10157,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
     '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
     '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
@@ -10160,7 +10167,6 @@ const HELP = [
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
     '{check} TTB, seulement les adresses vérifiées : {settings} → TTB, l\'interrupteur « **Seulement les vérifiées** », sous « Encore ouvertes ? » (le même est en haut de la liste TTB). La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
-    '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
   ]],
 ];
 
