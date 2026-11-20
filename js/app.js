@@ -68,7 +68,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (333)';
+const VERSION = '20 novembre 2026 (334)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -267,6 +267,11 @@ const goText = (d, pos) => {
   if (!walkGo(d)) return [`Y aller · ${nb(distText(d))}${from}`];
   return [`Y aller · ${nb(from ? fmtWalk(d).replace(/ à pied$/, '') : fmtWalk(d))}${from}`, el('small', { class: 'go-dist' }, fmtDist(d))];
 };
+/** Ligne « Uber jusqu'ici » (v277 ; v333, mon choix 2A du 20 nov. : aussi en bas de la page d'une sortie, d'un musée, d'une galerie,
+ *  d'une salle). Masquée partout par Réglages → Autres réglages → Fiche d'un lieu (un nouveau venu l'a masquée, v323). */
+const uberRow = (p) => (!ficheShows('uber') || !Number.isFinite(p?.lat) || !Number.isFinite(p?.lng) ? null
+  : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
+    ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Appli Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
 // Cercles d'« Autour de moi » : en mètres, ou en minutes à pied (rayons calculés depuis les minutes).
 const inMinutes = () => state.ringUnit === 'min';
 const nearRings = () => (inMinutes() ? state.minuteRings.map(minutesToMeters) : state.rings);
@@ -2898,8 +2903,7 @@ function openDetail(id, back = null) {
       row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, reviewsSub(catOf(p.cat)))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
-      !ficheShows('uber') ? null : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
-        ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Appli Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
+      uberRow(p)),
     back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   // v288 : le genre ne tient pas sur la ligne (grand texte, nom de catégorie long, « a pu fermer ») : on le retire de la ligne
@@ -5852,6 +5856,8 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     fav ? followButton(title, again) : null, // v170 : une salle, une galerie, un musée se suivent aussi (Mes salles)
     extra,
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
+    /* v333 : musée, galerie, salle, théâtre (les pages qui ont un Favori) : Uber en bas de page, rien ne bouge au-dessus */
+    fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again });
 }
@@ -5932,6 +5938,7 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
       ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openVenues(named('Sortie', again)) }, ico('heart'), el('span', {}, 'Dans Mes salles', el('small', {}, e.place)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))
       : el('button', { type: 'button', class: 'fiche-row', onclick: () => { state.venues = cleanVenues([...cleanVenues(state.venues), e.place]); persist(); again(); toast(`${e.place} : dans Mes salles`); } },
         ico('heart'), el('span', {}, 'Suivre ce lieu', el('small', {}, `${e.place} : son programme en tête de Sorties`)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))) : null,
+    uberRow(e) ? el('div', { class: 'fiche-toc' }, uberRow({ ...e, name: e.place || e.title })) : null, /* v333 : sous Suivre ce lieu, rien ne bouge au-dessus */
     el('p', { class: 'help' }, 'Horaires et prix : vérifie sur le site de l\'organisateur.'),
     el('p', { class: 'help tip' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur.'),
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
@@ -9701,7 +9708,7 @@ function openSettings(section = null) {
 
   if (section === 'fiche') {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
-    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
+    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Fiche, sorties, salles'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
     openSheet([ico('file-text'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager pour un lieu avec un commentaire.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
@@ -11187,7 +11194,7 @@ const HELP = [
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer. Masquées ({settings} → Autres réglages → Fiche d\'un lieu), elles se changent encore dans Modifier.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
+    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici (aussi en bas d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle). Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
@@ -11290,6 +11297,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
@@ -11299,7 +11307,6 @@ const HELP = [
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
-    '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
   ]],
 ];
 
