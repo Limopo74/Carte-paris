@@ -67,6 +67,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Les **emoji** ne servent qu'aux icônes de catégories, choisies par la personne. Aucun emoji écrit dans un bouton ou un lien (vérifié).
 - Le métro s'écrit avec la pastille « M » (`.m-badge`) ; « Ⓜ » reste permis dans un texte qui nomme une station.
 - Seul symbole permis dans un libellé : la flèche de retour « ← Nom de l'écran ».
+- **La grosse lettre terre cuite** (« Édito lettrine », v327) ne veut dire qu'une chose : **le genre d'une sortie sans photo**, dans sa vignette de 56 × 76 (« Photos dans Sorties » allumé), le genre écrit dessous à l'horizontale. Nulle part ailleurs : ni titres, fiches, listes de lieux, carte, Aide, écrans vides, premier lancement, ni icône de l'appli ; ni mot vertical ou empilé (mes choix du 20 nov. 2026, essayés en maquette puis écartés).
 
 ## 7 bis. Photos (règle du 20 novembre 2026, mon choix A)
 1. **Ma photo d'abord** : elle seule va sur mes lieux. Réduite à 1280 px, sans position (EXIF effacé), gardée sur le téléphone, jamais envoyée par l'appli. Exception (mon choix du 20 nov. 2026, v307) : « Exporter » de Mes Vu en passant, que je lance moi-même, remet la position, la date et ma ligne dans chaque photo du fichier, avec un rappel visible (« qui les reçoit le voit »).
