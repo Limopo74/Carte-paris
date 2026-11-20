@@ -662,6 +662,34 @@ export function venuesNear(events, from, maxM, { followed = [], isShow = () => t
     .filter((g) => g.d <= maxM).sort((a, b) => a.d - b.d);
 }
 
+/**
+ * v326 (mon choix 3A du 20 nov.) : les salles qui ont le plus de sorties cette semaine, dans tout l'agenda de Paris,
+ * pour Réglages → Photos des salles. Comptées sur le téléphone, sans ma position. Comme « Salles près de moi » :
+ * sans bibliothèques, médiathèques, gymnases ni centres Paris Anim', sans les salles déjà suivies (elles ont leur
+ * partie), deux graphies d'une même salle à moins de 100 m n'en font qu'une (le nom le plus court).
+ * Rend [{ name, n (sorties différentes) }], la plus présente d'abord.
+ */
+export function topVenues(events, { followed = [], max = 15 } = {}) {
+  const mine = cleanVenues(followed);
+  const groups = new Map();
+  for (const e of events ?? []) {
+    const name = String(e?.place ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const key = artistKey(name);
+    if (key.replace(/ /g, '').length < 3 || !Number.isFinite(e.lat) || !Number.isFinite(e.lng)) continue;
+    if (NOT_A_HALL.some((w) => plain(name).includes(w)) || mine.some((v) => atVenue(e, v))) continue;
+    const g = groups.get(key) ?? { name, lat: e.lat, lng: e.lng, titles: new Set() };
+    g.titles.add(plain(e.title));
+    groups.set(key, g);
+  }
+  const kept = [];
+  for (const g of [...groups.values()].sort((a, b) => a.name.length - b.name.length)) {
+    const same = kept.find((k) => distanceM(k, g) <= 100 && atVenue({ place: g.name }, k.name));
+    if (same) g.titles.forEach((t) => same.titles.add(t));
+    else kept.push(g);
+  }
+  return kept.map((g) => ({ name: g.name, n: g.titles.size })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'fr')).slice(0, max);
+}
+
 /* ---------- 19. Garder un lieu en favori d'un appui (v167) : la catégorie devinée parmi les miennes ---------- */
 // Mots cherchés dans le nom de mes catégories, du plus juste au plus large (le premier mot trouvé l'emporte)
 const FAV_WORDS = {

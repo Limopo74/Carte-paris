@@ -1125,6 +1125,12 @@ a.menu-row .menu-chev { font-size: 20px; }
   padding: 10px 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer;
 }
 .ev-main:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: var(--r); }
+/* v326 (mes choix 1B 7A du 20 nov.) : « Photos dans Sorties » : la photo de l'agenda (ou ma photo de la salle) à la place de
+   l'icône du genre, 56 × 76 px, en haut de la ligne ; dans une liste qui en a une, toutes les lignes gardent la même colonne. */
+.ev-list:has(.ev-thumb) .ev-main { grid-template-columns: 56px minmax(0, 1fr) auto; align-items: start; }
+.ev-list:has(.ev-thumb) .genre { width: 56px; }
+.ev-list:has(.ev-thumb) .ev-dist { align-self: center; }
+.ev-thumb { display: block; width: 56px; height: 76px; object-fit: cover; border-radius: var(--r); background: var(--line); }
 .ev-text { display: flex; flex-direction: column; min-width: 0; }
 .ev-name {
   font-family: var(--display); font-weight: 700; font-size: var(--t16); font-stretch: 92%; line-height: 1.25; color: var(--ink);

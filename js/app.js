@@ -23,7 +23,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, VELO_FILE, JARDINS_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
@@ -46,6 +46,7 @@ import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from '.
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
+import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
@@ -91,6 +92,9 @@ function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); sessionStorage
 // v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
 let usage = readUsage(storage.getItem(USAGE_KEY));
 let usageTimer = 0;
+// v326 (mes choix 2C 3A 4A 1B du 20 nov.) : mes photos des salles ; la liste a sa propre clé, dans la sauvegarde générale, jamais envoyée à un proche
+let venuePhotos = (() => { try { return cleanVenuePhotos(JSON.parse(storage.getItem(VENUE_PHOTOS_KEY) ?? '[]')); } catch { return []; } })();
+const saveVenuePhotos = () => { try { storage.setItem(VENUE_PHOTOS_KEY, JSON.stringify(cleanVenuePhotos(venuePhotos))); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); } };
 const USAGE_SEL = '.btn, .fiche-row, .menu-row, .map-btn, .icon-btn, #chips button, #wxBadge';
 const USAGE_SKIP = '.item, .items, .move, .seg, #sheetClose, .leaflet-control-container'; // lignes de lieux et de listes : jamais comptées
 
@@ -5612,16 +5616,29 @@ function loadGalleries(force = false) {
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
 const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes', circuit: 'signpost' };
 const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue', circuit: 'Circuit' };
+/** v326 : vignette d'une sortie (56 × 76 px, en haut de la ligne) : la photo de l'agenda, sinon ma photo de la salle, sinon l'icône. */
+function evThumb(photo, venuePhoto, icon) {
+  const img = el('img', { class: 'ev-thumb', alt: '', decoding: 'async', referrerpolicy: 'no-referrer' });
+  const mine = () => (venuePhoto ? photoUrl(venuePhoto).then((u) => { if (u) img.src = u; else img.replaceWith(icon()); }).catch(() => img.replaceWith(icon())) : img.replaceWith(icon()));
+  let tried = false;
+  img.addEventListener('error', () => { if (tried || !photo) { img.replaceWith(icon()); return; } tried = true; mine(); });
+  if (photo) { img.loading = 'lazy'; img.src = photo; } else { tried = true; mine(); }
+  return img;
+}
 /**
  * Une ligne de sortie (v136) : icône du genre, nom, quand et où, et le temps à pied à droite. Aucun bouton dans la ligne :
  * un appui ouvre sa page, où sont Y aller, Boussole, Métro, Ajouter. (v177 : plus de grande plaque en tête de Sorties.)
  * `buttons` est gardé pour compatibilité et ignoré.
  */
-function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null }) {
+function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null, photo = '', venuePhoto = null }) {
   const label = GENRE_NAME[genre];
+  const icon = () => el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 }));
+  // v326 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
+  // sans photo de l'agenda, ou si elle ne se charge pas, ma photo de la salle ; sinon l'icône revient.
   const dist = d != null ? el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0'))) : el('span', { class: 'ev-dist' });
+  const thumb = state.evThumbs === true && !badge && (photo || venuePhoto) ? evThumb(photo, venuePhoto, icon) : null;
   const inner = [
-    el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 })),
+    thumb ?? icon(),
     el('span', { class: 'ev-text' },
       el('span', { class: 'ev-name' }, label ? el('span', { class: 'sr-only' }, `${label} : `) : null, name),
       sub.filter(Boolean).length ? el('span', { class: 'ev-sub' }, ...sub.filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [typeof x === 'string' ? x.charAt(0).toUpperCase() + x.slice(1) : x]))) : null,
@@ -5789,7 +5806,7 @@ const eventRow = (e, back, { last = false, week = false } = {}) => {
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
   const when = week ? el('b', {}, (!expo && nextSlotText(e)) || weekText(e)) /* v191 : un concert dit son prochain créneau, une expo sa date de fin */ : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
-  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
+  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, photo: e.cover, venuePhoto: venuePhotoFor(e, venuePhotos)?.id ?? null, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
 };
@@ -6210,6 +6227,93 @@ const SORTIES_LINKS = [
 /** Clé d'une sortie, la même dans l'agenda du jour et dans celui de la semaine (titre et position). */
 const evKey = (e) => `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
 /** Les clés des 3 rendez-vous de mes salles montrés en tête de Sorties → Tout (v186 : pas répétés plus bas). */
+/* ---------- v326 (mes choix 2C 3A 4A 1B du 20 nov.) : Réglages → Autres réglages → Photos des salles ----------
+   Ma photo d'une salle remplace l'icône du genre dans les listes de Sorties seulement quand l'agenda n'a pas de photo pour
+   une sortie de cette salle, ou que la sienne ne se charge pas : la photo de l'agenda passe toujours avant. */
+function venuePhotoSub() {
+  const n = cleanVenuePhotos(venuePhotos).length;
+  return n ? `${plural(n, 'photo', 'photos')} · quand l'agenda n'a pas de photo` : 'Tes photos, quand l\'agenda n\'a pas de photo';
+}
+async function openVenuePhotos(back) {
+  track('Photos des salles');
+  const title = [ico('camera'), ' Photos des salles'];
+  const again = () => openVenuePhotos(back);
+  let failed = false;
+  if (!weekCache || weekCache.day !== new Date().toDateString()) {
+    openSheet(title, el('p', { class: 'help' }, 'Recherche des salles dans l\'agenda de la Ville de Paris (7 jours)…'), { name: 'sallesphotos' });
+    try { await weekEvents(); } catch { failed = true; }
+  }
+  const mine = cleanVenues(state.venues);
+  const top = failed ? [] : topVenues(weekCache?.items ?? [], { followed: mine });
+  const listed = new Set([...mine, ...top.map((x) => x.name)].map(artistKey));
+  const others = cleanVenuePhotos(venuePhotos).filter((x) => !listed.has(artistKey(x.name)));
+  const here = named('Photos des salles', again);
+  const line = (name, more = '') => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openVenuePhoto(name, here) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('camera', { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, name),
+      el('span', { class: 'item-sub' }, [venuePhotoOf(name, venuePhotos) ? 'Ta photo' : 'Pas de photo', more].filter(Boolean).join(' · '))),
+    el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  const part = (label, rows) => (rows.length ? [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(rows.length))), el('ul', { class: 'items' }, rows)] : []);
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Ta photo d\'une salle remplace l\'icône dans Sorties quand l\'agenda n\'a pas de photo pour une de ses sorties. Elle va dans ta sauvegarde, avec tes autres photos.'),
+    state.evThumbs !== true ? el('p', { class: 'warn' }, '« Photos dans Sorties » est éteint (Réglages → Autres réglages → Photos dans Sorties) : tes photos ne s\'y voient pas.') : null,
+    ...part('Mes salles', mine.map((n) => line(n))),
+    failed ? el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas : les salles de la semaine viendront plus tard.') : null,
+    ...part('Les plus présentes cette semaine', top.map((x) => line(x.name, plural(x.n, 'sortie', 'sorties')))),
+    ...part('Tes autres photos', others.map((x) => line(x.name))),
+    !mine.length && !top.length && !others.length && !failed ? el('p', { class: 'empty' }, 'Aucune salle dans l\'agenda de la Ville cette semaine.') : null,
+    !failed ? el('p', { class: 'help tip' }, 'Tout l\'agenda de Paris sur 7 jours, compté sur ton téléphone ; sans bibliothèques, médiathèques, gymnases ni centres Paris Anim\'.') : null,
+    foot(backBtn(back)),
+  ), { name: 'sallesphotos', again, tall: true });
+}
+function openVenuePhoto(name, back) {
+  const again = () => openVenuePhoto(name, back);
+  const cur = venuePhotoOf(name, venuePhotos);
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  const gallery = el('input', { type: 'file', accept: 'image/*', hidden: true });
+  const take = async (input) => {
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    let blob;
+    try { blob = await compressImage(f, VENUE_PHOTO_SIDE); } catch { toast('Photo illisible.', true); return; }
+    const id = `salle-${newPhotoId()}`;
+    try { await putPhoto(id, blob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
+    const r = setVenuePhoto(venuePhotos, name, id);
+    venuePhotos = r.list; saveVenuePhotos();
+    if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
+    again(); toast(`Photo de ${name} enregistrée`);
+  };
+  camera.addEventListener('change', () => take(camera));
+  gallery.addEventListener('change', () => take(gallery));
+  const head = cur ? (() => {
+    const img = el('img', { alt: `Ta photo de ${name}` });
+    photoUrl(cur.id).then((u) => { if (u) img.src = u; });
+    return el('figure', { class: 'ev-photo' }, el('button', { type: 'button', class: 'photo-open', onclick: () => viewPhoto([cur.id], 0, name), 'aria-label': 'Voir ta photo en grand' }, img), el('figcaption', {}, 'Ta photo'));
+  })() : el('button', { type: 'button', class: 'photo-snap', onclick: () => camera.click() }, ico('camera', { size: 28 }), el('span', {}, 'Prendre une photo'));
+  const zone = el('div', { class: 'stack' });
+  const show = () => fill(zone, cur ? el('button', { type: 'button', class: 'btn danger', onclick: ask }, ico('trash-2'), 'Retirer la photo') : null);
+  const ask = () => fill(zone,
+    el('p', { class: 'warn', role: 'alert' }, `Retirer ta photo de ${name} ? Elle est effacée du téléphone.`),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: show }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+        const r = removeVenuePhoto(venuePhotos, name);
+        venuePhotos = r.list; saveVenuePhotos();
+        if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
+        again(); toast('Photo retirée');
+      } }, 'Oui, retirer')));
+  show();
+  openSheet([ico('camera'), ` ${name}`], el('div', { class: 'stack' },
+    head,
+    el('div', { class: 'row' },
+      cur ? el('button', { type: 'button', class: 'btn c-add', onclick: () => camera.click() }, ico('camera'), 'Reprendre') : null, // sans photo : le cadre en tête
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => gallery.click() }, ico('image-plus'), 'Galerie')),
+    el('p', { class: 'help' }, 'Dans Sorties, la photo de l\'agenda passe toujours avant la tienne.'),
+    zone, camera, gallery,
+    foot(backBtn(back)),
+  ), { name: `sallephoto:${artistKey(name)}`, again, tall: true });
+}
 function venueShownKeys() {
   const names = cleanVenues(state.venues);
   if (!names.length || weekCache?.day !== new Date().toDateString()) return new Set();
@@ -9528,6 +9632,12 @@ function openSettings(section = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
+    // v326 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche », éteint au départ ; la photo de l'agenda dans chaque liste de sorties
+    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+      state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
+    }),
+    // v326 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
+    row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
@@ -9702,10 +9812,20 @@ function openFavStyle() {
 
 
 /** Range les photos contenues dans un fichier de sauvegarde (seulement celles des lieux présents). */
-async function importPhotos(text, st) {
-  let photos;
-  try { photos = JSON.parse(text)?.photos; } catch { return; }
+async function importPhotos(text, st, mine = true) {
+  let photos, file;
+  try { file = JSON.parse(text); photos = file?.photos; } catch { return; }
   if (!photos || typeof photos !== 'object') return;
+  // v326 (mon choix 1B du 20 nov.) : mes photos des salles d'une sauvegarde ; une salle qui a déjà sa photo ici la garde (rien d'écrasé)
+  let added = 0;
+  for (const x of mine ? cleanVenuePhotos(file.venuePhotos) : []) { // le fichier d'un proche : jamais ses photos de salles
+    if (venuePhotoOf(x.name, venuePhotos) || typeof photos[x.id] !== 'string') continue;
+    const blob = await dataUrlToBlob(photos[x.id]).catch(() => null);
+    if (!blob) continue;
+    try { await putPhoto(x.id, blob); } catch { continue; }
+    venuePhotos = cleanVenuePhotos([...venuePhotos, x]); added++;
+  }
+  if (added) saveVenuePhotos();
   const wanted = new Set([...st.points.flatMap((p) => photoIds(p)), ...cleanOutings(st.outings).map((o) => o.photo).filter(Boolean)]);
   for (const [id, url] of Object.entries(photos)) {
     if (!wanted.has(id)) continue;
@@ -9895,6 +10015,10 @@ async function backupText(withPhotos, withTtb = false) {
       const b = await getPhoto(id).catch(() => null);
       if (b) obj.photos[id] = await blobToDataUrl(b);
     }
+    // v326 (mon choix 1B du 20 nov.) : mes photos des salles aussi ; jamais dans l'export de Vu en passant ni pour un proche
+    const vp = cleanVenuePhotos(venuePhotos);
+    for (const x of vp) { const b = await getPhoto(x.id).catch(() => null); if (b) obj.photos[x.id] = await blobToDataUrl(b); }
+    if (vp.some((x) => obj.photos[x.id])) obj.venuePhotos = vp.filter((x) => obj.photos[x.id]);
   }
   return JSON.stringify(obj);
 }
@@ -10173,7 +10297,7 @@ function importText(text, owner) {
   try {
     const r = mergeImport(state, text, owner);
     state = { ...r.state, ok: state.ok };
-    importPhotos(text, state);
+    importPhotos(text, state, !owner);
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
@@ -11009,6 +11133,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
