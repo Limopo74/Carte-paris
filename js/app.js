@@ -62,7 +62,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (308)';
+const VERSION = '20 novembre 2026 (309)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1817,6 +1817,7 @@ function openSeenForm(blob, where, back = null) {
       choice.hidden = false;
     }
     if (r?.error) { posLine.textContent = typo(`${r.error} Le point sera posé au centre de la carte : tu pourras le déplacer.`); posLine.className = 'warn'; return; }
+    if (r.fromPhoto) { posLine.textContent = 'Position lue dans la photo : tu pourras déplacer le point.'; return; } // v309 : sa précision n'est pas connue
     const m = Math.round(r.acc ?? 0);
     posLine.textContent = typo(m > 50 ? `Position à ${m} m près : tu pourras déplacer le point.` : m < 5 ? 'Position précise.' : `Position à ${m} m près.`);
     if (m > 50) posLine.className = 'warn';
@@ -1830,7 +1831,7 @@ function openSeenForm(blob, where, back = null) {
     const r = fix ?? await where;
     const c = map.getCenter();
     const at = r?.error ? { lat: c.lat, lng: c.lng, acc: null } : r;
-    const rough = !at.acc || at.acc > 50;
+    const rough = !at.fromPhoto && (!at.acc || at.acc > 50);
     const id = newPhotoId();
     try { await putPhoto(id, blob); } catch { busy = false; toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
     const place = target !== 'new' ? state.points.find((x) => x.id === target) : null;
@@ -1860,7 +1861,7 @@ function openSeenForm(blob, where, back = null) {
     closeSheet();
     centerOn(at.lat, at.lng, Math.max(map.getZoom(), 17));
     const where2 = [catOf(cat).name, subNameOf(state.categories, np)].filter(Boolean).join(' · ');
-    toast(rough ? 'Gardé · position approximative' : `Gardé dans ${where2}`, false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
+    toast(rough ? 'Gardé · position approximative' : at.fromPhoto ? `Gardé dans ${where2} · position de la photo` : `Gardé dans ${where2}`, false, rough || at.fromPhoto ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
     reverseAddress(at.lat, at.lng).then((label) => { if (label) { np.address = label; persist(); } }).catch(() => {});
   };
   openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
@@ -6458,10 +6459,27 @@ function addFromPhoto() {
     let g = null;
     try { g = gpsFromJpeg(await f.slice(0, 256 * 1024).arrayBuffer()); } catch { g = null; }
     if (!g) { toast('Cette photo ne contient pas de position. Active « Position » dans l\'appareil photo, ou place le lieu sur la carte.', true); return; }
-    const draft = { lat: g.lat, lng: g.lng, address: '', acc: null, photoFile: f };
     centerOn(g.lat, g.lng, 17);
-    openForm(draft);
-    reverseAddress(g.lat, g.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
+    const asPlace = () => {
+      const draft = { lat: g.lat, lng: g.lng, address: '', acc: null, photoFile: f };
+      openForm(draft);
+      reverseAddress(g.lat, g.lng).then((label) => { if (label && draft.onAddress) draft.onAddress(label); });
+    };
+    // v309 (mon choix du 20 nov.) : la photo peut aussi devenir un Vu en passant, à l'endroit lu dans la photo
+    const asSeen = async () => {
+      let blob = null;
+      try { blob = await compressImage(f); } catch { blob = null; }
+      if (!blob) { toast('Cette photo n\'a pas pu être lue.', true); return; }
+      openSeenForm(blob, Promise.resolve({ lat: g.lat, lng: g.lng, acc: null, fromPhoto: true }));
+    };
+    const url = URL.createObjectURL(f);
+    openSheet([ico('image'), ' Ta photo'], el('div', { class: 'stack' },
+      el('img', { class: 'seen-preview', src: url, alt: 'Ta photo' }),
+      el('p', { class: 'help' }, 'La position est lue dans la photo. Où la ranger ?'),
+      el('button', { type: 'button', class: 'btn big c-add solid', onclick: asSeen }, ico('camera'), 'Vu en passant'),
+      el('button', { type: 'button', class: 'btn big c-add', onclick: asPlace }, ico('map-pin'), 'Un lieu, avec sa fiche'),
+      foot(backBtn(named('Ajouter', openAddChoice))),
+    ), { name: 'gallery-choice', onClose: () => URL.revokeObjectURL(url) });
   });
   document.body.append(input);
   input.click();
@@ -10388,6 +10406,7 @@ const HELP = [
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Une balade », « **Un parcours** » et « **Un circuit** » ouvrent directement la carte pour poser tes étapes.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
+    '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
@@ -10522,6 +10541,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
     '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
     '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
@@ -10531,7 +10551,6 @@ const HELP = [
     '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
-    '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
   ]],
 ];
 
