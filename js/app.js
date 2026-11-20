@@ -37,7 +37,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbExport, ttbMerge } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -60,7 +60,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (261)';
+const VERSION = '20 novembre 2026 (262)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2912,7 +2912,7 @@ function openSearch(initial = '') {
     const q = input.value.trim();
     const hit = (xs, ...keys) => near((xs ?? []).filter((x) => textMatch(q, ...keys.map((k) => x[k]))));
     fill(moreBox,
-      ...block('TTB', hit(ttbHere(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
+      ...block(`TTB${ttbOkWord(2)}`, hit(ttbHere(), 'name', 'cuisine', 'rub', 'address').map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, back), sub: [x.rub, x.cuisine], d: x.d }))),
       ...block('Avantages Navigo', hit(navigoItems, 'name', 'kind').map((x) => navigoRow(x, back))),
       ...block('Galeries', hit(galleries, 'name', 'address').map((x) => galleryRow(x, back))),
       ...block('Art dans la rue', hit(streetArt, 'name', 'artist').map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d }))),
@@ -3156,7 +3156,7 @@ function renderNear(fit = false) {
   if (state.showTtb && ttbList().length) {
     // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min (réglable, v214), puis toute la liste
     const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(tune('ttbMin'))).sort((a, b) => a.d - b.d);
-    body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB à moins de ${tune('ttbMin')} min`), el('span', {}, String(ttbNear.length))));
+    body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB${ttbOkWord(2)} à moins de ${tune('ttbMin')} min`), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
         ttbDotFor(x.rub),
@@ -6837,7 +6837,8 @@ function putTtbMark(x, mark) {
   drawTtb();
 }
 const ttbOpen = () => ttbList().filter((x) => !ttbMark(ttbMarksNow(), x)); // ni masquées ni fermées
-const ttbHere = () => ttbOpen().filter((x) => !filt.arr || x.arr === filt.arr); /* v218 (mon choix 4A) : un arrondissement choisi vaut aussi pour TTB, comme pour mes lieux */
+const ttbHere = () => ttbOnlyOk(ttbOpen().filter((x) => !filt.arr || x.arr === filt.arr), ttbMarksNow(), state.ttbOk); /* v218 (mon choix 4A) : un arrondissement choisi vaut aussi pour TTB, comme pour mes lieux ; v262 (mes choix 1A 2A 3A, puis B) : l'interrupteur « Seulement les vérifiées » vaut partout (carte, liste, Autour de moi, loupe) */
+const ttbOkWord = (n) => (state.ttbOk ? (n > 1 ? ' vérifiées' : ' vérifiée') : ''); /* v262 : le mot dit que l'interrupteur « Seulement les vérifiées » est allumé */
 const ttbShown = () => ttbHere().filter((x) => ttbPass(x, ttbRubs, ttbBudgets));
 /* « Encore ouvert ? » (v218) : l'étiquette de la fiche, le compteur, les deux réponses après « Avis Google », la page pour tout vérifier d'affilée */
 const TTB_STATE = { ok: ['tag open', 'Vérifiée'], old: ['tag', 'À revoir'], no: ['tag closed', 'Pas vérifiée'] };
@@ -6903,7 +6904,7 @@ function drawTtb() {
 function toggleTtb() {
   if (!ttbList().length) { openTtb(); return; }
   state.showTtb = !state.showTtb; persist(); drawTtb(); refresh();
-  if (state.showTtb) toast(`TTB : ${plural(ttbShown().length, 'adresse', 'adresses')} sur la carte.`, false, { label: 'Voir la liste', fn: () => openTtbList() });
+  if (state.showTtb) toast(`TTB : ${plural(ttbShown().length, 'adresse', 'adresses')}${ttbOkWord(ttbShown().length)} sur la carte.`, false, { label: 'Voir la liste', fn: () => openTtbList() });
   else toast('TTB : masqué');
 }
 
@@ -6917,8 +6918,12 @@ function openTtbList(back = null, limit = 30) {
   const chip = (label, on, onclick) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), onclick }, label);
   const flip = (set, v) => { if (set.has(v)) set.delete(v); else set.add(v); drawTtb(); openTtbList(back, 30); };
   openSheet([ttbDotFor(''), ' TTB'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbRubs.size || ttbBudgets.size ? ' choisies' : filt.arr ? ` dans le ${arrOrd(filt.arr)}` : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
-    el('p', { class: 'help' }, ttbCountText(ttbList().filter((x) => !filt.arr || x.arr === filt.arr))),
+    el('p', { class: 'summary' }, `${plural(all.length, 'adresse', 'adresses')}${ttbOkWord(all.length)}${ttbRubs.size || ttbBudgets.size ? (state.ttbOk ? ', avec ces filtres' : all.length > 1 ? ' choisies' : ' choisie') : filt.arr ? ` dans le ${arrOrd(filt.arr)}` : ' à Paris'} · ${here ? 'depuis ta position' : 'depuis le centre de la carte'}`),
+    /* v262 : le compteur devient la petite ligne de l'interrupteur « Seulement les vérifiées » (gardé d'un jour à l'autre, comme « Sur la carte ») */
+    el('button', { type: 'button', class: 'menu-row', role: 'switch', 'aria-checked': String(Boolean(state.ttbOk)), onclick: () => { state.ttbOk = !state.ttbOk; persist(); drawTtb(); openTtbList(back, limit); } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('check')), /* coche encre = adresse TTB vérifiée (la verte veut dire « Déjà visité ») */
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Seulement les vérifiées'), el('span', { class: 'menu-sub' }, ttbCountText(ttbList().filter((x) => !filt.arr || x.arr === filt.arr)))),
+      el('span', { class: `switch${state.ttbOk ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     el('button', { type: 'button', class: 'menu-row c-disc', role: 'switch', 'aria-checked': String(Boolean(state.showTtb)), onclick: () => { toggleTtb(); openTtbList(back, limit); } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDotFor('')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sur la carte'), el('span', { class: 'menu-sub' }, 'Ronds terre cuite, icône selon la rubrique, avec ces filtres')),
@@ -6928,7 +6933,9 @@ function openTtbList(back = null, limit = 30) {
     all.length ? el('ul', { class: 'items ev-list' }, all.slice(0, limit).map((x) => sortieCard({ genre: 'ttb', badge: ttbDotFor(x.rub), name: x.name, onclick: () => openTtbPlace(x, named('TTB', again)),
       sub: [ttbKicker(x), ttbToday(x) ? `aujourd'hui ${ttbToday(x)}` : ''], d: x.d,
       buttons: [compassBtn(x), metroBtn(x, named('TTB', again)), addBtn(x.name, 'l\'adresse', () => ttbAdd(x))] })))
-      : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
+      : state.ttbOk && !ttbOnlyOk(ttbOpen().filter((x) => !filt.arr || x.arr === filt.arr), ttbMarksNow(), true).length
+        ? [el('p', { class: 'empty' }, `Aucune adresse vérifiée${filt.arr ? ` dans le ${arrOrd(filt.arr)}` : ''} depuis 6 mois.`), el('button', { type: 'button', class: 'btn c-add', onclick: () => openTtbCheck(named('TTB', again)) }, ico('check'), 'Vérifier les adresses')]
+        : el('p', { class: 'empty' }, 'Aucune adresse avec ces filtres.'),
     all.length > limit ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openTtbList(back, limit + 30) }, ico('plus'), `Voir ${Math.min(30, all.length - limit)} de plus`) : null,
     el('p', { class: 'help' }, 'Horaires selon le guide : vérifie avant d\'y aller.'),
     el('p', { class: 'help tip' }, `Liste du guide TTB${ttbDateText() ? ` du ${ttbDateText()}` : ''}, gardée sur ce téléphone.`),
@@ -9927,6 +9934,7 @@ const HELP = [
     '{check} **Encore ouvert ?** Sur la fiche, touche Avis Google, reviens, puis réponds : « Toujours ouvert » ou « Fermé définitivement ». À côté de « TTB », l\'étiquette dit Pas vérifiée, Vérifiée ou À revoir.',
     '**Vérifiée** vaut 6 mois : le rond porte une coche noire (un bord noir vu de loin), puis l\'adresse passe « À revoir ». **Fermée** : le rond disparaît ; {settings} → TTB pour la remettre.',
     '**Tout vérifier d\'affilée** : {settings} → TTB → Vérifier les adresses. Une adresse à la fois, par arrondissement ; le compteur dit ce qui reste.',
+    '{check} **Seulement les vérifiées** : l\'interrupteur en haut de la liste TTB, sous le nombre d\'adresses. La carte, la liste, Autour de moi et la loupe ne gardent alors que les adresses vérifiées depuis moins de 6 mois. Il reste allumé d\'un jour à l\'autre : éteins-le pour tout revoir.',
     '**Un arrondissement choisi** (Filtres) : seuls ses ronds TTB restent sur la carte, comme tes lieux.',
     '{plus} **Ajouter** garde l\'adresse dans tes lieux, pour Favori, Déjà visité, étoiles, photos ou Prévoir. Sa goutte remplace alors le rond TTB.',
     '**La catégorie** est choisie d\'après la rubrique quand une des tiennes correspond (Restos pour La Table…). Sinon, choisis-la toi-même.',
@@ -9997,6 +10005,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{check} TTB, seulement les adresses vérifiées : {settings} → TTB → Voir la liste (ou un appui long sur le bouton TTB), puis l\'interrupteur « **Seulement les vérifiées** », en haut. La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
@@ -10006,7 +10015,6 @@ const HELP = [
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
     '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
-    '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
   ]],
 ];
 

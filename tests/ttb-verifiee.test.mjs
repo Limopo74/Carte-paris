@@ -67,3 +67,23 @@ test('TTB vérifiée, fusion : ma vérification cède à une nouvelle plus réce
   assert.equal(merge(mark(a, 'closed', 30), mark(a, 'ok', 2)).k, 'closed', 'ma marque « fermée » reste (règle d\'avant)');
   assert.equal(merge(mark(a, 'hidden', 30), mark(a, 'ok', 2)).k, 'hidden');
 });
+
+// v262 (mes choix du 20 nov.) : l'interrupteur « Seulement les vérifiées » ne garde que les adresses vérifiées depuis moins de 6 mois, partout.
+test('TTB Seulement les vérifiées : allumé, seules les adresses vérifiées depuis moins de 6 mois restent', async () => {
+  const { ttbOnlyOk } = await import('../js/ttb.js');
+  const [a, b, c, d] = ['A', 'B', 'C', 'D'].map((n) => item(n));
+  const marks = { ...mark(a, 'ok', 10), ...mark(b, 'ok', 200), ...mark(c, 'ok', 182) };
+  assert.deepEqual(ttbOnlyOk([a, b, c, d], marks, true, NOW).map((x) => x.name), ['A', 'C'], 'B (à revoir) et D (jamais vérifiée) s\'en vont');
+  assert.deepEqual(ttbOnlyOk([a, b, c, d], marks, false, NOW).map((x) => x.name), ['A', 'B', 'C', 'D'], 'éteint : rien ne change');
+  assert.deepEqual(ttbOnlyOk(null, marks, true, NOW), []);
+});
+
+test('TTB Seulement les vérifiées : l\'interrupteur est gardé d\'un jour à l\'autre et dans les réglages de la sauvegarde', async () => {
+  const { readFileSync } = await import('node:fs');
+  const store = readFileSync(new URL('../js/store.js', import.meta.url), 'utf8');
+  assert.equal((store.match(/ttbOk: (obj|state|o)\.ttbOk === true/g) ?? []).length, 4, 'relu, enregistré, mis dans la sauvegarde et relu de la sauvegarde');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /const ttbHere = \(\) => ttbOnlyOk\(/, 'la carte, la liste, Autour de moi et la loupe passent par ttbHere');
+  assert.match(app, /role: 'switch', 'aria-checked': String\(Boolean\(state\.ttbOk\)\)/, 'un interrupteur qui dit l\'état réel (v262, mon choix B)');
+  assert.match(app, /'Seulement les vérifiées'\), el\('span', \{ class: 'menu-sub' \}, ttbCountText\(/, 'le compteur est sa petite ligne');
+});

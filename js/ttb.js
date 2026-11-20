@@ -225,6 +225,9 @@ export function ttbCounts(items, marks, now = Date.now()) {
   }
   return c;
 }
+/** L'interrupteur « Seulement les vérifiées » (v262, mes choix du 20 nov.) : allumé, ne garde que les adresses vérifiées depuis moins de 6 mois
+ * (les « À revoir » et les jamais vérifiées s'en vont). Éteint, rend la liste telle quelle. */
+export const ttbOnlyOk = (items, marks, on, now = Date.now()) => (Array.isArray(items) ? items : []).filter((x) => !on || ttbState(marks, x, now) === 'ok');
 /** Les adresses à voir, par arrondissement puis par nom ; `skipped` : les clés de celles que j'ai passées. */
 export function ttbQueue(items, marks, skipped = new Set(), now = Date.now()) {
   return (Array.isArray(items) ? items : []).filter((x) => ['no', 'old'].includes(ttbState(marks, x, now)) && !skipped.has(ttbKey(x)))
