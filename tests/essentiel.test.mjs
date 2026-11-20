@@ -42,6 +42,6 @@ test('l\'essentiel et la disposition d\'avant sont gardés ; l\'essentiel part a
   const back = loadState(st);
   assert.deepEqual(back.essentials, ['home', 'locate']);
   assert.deepEqual(back.moreTools, MAP_TOOLS.filter((t) => !['home', 'locate'].includes(t)));
-  assert.deepEqual(back.layoutBefore.moreTools, ['pratique', 'velib', 'home', 'circuits', 'notes']);
+  assert.deepEqual(back.layoutBefore.moreTools, ['pratique', 'velib', 'home', 'circuits'], 'v312 : Note du jour sur la carte au départ d\'un nouveau venu');
   assert.deepEqual(readSettings(JSON.parse(exportJSON(back))).essentials, ['home', 'locate']);
 });

@@ -2,7 +2,7 @@
 import { normalizeRings, DEFAULT_RINGS, normalizeMinuteRings, DEFAULT_MINUTE_RINGS, distanceM } from './geo.js';
 import { cleanPlan, cleanPlans, cleanOutings, isDayList } from './planning.js';
 import { cleanArtists, cleanArtist, cleanArtistLinks, cleanVenues } from './art.js';
-import { cleanPassages, cleanLog, cleanMoments } from './passage.js';
+import { cleanPassages, cleanLog, cleanMoments, SEEN_CAT } from './passage.js';
 import { cleanCircuitNotes, cleanHiddenCircuits } from './circuits.js';
 import { cleanNotes } from './notes.js';
 import { cleanTuning, cleanFicheHidden } from './reglages.js';
@@ -242,6 +242,16 @@ export function moveChip(state, key, delta, catIds = []) {
 export const FILTER_KEYS = ['open', 'top', 'lines', 'buslines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'velo', 'jardins', 'covered', 'seen', 'lists', 'people', 'arr'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
+/** v312 (mes choix du 20 nov., d'après ma capture) : le départ d'un nouveau venu, seulement quand la mémoire est vide.
+ * Barre du haut : Dans la rue, Lignes, Vu en passant ; Favoris et les catégories sous ⋯ Plus ; TTB masqué tant qu'aucune
+ * liste n'est importée. Colonne : Note du jour sur la carte. Mon téléphone et les « comme au début » ne changent pas. */
+export const FRESH_HIDDEN_CHIPS = ['ttb'];
+export function freshStart(st) {
+  const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
+  const cats = categories.filter((c) => c.id !== SEEN_CAT.id).map((c) => `cat:${c.id}`);
+  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: ['fav', ...DEFAULT_MORE_CHIPS, ...cats], moreTools: (st.moreTools ?? DEFAULT_MORE).filter((t) => t !== 'notes') };
+}
+
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
 export function loadState(storage) {
   const empty = () => ({ points: [], plans: [], rings: [...DEFAULT_RINGS], categories: defaults(), fav: { ...DEFAULT_FAV }, lastExport: null, backup: { saved: null, last: null, n: 0, since: null }, voice: true, ringUnit: 'm', minuteRings: [...DEFAULT_MINUTE_RINGS], me: '', walk: { day: '', m: 0 }, chipIcons: false, mapTools: [...MAP_TOOLS], hiddenTools: [], moreTools: [...DEFAULT_MORE], toolNames: {}, toolLabels: false, startOnMe: true, vibrateNow: false, jardinsNow: false, navigo: true, seenKeep: true, seenStart: 'vu', seenNear: true, seenPhotoMap: true, seenLast: null, masculin: false, showArrNums: true, tuning: cleanTuning(), suggestNow: true, alertNear: true, ficheHidden: [], pace: cleanPace(), textSize: 'normal', essentials: [...DEFAULT_ESSENTIALS], layoutBefore: null, lists: [], mapStyle: 'classic', theme: 'auto', toolsSide: 'right', mySettings: null, myStations: [], home: null, homeOn: false, artists: [], artistLinks: {}, venues: [], outings: [], circuitNotes: [], hiddenCircuits: [], notes: [], showMarkets: false, showLines: false, showTtb: false, ttbOk: false, showPratique: false, showPassages: false, showJardins: false, showVelo: false, busLines: [], showBusLines: false, hiddenChips: [], moreChips: [...DEFAULT_MORE_CHIPS], hiddenFilters: [], routes: [], myCircuits: [] });
@@ -251,7 +261,7 @@ export function loadState(storage) {
   } catch {
     return { ...empty(), ok: false };
   }
-  if (raw == null) return { ...empty(), ok: true };
+  if (raw == null) return { ...freshStart(empty()), ok: true, fresh: true }; // v312 : mémoire vide = premier lancement
   try {
     const obj = JSON.parse(raw);
     let categories = cleanCategories(obj.categories);

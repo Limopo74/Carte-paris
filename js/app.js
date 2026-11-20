@@ -964,7 +964,7 @@ function openFilters() {
   const count = (fn) => state.points.filter(fn).length;
   const sw = (on, icon, title, sub, toggle) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { if (toggle() === 'stop') return; refresh(); openFilters(); } },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' ? ico(icon) : icon),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   const withHours = count((p) => openState(hoursOf(p)) != null);
   const people = owners(state.points);
@@ -7656,9 +7656,17 @@ async function importTtbFile(file, back) {
   const before = ttbList().length;
   try { storage.setItem(TTB_KEY, JSON.stringify(ttbStore(res.items, res.date))); } catch { toast('Le téléphone n\'a pas pu garder la liste (plus de place).', true); return; }
   ttbData = { items: res.items, date: res.date };
+  if (!before) ttbChipBack(); // v312 : masqué au départ d'un nouveau venu, le bouton TTB revient avec la première liste
   state.showTtb = true; persist(); drawTtb(); refresh();
   openTtb(back);
   toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
+}
+
+/** v312 : le bouton TTB, masqué au départ d'un nouveau venu, revient dans la barre du haut avec la première liste importée. */
+function ttbChipBack() {
+  if (!cleanChips(state.hiddenChips).includes('ttb')) return;
+  state.hiddenChips = cleanChips(state.hiddenChips).filter((k) => k !== 'ttb');
+  renderChips();
 }
 
 /** TTB d'un fichier de sauvegarde (v179) : la liste dont la page est la plus récente gagne, mes marques restent et
@@ -7673,7 +7681,9 @@ function importTtb(text) {
     if (r.list) storage.setItem(TTB_KEY, JSON.stringify(ttbStore(r.data.items, r.data.date)));
     if (r.newMarks) storage.setItem(TTB_MARKS_KEY, JSON.stringify(r.marks));
   } catch { return 'la liste TTB n\'a pas pu être gardée (plus de place)'; }
+  const had = (ttbData?.items ?? []).length;
   if (r.list) ttbData = { items: r.data.items, date: r.data.date };
+  if (r.list && !had) ttbChipBack(); // v312
   ttbMarks = r.marks;
   drawTtb();
   return [r.list ? `liste TTB remise (${plural(r.data.items.length, 'adresse', 'adresses')})` : '', r.newMarks ? plural(r.newMarks, 'marque TTB ajoutée', 'marques TTB ajoutées') : ''].filter(Boolean).join(', ');
@@ -10025,6 +10035,7 @@ function importText(text, owner) {
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
     toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
+    if (welcomeNext && owner) { const n = welcomeNext; welcomeNext = 0; openWelcome(n); } // v312 : lieux d'un proche depuis le circuit, on reprend les réglages
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
   }
@@ -10500,13 +10511,13 @@ const HELP = [
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
-    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\' sur la carte, Mes lignes de bus, Fontaines et WC sur la carte, Passages couverts, Pistes à vélo, Jardins publics. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
+    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi Favoris et les catégories ; TTB n\'y apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué, et l\'ordre par ↑ ↓, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
-    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC et Vélib\' (les plus proches de toi), Rentrer, Circuits et Note du jour.',
+    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC et Vélib\' (les plus proches de toi), Rentrer et Circuits, et Note du jour sauf sur un nouveau téléphone, où elle est sur la carte.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
@@ -10743,6 +10754,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
     '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
@@ -10752,7 +10764,6 @@ const HELP = [
     '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
-    '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
   ]],
 ];
 
@@ -10770,10 +10781,106 @@ function openHelp(first) {
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
-      el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l))))))),
+      el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l)))),
+      i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openWelcome(2) }, 'Refaire les réglages du début') : null))), // v312 : le circuit du premier lancement, sans la page Bienvenue
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { name: 'help', again: () => openHelp(openFirst), tall: true });
+}
+
+/* ---------- Premier lancement (v312, mes choix du 20 nov.) : 6 étapes dans la feuille du bas, à la place de « Ta carte est vide »
+   quand la mémoire est vide. Ouvert une fois : fermé par ✕ ou fini, il ne revient pas ; il se relance depuis Aide → Prise en main. ---------- */
+const FIRST_KEY = 'carte-paris.premier-lancement';
+const WELCOME_STEPS = 6;
+const WELCOME_TITLES = ['Bienvenue', 'Taille du texte', 'Pour toi', 'Rentrer', 'Ta position', 'C\'est prêt'];
+let installEvt = null; // l'installation proposée par Chrome, gardée pour le bouton de la dernière étape
+function firstDone() { try { return storage.getItem(FIRST_KEY) === '1'; } catch { return false; } }
+let welcomeNext = 0; // après « Importer les lieux d'un proche » depuis le circuit : l'étape où reprendre
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Pendant le circuit, la barre de Chrome attend : l'installation est proposée à la dernière étape. Après, Chrome fait comme d'habitude.
+  if (!String(view ?? '').startsWith('welcome:')) return;
+  e.preventDefault(); installEvt = e;
+  if (view === `welcome:${WELCOME_STEPS}`) openWelcome(WELCOME_STEPS);
+});
+window.addEventListener('appinstalled', () => { installEvt = null; if (view === `welcome:${WELCOME_STEPS}`) openWelcome(WELCOME_STEPS); });
+
+function openWelcome(step = 1) {
+  if (step === 1) { try { storage.setItem(FIRST_KEY, '1'); } catch { /* rien */ } }
+  const go = (n) => () => openWelcome(n);
+  const back = el('button', { type: 'button', class: 'btn', onclick: go(step - 1) }, `← ${WELCOME_TITLES[step - 2] ?? 'Bienvenue'}`);
+  const next = (label = 'Suivant →') => el('button', { type: 'button', class: 'btn c-guide', onclick: go(step + 1) }, label);
+  const seg = (label, opts, cur, pick) => el('div', {},
+    el('p', { class: 'legend' }, label),
+    el('div', { class: 'seg', role: 'group', 'aria-label': label }, opts.map(([k, name]) =>
+      el('button', { type: 'button', 'aria-pressed': String(cur === k), onclick: () => { if (cur !== k) { pick(k); persist(); openWelcome(step); } } }, name))));
+  const sw = (icon, title, sub, on, flip) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => { flip(); persist(); openWelcome(step); } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  const pages = {
+    1: ['Bienvenue', [
+      el('p', {}, 'Tes lieux à Paris, et ce qui est près de toi. Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
+      el('h3', { class: 'fiche-sec' }, 'Tu as déjà des lieux ?'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 0; pickImport('mine'); } }, ico('upload'), 'Restaurer ma sauvegarde'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 2; pickImport('friend'); } }, ico('users'), 'Importer les lieux d\'un proche'),
+      el('p', { class: 'help tip' }, 'Ta sauvegarde est dans tes Téléchargements. Les lieux d\'un proche : le fichier qu\'il t\'a envoyé.'),
+    ], [el('button', { type: 'button', class: 'btn c-add solid', onclick: go(2) }, 'Commencer les réglages ', ico('arrow-right'))]],
+    2: ['Taille du texte', [
+      el('p', { class: 'help tip' }, 'Choisis la taille que tu lis sans effort, même au soleil.'),
+      el('div', { class: 'seg', role: 'group', 'aria-label': 'Taille du texte' }, TEXT_SIZES.map((t) => el('button', { type: 'button', 'aria-pressed': String(cleanTextSize(state.textSize) === t),
+        onclick: () => { state.textSize = t; applyTextSize(); persist(); refresh(); openWelcome(2); } }, TEXT_NAME[t]))),
+      el('p', { class: 'legend' }, 'Aperçu'),
+      el('div', { class: 'text-preview' }, el('p', { class: 'menu-title' }, 'Musée Carnavalet'), el('p', { class: 'menu-sub' }, 'Musée · 3e · 12 min à pied')),
+    ], [back, next()]],
+    3: ['Pour toi', [
+      seg('L\'appli t\'écrit', [['f', 'Au féminin'], ['m', 'Au masculin']], state.masculin === true ? 'm' : 'f', (k) => { state.masculin = k === 'm'; setMasculin(state.masculin); refresh(); updateNow(true); }),
+      seg('Ton pas (les durées à pied)', PACES.map((m) => [m, PACE_NAME[m]]), cleanPace(state.pace).mode, (m) => { state.pace = cleanPace({ ...cleanPace(state.pace), mode: m }); setWalkSpeed(paceKmh(state.pace)); refresh(); }),
+      seg('Boutons de la carte', [['right', 'À droite'], ['left', 'À gauche']], state.toolsSide === 'left' ? 'left' : 'right', (k) => { state.toolsSide = k; applyToolOrder(); }),
+      el('div', { class: 'menu' },
+        sw('tags', 'Noms à côté des boutons', '', state.toolLabels === true, () => { state.toolLabels = state.toolLabels !== true; applyToolOrder(); setLocateBtn(); }),
+        sw('badge-percent', 'J\'ai un passe Navigo', 'Sorties, fiches, loupe', state.navigo !== false, () => { state.navigo = state.navigo === false; refresh(); })),
+    ], [back, next()]],
+    4: ['Rentrer', (() => {
+      const home = (state.myStations ?? [])[0];
+      return [
+        el('p', {}, 'Ta station de métro près de chez toi : le bouton Rentrer te dira quel métro prendre, en 1 appui.'),
+        home ? el('p', { class: 'ok-line' }, ico('house'), ` ${home.label} : ${home.station}`) : null,
+        el('button', { type: 'button', class: 'btn c-metro', onclick: () => openStationPicker((st) => {
+          state = home ? { ...state, myStations: state.myStations.map((x) => (x.id === home.id ? { ...x, station: st.n } : x)) } : addMyStation(state, st.n, 'Maison');
+          persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(4);
+        }, { name: 'Rentrer', fn: go(4) }) }, ico('house'), home ? 'Changer de station' : 'Choisir ma station Maison'),
+        el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, en bas de la colonne.'),
+      ];
+    })(), [back, next()]],
+    5: ['Ta position', [
+      el('p', {}, 'Pour te montrer où tu es et ce qui est près de toi, Chrome va te demander ta position. Touche « Autoriser » dans sa fenêtre.'),
+      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
+        if (!navigator.geolocation) { toast('Ce navigateur ne donne pas la position.', true); openWelcome(6); return; }
+        toast('Recherche de ta position…');
+        navigator.geolocation.getCurrentPosition(() => { toast('Position autorisée'); if (view === 'welcome:5') openWelcome(6); },
+          (err) => { toast(GEO_ERRORS[err.code] ?? 'Position introuvable pour l\'instant.', true); if (view === 'welcome:5') openWelcome(6); },
+          { enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 });
+      } }, ico('locate'), 'Autoriser ma position'),
+      el('p', { class: 'help' }, 'L\'appli ne garde aucune trace de tes déplacements.'),
+    ], [back, next('Pas maintenant →')]],
+    6: ['C\'est prêt', [
+      installEvt ? el('button', { type: 'button', class: 'btn c-add solid', onclick: async () => {
+        const e = installEvt; installEvt = null;
+        try { await e.prompt(); const r = await e.userChoice; toast(r?.outcome === 'accepted' ? 'Appli installée sur l\'écran d\'accueil' : 'Pas installée : menu ⋮ de Chrome pour le faire plus tard'); } catch { /* rien */ }
+        if (view === 'welcome:6') openWelcome(6);
+      } }, ico('download'), 'Installer sur l\'écran d\'accueil') : null,
+      installEvt ? el('p', { class: 'help tip' }, 'L\'appli s\'ouvrira en plein écran, avec ses raccourcis sur l\'icône.')
+        : STANDALONE ? null : el('p', { class: 'help' }, 'Pour l\'installer sur l\'écran d\'accueil : menu ⋮ de Chrome → « Ajouter à l\'écran d\'accueil » (ou « Installer l\'application », selon le téléphone).'),
+      el('p', { class: 'warn' }, 'Tes lieux restent sur ce téléphone seulement : sauvegarde-les de temps en temps (Réglages → Sauvegarde).'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'),
+    ], [back, el('button', { type: 'button', class: 'btn c-guide', onclick: () => closeSheet() }, 'Voir ma carte')]],
+  };
+  const [title, body, feet] = pages[step];
+  // L'étape dans le titre, en petit (comme le numéro de version de Réglages) : la page « Pour toi » tient sans cacher Navigo
+  openSheet([title, el('span', { class: 'title-ver', 'aria-label': `étape ${step} sur ${WELCOME_STEPS}` }, ` ${step}/${WELCOME_STEPS}`)], el('div', { class: 'stack welcome' },
+    ...body.filter(Boolean),
+    foot(...feet),
+  ), { tall: true, name: `welcome:${step}`, again: go(step) });
 }
 
 /* ---------- Démarrage ---------- */
@@ -10804,9 +10911,9 @@ renderChips();
 renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
-} else if (state.ok && !/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search)) { // pas par-dessus un lien reçu
-  // Carte vide : premier lancement, ou lieux effacés avec les données de Chrome. La restauration est proposée tout de suite.
-  openSheet('Ta carte est vide', el('div', { class: 'stack' },
+} else if (state.ok && !/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
+  // v312 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
+  if (state.fresh) { openWelcome(1); persist(); } else openSheet('Ta carte est vide', el('div', { class: 'stack' },
     el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => { closeSheet(); openAddChoice(); } }, ico('plus'), 'Ajouter mon premier lieu'),
