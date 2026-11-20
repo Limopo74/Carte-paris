@@ -1,0 +1,22 @@
+// v334 (mon choix 2A du 20 nov.) : Confidentialité aussi dans l'Aide, tout en bas, avec le même texte que Réglages.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { ICON_SVG } from '../js/icons.js';
+
+const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+
+test('Aide : la rubrique Confidentialité est la dernière (elle ne pousse rien)', () => {
+  const help = app.slice(app.indexOf('const HELP = ['), app.indexOf('\n];\n', app.indexOf('const HELP = [')));
+  const titles = [...help.matchAll(/^ {2}\['[a-z-]+', '([^']+(?:\\'[^']*)*)'/gm)].map((m) => m[1]);
+  assert.equal(titles.at(-1), 'Confidentialité');
+  assert.equal(titles.at(-2), 'Nouveautés');
+  assert.match(help, /\['lock', 'Confidentialité', \[\.\.\.PRIVACY_LINES, USAGE_PRIVACY\]\]/);
+  assert.ok(ICON_SVG.lock);
+});
+
+test('un seul texte : Réglages le montre d\'un bloc, depuis la même liste', () => {
+  assert.match(app, /el\('p', \{ class: 'help' \}, PRIVACY_LINES\.join\(' '\)\)/);
+  assert.equal((app.match(/Tes lieux, tes photos et ta position restent sur ce téléphone/g) ?? []).length, 1);
+  assert.match(app, /el\('p', \{ class: 'help' \}, USAGE_PRIVACY\)/);
+});
