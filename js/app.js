@@ -38,7 +38,7 @@ import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, r
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { openIdOf, needsCenter } from './lieu-ouvert.js';
-import { sheetStep } from './hauteurs.js';
+import { sheetStep, SHARE } from './hauteurs.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
@@ -68,7 +68,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (332)';
+const VERSION = '20 novembre 2026 (333)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1225,11 +1225,11 @@ function gatherTips() {
 }
 new MutationObserver(() => { if (!sheet.hidden) gatherTips(); }).observe(sheetBody, { childList: true, subtree: true }); // explications posées après l'ouverture
 
-let userTall = null; // v332 : hauteur choisie au doigt pour l'écran affiché (null : celle prévue pour lui)
+let userSize = null; // v332 : hauteur choisie au doigt pour l'écran affiché ('low' | 'mid' | 'tall' ; null : celle prévue pour lui)
 let sheetNatural = Infinity; // v332 : hauteur de la page entière, mesurée fenêtre ouverte (moitié et grande se confondent sur une page courte)
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
   if (moving && name !== 'move') stopMove();
-  if (!(name && name === view && !sheet.hidden)) userTall = null; // v332 : un nouvel écran prend sa hauteur prévue ; le même, redessiné, garde celle choisie au doigt
+  if (!(name && name === view && !sheet.hidden)) userSize = null; // v332 : un nouvel écran prend sa hauteur prévue ; le même, redessiné, garde celle choisie au doigt
   setSheetMini(false); // un nouvel écran (ou le même redessiné) s'ouvre toujours en grand
   const focusOutside = !sheet.contains(document.activeElement);
   if (sheet.hidden && focusOutside && document.activeElement !== document.body) sheetOpener = document.activeElement;
@@ -1258,7 +1258,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
   gatherTips(); // avant de remettre la hauteur de lecture : la page a déjà sa longueur finale
-  sheet.classList.toggle('tall', userTall ?? tall);
+  setSheetSize(userSize ?? (tall ? 'tall' : 'mid'));
   sheet.hidden = false;
   sheetBody.scrollTop = scroll;
   usageOpened(name, was);
@@ -1327,6 +1327,11 @@ document.getElementById('sheetClose').addEventListener('click', () => { if (trac
 const sheetMin = el('button', { type: 'button', id: 'sheetMin', class: 'icon-btn', 'aria-label': 'Réduire pour voir la carte', 'aria-expanded': 'true', onclick: () => setSheetMini(!sheet.classList.contains('mini')) }, ico('chevron-down'));
 document.getElementById('sheetClose').before(sheetMin);
 let miniScroll = 0;
+/** v333 : hauteur de la fenêtre ouverte : 'low' (33 %), 'mid' (58 %) ou 'tall' (85 %) ; la réduction est à part (classe mini). */
+function setSheetSize(size) {
+  sheet.classList.toggle('tall', size === 'tall');
+  sheet.classList.toggle('low', size === 'low');
+}
 function setSheetMini(on) {
   if (on === sheet.classList.contains('mini')) return;
   if (on) { miniScroll = sheetBody.scrollTop; sheetNatural = sheet.getBoundingClientRect().height + sheetBody.scrollHeight - sheetBody.clientHeight; }
@@ -1336,10 +1341,11 @@ function setSheetMini(on) {
   sheetMin.setAttribute('aria-expanded', String(!on));
   if (!on) sheetBody.scrollTop = miniScroll;
 }
-{ // v332 : glisser la barre du titre fait passer d'une hauteur à l'autre : réduite, moitié (58 %), grande (85 %) — js/hauteurs.js
+{ // v332 : glisser la barre du titre fait passer d'une hauteur à l'autre : réduite, basse (33 %, v333), moitié (58 %), grande (85 %) — js/hauteurs.js
   const head = sheet.querySelector('.sheet-head');
   let drag = null;
-  const sizeNow = () => (sheet.classList.contains('mini') ? 'mini' : sheet.classList.contains('tall') ? 'tall' : 'mid');
+  const openSize = () => (sheet.classList.contains('tall') ? 'tall' : sheet.classList.contains('low') ? 'low' : 'mid');
+  const sizeNow = () => (sheet.classList.contains('mini') ? 'mini' : openSize());
   head.addEventListener('pointerdown', (e) => {
     if (e.target.closest('button')) return;
     const h0 = sheet.getBoundingClientRect().height;
@@ -1359,13 +1365,13 @@ function setSheetMini(on) {
     const dy = e.clientY - drag.y;
     const cur = sizeNow();
     const mini = cur === 'mini' ? drag.h0 : head.offsetHeight;
-    const h = { mini, mid: Math.min(sheetNatural, innerHeight * 0.58), tall: Math.min(sheetNatural, innerHeight * 0.85) };
+    const h = { mini, low: Math.min(sheetNatural, innerHeight * SHARE.low), mid: Math.min(sheetNatural, innerHeight * SHARE.mid), tall: Math.min(sheetNatural, innerHeight * SHARE.tall) };
     reset();
-    const to = sheetStep(dy, cur, h, sheet.classList.contains('tall') ? 'tall' : 'mid');
+    const to = sheetStep(dy, cur, h, openSize());
     if (to === cur) return;
     if (to === 'mini') { setSheetMini(true); return; }
-    userTall = to === 'tall';
-    sheet.classList.toggle('tall', userTall);
+    userSize = to;
+    setSheetSize(to);
     setSheetMini(false);
   };
   head.addEventListener('pointerup', end);
@@ -11023,7 +11029,7 @@ const HELP = [
   ]],
   ['map', 'Se repérer', [
     '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
-    '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre : la fenêtre se cale sur une des trois hauteurs, réduite, moitié de l\'écran ou grande. Un autre écran s\'ouvre à sa hauteur habituelle.',
+    '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre : la fenêtre se cale sur une des quatre hauteurs : réduite, basse (un tiers de l\'écran), moitié ou grande. Un autre écran s\'ouvre à sa hauteur habituelle.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
@@ -11284,7 +11290,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{chevron-up} **Trois hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), moitié de l\'écran, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
+    '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
     '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',

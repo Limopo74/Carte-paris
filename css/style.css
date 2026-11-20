@@ -130,6 +130,7 @@ button { cursor: pointer; }
 
 /* Feuille du bas */
 .sheet.tall { max-height: 85vh; }
+.sheet.low { max-height: 33vh; } /* v333 : hauteur basse, choisie au doigt (js/hauteurs.js) */
 .sheet-head h2 { flex: 1; margin: 0; font-size: var(--t22); line-height: 1.25; overflow-wrap: anywhere; }
 .sheet-body { overflow-y: auto; padding: 14px 18px 18px; overscroll-behavior: contain; }
 /* Barre collée en bas : retour et Enregistrer restent sous le pouce quand la page défile.
