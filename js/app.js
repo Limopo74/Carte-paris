@@ -66,7 +66,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (326)';
+const VERSION = '20 novembre 2026 (327)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -92,7 +92,7 @@ function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); sessionStorage
 // v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
 let usage = readUsage(storage.getItem(USAGE_KEY));
 let usageTimer = 0;
-// v326 (mes choix 2C 3A 4A 1B du 20 nov.) : mes photos des salles ; la liste a sa propre clé, dans la sauvegarde générale, jamais envoyée à un proche
+// v327 (mes choix 2C 3A 4A 1B du 20 nov.) : mes photos des salles ; la liste a sa propre clé, dans la sauvegarde générale, jamais envoyée à un proche
 let venuePhotos = (() => { try { return cleanVenuePhotos(JSON.parse(storage.getItem(VENUE_PHOTOS_KEY) ?? '[]')); } catch { return []; } })();
 const saveVenuePhotos = () => { try { storage.setItem(VENUE_PHOTOS_KEY, JSON.stringify(cleanVenuePhotos(venuePhotos))); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); } };
 const USAGE_SEL = '.btn, .fiche-row, .menu-row, .map-btn, .icon-btn, #chips button, #wxBadge';
@@ -5616,15 +5616,21 @@ function loadGalleries(force = false) {
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
 const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes', circuit: 'signpost' };
 const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue', circuit: 'Circuit' };
-/** v326 : vignette d'une sortie (56 × 76 px, en haut de la ligne) : la photo de l'agenda, sinon ma photo de la salle, sinon l'icône. */
-function evThumb(photo, venuePhoto, icon) {
+/** v327 : vignette d'une sortie (56 × 76 px, en haut de la ligne) : la photo de l'agenda, sinon ma photo de la salle, sinon `none()`. */
+function evThumb(photo, venuePhoto, none) {
   const img = el('img', { class: 'ev-thumb', alt: '', decoding: 'async', referrerpolicy: 'no-referrer' });
-  const mine = () => (venuePhoto ? photoUrl(venuePhoto).then((u) => { if (u) img.src = u; else img.replaceWith(icon()); }).catch(() => img.replaceWith(icon())) : img.replaceWith(icon()));
+  const mine = () => (venuePhoto ? photoUrl(venuePhoto).then((u) => { if (u) img.src = u; else img.replaceWith(none()); }).catch(() => img.replaceWith(none())) : img.replaceWith(none()));
   let tried = false;
-  img.addEventListener('error', () => { if (tried || !photo) { img.replaceWith(icon()); return; } tried = true; mine(); });
+  img.addEventListener('error', () => { if (tried || !photo) { img.replaceWith(none()); return; } tried = true; mine(); });
   if (photo) { img.loading = 'lazy'; img.src = photo; } else { tried = true; mine(); }
   return img;
 }
+/** v327 (mes choix 7 2A 3A 4A du 20 nov., design « Édito lettrine ») : sans aucune photo, une vignette de la même taille :
+ * la grande initiale du genre en terre cuite, le genre écrit dessous sous un filet. Décor seulement : le genre est déjà lu
+ * par TalkBack (`sr-only` du nom). Les circuits gardent leur icône (ce ne sont pas des sorties). */
+const TILE_WORD = { musique: 'Musique', scene: 'Scène', expo: 'Expo', cine: 'Cinéma', fete: 'Fête', atelier: 'Atelier', famille: 'Famille', balade: 'Balade', chiner: 'Puces', marche: 'Marché', musee: 'Musée', galerie: 'Galerie', oeuvre: 'Œuvre' };
+const tileWord = (genre) => TILE_WORD[genre] ?? 'Sortie';
+const letterTile = (genre) => el('span', { class: 'ev-thumb ev-letter', 'aria-hidden': 'true' }, el('i', {}, tileWord(genre).charAt(0)), el('b', {}, tileWord(genre)));
 /**
  * Une ligne de sortie (v136) : icône du genre, nom, quand et où, et le temps à pied à droite. Aucun bouton dans la ligne :
  * un appui ouvre sa page, où sont Y aller, Boussole, Métro, Ajouter. (v177 : plus de grande plaque en tête de Sorties.)
@@ -5633,10 +5639,12 @@ function evThumb(photo, venuePhoto, icon) {
 function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null, photo = '', venuePhoto = null }) {
   const label = GENRE_NAME[genre];
   const icon = () => el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 }));
-  // v326 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
-  // sans photo de l'agenda, ou si elle ne se charge pas, ma photo de la salle ; sinon l'icône revient.
+  // v327 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
+  // sans photo de l'agenda, ou si elle ne se charge pas, ma photo de la salle ; sinon la vignette lettrine (même taille).
   const dist = d != null ? el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0'))) : el('span', { class: 'ev-dist' });
-  const thumb = state.evThumbs === true && !badge && (photo || venuePhoto) ? evThumb(photo, venuePhoto, icon) : null;
+  const tiled = state.evThumbs === true && !badge && genre !== 'circuit';
+  const none = () => (tiled ? letterTile(genre) : icon());
+  const thumb = tiled ? (photo || venuePhoto ? evThumb(photo, venuePhoto, none) : none()) : null;
   const inner = [
     thumb ?? icon(),
     el('span', { class: 'ev-text' },
@@ -6227,7 +6235,7 @@ const SORTIES_LINKS = [
 /** Clé d'une sortie, la même dans l'agenda du jour et dans celui de la semaine (titre et position). */
 const evKey = (e) => `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
 /** Les clés des 3 rendez-vous de mes salles montrés en tête de Sorties → Tout (v186 : pas répétés plus bas). */
-/* ---------- v326 (mes choix 2C 3A 4A 1B du 20 nov.) : Réglages → Autres réglages → Photos des salles ----------
+/* ---------- v327 (mes choix 2C 3A 4A 1B du 20 nov.) : Réglages → Autres réglages → Photos des salles ----------
    Ma photo d'une salle remplace l'icône du genre dans les listes de Sorties seulement quand l'agenda n'a pas de photo pour
    une sortie de cette salle, ou que la sienne ne se charge pas : la photo de l'agenda passe toujours avant. */
 function venuePhotoSub() {
@@ -9632,11 +9640,11 @@ function openSettings(section = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
-    // v326 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche », éteint au départ ; la photo de l'agenda dans chaque liste de sorties
-    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+    // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche », éteint au départ ; la photo de l'agenda dans chaque liste de sorties
+    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
       state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
     }),
-    // v326 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
+    // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
@@ -9816,7 +9824,7 @@ async function importPhotos(text, st, mine = true) {
   let photos, file;
   try { file = JSON.parse(text); photos = file?.photos; } catch { return; }
   if (!photos || typeof photos !== 'object') return;
-  // v326 (mon choix 1B du 20 nov.) : mes photos des salles d'une sauvegarde ; une salle qui a déjà sa photo ici la garde (rien d'écrasé)
+  // v327 (mon choix 1B du 20 nov.) : mes photos des salles d'une sauvegarde ; une salle qui a déjà sa photo ici la garde (rien d'écrasé)
   let added = 0;
   for (const x of mine ? cleanVenuePhotos(file.venuePhotos) : []) { // le fichier d'un proche : jamais ses photos de salles
     if (venuePhotoOf(x.name, venuePhotos) || typeof photos[x.id] !== 'string') continue;
@@ -10015,7 +10023,7 @@ async function backupText(withPhotos, withTtb = false) {
       const b = await getPhoto(id).catch(() => null);
       if (b) obj.photos[id] = await blobToDataUrl(b);
     }
-    // v326 (mon choix 1B du 20 nov.) : mes photos des salles aussi ; jamais dans l'export de Vu en passant ni pour un proche
+    // v327 (mon choix 1B du 20 nov.) : mes photos des salles aussi ; jamais dans l'export de Vu en passant ni pour un proche
     const vp = cleanVenuePhotos(venuePhotos);
     for (const x of vp) { const b = await getPhoto(x.id).catch(() => null); if (b) obj.photos[x.id] = await blobToDataUrl(b); }
     if (vp.some((x) => obj.photos[x.id])) obj.venuePhotos = vp.filter((x) => obj.photos[x.id]);
@@ -11133,7 +11141,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
+    '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
@@ -11143,7 +11151,6 @@ const HELP = [
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Autres réglages → Style de la carte.',
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Autres réglages → Style de la carte. C\'est le fond d\'un téléphone neuf.',
     '{hand} **Essayer le premier lancement** : {settings} → Autres réglages, tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
-    '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
   ]],
 ];
 

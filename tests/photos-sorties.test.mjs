@@ -1,4 +1,4 @@
-// v326 (mes choix 1B 2C 3A 4A 6A 7A du 20 nov., puis 1B : la sauvegarde générale) : « Photos dans Sorties » et « Photos des salles ».
+// v327 (mes choix 1B 2C 3A 4A 6A 7A du 20 nov., puis 1B : la sauvegarde générale) : « Photos dans Sorties » et « Photos des salles ».
 // La photo de l'agenda à la place de l'icône du genre (56 × 76 px, en haut de la ligne), éteint au départ ; ma photo d'une
 // salle seulement quand l'agenda n'a pas de photo ou que la sienne ne se charge pas ; mes photos des salles dans la sauvegarde
 // générale, jamais dans l'export de Vu en passant ni pour un proche.
@@ -25,12 +25,27 @@ test('Photos dans Sorties : éteint au départ, gardé sur le téléphone, dans 
   assert.equal(cleanSettings({ evThumbs: 'oui' }).evThumbs, false);
 });
 
-test('Vignette : seulement allumé, la photo de l\'agenda d\'abord, ma photo de la salle en secours, sinon l\'icône', () => {
-  assert.match(app, /const thumb = state\.evThumbs === true && !badge && \(photo \|\| venuePhoto\) \? evThumb\(photo, venuePhoto, icon\) : null;/);
+test('Vignette : seulement allumé, la photo de l\'agenda d\'abord, ma photo de la salle en secours, sinon la lettrine', () => {
+  assert.match(app, /const tiled = state\.evThumbs === true && !badge && genre !== 'circuit';/, 'éteint, ou un circuit : l\'icône d\'avant');
+  assert.match(app, /const none = \(\) => \(tiled \? letterTile\(genre\) : icon\(\)\);/);
+  assert.match(app, /const thumb = tiled \? \(photo \|\| venuePhoto \? evThumb\(photo, venuePhoto, none\) : none\(\)\) : null;/);
   const f = app.slice(app.indexOf('function evThumb('), app.indexOf('function sortieCard('));
   assert.match(f, /if \(photo\) \{ img\.loading = 'lazy'; img\.src = photo; \} else \{ tried = true; mine\(\); \}/, 'la photo de l\'agenda passe avant la mienne');
-  assert.match(f, /addEventListener\('error', \(\) => \{ if \(tried \|\| !photo\) \{ img\.replaceWith\(icon\(\)\); return; \} tried = true; mine\(\); \}\)/, 'l\'image ne charge pas : ma photo, puis l\'icône');
+  assert.match(f, /addEventListener\('error', \(\) => \{ if \(tried \|\| !photo\) \{ img\.replaceWith\(none\(\)\); return; \} tried = true; mine\(\); \}\)/, 'l\'image ne charge pas : ma photo, puis la lettrine');
   assert.match(app, /photo: e\.cover, venuePhoto: venuePhotoFor\(e, venuePhotos\)\?\.id \?\? null/, 'toutes les listes de sorties de l\'agenda (eventRow)');
+});
+
+test('Lettrine (design 7) : l\'initiale et le mot du genre, sans genre sûr « Sortie », décor caché à TalkBack, jetons seulement', () => {
+  const words = app.match(/const TILE_WORD = (\{[^}]+\});/)[1];
+  const W = Function(`return ${words}`)();
+  for (const g of ['musique', 'scene', 'expo', 'cine', 'fete', 'atelier', 'famille', 'balade', 'chiner', 'marche']) assert.ok(W[g], g);
+  assert.ok(Object.values(W).every((w) => w.length <= 7), 'tient dans 46 px');
+  assert.match(app, /const tileWord = \(genre\) => TILE_WORD\[genre\] \?\? 'Sortie';/);
+  assert.match(app, /el\('span', \{ class: 'ev-thumb ev-letter', 'aria-hidden': 'true' \}, el\('i', \{\}, tileWord\(genre\)\.charAt\(0\)\), el\('b', \{\}, tileWord\(genre\)\)\)/);
+  const rule = css.match(/\.ev-letter \{[^}]+\}/)[0];
+  assert.match(rule, /background: color-mix\(in srgb, var\(--ink\) 6%, var\(--bg\)\)/, 'visible en clair et en sombre');
+  assert.doesNotMatch(css.match(/\.ev-letter[\s\S]*?white-space: nowrap; \}/)[0], /#[0-9a-f]{3,6}\b/i, 'aucune couleur en dur');
+  assert.match(css, /\.ev-letter i \{[^}]*color: var\(--disc\);/, 'terre cuite (mon choix 2A)');
 });
 
 test('Vignette 56 × 76 px en haut de la ligne ; la distance reste centrée ; les autres lignes de la liste gardent la colonne', () => {

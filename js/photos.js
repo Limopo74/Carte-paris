@@ -51,7 +51,7 @@ export function fitSize(w, h, max = MAX_SIDE) {
   return { w: Math.round(w * k), h: Math.round(h * k) };
 }
 
-/** Réduit et réencode une photo en JPEG (orientation respectée, EXIF effacé) ; `max` : côté le plus long (v326 : plus petit pour une salle). */
+/** Réduit et réencode une photo en JPEG (orientation respectée, EXIF effacé) ; `max` : côté le plus long (v327 : plus petit pour une salle). */
 export async function compressImage(file, max = MAX_SIDE) {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const { w, h } = fitSize(bmp.width, bmp.height, max);

@@ -663,7 +663,7 @@ export function venuesNear(events, from, maxM, { followed = [], isShow = () => t
 }
 
 /**
- * v326 (mon choix 3A du 20 nov.) : les salles qui ont le plus de sorties cette semaine, dans tout l'agenda de Paris,
+ * v327 (mon choix 3A du 20 nov.) : les salles qui ont le plus de sorties cette semaine, dans tout l'agenda de Paris,
  * pour Réglages → Photos des salles. Comptées sur le téléphone, sans ma position. Comme « Salles près de moi » :
  * sans bibliothèques, médiathèques, gymnases ni centres Paris Anim', sans les salles déjà suivies (elles ont leur
  * partie), deux graphies d'une même salle à moins de 100 m n'en font qu'une (le nom le plus court).
