@@ -58,7 +58,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (256)';
+const VERSION = '20 novembre 2026 (257)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -294,6 +294,15 @@ function toast(msg, isError = false, action = null) {
   toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : msg.length > 50 ? 5000 : 3000); // un long message reste le temps d'être lu
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
+/** Message d'attente (« Recherche de ta position… ») : reste affiché jusqu'au résultat, qui l'efface ou le remplace (v257).
+ * Avant, il partait au bout de 3 s alors que le GPS peut chercher 15 s : l'écran ne montrait plus rien, le bouton semblait
+ * ne pas marcher. 30 s au plus, au cas où rien ne viendrait le remplacer. */
+function waitToast(msg) {
+  toast(msg);
+  clearTimeout(toastTimer);
+  const seq = toastSeq;
+  toastTimer = setTimeout(() => { if (toastSeq === seq) hideToast(); }, 30000);
+}
 
 /* Retour visible : toujours « ← nom de l'écran d'avant », jamais un « Retour » sans destination. */
 const named = (label, fn) => Object.assign(fn, { label });
@@ -1625,7 +1634,7 @@ function addAt(lat, lng, acc = null) {
 
 async function addAtPosition() {
   track('Ajouter un lieu');
-  toast('Recherche de ta position…');
+  waitToast('Recherche de ta position…');
   try {
     const pos = await locate();
     hideToast();
@@ -2917,7 +2926,7 @@ async function openNear() {
     locate().then((fix) => { if (!homeOn() && view === 'near' && origin?.kind === 'home') { origin = { ...fix, kind: 'gps' }; renderNear(true); } }).catch(() => {});
     return;
   }
-  toast('Recherche de ta position… (quelques secondes pour plus de précision)');
+  waitToast('Recherche de ta position… (quelques secondes pour plus de précision)');
   try {
     const fix = await locate();
     hideToast();
@@ -3222,7 +3231,7 @@ function startFollow() {
   signaled.clear();
   let first = true;
   keepScreenOn(true);
-  toast('Recherche de ta position…');
+  waitToast('Recherche de ta position…');
   followId = navigator.geolocation.watchPosition((pos) => {
     const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
     if (fix.acc > 150 && !first) return; // trop imprécis pour suivre
@@ -4859,7 +4868,7 @@ function receiveMeet(m) {
 
 async function openWhereAmI() {
   let at = freshHere();
-  if (!at) { toast('Recherche de ta position…'); try { at = await locate(); hideToast(); } catch (e) { toast(e.message, true); return; } }
+  if (!at) { waitToast('Recherche de ta position…'); try { at = await locate(); hideToast(); } catch (e) { toast(e.message, true); return; } }
   await stationsReady;
   const near = nearestStation(stations, at);
   const body = el('div', { class: 'stack' });
@@ -5816,7 +5825,7 @@ function pickEventsArea() {
 /** Sorties → « Ma position » : la position n'est demandée qu'à cet appui (rien n'est envoyé : tout est trié sur le téléphone). */
 async function eventsFromMe() {
   setHomeOn(false, { quiet: true }); // v222 : demander ma position, c'est ne plus partir de chez moi
-  toast('Recherche de ta position…');
+  waitToast('Recherche de ta position…');
   try {
     const pos = await locate();
     hideToast();
@@ -6094,12 +6103,11 @@ async function goHome() {
 /* Rentrer : les 2 ou 3 stations (métro, RER) les plus proches de toi, avec le temps total
    jusqu'à ta station Maison depuis chacune ; la plus rapide est marquée. Calcul sur le téléphone. */
 async function openHomePlan(home) {
-  toast('Recherche des stations proches…');
+  waitToast('Recherche des stations proches…'); // v257 : reste jusqu'à l'ouverture de l'écran (GPS et fichiers peuvent prendre 15 s)
   let from = freshHere();
   if (!from) {
     try { from = await locate(); } catch (e) { if (here) from = here; else { toast(e.message, true); return; } }
   }
-  hideToast();
   const dest = { name: `${home.label} (${home.st.n})`, lat: home.st.lat, lng: home.st.lng };
   const back = named('Rentrer', () => openHomePlan(home));
   const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
@@ -6127,6 +6135,7 @@ async function openHomePlan(home) {
   const railNear = garesNear(gares, from, 1500, 1)[0];
   const metroD = near[0]?.d ?? Infinity;
   const railLine = railNear && railNear.d + 200 < metroD ? el('p', { class: 'help' }, ico('train-front'), ` Plus près que le métro : ${railNear.station.n} (${gareLines(railNear.station)}), ${fmtWalk(railNear.d)}. Vérifie qu'il va vers chez toi.`) : null;
+  hideToast();
   openSheet([ico('house'), ` Rentrer · ${home.label}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
     railLine,
@@ -6361,7 +6370,7 @@ function saveHome(h) {
 }
 
 async function homeFromHere() {
-  toast('Recherche de ta position…');
+  waitToast('Recherche de ta position…');
   try {
     const fix = await locate();
     hideToast();
@@ -9249,7 +9258,7 @@ async function nearestMetro() {
   track('Métro le plus proche');
   await stationsReady;
   if (!stations.length) { toast('La liste des stations n\'est pas encore chargée : réessaie dans un instant.', true); return; }
-  toast('Recherche du métro le plus proche…');
+  waitToast('Recherche du métro le plus proche…');
   let from;
   let note = null;
   try {
@@ -9345,7 +9354,7 @@ async function refreshParkHours() {
 
 async function nearestPratique() {
   track('Fontaine et toilettes');
-  toast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
+  waitToast('Recherche de la fontaine, des toilettes et d\'un lieu frais…');
   const [from, fontaines, toilettesVille, toilettesRatp, fraisLieux, fraisParcs] = await Promise.all([
     locate().catch(() => (here && Date.now() - here.time < 2 * 3600 * 1000 ? here : null)),
     loadPratique('fontaines'),
@@ -9802,6 +9811,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
     '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
@@ -9811,7 +9821,6 @@ const HELP = [
     '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
     '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
-    '{clock} Horaires : sur la fiche d\'un de tes lieux, Pratique → Horaires ouvre une page avec deux choix : les chercher sur OpenStreetMap, comme avant, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Pratique pour une boutique ou une galerie qu\'OpenStreetMap ne connaît pas. Un jour férié, ces horaires ne disent ni ouvert ni fermé.',
   ]],
 ];
 
