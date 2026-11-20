@@ -63,7 +63,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (318)';
+const VERSION = '20 novembre 2026 (319)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -10834,6 +10834,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Style de la carte.',
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Style de la carte. C\'est le fond d\'un téléphone neuf.',
@@ -10843,7 +10844,6 @@ const HELP = [
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
     '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
-    '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
   ]],
 ];
 
@@ -10888,7 +10888,8 @@ function openWelcome(step = 1) {
   if (step === 1) { try { storage.setItem(FIRST_KEY, '1'); } catch { /* rien */ } }
   const go = (n) => () => openWelcome(n);
   const back = el('button', { type: 'button', class: 'btn', onclick: go(step - 1) }, `← ${WELCOME_TITLES[step - 2] ?? 'Bienvenue'}`);
-  const next = (label = 'Suivant →') => el('button', { type: 'button', class: 'btn c-guide', onclick: go(step + 1) }, label);
+  // v319 (mon choix du 20 nov.) : le bouton qui avance est vert plein, toujours en bas, à la place de « Commencer les réglages »
+  const next = (label = 'Suivant →') => el('button', { type: 'button', class: 'btn c-add solid', onclick: go(step + 1) }, label);
   const seg = (label, opts, cur, pick) => el('div', {},
     el('p', { class: 'legend' }, label),
     el('div', { class: 'seg', role: 'group', 'aria-label': label }, opts.map(([k, name]) =>
@@ -10930,24 +10931,24 @@ function openWelcome(step = 1) {
         home ? el('p', { class: 'ok-line' }, ico('house'), ` ${home.label} : ${home.station}`) : null,
         el('button', { type: 'button', class: 'btn c-metro', onclick: () => openStationPicker((st) => {
           state = home ? { ...state, myStations: state.myStations.map((x) => (x.id === home.id ? { ...x, station: st.n } : x)) } : addMyStation(state, st.n, 'Maison');
-          persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(4);
+          persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(5); // v319 : un appui de moins
         }, { name: 'Rentrer', fn: go(4) }) }, ico('house'), home ? 'Changer de station' : 'Choisir ma station Maison'),
         el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, dans la colonne de boutons.'),
       ];
     })(), [back, next()]],
     5: ['Ta position', [
       el('p', {}, 'Pour te montrer où tu es et ce qui est près de toi, Chrome va te demander ta position. Touche « Autoriser » dans sa fenêtre.'),
-      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
-        if (!navigator.geolocation) { toast('Ce navigateur ne donne pas la position.', true); openWelcome(6); return; }
-        toast('Recherche de ta position…');
-        navigator.geolocation.getCurrentPosition(() => { toast('Position autorisée'); if (view === 'welcome:5') openWelcome(6); },
-          (err) => { toast(GEO_ERRORS[err.code] ?? 'Position introuvable pour l\'instant.', true); if (view === 'welcome:5') openWelcome(6); },
-          { enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 });
-      } }, ico('locate'), 'Autoriser ma position'),
       el('p', { class: 'help' }, 'L\'appli ne garde aucune trace de tes déplacements.'),
-    ], [back, next('Pas maintenant →')]],
+      el('button', { type: 'button', class: 'btn c-guide', onclick: go(6) }, 'Pas maintenant →'),
+    ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => { // v319 : l'action utile en vert plein, à la place de Suivant ; elle avance seule après la réponse
+      if (!navigator.geolocation) { toast('Ce navigateur ne donne pas la position.', true); openWelcome(6); return; }
+      toast('Recherche de ta position…');
+      navigator.geolocation.getCurrentPosition(() => { toast('Position autorisée'); if (view === 'welcome:5') openWelcome(6); },
+        (err) => { toast(GEO_ERRORS[err.code] ?? 'Position introuvable pour l\'instant.', true); if (view === 'welcome:5') openWelcome(6); },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 });
+    } }, ico('locate'), 'Autoriser ma position')]],
     6: ['C\'est prêt', [
-      installEvt ? el('button', { type: 'button', class: 'btn c-add solid', onclick: async () => {
+      installEvt ? el('button', { type: 'button', class: 'btn c-add', onclick: async () => { // v319 : en contour, « Voir ma carte » est la plaque pleine
         const e = installEvt; installEvt = null;
         try { await e.prompt(); const r = await e.userChoice; toast(r?.outcome === 'accepted' ? 'Appli installée sur l\'écran d\'accueil' : 'Pas installée : menu ⋮ de Chrome pour le faire plus tard'); } catch { /* rien */ }
         if (view === 'welcome:6') openWelcome(6);
@@ -10956,7 +10957,7 @@ function openWelcome(step = 1) {
         : STANDALONE ? null : el('p', { class: 'help' }, 'Pour l\'installer sur l\'écran d\'accueil : menu ⋮ de Chrome → « Ajouter à l\'écran d\'accueil » (ou « Installer l\'application », selon le téléphone).'),
       el('p', { class: 'warn' }, 'Tes lieux restent sur ce téléphone seulement : sauvegarde-les de temps en temps (Réglages → Sauvegarde).'),
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'),
-    ], [back, el('button', { type: 'button', class: 'btn c-guide', onclick: () => closeSheet() }, 'Voir ma carte')]],
+    ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => closeSheet() }, 'Voir ma carte')]],
   };
   const [title, body, feet] = pages[step];
   // L'étape dans le titre, en petit (comme le numéro de version de Réglages) : la page « Pour toi » tient sans cacher Navigo

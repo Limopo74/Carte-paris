@@ -119,3 +119,16 @@ test('v317 : Style de la carte en deux groupes : « Sans clé » puis « Avec la
   assert.ok(page.indexOf('=> needsKey(id)).map(card)') > b);
   assert.match(page, /'Saisir ma clé CARTO'/, 'sans clé, le bouton pour la saisir est dans son groupe');
 });
+
+test('v319 : le bouton qui avance est vert plein ; une seule plaque pleine par étape ; la station choisie mène à l\'étape 5', () => {
+  const w = app.slice(app.indexOf('function openWelcome('), app.indexOf('/* ---------- Démarrage ---------- */'));
+  assert.match(w, /const next = \(label = 'Suivant →'\) => el\('button', \{ type: 'button', class: 'btn c-add solid'/);
+  const page = (n) => w.slice(w.indexOf(`    ${n}: [`), w.indexOf(`    ${n + 1}: [`) > 0 ? w.indexOf(`    ${n + 1}: [`) : w.indexOf('  };'));
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    const p = page(n);
+    const solids = (p.match(/solid/g) ?? []).length + (/next\(/.test(p) ? 1 : 0);
+    assert.equal(solids, 1, `étape ${n} : une seule plaque pleine`);
+  }
+  assert.match(page(4), /openWelcome\(5\); \/\/ v319/);
+  assert.match(page(6), /'Voir ma carte'/);
+});
