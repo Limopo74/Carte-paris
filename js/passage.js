@@ -1,6 +1,6 @@
 // « Vu en passant » (v157) : noter d'un geste ce qu'on croise dans la rue, et le retrouver en repassant.
 // Fonctions sans interface, testées dans tests/passage.test.mjs.
-import { distanceM } from './geo.js';
+import { distanceM, isRestoCat } from './geo.js';
 
 /** La catégorie des notes prises en passant : créée au premier usage, cachée de la barre du haut (le filtre est dans Filtres). */
 export const SEEN_CAT = { id: 'vu', name: 'Vu en passant', color: '#0c8599', icon: '📷' };
@@ -195,3 +195,25 @@ export function momentHere(points, pos, date = new Date(), maxM = 800, isOpen = 
   }
   return best;
 }
+
+/* ---------- Fiche ancienne (v274, mon choix A du 20 nov. 2026) ---------- */
+
+/** Les lieux qui peuvent fermer sans prévenir : restos (mêmes mots que « Avis Google », v266) et commerces. */
+export const canClose = (c) => isRestoCat(c) || c?.id === 'boutique'
+  || /boutique|magasin|shop|librair|caf[eé]s?\b|\bbars?\b|\bcaves?\b|[eé]picer|boulang|p[aâ]tiss|fromag|chocolat|traiteur|glacier|salon de th[eé]|friperie|disquaire/i.test(c?.name ?? '');
+/** Un an sans nouvelles : la fiche le dit. */
+export const STALE_MS = 365 * 864e5;
+const SURE_FROM = Date.UTC(2025, 0, 1); // une date d'ajout plus ancienne est un défaut de données, pas un ajout
+/**
+ * Le dernier signe que le lieu existait : ajout, visite, impression, horaires notés ou « Toujours ouvert » (`checked`).
+ * Renvoie cette date si elle a plus d'un an (le lieu a pu fermer), sinon null. Jamais d'avertissement sans date connue,
+ * ni pour un lieu déjà noté fermé, ni pour une catégorie qui ne ferme pas (musée, parc, monument…).
+ */
+export function staleSince(p, cat, now = Date.now()) {
+  if (!p || p.gone || !canClose(cat)) return null;
+  const t = Math.max(p.created > SURE_FROM ? p.created : 0, Number.isFinite(p.visited) ? p.visited : 0,
+    Number.isFinite(p.hoursAt) ? p.hoursAt : 0, Number.isFinite(p.checked) ? p.checked : 0, ...cleanPassages(p.passages).map((x) => x.at));
+  return t > 0 && now - t > STALE_MS ? t : null;
+}
+/** « Pas revu depuis septembre 2025 : a pu fermer ». */
+export const staleText = (t) => `Pas revu depuis ${new Date(t).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} : a pu fermer`;

@@ -42,7 +42,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen } from './passage.js';
+import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (273)';
+const VERSION = '20 novembre 2026 (274)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2203,6 +2203,8 @@ function openDetail(id, back = null) {
   // Deux colonnes de faits : aujourd'hui (horaires) et métro le plus proche.
   const st = openState(hoursOf(p));
   const metro = stationFacts(p);
+  // v274 (mon choix A) : un resto ou un commerce sans nouvelles depuis un an « a pu fermer » ; dans Rangement, « Toujours ouvert »
+  const stale = staleSince(p, catOf(p.cat));
   const facts2 = st || metro ? el('div', { class: 'fiche-cols' },
     el('div', {},
       el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
@@ -2241,7 +2243,12 @@ function openDetail(id, back = null) {
     if (on) toast(vanish ? 'Notée disparue : l\'appli ne la propose plus' : 'Noté fermé : l\'appli ne le propose plus', false, { label: 'Annuler', fn: () => { delete p.gone; persist(); renderMarkers(); openDetail(id, back); } });
     else toast(vanish ? 'De nouveau là : vue aujourd\'hui' : 'De nouveau ouvert : l\'appli le propose à nouveau');
   };
+  const stillOpen = () => {
+    p.checked = Date.now(); persist(); openDetail(id, back);
+    toast('Noté : vu ouvert aujourd\'hui', false, { label: 'Annuler', fn: () => { delete p.checked; persist(); openDetail(id, back); } });
+  };
   const showTidy = () => fill(tidy,
+    stale && !vanish ? row('eye', 'Toujours ouvert', 'Vu sur place aujourd\'hui', stillOpen) : null,
     p.gone ? row('eye', vanish ? 'Elle est de nouveau là' : 'De nouveau ouvert', 'L\'appli le propose à nouveau', () => setGone(false))
       : vanish ? row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true))
         : row('store', 'Fermé définitivement', 'Constaté sur place ou dans Google Maps ; gris sur la carte', () => setGone(true)),
@@ -2267,10 +2274,13 @@ function openDetail(id, back = null) {
       foot(backBtn(named(p.name, () => openDetail(id, back)))),
     ), { name: `rangement:${id}`, again: openTidy });
   };
-  const tidySub = [p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].join(', ');
+  const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].filter(Boolean).join(', ')
+    .replace(/^./, (c) => c.toUpperCase()).replace(/, F/, ', f');
 
   const kick = [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ');
-  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}`)], el('div', { class: 'stack detail' },
+  // v274 : « a pu fermer » dans le surtitre : rien ne bouge sur la fiche ; la date d'ajout et de visite est en bas
+  const staleKick = stale ? el('span', { class: 'stale', title: staleText(stale) }, ' · a pu fermer') : null;
+  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, staleKick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}${stale ? `, ${staleText(stale)}` : ''}`)], el('div', { class: 'stack detail' },
     goBox,
     // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
     facts2,
@@ -2795,14 +2805,16 @@ async function findHours(p, back) {
   }
 }
 
-/** « Ajouté il y a 8 mois, jamais visité » ou « Visité le 3 mars 2026 ». */
+/** « Ajouté le 26 septembre 2025, jamais visité » ou « Visité le 3 mars 2026 · ajouté le 26 septembre 2025 » (v274). */
 function ageLine(p) {
   const did = didName(catOf(p.cat)); // « Déjà goûté »… (v162) ; par défaut, « Visité le 3 mars » comme avant
-  if (p.done && did !== DID_DEFAULT) return p.visited ? `${did} (le ${formatDate(p.visited)})` : `${did} (date non notée)`;
-  if (p.done) return p.visited ? `Visité le ${formatDate(p.visited)}` : 'Visité (date non notée)';
-  if (!(p.created > Date.UTC(2025, 0, 1))) return 'Jamais visité';
+  const added = p.created > Date.UTC(2025, 0, 1) ? formatDate(p.created) : ''; // v274 : la date d'ajout en clair, même après une visite
+  const tail = added ? ` · ajouté le ${added}` : '';
+  if (p.done && did !== DID_DEFAULT) return `${p.visited ? `${did} (le ${formatDate(p.visited)})` : `${did} (date non notée)`}${tail}`;
+  if (p.done) return `${p.visited ? `Visité le ${formatDate(p.visited)}` : 'Visité (date non notée)'}${tail}`;
+  if (!added) return 'Jamais visité';
   const old = Date.now() - p.created > 30 * 86_400_000;
-  return `Ajouté ${timeAgo(p.created)}${old ? ', jamais visité' : ''}`;
+  return `Ajouté le ${added}${old ? ', jamais visité' : ''}`;
 }
 
 /* ---------- Déplacer un lieu (viseur fixe) ---------- */
@@ -9998,6 +10010,7 @@ const HELP = [
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
+    '{eye} **A pu fermer** : un resto ou un commerce sans nouvelles depuis plus d\'un an (ni visite, ni impression, ni horaires notés) : sa fiche le dit en haut, à côté de sa catégorie (« Restos · 9e · a pu fermer »). Vu ouvert sur place : Rangement → « Toujours ouvert ». Fermé : « Fermé définitivement ». La date d\'ajout du lieu est en bas de sa fiche.',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
@@ -10121,6 +10134,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
     '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
     '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
@@ -10130,7 +10144,6 @@ const HELP = [
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
-    '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
   ]],
 ];
 

@@ -154,6 +154,7 @@ const clean = (p) => ({
   ...(cleanMoments(p.moments).length ? { moments: cleanMoments(p.moments) } : {}), // Le bon moment (v158)
   ...(cleanArtist(p.artist) ? { artist: cleanArtist(p.artist) } : {}), // l'artiste de l'œuvre (v161)
   ...(Number.isFinite(p.gone) ? { gone: p.gone } : {}), // « Disparue ou recouverte », noté ce jour-là (v161)
+  ...(Number.isFinite(p.checked) && p.checked > 0 ? { checked: p.checked } : {}), // « Toujours ouvert », vu sur place ce jour-là (v274)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
