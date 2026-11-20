@@ -36,3 +36,9 @@ test('Nouveau parcours ou nouveau circuit : dès 2 étapes, croix, Annuler et re
 test('Après Enregistrer un nouveau parcours, le retour ne rouvre pas le tracé vide (il plantait)', () => {
   assert.match(app, /persist\(\); trace = null;\n    navStack = navStack\.filter\(\(e\) => e\.name !== 'trace'\);/);
 });
+
+// v277 (mon choix A du 20 nov.) : le lien Uber ne remplit la destination qu'avec l'appli Uber ; sans elle, le site Uber s'ouvre vide.
+test('Uber jusqu\'ici : la petite ligne dit que la destination n\'est remplie que dans l\'appli Uber', () => {
+  assert.match(app, /'Appli Uber, destination déjà remplie'/);
+  assert.doesNotMatch(app, /'Ouvre Uber, destination déjà remplie'/);
+});
