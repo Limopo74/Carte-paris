@@ -114,3 +114,13 @@ test('le calque est branché : fichier lu seulement s\'il sert, module gardé po
   assert.match(yml, /tools\/maj-jardins\.py/);
   assert.match(yml, /FILES="[^"]*data\/jardins\.json/);
 });
+
+test('v264 : « Prendre une photo » sur la page d\'un jardin, comme pour un passage couvert', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /snap: \(\) => jardinPhoto\(j, back, /, 'le cadre « Prendre une photo » en tête de la page');
+  assert.match(app, /function jardinPhoto\(j, back, add\)/);
+  assert.match(app, /const mine = myJardinPlace\(j\);\n\s+if \(mine\) \{/, 'déjà dans mes lieux : la photo va sur ma fiche');
+  assert.match(app, /findDuplicate\(state\.points, \{ name: j\.name, lat: j\.lat, lng: j\.lng \}\)\) \{ openForm\(/, 'un voisin au même endroit : le formulaire, jamais rangée d\'office');
+  assert.match(app, /: dans tes lieux, avec ta photo`, false, \{ label: 'Annuler'/, 'ajouté seul : « Annuler » dans le message');
+  assert.match(app, /'Jardin retiré de tes lieux, photo effacée'/);
+});

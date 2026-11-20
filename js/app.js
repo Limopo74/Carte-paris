@@ -60,7 +60,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (263)';
+const VERSION = '20 novembre 2026 (264)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7634,7 +7634,43 @@ async function openJardin(j, back = null) {
       address ? el('p', { class: 'where' }, ico('map-pin'), address) : null,
       hours ? el('p', { class: 'help tip' }, 'Horaires de la Ville de Paris pour la saison en cours (jeu « Îlots de fraîcheur – Espaces verts frais », mis à jour chaque jour). Un jour de grand vent ou d\'orage, la Ville ferme ses jardins sans changer ces horaires.') : null,
     ],
-    add: { ...(cat ? { cat } : {}), ...(address ? { address } : {}) }, mine: myJardinPlace(j) });
+    add: { ...(cat ? { cat } : {}), ...(address ? { address } : {}) }, mine: myJardinPlace(j),
+    snap: () => jardinPhoto(j, back, { ...(cat ? { cat } : {}), ...(address ? { address } : {}) }) }); // v264 : comme un passage couvert (v238)
+}
+
+/** v264 : « Prendre une photo » en tête de la page d'un jardin, comme pour un passage couvert (v238). L'appareil s'ouvre ;
+ * la photo va sur ma fiche si le jardin est déjà dans mes lieux ; sinon le jardin y est ajouté seul (nom, adresse,
+ * Parcs et jardins, à son point central), avec « Annuler » dans le message. Un autre de mes lieux au même endroit :
+ * le formulaire s'ouvre avec la photo, pour choisir « Y ajouter la photo ». Rien ne part du téléphone. */
+function jardinPhoto(j, back, add) {
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const f = camera.files?.[0];
+    camera.remove();
+    if (!f) return;
+    const mine = myJardinPlace(j);
+    if (mine) {
+      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
+      if (await savePhotos(mine, [f])) { renderMarkers(); openJardin(j, back); }
+      return;
+    }
+    if (findDuplicate(state.points, { name: j.name, lat: j.lat, lng: j.lng })) { openForm({ name: j.name, lat: j.lat, lng: j.lng, address: '', acc: null, ...add, photoFile: f }); return; }
+    const np = newPoint({ name: j.name, cat: add.cat ?? state.categories[0].id, lat: j.lat, lng: j.lng, address: add.address ?? '' });
+    state.points.push(np);
+    if (!(await savePhotos(np, [f]))) { state.points = state.points.filter((p) => p !== np); return; }
+    renderMarkers();
+    openJardin(j, back);
+    toast(`${j.name} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
+      state.points = state.points.filter((p) => p !== np);
+      persist();
+      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      renderMarkers();
+      if (view === `jardin:${j.id}`) openJardin(j, back);
+      toast('Jardin retiré de tes lieux, photo effacée');
+    } });
+  });
+  document.body.append(camera);
+  camera.click();
 }
 
 /* ---------- Pistes à vélo : data/velo.json (robot, Ville de Paris), lu à la première demande, dessiné ici ----------
@@ -9932,7 +9968,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
-    '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller. Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires.',
+    '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -10018,6 +10054,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
     '{check} TTB, seulement les adresses vérifiées : {settings} → TTB → Voir la liste (ou un appui long sur le bouton TTB), puis l\'interrupteur « **Seulement les vérifiées** », en haut. La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
@@ -10027,7 +10064,6 @@ const HELP = [
     '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
     '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
-    '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
   ]],
 ];
 
