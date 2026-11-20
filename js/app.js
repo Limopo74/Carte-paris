@@ -4,6 +4,7 @@ import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
+import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
 import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
@@ -63,7 +64,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (319)';
+const VERSION = '20 novembre 2026 (320)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -8984,7 +8985,10 @@ function openSettings(section = null) {
           el('span', { class: 'menu-sub' }, `${kmhText(pace.kmh[m])} km/h · ${perKm(pace.kmh[m])} min par km`)),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:-0.5`, 'aria-label': `${PACE_NAME[m]} : moins vite`, onclick: () => step(m, -0.5) }, ico('minus')),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:0.5`, 'aria-label': `${PACE_NAME[m]} : plus vite`, onclick: () => step(m, 0.5) }, ico('plus')))),
-      el('p', { class: 'help tip' }, 'Pour trouver ta vitesse : chronomètre un trajet de 1 km dans la rue, feux compris (Google Maps à pied donne la distance). Puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
+      el('p', { class: 'legend' }, 'Mesurer ma vitesse'),
+      el('div', { class: 'row duo row-big' }, // v320 : Normal et Rapide seulement (mon choix 1A du 20 nov.)
+        ...['normal', 'rapide'].map((m) => el('button', { type: 'button', class: 'btn c-guide', 'data-measure': m, onclick: () => openMesurePas(m) }, `Mesurer ${PACE_NAME[m]}`))),
+      el('p', { class: 'help tip' }, 'Mesurer : l\'appli lance un chrono et s\'arrête seule au bout de 1 km, compté comme partout dans l\'appli (la ligne droite × 1,3). Elle ne garde que ton point de départ, le temps de la mesure. Sans l\'appli : chronomètre 1 km dans la rue, feux compris, puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
       el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied.`),
       el('p', { class: 'help tip' }, 'Les rues font environ 1,3 fois la ligne droite. De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.'),
       el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'),
@@ -10458,6 +10462,103 @@ const TEXT_NAME = { normal: 'Normal', grand: 'Grand', tresgrand: 'Très grand' }
 /** Mon pas (v142) : noms des trois modes et vitesse écrite à la française (« 3,5 »). */
 const PACE_NAME = { rapide: 'Rapide', normal: 'Normal', tranquille: 'Tranquille' };
 const kmhText = (k) => String(k).replace('.', ',');
+
+/* Mesurer mon pas (v320, choix B du 20 nov. 2026 ; 1A : Normal et Rapide ; 2A : l'appli propose, je touche Enregistrer).
+   Chrono qui s'arrête seul au bout de 1 km compté comme dans l'appli (ligne droite × 1,3, js/mesure-pas.js).
+   Seul le point de départ est gardé, en mémoire, le temps de la mesure : aucun tracé, rien d'envoyé.
+   Une position à plus de 20 m près ne sert ni au départ ni à l'arrivée : pas de résultat plutôt qu'un faux. */
+function openMesurePas(mode) {
+  let phase = 'wait'; // wait → walk → done | bad
+  let last = null, start = null, t0 = 0, res = null, watch = null, tick = null, geoErr = '';
+  const box = el('div', { class: 'stack' });
+  const stop = () => {
+    if (watch != null) navigator.geolocation.clearWatch(watch);
+    watch = null;
+    clearInterval(tick); tick = null;
+    if (!following) keepScreenOn(false);
+  };
+  const back = () => openSettings('pas');
+  const chrono = el('p', { class: 'mesure-chrono', 'aria-live': 'off' });
+  const bar = el('div', { class: 'mesure-bar', role: 'progressbar', 'aria-label': 'Distance faite', 'aria-valuemin': '0', 'aria-valuemax': '1000' }, el('i'));
+  const done = el('p', { class: 'mesure-mid' });
+  const showProgress = () => {
+    const pr = mesureProgress(start, last);
+    const m = Math.min(1000, Math.round(pr.m / 10) * 10);
+    bar.firstChild.style.width = `${Math.round(pr.share * 100)}%`;
+    bar.setAttribute('aria-valuenow', String(m));
+    done.textContent = pr.m >= 1000 ? '1 km fait : attente d’une position précise…' : `≈ ${m} m sur 1 km`;
+  };
+  const draw = () => {
+    const name = PACE_NAME[mode];
+    if (phase === 'wait') {
+      const ready = mesureStartOk(last, Date.now());
+      const go = el('button', { type: 'button', class: 'btn c-guide solid', disabled: !ready, onclick: begin }, 'Partir');
+      fill(box,
+        el('p', { class: ready ? 'mesure-state' : 'warn', role: 'status' }, geoErr || (ready ? 'Position précise : tu peux partir.'
+          : last ? `Position pas assez précise (à ${Math.round(last.acc)} m près) : attends un peu, loin des grands immeubles.` : 'Recherche de ta position…')),
+        el('p', { class: 'mesure-mid' }, `Marche à ton pas ${name}, le plus droit possible (une avenue, un quai), feux compris. L’appli s’arrête seule au bout de 1 km.`),
+        el('p', { class: 'help' }, 'Garde l’appli ouverte.'),
+        el('p', { class: 'help tip' }, `Le kilomètre est compté comme partout dans l’appli : la ligne droite × 1,3. Si tu tournes beaucoup, la mesure sera trop lente. La position doit être sûre à ${MESURE_ACC} m près au départ et à l’arrivée. Seul ton point de départ est gardé, le temps de la mesure : aucun tracé, rien n’est envoyé.`),
+        foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'), go)));
+    } else if (phase === 'walk') {
+      chrono.textContent = chronoText((Date.now() - t0) / 1000);
+      showProgress();
+      fill(box, chrono, bar, done,
+        el('p', { class: 'help' }, 'Marche droit : si tu tournes beaucoup, la mesure sera trop lente.'),
+        foot(el('button', { type: 'button', class: 'btn', onclick: back }, 'Arrêter sans enregistrer')));
+    } else if (phase === 'done') {
+      const cur = cleanPace(state.pace).kmh[mode];
+      const same = cur === res.step;
+      fill(box,
+        el('p', { class: 'mesure-res', tabindex: '-1' }, `1 km en ${perKmText(res.kmh)}`),
+        el('p', { class: 'mesure-mid' }, `soit environ ${kmhText(Math.round(res.kmh * 10) / 10)} km/h`),
+        el('p', { class: 'mesure-state' }, same ? `${name} est déjà réglé à ${kmhText(cur)} km/h : rien à changer.`
+          : `Cran le plus proche : ${kmhText(res.step)} km/h. ${name} est réglé aujourd’hui à ${kmhText(cur)} km/h.`),
+        el('button', { type: 'button', class: 'btn', onclick: () => openMesurePas(mode) }, ico('rotate-ccw'), 'Recommencer'),
+        foot(same ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Mon pas')
+          : el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'),
+            el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, `Enregistrer ${kmhText(res.step)} km/h`))));
+      requestAnimationFrame(() => box.querySelector('.mesure-res')?.focus());
+    } else {
+      fill(box,
+        el('p', { class: 'warn', role: 'alert' }, 'Mesure pas sûre : recommence ailleurs, loin des grands immeubles, sans prendre de transport.'),
+        el('button', { type: 'button', class: 'btn', onclick: () => openMesurePas(mode) }, ico('rotate-ccw'), 'Recommencer'),
+        foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Mon pas')));
+    }
+  };
+  function begin() {
+    if (!mesureStartOk(last, Date.now())) { draw(); return; }
+    start = last; t0 = Date.now(); phase = 'walk';
+    keepScreenOn(true);
+    tick = setInterval(() => { if (phase === 'walk') chrono.textContent = chronoText((Date.now() - t0) / 1000); }, 1000);
+    draw();
+  }
+  function save() {
+    const pace = cleanPace(state.pace);
+    state.pace = cleanPace({ ...pace, kmh: { ...pace.kmh, [mode]: res.step } });
+    setWalkSpeed(paceKmh(state.pace)); persist(); refresh(); openSettings('pas');
+    toast(`${PACE_NAME[mode]} : ${kmhText(res.step)} km/h`);
+  }
+  const onFix = (g) => {
+    last = { lat: g.coords.latitude, lng: g.coords.longitude, acc: g.coords.accuracy, time: Date.now() };
+    geoErr = '';
+    remember(last);
+    if (phase === 'wait') { draw(); return; }
+    if (phase !== 'walk') return;
+    const pr = mesureProgress(start, last);
+    if (!pr.done) { showProgress(); return; }
+    res = mesureResult(start, last, t0, last.time);
+    start = null; // le point de départ est oublié dès la fin
+    phase = res ? 'done' : 'bad';
+    stop();
+    draw();
+  };
+  const onErr = (err) => { if (phase === 'wait') { geoErr = GEO_ERRORS[err.code] ?? 'Position indisponible.'; draw(); } };
+  openSheet([ico('footprints'), ` Mesurer ${PACE_NAME[mode]}`], box, { tall: true, name: 'settings:mesure', onClose: stop, again: () => openMesurePas(mode) });
+  if (!('geolocation' in navigator)) { geoErr = 'Ce téléphone ne donne pas sa position.'; draw(); return; }
+  draw();
+  watch = navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+}
 /** Nom d'un bouton de la carte : celui que j'ai choisi (Réglages → Boutons de la carte), sinon le nom d'origine. */
 const toolName = (t) => state.toolNames?.[t] || TOOL_INFO[t].short;
 /* « Plus » (⋯) : les boutons rangés là par Réglages → Boutons de la carte, avec leur nom, à un appui. Rien ne bouge tout seul. */
@@ -10789,7 +10890,7 @@ const HELP = [
   ]],
   ['settings', 'Régler l\'appli', [
     '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
-    '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
+    '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '{chart-no-axes-column} **Ce que j\'utilise** : {settings}, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
     '{megaphone} **Période de test** : {settings}, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
@@ -10834,6 +10935,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} **Mesurer ton pas** : {settings} → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Style de la carte.',
@@ -10843,7 +10945,6 @@ const HELP = [
     '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
-    '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
   ]],
 ];
 

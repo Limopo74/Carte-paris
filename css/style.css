@@ -1298,3 +1298,11 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 .map-btn.remark-btn { position: fixed; right: 10px; top: 68px; z-index: 810; width: 44px; height: 44px; }
 .map-btn.remark-btn[hidden] { display: none; }
 body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100vh - 122px)); }
+
+/* Mesurer mon pas (v320) : chrono, barre de progression, résultat. Échelle de la charte, chiffres de même largeur. */
+.mesure-chrono { margin: 8px 0 0; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: var(--t26); font-variant-numeric: tabular-nums; }
+.mesure-bar { height: 12px; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.mesure-bar > i { display: block; height: 100%; width: 0; background: var(--ink); }
+.mesure-mid { margin: 0; text-align: center; font-size: var(--t18); }
+.mesure-res { margin: 8px 0 0; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: var(--t26); }
+.mesure-state { margin: 0; padding: 8px 10px; border-left: 4px solid var(--ink); border-radius: var(--r); background: var(--info-bg); font-size: var(--t16); }

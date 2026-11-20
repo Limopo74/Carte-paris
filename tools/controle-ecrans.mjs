@@ -229,6 +229,10 @@ const ECRANS = {
   boutons: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Boutons de la carte' }).click(); await p.waitForTimeout(300); },
   texte: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Taille du texte' }).click(); await p.waitForTimeout(300); },
   pas: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon pas' }).click(); await p.waitForTimeout(300); },
+  // v320 : Mesurer mon pas. Position simulée précise (départ possible), puis 800 m plus au nord après 12 min 40 s (horloge simulée).
+  mesure: async (p) => { await ECRANS.pas(p); await feuille(p).locator('button[data-measure="normal"]').click(); await p.waitForSelector('#sheet button:has-text("Partir"):not([disabled])'); await p.waitForTimeout(200); },
+  mesuremarche: async (p) => { await p.clock.install(); await ECRANS.mesure(p); await feuille(p).locator('button', { hasText: 'Partir' }).click(); await p.clock.runFor(312e3); await p.context().setGeolocation({ latitude: 48.8812 + 450 / 1.3 / 111195, longitude: 2.3361, accuracy: 8 }); await p.waitForTimeout(400); },
+  mesurefin: async (p) => { await ECRANS.mesuremarche(p); await p.clock.runFor(448e3); await p.context().setGeolocation({ latitude: 48.8812 + 1005 / 1.3 / 111195, longitude: 2.3361, accuracy: 8 }); await p.waitForSelector('#sheet .mesure-res'); await p.context().setGeolocation({ latitude: 48.8812, longitude: 2.3361 }); await p.waitForTimeout(200); },
   // v214 : les trois pages de réglages souples, et Cercles rangé dans Distances et durées
   alertes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Alertes et bandeau' }).click(); await p.waitForTimeout(300); },
   fichelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Fiche d\'un lieu' }).click(); await p.waitForTimeout(300); },
