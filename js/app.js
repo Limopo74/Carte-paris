@@ -50,6 +50,7 @@ import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlot
 import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
+import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
@@ -61,7 +62,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (306)';
+const VERSION = '20 novembre 2026 (307)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1663,11 +1664,55 @@ function openSeenPhotos(from = null) {
   openSheet([ico('images'), ' Mes Vu en passant'], el('div', { class: 'stack' }, // le nombre est sous « Tout » : le titre tient sur une ligne
     all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant. + Ajouter → Vu en passant : une photo, une ligne, et elle arrive ici.'),
     tiles, subChips, grid,
-    foot(backBtn(back)),
+    foot(el('div', { class: 'row' }, backBtn(back), // v307 : exporter ce qui est affiché (tout, une catégorie, une sous-catégorie, un artiste)
+      el('button', { type: 'button', class: 'btn c-add', disabled: !photos.length, onclick: () => openSeenExport(photos, [seenPick.cat ? catOf(seenPick.cat).name : 'Tout', subsHere.find((x) => x.id === seenPick.sub)?.name].filter(Boolean).join(' · '), named('Mes Vu en passant', again)) }, ico('download'), `Exporter (${photos.length})`))),
   ), { tall: true, name: 'seen-photos', again });
   requestAnimationFrame(() => document.querySelector('#sheet .seen-tile[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
   // les vignettes arrivent une à une (96 px, faites une fois par session)
   for (const img of document.querySelectorAll('#sheet img[data-photo]')) thumbUrl(img.dataset.photo).then((u) => { if (u && img.isConnected) img.src = u; });
+}
+/** v307 (mes choix du 20 nov.) : exporter les photos affichées, en .zip : chaque photo avec sa position, sa date et ma ligne,
+ *  et un tableau. Tout se fait sur le téléphone ; le fichier part seulement là où je l'envoie, avec un rappel visible. */
+function openSeenExport(photos, label, back) {
+  const day = new Date().toISOString().slice(0, 10);
+  const canShare = (() => { try { return Boolean(navigator.canShare?.({ files: [new File(['x'], 'x.zip', { type: 'application/zip' })] })); } catch { return false; } })();
+  const build = async () => {
+    waitToast(`Préparation de ${plural(photos.length, 'photo', 'photos')}…`);
+    const dir = `vu-en-passant-${day}`;
+    const files = []; const rows = []; let lost = 0;
+    for (const [i, { id, p }] of photos.entries()) {
+      const blob = await getPhoto(id).catch(() => null);
+      if (!blob) { lost += 1; continue; }
+      const file = photoFileName(i, p.name);
+      const sub = subNameOf(state.categories, p);
+      files.push({ name: `${dir}/${file}`, bytes: jpegWithExif(new Uint8Array(await blob.arrayBuffer()), { lat: p.lat, lng: p.lng, date: p.created, text: [p.name, p.note && p.note !== p.name ? p.note : ''].filter(Boolean).join(' : ') }) });
+      rows.push({ file, name: p.name, note: p.note, at: p.created, cat: catOf(p.cat).name, sub, artist: p.artist ?? '', lists: (p.lists ?? []).map((l) => (state.lists ?? []).find((x) => x.id === l)?.name).filter(Boolean), stars: p.stars ?? 0, address: p.address ?? '', arr: p.arr, lat: p.lat, lng: p.lng });
+    }
+    files.push({ name: `${dir}/mes-vu-en-passant.csv`, bytes: csvText(rows) });
+    hideToast();
+    return { file: new File([zipStore(files)], `${dir}.zip`, { type: 'application/zip' }), n: rows.length, lost };
+  };
+  const said = (r) => (r.lost ? ` (${plural(r.lost, 'photo introuvable', 'photos introuvables')} sur ce téléphone)` : '');
+  const download = async () => {
+    const r = await build();
+    const url = URL.createObjectURL(r.file);
+    const a = el('a', { href: url, download: r.file.name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(`« ${r.file.name} » enregistré dans tes Téléchargements${said(r)}`);
+  };
+  const send = async () => {
+    const r = await build();
+    try { await navigator.share({ files: [r.file], title: 'Mes Vu en passant' }); toast(`Fichier passé à l'appli choisie : vérifie qu'il est bien parti${said(r)}.`); } catch { /* annulé */ }
+  };
+  openSheet([ico('download'), ' Exporter mes photos'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(photos.length, 'photo', 'photos')} · ${label}`),
+    el('p', { class: 'warn' }, 'Les photos gardent l\'endroit où tu les as prises : qui les reçoit le voit.'), // mon choix 10A : un rappel visible, jamais replié
+    el('p', { class: 'help' }, 'Un dossier compressé (.zip) : chaque photo avec sa date et ta ligne, et un tableau (catégorie, sous-catégorie, artiste, listes, étoiles, adresse, lien Google Maps).'),
+    el('button', { type: 'button', class: 'btn big c-add solid', onclick: download }, ico('download'), 'Télécharger'),
+    canShare ? el('button', { type: 'button', class: 'btn big c-add', onclick: send }, ico('send'), 'Envoyer (courriel, Drive…)') : null,
+    foot(backBtn(back)),
+  ), { name: 'seen-export', again: () => openSeenExport(photos, label, back) });
 }
 /** Le diaporama : la photo en grand, glisser de côté pour la suivante ; sous la photo, son nom, sa catégorie, sa date et « Voir la fiche ». */
 function openSeenSlides(photos, i, back) {
@@ -10319,6 +10364,7 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
+    '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
     '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les sous-catégories se renomment dans {settings} → Catégories et listes → la catégorie, tout en bas.',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
@@ -10449,6 +10495,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
     '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
@@ -10458,7 +10505,6 @@ const HELP = [
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
     '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
-    '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
   ]],
 ];
 
