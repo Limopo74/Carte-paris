@@ -40,27 +40,32 @@ export function searchBusStops(data, query, near, max = 15) {
 }
 
 /**
- * Rentrer en bus : les arrêts à moins de `maxM` de `here` où passe une ligne qui va jusqu'à l'arrêt maison.
- * Pour chaque ligne, seul l'arrêt le plus proche compte ; les lignes d'un même arrêt sont réunies.
- * [{ stop, d, lines: ['38', …] }], du plus proche, `max` au plus. null si l'arrêt maison n'existe plus.
+ * Rentrer en bus : les arrêts à moins de `maxM` de `here` où passe une ligne qui va jusqu'à un de mes arrêts maison.
+ * `homeKey` : une clé ou une liste de clés (v263 : jusqu'à 3 arrêts par station, dans mon ordre).
+ * Pour chaque ligne, seul l'arrêt le plus proche de moi compte, et elle mène au premier de mes arrêts où elle passe ;
+ * les lignes d'un même arrêt qui mènent au même arrêt maison sont réunies.
+ * [{ stop, d, to, lines: ['38', …] }], du plus proche, `max` au plus. null si aucun de mes arrêts n'existe plus.
  */
 export function busHome(data, here, homeKey, maxM = 600, max = 3) {
-  const home = findBusStop(data, homeKey);
-  if (!home) return null;
-  const want = new Set(home[4]);
+  const homes = [].concat(homeKey).map((k) => findBusStop(data, k)).filter(Boolean);
+  if (!homes.length) return null;
+  const homeKeys = new Set(homes.map(busKey));
+  const target = new Map(); // ligne → le premier de mes arrêts où elle passe
+  for (const h of homes) for (const li of h[4]) if (!target.has(li)) target.set(li, h);
   const best = new Map();
   for (const s of data.stops) {
-    if (busKey(s) === homeKey) continue;
+    if (homeKeys.has(busKey(s))) continue;
     const d = distanceM(here, pos(s));
     if (d > maxM) continue;
-    for (const li of s[4]) if (want.has(li) && (!best.has(li) || d < best.get(li).d)) best.set(li, { stop: s, d });
+    for (const li of s[4]) if (target.has(li) && (!best.has(li) || d < best.get(li).d)) best.set(li, { stop: s, d });
   }
   const byStop = new Map();
   for (const [li, { stop, d }] of best) {
-    const k = busKey(stop);
-    const g = byStop.get(k) ?? { stop, d, lines: [] };
+    const to = target.get(li);
+    const k = `${busKey(stop)}>${busKey(to)}`;
+    const g = byStop.get(k) ?? { stop, d, to, lines: [] };
     g.lines.push(data.lines[li]);
     byStop.set(k, g);
   }
-  return [...byStop.values()].map((g) => ({ ...g, lines: g.lines.sort(lineOrder) })).sort((a, b) => a.d - b.d).slice(0, max);
+  return [...byStop.values()].map((g) => ({ ...g, lines: g.lines.sort(lineOrder) })).sort((a, b) => a.d - b.d || a.to[2].localeCompare(b.to[2], 'fr')).slice(0, max);
 }

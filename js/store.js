@@ -228,19 +228,34 @@ export function cleanSettings(o = {}) {
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
   };
 }
-/** Mes stations (personnelles, comme mes lieux) : { id, station, label }, 10 au plus. */
+/** Mes stations (personnelles, comme mes lieux) : { id, station, label, bus?, moreBus? }, 10 au plus. */
 export const cleanMyStations = (a) => (Array.isArray(a) ? a.filter((s) => s && typeof s.station === 'string' && s.station.trim() && typeof s.id === 'string' && /^[\w-]{1,64}$/.test(s.id))
-  .map((s) => ({ id: s.id, station: s.station.trim().slice(0, 60), label: String(s.label ?? '').trim().slice(0, 20) || 'Ma station', ...(cleanBusRef(s.bus) ? { bus: cleanBusRef(s.bus) } : {}) })).slice(0, 10) : []);
+  .map((s) => ({ id: s.id, station: s.station.trim().slice(0, 60), label: String(s.label ?? '').trim().slice(0, 20) || 'Ma station', ...busFields([s.bus, ...(Array.isArray(s.moreBus) ? s.moreBus : [])]) })).slice(0, 10) : []);
+/** Arrêts de bus d'une station (v263) : 3 au plus. Le premier reste dans `bus` (comme avant : sauvegardes et empreinte
+ *  inchangées), les autres dans `moreBus`, sans doublon. */
+export const BUS_STOPS_MAX = 3;
+function busFields(list) {
+  const out = [];
+  for (const b of list.map(cleanBusRef)) if (b && !out.some((x) => x.n === b.n && x.c === b.c)) out.push(b);
+  const [bus, ...more] = out.slice(0, BUS_STOPS_MAX);
+  return bus ? { bus, ...(more.length ? { moreBus: more } : {}) } : {};
+}
+/** Tous les arrêts de bus d'une de mes stations, dans mon ordre : [{ n, c }]. */
+export const stationBusStops = (s) => [s?.bus, ...(s?.moreBus ?? [])].filter(Boolean);
 /** Arrêt de bus « maison » d'une de mes stations (v148) : { n: nom, c: code INSEE }, ou null. */
 export function cleanBusRef(b) {
   if (!b || typeof b !== 'object' || typeof b.n !== 'string' || !b.n.trim() || !/^\d{5}$/.test(String(b.c ?? ''))) return null;
   return { n: b.n.trim().slice(0, 60), c: String(b.c) };
 }
-/** Choisit (ou retire, avec null) l'arrêt de bus d'une de mes stations. */
-export const setMyStationBus = (state, id, bus) => ({ ...state, myStations: cleanMyStations(cleanMyStations(state.myStations).map((s) => {
+/** Choisit (ou retire, avec null) un arrêt de bus d'une de mes stations : `slot` 0 = le premier, 1 et 2 = les autres (v263) ;
+ *  un `slot` au-delà du dernier en ajoute un. Retirer le premier fait monter le suivant. */
+export const setMyStationBus = (state, id, bus, slot = 0) => ({ ...state, myStations: cleanMyStations(cleanMyStations(state.myStations).map((s) => {
   if (s.id !== id) return s;
-  const { bus: _old, ...rest } = s;
-  return cleanBusRef(bus) ? { ...rest, bus: cleanBusRef(bus) } : rest;
+  const { bus: _old, moreBus: _more, ...rest } = s;
+  const list = stationBusStops(s);
+  const i = Math.max(0, Math.min(Number(slot) || 0, list.length));
+  if (cleanBusRef(bus)) list[i] = cleanBusRef(bus); else list.splice(i, 1);
+  return { ...rest, ...busFields(list) };
 })) });
 
 export function addMyStation(state, station, label) {

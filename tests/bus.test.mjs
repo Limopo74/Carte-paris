@@ -67,3 +67,44 @@ test('mes stations gardent leur arrêt de bus, nettoyé, jusque dans la sauvegar
   const other = mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], myStations: [] }, exportJSON({ ...loadState(storage), myStations: st.myStations }), '');
   assert.deepEqual(other.state.myStations?.[0]?.bus ?? other.myStations?.[0]?.bus, { n: 'Gare du Nord', c: '75110' });
 });
+
+test('v263 : plusieurs arrêts maison, chaque ligne dit à lequel elle mène', () => {
+  // Maison : Gare du Nord (38, 39) et Rivoli (20) ; le 20 n'allait nulle part avec un seul arrêt
+  const d1 = { ...data, stops: [...data.stops, [48.8587, 2.3478, 'Pont Neuf', '75101', [0]]] }; // le 20 passe aussi près de moi
+  assert.ok(!busHome(d1, here, 'Gare du Nord|75110').some((x) => x.lines.includes('20')));
+  const r = busHome(d1, here, ['Gare du Nord|75110', 'Rivoli|75104']);
+  assert.ok(r.some((x) => x.lines.includes('20')), 'le 20 compte grâce au 2e arrêt');
+  const l38 = r.find((x) => x.lines.includes('38'));
+  assert.equal(l38.to[2], 'Gare du Nord');
+  assert.ok(r.every((x) => x.stop[2] !== 'Rivoli'), 'un de mes arrêts ne sert jamais de départ');
+  // une ligne qui passe à deux de mes arrêts mène au premier, dans mon ordre
+  const d2 = { ...data, stops: [...data.stops, [48.8700, 2.3500, 'Strasbourg', '75110', [1]]] };
+  assert.equal(busHome(d2, here, ['Strasbourg|75110', 'Gare du Nord|75110']).find((x) => x.lines.includes('38')).to[2], 'Strasbourg');
+  // un arrêt disparu n'empêche pas les autres ; tous disparus : null
+  assert.deepEqual(busHome(data, here, ['Ancien|75110', 'Gare du Nord|75110']).map((x) => x.lines), [['38'], ['39']]);
+  assert.equal(busHome(data, here, ['Ancien|75110', 'Autre|75110']), null);
+  // une seule clé, en liste ou non : même résultat qu'avant
+  assert.deepEqual(busHome(data, here, ['Gare du Nord|75110']), busHome(data, here, 'Gare du Nord|75110'));
+});
+
+test('v263 : 3 arrêts de bus au plus par station, sans doublon ; retirer le premier fait monter le suivant', async () => {
+  const { cleanMyStations, setMyStationBus, addMyStation, stationBusStops, exportJSON, mergeImport, DEFAULT_CATEGORIES } = await import('../js/store.js');
+  let st = addMyStation({ myStations: [] }, 'Nation', 'Maison');
+  const id = st.myStations[0].id;
+  st = setMyStationBus(st, id, { n: 'A', c: '75111' });
+  st = setMyStationBus(st, id, { n: 'B', c: '75111' }, 1);
+  st = setMyStationBus(st, id, { n: 'C', c: '75112' }, 2);
+  st = setMyStationBus(st, id, { n: 'D', c: '75112' }, 3);
+  assert.deepEqual(stationBusStops(st.myStations[0]).map((b) => b.n), ['A', 'B', 'C']);
+  assert.deepEqual(st.myStations[0].bus, { n: 'A', c: '75111' }, 'le premier reste dans bus (comme avant la v263)');
+  assert.deepEqual(stationBusStops(setMyStationBus(st, id, null, 0).myStations[0]).map((b) => b.n), ['B', 'C']);
+  assert.deepEqual(stationBusStops(setMyStationBus(st, id, { n: 'E', c: '75113' }, 1).myStations[0]).map((b) => b.n), ['A', 'E', 'C']);
+  assert.deepEqual(cleanMyStations([{ id: 'a', station: 'X', moreBus: [{ n: 'B', c: '75111' }] }])[0].bus, { n: 'B', c: '75111' }, 'sans premier arrêt, le suivant monte');
+  assert.deepEqual(cleanMyStations([{ id: 'a', station: 'X', bus: { n: 'A', c: '75111' }, moreBus: [{ n: 'A', c: '75111' }, { n: 'B', c: 'x' }] }])[0], { id: 'a', station: 'X', label: 'Ma station', bus: { n: 'A', c: '75111' } });
+  // une station avec un seul arrêt s'écrit exactement comme avant (sauvegardes d'avant inchangées)
+  const one = addMyStation({ myStations: [] }, 'Opéra', 'Travail');
+  assert.deepEqual(Object.keys(setMyStationBus(one, one.myStations[0].id, { n: 'A', c: '75109' }).myStations[0]).sort(), ['bus', 'id', 'label', 'station']);
+  // la sauvegarde garde les 3
+  const other = mergeImport({ points: [], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [], myStations: [] }, exportJSON({ points: [], categories: DEFAULT_CATEGORIES, lists: [], myStations: st.myStations }), '');
+  assert.deepEqual(stationBusStops(other.state.myStations[0]).map((b) => b.n), ['A', 'B', 'C']);
+});

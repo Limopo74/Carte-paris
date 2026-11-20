@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -60,7 +60,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (262)';
+const VERSION = '20 novembre 2026 (263)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6162,20 +6162,26 @@ async function openHomePlan(home) {
   const best = opts.reduce((a, o) => (o.plan.noMetro ? a : !a || o.plan.minutes < a.plan.minutes ? o : a), null);
   const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
   // Bus (v148) : les lignes qui vont jusqu'à mon arrêt maison, depuis un arrêt à moins de 8 min à pied
-  if (home.bus) await loadBus();
-  const busOpts = home.bus && busReady() ? busHome(busData, from, `${home.bus.n}|${home.bus.c}`, minutesToMeters(8)) : null;
+  // v263 : jusqu'à 3 arrêts par station ; chaque ligne dit à lequel elle mène quand il y en a plusieurs
+  const myStops = stationBusStops(home);
+  const several = myStops.length > 1;
+  if (myStops.length) await loadBus();
+  const busOpts = myStops.length && busReady() ? busHome(busData, from, myStops.map((b) => `${b.n}|${b.c}`), minutesToMeters(8)) : null;
+  const goneStops = busOpts ? myStops.filter((b) => !findBusStop(busData, `${b.n}|${b.c}`)) : [];
+  const busTo = several ? `tes arrêts ${home.label}` : home.bus?.n;
   const busBlock = !home.bus ? [el('p', { class: 'help tip' }, 'Pour rentrer aussi en bus : choisis ton arrêt dans Mes stations.')] : [
-    el('h3', { class: 'ring-title' }, el('span', {}, `En bus jusqu'à ${home.bus.n}`), el('span', {}, busOpts?.length ? String(busOpts.length) : '')),
+    el('h3', { class: 'ring-title' }, el('span', {}, `En bus jusqu'à ${busTo}`), el('span', {}, busOpts?.length ? String(busOpts.length) : '')),
     !busReady() ? el('p', { class: 'empty' }, 'Les arrêts de bus ne sont pas chargés : il faut du réseau une fois. Rouvre Rentrer quand tu en as.')
-      : busOpts === null ? el('p', { class: 'empty' }, 'Ton arrêt de bus n\'existe plus dans la liste : choisis-le à nouveau dans Mes stations.')
+      : busOpts === null ? el('p', { class: 'empty' }, several ? 'Tes arrêts de bus n\'existent plus dans la liste : choisis-les à nouveau dans Mes stations.' : 'Ton arrêt de bus n\'existe plus dans la liste : choisis-le à nouveau dans Mes stations.')
         : busOpts.length ? el('ul', { class: 'items' }, busOpts.map((o) => el('li', { class: 'item' },
           el('button', { type: 'button', class: 'item-main', onclick: () => openCompass({ name: `Arrêt ${o.stop[2]}`, lat: o.stop[0], lng: o.stop[1] }), 'aria-label': `Boussole vers l'arrêt ${o.stop[2]}, lignes ${o.lines.join(', ')}` },
             el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bus', { size: 18 })),
             el('span', { class: 'item-text' },
               el('span', { class: 'item-name' }, o.stop[2]),
               el('span', { class: 'lines' }, o.lines.map((l) => el('span', { class: 'bus-line' }, l))),
-              el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop)].filter(Boolean).join(' · ')))))))
-          : el('p', { class: 'empty' }, `Aucun bus vers ${home.bus.n} à moins de 8 min à pied.`),
+              el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop), several ? `jusqu'à ${o.to[2]}` : ''].filter(Boolean).join(' · ')))))))
+          : el('p', { class: 'empty' }, `Aucun bus vers ${busTo} à moins de 8 min à pied.`),
+    ...goneStops.map((b) => el('p', { class: 'help' }, `L'arrêt ${b.n} n'existe plus dans la liste : choisis-le à nouveau dans Mes stations.`)),
   ];
   await loadGares();
   const railNear = garesNear(gares, from, 1500, 1)[0];
@@ -6197,7 +6203,7 @@ async function openHomePlan(home) {
     best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     ...busBlock,
     el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
-    el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ' Bus : les lignes qui vont jusqu\'à ton arrêt. Touche un arrêt pour la boussole.' : ''}`),
+    el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour la boussole.` : ''}`),
     trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
@@ -6217,45 +6223,52 @@ function pickMyStation(thenGo = false) {
   }, thenGo ? null : { name: 'Mes stations', fn: openMyStations });
   toast('Choisis ta station (Maison, Travail…)');
 }
-/** Choisir l'arrêt de bus « maison » d'une de mes stations (v148) : d'abord les plus proches de la station, ou par son nom. */
-async function pickBusStop(s, query = '') {
+/** Choisir un arrêt de bus « maison » d'une de mes stations (v148) : d'abord les plus proches de la station, ou par son nom.
+ *  v263 : `slot` 0 = le premier arrêt, 1 et 2 = les autres (« Ajouter un arrêt de bus »). */
+async function pickBusStop(s, query = '', slot = 0) {
   await Promise.all([loadBus(), stationsReady]);
   if (!busReady()) { toast('Les arrêts de bus ne sont pas chargés : il faut du réseau une fois. Réessaie quand tu en as.', true); return; }
   const st = stationByName(s.station);
+  const mine = stationBusStops(s);
+  const current = mine[slot] ?? null;
   const results = el('ul', { class: 'items' });
   const input = el('input', { type: 'search', value: query, placeholder: 'Nom de l\'arrêt (ex. Gare du Nord)', 'aria-label': 'Chercher un arrêt de bus', enterkeyhint: 'search', autocomplete: 'off' });
   const draw = () => {
     const found = searchBusStops(busData, input.value, st ?? null, 12);
     fill(results, ...(found.length ? found.map(({ stop, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => {
-        state = setMyStationBus(state, s.id, { n: stop[2], c: stop[3] }); persist(); toast(`${s.label} : arrêt ${stop[2]}`); openMyStations();
+        if (mine.some((b, i) => i !== slot && b.n === stop[2] && b.c === stop[3])) { toast(`L'arrêt ${stop[2]} est déjà choisi pour ${s.label}.`, true); return; }
+        state = setMyStationBus(state, s.id, { n: stop[2], c: stop[3] }, slot); persist(); toast(`${s.label} : arrêt ${stop[2]}`); openMyStations();
       } },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bus', { size: 18 })),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, stop[2]),
           el('span', { class: 'lines' }, busLines(busData, stop).slice(0, 8).map((l) => el('span', { class: 'bus-line' }, l))),
-          el('span', { class: 'item-sub' }, [busPlace(busData, stop), st && !input.value.trim() ? `${fmtDist(d)} de ${st.n}` : ''].filter(Boolean).join(' · '))))))
+          el('span', { class: 'item-sub' }, [busPlace(busData, stop), st && !input.value.trim() ? `${fmtDist(d)} de ${st.n}` : '', mine.some((b) => b.n === stop[2] && b.c === stop[3]) ? 'déjà choisi' : ''].filter(Boolean).join(' · '))))))
       : [el('li', { class: 'empty' }, 'Aucun arrêt de ce nom à Paris et en petite couronne.')]));
   };
   input.addEventListener('input', draw);
   draw();
   openSheet([ico('bus'), ` Arrêt de bus · ${s.label}`], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, st ? `Les arrêts les plus proches de ${st.n}, ou cherche par le nom. Rentrer te dira quelles lignes y vont.` : 'Cherche ton arrêt par son nom.'),
+    el('p', { class: 'help' }, slot > 0 && !current ? 'Un autre arrêt près de chez toi : Rentrer comptera aussi ses lignes.' : st ? `Les arrêts les plus proches de ${st.n}, ou cherche par le nom. Rentrer te dira quelles lignes y vont.` : 'Cherche ton arrêt par son nom.'),
     el('label', { class: 'field' }, 'Arrêt', input),
     results,
-    s.bus ? el('button', { type: 'button', class: 'btn danger', onclick: () => { state = setMyStationBus(state, s.id, null); persist(); toast('Arrêt de bus retiré'); openMyStations(); } }, ico('trash-2'), `Retirer l'arrêt ${s.bus.n}`) : null,
+    current ? el('button', { type: 'button', class: 'btn danger', onclick: () => { state = setMyStationBus(state, s.id, null, slot); persist(); toast('Arrêt de bus retiré'); openMyStations(); } }, ico('trash-2'), `Retirer l'arrêt ${current.n}`) : null,
     foot(el('button', { type: 'button', class: 'btn', onclick: openMyStations }, '← Mes stations')),
-  ), { tall: true, name: `busstop:${s.id}`, again: () => pickBusStop(s, input.value) });
+  ), { tall: true, name: `busstop:${s.id}:${slot}`, again: () => pickBusStop(s, input.value, slot) });
 }
 function openMyStations() {
   const mine = state.myStations ?? [];
   openSheet([ico('house'), ' Mes stations'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Tes stations à toi (Maison, Travail…). Rentrer te dit quel métro prendre pour y aller, et quel bus si tu choisis ton arrêt. Elles partent dans ta sauvegarde, pas dans les lieux partagés.'),
+    el('p', { class: 'help tip' }, 'Tes stations à toi (Maison, Travail…). Rentrer te dit quel métro prendre pour y aller, et quel bus si tu choisis tes arrêts (3 au plus par station). Elles partent dans ta sauvegarde, pas dans les lieux partagés.'),
     mine.length ? el('div', {}, mine.map((s) => el('div', { class: 'cat-row mystation-row' },
       el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('house', { size: 18 })),
       el('span', { class: 'cat-name' }, s.label, el('br'), el('span', { class: 'cat-count' }, `Ⓜ ${s.station}`)),
       el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Retirer ${s.label}`, onclick: () => { state = removeMyStation(state, s.id); persist(); openMyStations(); } }, ico('x')),
-      el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s) }, ico('bus'), s.bus ? `Arrêt de bus : ${s.bus.n}` : 'Choisir mon arrêt de bus')))) : null,
+      el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s) }, ico('bus'), s.bus ? `Arrêt de bus : ${s.bus.n}` : 'Choisir mon arrêt de bus'),
+      // v263 : les autres arrêts près de chez moi, sous le premier ; 3 au plus
+      ...(s.moreBus ?? []).map((b, i) => el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s, '', i + 1) }, ico('bus'), `Arrêt de bus : ${b.n}`)),
+      s.bus && stationBusStops(s).length < BUS_STOPS_MAX ? el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s, '', stationBusStops(s).length) }, ico('plus'), 'Ajouter un arrêt de bus') : null))) : null,
     el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false) }, ico('plus'), 'Ajouter une station'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'mystations', again: openMyStations });
@@ -9784,7 +9797,7 @@ const HELP = [
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
     '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi.',
-    '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus. Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min.',
+    '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Masqué, et l\'ordre.',
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
@@ -10005,6 +10018,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
     '{check} TTB, seulement les adresses vérifiées : {settings} → TTB → Voir la liste (ou un appui long sur le bouton TTB), puis l\'interrupteur « **Seulement les vérifiées** », en haut. La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
     '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
@@ -10014,7 +10028,6 @@ const HELP = [
     '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
-    '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
   ]],
 ];
 
