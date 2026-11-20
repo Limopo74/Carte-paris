@@ -402,7 +402,9 @@ ol.items { padding: 0; }
 #sheetTitle .fiche-kick .stale { color: var(--danger); } /* v274 : « a pu fermer », couleur de « fermé » (charte § 2), dans le surtitre : rien ne bouge */
 .fiche-photo { margin: 0; }
 .fiche-photo button { display: block; width: 100%; height: 150px; padding: 0; border: 0; border-radius: var(--r); overflow: hidden; background: var(--soft); }
+.fiche-photo.photo-large button { height: auto; aspect-ratio: 4 / 3; } /* v326 : la photo d'une note prise en passant */
 .fiche-photo-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fiche-shot { margin: 0; }
 .fiche-photo figcaption { margin-top: 4px; font-size: var(--t13); color: var(--muted); }
 /* v238 (mes choix 1A 2A) : en tête de la page d'un passage, ma photo en bandeau de 100 px ; sans photo, le cadre « Prendre une photo »,
    même hauteur que la photo et sa légende : Y aller et les boutons restent à la même place, et visibles à 360 × 740 */

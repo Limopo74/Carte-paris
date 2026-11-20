@@ -65,7 +65,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (325)';
+const VERSION = '20 novembre 2026 (326)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -2604,6 +2604,9 @@ function openDetail(id, back = null) {
   const d = pos ? distanceM(pos, p) : null;
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
   const here = named('Fiche', () => openDetail(p.id, back));
+  // v326 (mes choix 1B 2A 3A du 20 nov.) : une photo prise en passant a sa propre fiche : Y aller, la photo en grand, sa date,
+  // ma ligne, puis « Cette photo ». Sans photo (toutes retirées), la fiche d'un lieu revient.
+  const photoFiche = isPass(p) && (p.photos?.length ?? 0) > 0;
 
   // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
@@ -2679,7 +2682,16 @@ function openDetail(id, back = null) {
     row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
     // v310 (mon choix 1A du 20 nov.) : une photo prise en passant devient une impression d'un de mes lieux
     isPass(p) && !p.owner && p.photos?.length ? row('link', 'Rattacher à un de mes lieux', 'Elle devient une impression de ce lieu', () => openAttach(p, named(p.name, () => openDetail(id, back)))) : null,
+    // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
+    photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
+    photoFiche ? row('camera', 'Ajouter une photo', `${MAX_PHOTOS} au plus`, () => quickPhoto(p, back)) : null,
     row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
+  /** v326 (mon choix 5A) : revue sur place : un passage aujourd'hui, comme « Elle est de nouveau là », sans rien d'autre. */
+  const seenAgain = () => {
+    const at = Date.now();
+    p.passages = addPassage(p.passages, { at }); persist(); openDetail(id, back);
+    toast('Notée revue aujourd\'hui', false, { label: 'Annuler', fn: () => { p.passages = (p.passages ?? []).filter((x) => x.at !== at); persist(); openDetail(id, back); } });
+  };
   const askDelete = () => fill(tidy,
     el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' },
@@ -2700,7 +2712,7 @@ function openDetail(id, back = null) {
       foot(backBtn(named(p.name, () => openDetail(id, back)))),
     ), { name: `rangement:${id}`, again: openTidy });
   };
-  const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', isPass(p) && !p.owner && p.photos?.length ? 'rattacher' : '', 'supprimer'].filter(Boolean).join(', ')
+  const tidySub = photoFiche ? `${p.gone ? 'De nouveau là' : 'Disparue ou recouverte, revue'}, photo, déplacer, supprimer` : [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', isPass(p) && !p.owner && p.photos?.length ? 'rattacher' : '', 'supprimer'].filter(Boolean).join(', ')
     .replace(/^./, (c) => c.toUpperCase()).replace(/, F/, ', f');
 
   const rubName = placeRub(p) || subNameOf(state.categories, p); /* v288 : le genre, comme dans TTB ; v305 : ou la sous-catégorie d'une photo prise en passant */
@@ -2709,7 +2721,36 @@ function openDetail(id, back = null) {
   // v274 : « a pu fermer » dans le surtitre : rien ne bouge sur la fiche ; la date d'ajout et de visite est en bas
   const staleKick = stale ? el('span', { class: 'stale', title: staleText(stale) }, ' · a pu fermer') : null;
   const kickEl = el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, staleKick);
-  openSheet([kickEl, favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}${stale ? `, ${staleText(stale)}` : ''}`)], el('div', { class: 'stack detail' },
+  const fitKick = () => { // v288 ; v326 : aussi pour la fiche d'une photo prise en passant (sa sous-catégorie)
+    if (!rubName || !kickEl.isConnected) return;
+    const h = kickEl.offsetHeight;
+    kickEl.firstChild.textContent = kickShort;
+    if (h <= kickEl.offsetHeight) kickEl.firstChild.textContent = kick;
+  };
+  const title = [kickEl, favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}${stale ? `, ${staleText(stale)}` : ''}`)];
+  if (photoFiche) {
+    const shot = shotOf(p);
+    openSheet(title, el('div', { class: 'stack detail' },
+      goBox.firstChild, // Y aller seul, à sa place habituelle ; Boussole, Métro et Photo ne servent pas à une photo
+      photoLarge(p),
+      el('p', { class: 'muted fiche-shot' }, shot ? `Vue le ${fullDate(shot).replace(/^./, (c) => c.toLowerCase())}` : 'Date de la photo inconnue'),
+      p.gone ? el('p', {}, ico('eye-off'), ` Disparue ou recouverte (notée le ${formatDate(p.gone)})`) : null,
+      p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
+      ...passageSection(p, here), // ses impressions, s'il y en a (rien sinon)
+      el('h3', { class: 'fiche-sec' }, 'Cette photo'),
+      el('div', { class: 'fiche-toc' },
+        p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
+        row('pencil', 'Modifier', 'Nom, catégorie, sous-catégorie, commentaire', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
+        !p.owner ? row('link', 'Rattacher à un de mes lieux', 'Elle devient une impression de ce lieu', () => openAttach(p, named(p.name, () => openDetail(id, back)))) : null,
+        row('share-2', 'Partager', 'Envoyer à un proche', () => (p.note ? openSharePlace(p, back) : sharePlace(p))),
+        row('wrench', 'Rangement', tidySub, openTidy)),
+      back ? backBtn(back) : null,
+    ), { name: `detail:${id}`, again: () => openDetail(id, back) });
+    fitKick();
+    if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+    return;
+  }
+  openSheet(title, el('div', { class: 'stack detail' },
     goBox,
     // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
     facts2,
@@ -2742,11 +2783,7 @@ function openDetail(id, back = null) {
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   // v288 : le genre ne tient pas sur la ligne (grand texte, nom de catégorie long, « a pu fermer ») : on le retire de la ligne
   // plutôt que de la couper en deux, ce qui ferait descendre Y aller. Il reste dans Modifier et pour le lecteur d'écran.
-  if (rubName && kickEl.isConnected) {
-    const h = kickEl.offsetHeight;
-    kickEl.firstChild.textContent = kickShort;
-    if (h <= kickEl.offsetHeight) kickEl.firstChild.textContent = kick;
-  }
+  fitKick();
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
 }
 
@@ -2802,6 +2839,16 @@ function photoWide(p, back, open = null) {
   return el('figure', { class: 'fiche-photo' },
     el('button', { type: 'button', onclick: open ?? (() => openPhotos(p, back)), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos` : 'Voir la photo' }, img),
     el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
+}
+
+/** v326 (mon choix 2A) : la photo d'une note prise en passant, en 4:3 sur toute la largeur ; un appui l'ouvre en grand. */
+function photoLarge(p) {
+  const photos = p.photos ?? [];
+  const img = el('img', { alt: '', class: 'fiche-photo-img' });
+  photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
+  return el('figure', { class: 'fiche-photo photo-large' },
+    el('button', { type: 'button', onclick: () => viewPhoto(photos, 0, p.name), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos en grand` : 'Voir la photo en grand' }, img),
+    photos.length > 1 ? el('figcaption', {}, `Ta photo · 1 sur ${photos.length}`) : null);
 }
 
 /** v238 : le bandeau de ma photo en tête de la page d'un passage (100 px, classe `spot-photo`) ; un appui l'ouvre en grand. */
@@ -10829,7 +10876,7 @@ const HELP = [
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
     '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Autres réglages → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
-    '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant → Rangement) : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
+    '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant, sous « Cette photo ») : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
     '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
     '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Autres réglages → Vu en passant → « Après la photo ».',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
@@ -10837,7 +10884,7 @@ const HELP = [
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
     '{eye} **A pu fermer** : un resto ou un commerce sans nouvelles depuis plus d\'un an (ni visite, ni impression, ni horaires notés) : sa fiche le dit en haut, à côté de sa catégorie (« Restos · 9e · a pu fermer »). Vu ouvert sur place : Rangement → « Toujours ouvert ». Fermé : « Fermé définitivement ». La date d\'ajout du lieu est en bas de sa fiche.',
-    '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
+    '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu (ou Cette photo) → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
@@ -10962,6 +11009,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
     '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
@@ -10971,7 +11019,6 @@ const HELP = [
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Autres réglages → Style de la carte. C\'est le fond d\'un téléphone neuf.',
     '{hand} **Essayer le premier lancement** : {settings} → Autres réglages, tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
     '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
-    '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings} → Autres réglages, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
   ]],
 ];
 
