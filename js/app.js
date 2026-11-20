@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (271)';
+const VERSION = '20 novembre 2026 (272)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -828,11 +828,11 @@ function chipItems(chip = null, catChip = null) {
       } },
     { key: 'lines', name: 'Lignes de métro et RER', icon: ico('lines'), active: Boolean(state.showLines), act: toggleLines,
       make: () => chip(ico('lines'), Boolean(state.showLines), toggleLines, { class: 'lines', aria: 'Lignes de métro et RER' }) },
-    { key: 'velib', name: 'Vélib\'', icon: ico('bike'), active: velibOn, act: toggleVelib,
+    { key: 'velib', name: 'Vélib\' sur la carte', icon: ico('bike'), active: velibOn, act: toggleVelib,
       make: () => chip(ico('bike'), velibOn, toggleVelib, { class: 'velib', aria: 'Vélib\' : les stations sur la carte' }) },
     { key: 'buslines', name: 'Mes lignes de bus', icon: ico('bus'), active: busOn(), act: toggleBusLines,
       make: () => chip(ico('bus'), busOn(), toggleBusLines, { class: 'buslines', aria: 'Mes lignes de bus sur la carte' }) },
-    { key: 'pratique', name: 'Fontaines et toilettes', icon: ico('droplets'), active: Boolean(state.showPratique), act: togglePrat,
+    { key: 'pratique', name: 'Fontaines et WC sur la carte', icon: ico('droplets'), active: Boolean(state.showPratique), act: togglePrat,
       make: () => chip(ico('droplets'), Boolean(state.showPratique), togglePrat, { class: 'pratique', aria: 'Fontaines et toilettes sur la carte' }) },
     { key: 'passages', name: 'Passages couverts', icon: ico('door-open'), active: Boolean(state.showPassages), act: toggleArc,
       make: () => chip(ico('door-open'), Boolean(state.showPassages), toggleArc, { class: 'pratique', aria: 'Passages couverts sur la carte' }) },
@@ -9881,13 +9881,13 @@ const HELP = [
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
-    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
+    '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\' sur la carte, Mes lignes de bus, Fontaines et WC sur la carte, Passages couverts, Pistes à vélo, Jardins publics. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué, et l\'ordre par ↑ ↓ (Tout et Filtres restent en tête, tes catégories viennent après). Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
-    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\', Rentrer, Circuits et Note du jour.',
+    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC et Vélib\' (les plus proches de toi), Rentrer, Circuits et Note du jour.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
@@ -10027,7 +10027,7 @@ const HELP = [
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
-    '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
+    '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
@@ -10115,6 +10115,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
     '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
@@ -10124,7 +10125,6 @@ const HELP = [
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
     '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
-    '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
   ]],
 ];
 

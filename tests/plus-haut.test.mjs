@@ -108,3 +108,15 @@ test('Plus du haut (v261) : Jardins publics arrive sous ⋯ Plus une seule fois,
   assert.equal(back.showJardins, true);
   assert.deepEqual(cleanChips(['jardins']), ['jardins']);
 });
+
+test('Plus du haut (v272) : aucun bouton du haut ne porte le nom d\'un bouton de la colonne de droite (Vélib\', Fontaine et WC font autre chose)', () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const unq = (t) => t.replace(/\\'/g, '\'');
+  const chips = [...src.slice(src.indexOf('function chipItems('), src.indexOf('function openChipsMore(')).matchAll(/\{ key: '(\w+)', name: '((?:\\'|[^'])*)'/g)].map((m) => [m[1], unq(m[2])]);
+  const box = src.slice(src.indexOf('const TOOL_INFO = {'), src.indexOf('};', src.indexOf('const TOOL_INFO = {')));
+  const tools = [...box.matchAll(/short: '((?:\\'|[^'])*)'/g)].map((m) => unq(m[1]).toLowerCase());
+  assert.ok(chips.length >= 12 && tools.length >= 10, 'noms relus dans app.js');
+  for (const [key, name] of chips) assert.ok(!tools.includes(name.toLowerCase()), `${key} : « ${name} » est aussi un bouton de la colonne`);
+  assert.equal(Object.fromEntries(chips).velib, 'Vélib\' sur la carte');
+  assert.equal(Object.fromEntries(chips).pratique, 'Fontaines et WC sur la carte');
+});
