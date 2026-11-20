@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, subNameOf, SUB_MAX, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -51,7 +51,7 @@ import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageRe
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
-import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
+import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
@@ -62,7 +62,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (309)';
+const VERSION = '20 novembre 2026 (310)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1624,25 +1624,37 @@ function openAddChoice() {
    Street art, une à la fois ; dessous, la mosaïque, les plus récentes d'abord ; un appui ouvre le diaporama en grand.
    Exception de la charte (§ 7 bis, mon choix du 20 nov.) : des photos dans une page de liste. */
 let seenPick = { cat: '', sub: '' }; // le choix du haut, le temps de la session
-/** Mes lieux pris en passant qui ont une photo, du plus récent au plus ancien. */
-const seenPlaces = () => state.points.filter((p) => !p.owner && isPass(p) && p.photos?.length).sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
-const seenPhotoCount = () => seenPlaces().reduce((n, p) => n + p.photos.length, 0);
+/** Date d'une note prise en passant : celle de la photo de la galerie si connue (0 : inconnue → null), sinon sa création. */
+const shotOf = (p) => (p.shot > 0 ? p.shot : p.shot === 0 ? null : p.created ?? null);
+/** v310 : chaque photo prise en passant : celles de mes notes Vu en passant, et celles rangées en impression d'un de mes lieux
+ *  (« Ajouter à », « Rattacher »). { id, p, at, text, inPass } ; les plus récentes d'abord. */
+function seenItems() {
+  const out = [];
+  for (const p of state.points) {
+    if (p.owner) continue;
+    if (isPass(p)) for (const id of p.photos ?? []) out.push({ id, p, at: shotOf(p), text: p.note ?? '', inPass: false });
+    for (const x of p.passages ?? []) if (x.pass && x.photo) out.push({ id: x.photo, p, at: x.at, text: x.text ?? '', inPass: true });
+  }
+  return out.sort((a, b) => (b.at ?? b.p.created ?? 0) - (a.at ?? a.p.created ?? 0));
+}
+const seenPhotoCount = () => seenItems().length;
+/** « Vendredi 20 novembre 2026 à 17 h 15 » : la date complète d'une photo. */
+const fullDate = (t) => { const d = new Date(t); const s = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return typo(`${s[0].toUpperCase()}${s.slice(1)} à ${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`); };
 function openSeenPhotos(from = null) {
   track('Mes Vu en passant');
   const back = from ?? named('Ajouter', openAddChoice);
   const again = () => openSeenPhotos(back);
-  const all = seenPlaces();
+  const all = seenItems();
   const byCat = new Map();
-  for (const p of all) { if (!byCat.has(p.cat)) byCat.set(p.cat, []); byCat.get(p.cat).push(p); }
+  for (const x of all) { if (!byCat.has(x.p.cat)) byCat.set(x.p.cat, []); byCat.get(x.p.cat).push(x); }
   if (seenPick.cat && !byCat.has(seenPick.cat)) seenPick = { cat: '', sub: '' };
   const inCat = seenPick.cat ? byCat.get(seenPick.cat) : all;
   const street = Boolean(seenPick.cat) && isStreetCat(catOf(seenPick.cat));
   const subsHere = !seenPick.cat ? [] : street
-    ? [...new Set(inCat.map((p) => p.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr')).map((a) => ({ id: `a:${a}`, name: a }))
-    : (catOf(seenPick.cat).subs ?? []).filter((x) => inCat.some((p) => p.sub === x.id));
+    ? [...new Set(inCat.map((x) => x.p.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr')).map((a) => ({ id: `a:${a}`, name: a }))
+    : (catOf(seenPick.cat).subs ?? []).filter((s) => inCat.some((x) => x.p.sub === s.id));
   if (seenPick.sub && !subsHere.some((x) => x.id === seenPick.sub)) seenPick.sub = '';
-  const shown = !seenPick.sub ? inCat : inCat.filter((p) => (seenPick.sub.startsWith('a:') ? p.artist === seenPick.sub.slice(2) : p.sub === seenPick.sub));
-  const photos = shown.flatMap((p) => p.photos.map((id) => ({ id, p })));
+  const photos = !seenPick.sub ? inCat : inCat.filter((x) => (seenPick.sub.startsWith('a:') ? x.p.artist === seenPick.sub.slice(2) : x.p.sub === seenPick.sub));
   const pick = (cat, sub = '') => { seenPick = { cat, sub }; again(); };
   const tile = (label, n, photoId, pressed, onclick, color = null) => {
     const b = el('button', { type: 'button', class: 'seen-tile', 'aria-pressed': String(pressed), onclick, 'aria-label': `${label}, ${plural(n, 'photo', 'photos')}` },
@@ -1651,10 +1663,9 @@ function openSeenPhotos(from = null) {
     if (color) b.style.setProperty('--tile', color);
     return b;
   };
-  const count = (list) => list.reduce((n, p) => n + p.photos.length, 0);
   const tiles = all.length ? el('div', { class: 'seen-tiles', role: 'group', 'aria-label': 'Catégories' },
-    tile('Tout', count(all), all[0].photos[0], !seenPick.cat, () => pick('')),
-    ...[...byCat].map(([id, list]) => tile(catOf(id).name, count(list), list[0].photos[0], seenPick.cat === id, () => pick(seenPick.cat === id ? '' : id), catOf(id).color))) : null;
+    tile('Tout', all.length, all[0].id, !seenPick.cat, () => pick('')),
+    ...[...byCat].map(([id, list]) => tile(catOf(id).name, list.length, list[0].id, seenPick.cat === id, () => pick(seenPick.cat === id ? '' : id), catOf(id).color))) : null;
   const subChips = subsHere.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': street ? 'Artistes' : 'Sous-catégories' },
     el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!seenPick.sub), onclick: () => pick(seenPick.cat) }, street ? 'Tous les artistes' : 'Toutes'),
     ...subsHere.map((x) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(seenPick.sub === x.id), onclick: () => pick(seenPick.cat, seenPick.sub === x.id ? '' : x.id) }, x.name))) : null;
@@ -1680,13 +1691,14 @@ function openSeenExport(photos, label, back) {
     waitToast(`Préparation de ${plural(photos.length, 'photo', 'photos')}…`);
     const dir = `vu-en-passant-${day}`;
     const files = []; const rows = []; let lost = 0;
-    for (const [i, { id, p }] of photos.entries()) {
+    for (const [i, { id, p, at, text, inPass }] of photos.entries()) {
       const blob = await getPhoto(id).catch(() => null);
       if (!blob) { lost += 1; continue; }
       const file = photoFileName(i, p.name);
       const sub = subNameOf(state.categories, p);
-      files.push({ name: `${dir}/${file}`, bytes: jpegWithExif(new Uint8Array(await blob.arrayBuffer()), { lat: p.lat, lng: p.lng, date: p.created, text: [p.name, p.note && p.note !== p.name ? p.note : ''].filter(Boolean).join(' : ') }) });
-      rows.push({ file, name: p.name, note: p.note, at: p.created, cat: catOf(p.cat).name, sub, artist: p.artist ?? '', lists: (p.lists ?? []).map((l) => (state.lists ?? []).find((x) => x.id === l)?.name).filter(Boolean), stars: p.stars ?? 0, address: p.address ?? '', arr: p.arr, lat: p.lat, lng: p.lng });
+      const line = inPass ? text : p.note;
+      files.push({ name: `${dir}/${file}`, bytes: jpegWithExif(new Uint8Array(await blob.arrayBuffer()), { lat: p.lat, lng: p.lng, date: at, text: [p.name, line && line !== p.name ? line : ''].filter(Boolean).join(' : ') }) });
+      rows.push({ file, name: p.name, note: line, at, cat: catOf(p.cat).name, sub, artist: p.artist ?? '', lists: (p.lists ?? []).map((l) => (state.lists ?? []).find((x) => x.id === l)?.name).filter(Boolean), stars: p.stars ?? 0, address: p.address ?? '', arr: p.arr, lat: p.lat, lng: p.lng });
     }
     files.push({ name: `${dir}/mes-vu-en-passant.csv`, bytes: csvText(rows) });
     hideToast();
@@ -1714,9 +1726,51 @@ function openSeenExport(photos, label, back) {
     foot(backBtn(back)),
   ), { name: 'seen-export', again: () => openSeenExport(photos, label, back) });
 }
+/** v310 (mon choix 1A du 20 nov.) : rattacher une note prise en passant à un de mes lieux. Ses photos et sa ligne deviennent
+ *  des impressions de ce lieu (marquées « prises en passant » : elles restent dans Mes Vu en passant, mon choix 2A), puis la
+ *  note disparaît ; « Annuler » remet tout. Mes lieux les plus proches d'abord, et la loupe. */
+function openAttach(note, back) {
+  const others = state.points.filter((x) => !x.owner && !isPass(x) && x.id !== note.id)
+    .map((x) => ({ x, d: distanceM(note, x) })).sort((a, b) => a.d - b.d);
+  const input = el('input', { type: 'search', placeholder: 'Chercher dans mes lieux', 'aria-label': 'Chercher dans mes lieux', autocomplete: 'off', enterkeyhint: 'search' });
+  const list = el('div', { class: 'menu' });
+  const attach = (target) => {
+    const before = { note: JSON.parse(JSON.stringify(note)), passages: JSON.parse(JSON.stringify(target.passages ?? [])) };
+    const at = shotOf(note) ?? Date.now();
+    let passages = target.passages;
+    note.photos.forEach((ph, i) => { passages = addPassage(passages, { at, photo: ph, text: i === 0 ? note.note : undefined, stars: i === 0 && note.stars ? note.stars : undefined, pass: true }); });
+    for (const x of note.passages ?? []) passages = addPassage(passages, { ...x, pass: x.photo ? true : undefined }); // ses impressions la suivent
+    target.passages = passages;
+    state.points = state.points.filter((x) => x.id !== note.id);
+    persist(); refresh();
+    openDetail(target.id, named('Mes Vu en passant', () => openSeenPhotos()));
+    toast(`Rattachée à « ${target.name} »`, false, { label: 'Annuler', fn: () => {
+      target.passages = before.passages; state.points.push(before.note); persist(); refresh(); openDetail(before.note.id, back);
+      toast('Remise comme avant');
+    } });
+  };
+  const draw = () => {
+    const q = foldName(input.value.trim());
+    const shown = (q ? others.filter(({ x }) => foldName(x.name).includes(q) || foldName(x.address ?? '').includes(q)) : others).slice(0, 40);
+    fill(list, shown.length ? shown.map(({ x, d }) => el('button', { type: 'button', class: 'menu-row', onclick: () => attach(x) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, catDot(x.cat)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, `${catOf(x.cat).name} · ${fmtDist(d)}`)),
+      ico('chevron-right')))
+      : el('p', { class: 'empty' }, q ? 'Aucun de tes lieux ne porte ce nom.' : 'Tu n\'as encore aucun lieu où la ranger.'));
+  };
+  input.addEventListener('input', draw);
+  draw();
+  openSheet([ico('link'), ' Rattacher à…'], el('div', { class: 'stack' },
+    el('p', { class: 'help tip' }, `« ${note.name} » : sa photo et ta ligne deviennent une impression du lieu choisi. Elle reste dans Mes Vu en passant.`),
+    input, list, foot(backBtn(back))), { tall: true, name: 'attach', again: () => openAttach(note, back) });
+}
 /** Le diaporama : la photo en grand, glisser de côté pour la suivante ; sous la photo, son nom, sa catégorie, sa date et « Voir la fiche ». */
 function openSeenSlides(photos, i, back) {
-  const caps = photos.map(({ p }) => [p.name, [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '), shortDate(p.created)].filter(Boolean).join('\n'));
+  // v310 : ma ligne (ou, rangée dans un de mes lieux, son nom et ma ligne) ; catégorie · sous-catégorie ; la date complète.
+  // Le nom tout fait « Vu le 20 nov. » n'est plus répété : la date complète le dit.
+  const caps = photos.map(({ p, at, text, inPass }) => [inPass ? [p.name, text].filter(Boolean).join(' : ') : text,
+    [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '),
+    at ? fullDate(at) : 'Date de la photo inconnue'].filter(Boolean).join('\n'));
   viewPhoto(photos.map((x) => x.id), i, 'Vu en passant', { caps, open: (k) => openDetail(photos[k].p.id, back) });
 }
 
@@ -1836,7 +1890,7 @@ function openSeenForm(blob, where, back = null) {
     try { await putPhoto(id, blob); } catch { busy = false; toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
     const place = target !== 'new' ? state.points.find((x) => x.id === target) : null;
     if (place) { // un passage de cette adresse, avec la photo et la ligne
-      place.passages = addPassage(place.passages, { at: Date.now(), text: line.value, photo: id, stars: stars || undefined });
+      place.passages = addPassage(place.passages, { at: at.shot > 0 ? at.shot : Date.now(), text: line.value, photo: id, stars: stars || undefined, pass: true }); // v310 : prise en passant, elle reste dans Mes Vu en passant
       if (!place.done) setDone(place, true);
       persist(); renderMarkers();
       URL.revokeObjectURL(url);
@@ -1852,6 +1906,7 @@ function openSeenForm(blob, where, back = null) {
     state.seenLast = { cat, sub: seenSub }; // v308 : pour « La dernière »
     const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
     np.photos = [id];
+    if (at.fromPhoto) np.shot = at.shot ?? 0; // v310 : la date de la photo de la galerie (0 : inconnue)
     np.pass = true; // v305 : pris en passant, même rangé dans Culture : le diaporama, Filtres → Vu en passant et la photo sur la carte le suivent
     if (!isStreet && sub) np.sub = sub;
     if (isStreet && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
@@ -2491,6 +2546,8 @@ function openDetail(id, back = null) {
       : vanish ? row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true))
         : row('store', 'Fermé définitivement', 'Constaté sur place ou dans Google Maps ; gris sur la carte', () => setGone(true)),
     row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
+    // v310 (mon choix 1A du 20 nov.) : une photo prise en passant devient une impression d'un de mes lieux
+    isPass(p) && !p.owner && p.photos?.length ? row('link', 'Rattacher à un de mes lieux', 'Elle devient une impression de ce lieu', () => openAttach(p, named(p.name, () => openDetail(id, back)))) : null,
     row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
   const askDelete = () => fill(tidy,
     el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
@@ -2512,7 +2569,7 @@ function openDetail(id, back = null) {
       foot(backBtn(named(p.name, () => openDetail(id, back)))),
     ), { name: `rangement:${id}`, again: openTidy });
   };
-  const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].filter(Boolean).join(', ')
+  const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', isPass(p) && !p.owner && p.photos?.length ? 'rattacher' : '', 'supprimer'].filter(Boolean).join(', ')
     .replace(/^./, (c) => c.toUpperCase()).replace(/, F/, ', f');
 
   const rubName = placeRub(p) || subNameOf(state.categories, p); /* v288 : le genre, comme dans TTB ; v305 : ou la sous-catégorie d'une photo prise en passant */
@@ -6457,7 +6514,8 @@ function addFromPhoto() {
     const f = input.files?.[0]; input.remove();
     if (!f) return;
     let g = null;
-    try { g = gpsFromJpeg(await f.slice(0, 256 * 1024).arrayBuffer()); } catch { g = null; }
+    let shot = null;
+    try { const head = await f.slice(0, 256 * 1024).arrayBuffer(); g = gpsFromJpeg(head); shot = dateFromJpeg(head); } catch { g = null; }
     if (!g) { toast('Cette photo ne contient pas de position. Active « Position » dans l\'appareil photo, ou place le lieu sur la carte.', true); return; }
     centerOn(g.lat, g.lng, 17);
     const asPlace = () => {
@@ -6470,7 +6528,7 @@ function addFromPhoto() {
       let blob = null;
       try { blob = await compressImage(f); } catch { blob = null; }
       if (!blob) { toast('Cette photo n\'a pas pu être lue.', true); return; }
-      openSeenForm(blob, Promise.resolve({ lat: g.lat, lng: g.lng, acc: null, fromPhoto: true }));
+      openSeenForm(blob, Promise.resolve({ lat: g.lat, lng: g.lng, acc: null, fromPhoto: true, shot: shot ?? 0 })); // v310 : 0 = date de la photo inconnue
     };
     const url = URL.createObjectURL(f);
     openSheet([ico('image'), ' Ta photo'], el('div', { class: 'stack' },
@@ -10410,6 +10468,7 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
+    '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant → Rangement) : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
     '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
     '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les sous-catégories se renomment dans {settings} → Catégories et listes → la catégorie, tout en bas.',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
@@ -10541,6 +10600,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
     '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
     '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
     '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
@@ -10550,7 +10610,6 @@ const HELP = [
     '{camera} Vu en passant, ranger ta photo : après la photo, choisis la **catégorie** (toutes les tiennes, sur une ligne qui défile ; Vu en passant en premier), puis sa **sous-catégorie** (« Portes », « Cours »… : « Créer » en tape une), ou l\'**artiste** pour Street art. Elles restent choisies pour la photo suivante. Rangée dans Culture, la photo reste « prise en passant » : Filtres → Vu en passant la montre toujours. « Enregistrer » reste visible en bas.',
     '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
-    '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
   ]],
 ];
 

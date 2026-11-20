@@ -9,7 +9,7 @@ const fromPhoto = app.slice(app.indexOf('function addFromPhoto()'), app.indexOf(
 
 test('Le choix après la photo de la galerie', () => {
   assert.match(fromPhoto, /if \(!g\) \{ toast\('Cette photo ne contient pas de position/, 'sans position : comme avant');
-  assert.match(fromPhoto, /openSeenForm\(blob, Promise\.resolve\(\{ lat: g\.lat, lng: g\.lng, acc: null, fromPhoto: true \}\)\)/);
+  assert.match(fromPhoto, /openSeenForm\(blob, Promise\.resolve\(\{ lat: g\.lat, lng: g\.lng, acc: null, fromPhoto: true, shot: shot \?\? 0 \}\)\)/); // v310 : avec la date de la photo
   assert.match(fromPhoto, /'Vu en passant'\),\s*el\('button', \{ type: 'button', class: 'btn big c-add', onclick: asPlace \}, ico\('map-pin'\), 'Un lieu, avec sa fiche'\)/);
 });
 

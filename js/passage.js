@@ -120,6 +120,7 @@ export function cleanPassages(list) {
     ...(typeof x.text === 'string' && x.text.trim() ? { text: x.text.trim().slice(0, 200) } : {}),
     ...(typeof x.photo === 'string' && /^[\w-]{1,64}$/.test(x.photo) ? { photo: x.photo } : {}),
     ...(Number.isInteger(x.stars) && x.stars >= 1 && x.stars <= 5 ? { stars: x.stars } : {}), // note du passage, facultative
+    ...(x.pass === true ? { pass: true } : {}), // v310 : sa photo a été prise en passant (Mes Vu en passant la montre)
   })).sort((a, b) => b.at - a.at).slice(0, 200);
 }
 

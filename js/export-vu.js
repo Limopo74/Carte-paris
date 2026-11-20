@@ -149,9 +149,9 @@ export const CSV_HEAD = ['Photo', 'Nom', 'Ma ligne', 'Date', 'Heure', 'Catégori
 export function csvText(rows) {
   const z = (n) => String(n).padStart(2, '0');
   const lines = rows.map((r) => {
-    const d = new Date(r.at);
+    const d = Number.isFinite(r.at) ? new Date(r.at) : null; // v310 : date d'une photo de la galerie inconnue : case vide
     const pos = Number.isFinite(r.lat) && Number.isFinite(r.lng);
-    return [r.file, r.name, r.note, `${z(d.getDate())}/${z(d.getMonth() + 1)}/${d.getFullYear()}`, `${z(d.getHours())}:${z(d.getMinutes())}`, r.cat, r.sub, r.artist, (r.lists ?? []).join(', '),
+    return [r.file, r.name, r.note, d ? `${z(d.getDate())}/${z(d.getMonth() + 1)}/${d.getFullYear()}` : '', d ? `${z(d.getHours())}:${z(d.getMinutes())}` : '', r.cat, r.sub, r.artist, (r.lists ?? []).join(', '),
       r.stars || '', r.address, r.arr ? `${r.arr}e` : '', pos ? r.lat.toFixed(6) : '', pos ? r.lng.toFixed(6) : '', pos ? `https://www.google.com/maps/search/?api=1&query=${r.lat.toFixed(6)},${r.lng.toFixed(6)}` : ''].map(cell).join(';');
   });
   return `﻿${[CSV_HEAD.join(';'), ...lines].join('\r\n')}\r\n`;

@@ -524,6 +524,36 @@ function planLoopWith(start, candidates, minutes, { dwell = 15, maxStops = 8, fi
 /* ---------- Ajouter un lieu depuis une photo : position GPS lue dans l'EXIF ---------- */
 
 /** Position GPS d'une photo JPEG (ArrayBuffer), ou null. Lu sur le téléphone, rien n'est envoyé. */
+/** v310 : la date de prise de vue (EXIF DateTimeOriginal, sinon DateTime), à l'heure du téléphone ; null si absente. */
+export function dateFromJpeg(buf) {
+  try {
+    const v = new DataView(buf);
+    if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;
+    let off = 2;
+    while (off + 4 <= v.byteLength) {
+      const marker = v.getUint16(off); const size = v.getUint16(off + 2);
+      if (marker === 0xffe1 && v.getUint32(off + 4) === 0x45786966) {
+        const tiff = off + 10; const le = v.getUint16(tiff) === 0x4949;
+        const u16 = (o) => v.getUint16(o, le); const u32 = (o) => v.getUint32(o, le);
+        const read = (ifd, want) => { for (let i = 0, n = u16(ifd); i < n; i++) { const e = ifd + 2 + i * 12; if (u16(e) === want) return e; } return -1; };
+        const ascii = (e) => { const count = u32(e + 4); const at = count <= 4 ? e + 8 : tiff + u32(e + 8); let t = ''; for (let k = 0; k < count - 1 && at + k < v.byteLength; k++) t += String.fromCharCode(v.getUint8(at + k)); return t; };
+        const ifd0 = tiff + u32(tiff + 4);
+        const ex = read(ifd0, 0x8769);
+        let e = ex >= 0 ? read(tiff + u32(ex + 8), 0x9003) : -1;
+        if (e < 0) e = read(ifd0, 0x0132);
+        if (e < 0) return null;
+        const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(ascii(e));
+        if (!m) return null;
+        const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+        return Number.isFinite(t) && +m[1] > 1990 ? t : null;
+      }
+      if ((marker & 0xff00) !== 0xff00) return null;
+      off += 2 + size;
+    }
+  } catch { /* photo illisible */ }
+  return null;
+}
+
 export function gpsFromJpeg(buf) {
   const v = new DataView(buf);
   if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;

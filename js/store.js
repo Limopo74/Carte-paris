@@ -173,6 +173,7 @@ const clean = (p) => ({
   ...(Number.isFinite(p.checked) && p.checked > 0 ? { checked: p.checked } : {}), // « Toujours ouvert », vu sur place ce jour-là (v274)
   ...(PLACE_RUBS.includes(p.rub) || p.rub === '' ? { rub: p.rub } : {}), // genre d'un resto, comme dans TTB (v288) ; '' = « aucun », choisi par moi
   ...(p.pass === true ? { pass: true } : {}), // pris par + Ajouter → Vu en passant, quelle que soit sa catégorie (v305)
+  ...(Number.isFinite(p.shot) && p.shot >= 0 ? { shot: p.shot } : {}), // v310 : photo de la galerie, date de la prise de vue (0 : inconnue)
   ...(typeof p.sub === 'string' && /^[\w-]{1,64}$/.test(p.sub) ? { sub: p.sub } : {}), // sa sous-catégorie, dans sa catégorie (v305)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
@@ -486,7 +487,7 @@ export function mergeFriend(state, obj, owner, choice) {
       if (!points[i].owner || points[i].owner !== c.owner) continue; // un de ses lieux à elle : on n'y touche pas
       const old = points[i];
       const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, ...(Number.isFinite(c.hoursAt) ? { hoursAt: c.hoursAt } : {}), lists: c.lists,
-        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}), ...(c.pass ? { pass: true } : {}), ...(c.sub ? { sub: c.sub } : {}),
+        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}), ...(c.pass ? { pass: true } : {}), ...(c.sub ? { sub: c.sub } : {}), ...(Number.isFinite(c.shot) ? { shot: c.shot } : {}),
         ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
       if (c.gone) next.gone = c.gone; else delete next.gone;
       // v291 : la date de ses horaires suit ses horaires (de nouveaux horaires sans date ne gardent pas celle des anciens)
@@ -865,7 +866,7 @@ export function exportFileName(date, count) {
   return `Ma carte de Paris - sauvegarde du ${day} ${time} (${count} lieu${count > 1 ? 'x' : ''}).json`;
 }
 
-const foldName = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+export const foldName = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 /** Catégories toutes prêtes que la personne n'a pas encore (même nom, accents et majuscules ignorés). */
 export function suggestedPresets(categories) {

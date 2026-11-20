@@ -14,12 +14,16 @@ test('Mes Vu en passant : dans + Ajouter, sous le bouton qui prend les photos, a
   assert.match(add, /onclick: captureSeen \}, ico\('camera'\), 'Vu en passant'\)[\s\S]*openSeenPhotos\(back\)[\s\S]*`Mes Vu en passant · \$\{seenPhotoCount\(\)\}`/);
 });
 
-test('Seulement mes photos prises en passant, les plus récentes d\'abord ; jamais celles d\'un proche', () => {
-  assert.match(app, /const seenPlaces = \(\) => state\.points\.filter\(\(p\) => !p\.owner && isPass\(p\) && p\.photos\?\.length\)\.sort\(\(a, b\) => \(b\.created \?\? 0\) - \(a\.created \?\? 0\)\);/);
+test('Seulement mes photos prises en passant (v310 : aussi celles rangées en impression), les plus récentes d\'abord ; jamais celles d\'un proche', () => {
+  const items = app.slice(app.indexOf('function seenItems()'), app.indexOf('const seenPhotoCount'));
+  assert.match(items, /if \(p\.owner\) continue;/);
+  assert.match(items, /if \(isPass\(p\)\) for \(const id of p\.photos \?\? \[\]\)/);
+  assert.match(items, /for \(const x of p\.passages \?\? \[\]\) if \(x\.pass && x\.photo\)/);
+  assert.match(items, /return out\.sort\(\(a, b\) => \(b\.at/);
 });
 
 test('Vignettes par catégorie, puis sous-catégories ou artistes, une à la fois ; mosaïque ; diaporama', () => {
-  assert.match(page, /tile\('Tout', count\(all\)/);
+  assert.match(page, /tile\('Tout', all\.length/);
   assert.match(page, /isStreetCat\(catOf\(seenPick\.cat\)\)/);
   assert.match(page, /street \? 'Tous les artistes' : 'Toutes'/);
   assert.match(page, /class: 'seen-grid'/);
