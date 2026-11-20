@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
-          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json /tmp/avant/
+          cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/jardins.json /tmp/avant/
           cp data/velo.json /tmp/avant/ 2>/dev/null || true # v259 : absent avant le premier passage
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
@@ -80,6 +80,9 @@ jobs:
               --data-urlencode "where=date_export=date'$D' and amenagement in (\"piste cyclable\",\"voie verte\",\"chemin fermé à la circulation générale (bois)\",\"voie piétonne\",\"vélorue\",\"voie fermée à la circulation générale (bus inclus)\")" \
               --data-urlencode 'select=amenagement,date_export,geo_shape' ; } || rm -f /tmp/src/velo.json
           [ -s /tmp/src/velo.json ] && echo "/tmp/src/velo.json : $(wc -c < /tmp/src/velo.json) octets" || echo "Pistes à vélo : pas de réponse"
+          # Jardins publics (v261) : contours des espaces verts frais de la Ville, sans les horaires (lus par l'appli chaque jour) ; jamais bloquant
+          curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/jardins.json "$PARIS/ilots-de-fraicheur-espaces-verts-frais/exports/json" \
+            --data-urlencode 'select=identifiant,nsq_espace_vert,nom,type,geo_point_2d,geo_shape' || rm -f /tmp/src/jardins.json
           # Origine du nom des voies (v198) : deux champs seulement, jamais bloquant
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/voies.json "$PARIS/denominations-emprises-voies-actuelles/exports/json" \
             --data-urlencode 'select=typo_min,orig' --data-urlencode 'where=orig is not null' || rm -f /tmp/src/voies.json
@@ -161,6 +164,7 @@ jobs:
           if [ -s /tmp/src/pvp.json ] && [ -s /tmp/src/pvp-geos.json ] && [ -s /tmp/src/pvp-surf.json ]; then python3 -I tools/maj-patrimoine.py /tmp/src/pvp.json /tmp/src/pvp-geos.json /tmp/src/pvp-surf.json "$TODAY" || echo "Immeubles protégés par la Ville : fichier d'avant gardé"; else echo "Immeubles protégés par la Ville : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/acr ]; then python3 -I tools/maj-acr.py /tmp/src/acr "$TODAY" || echo "Architecture contemporaine remarquable : fichier d'avant gardé"; else echo "Architecture contemporaine remarquable : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/velo.json ]; then python3 -I tools/maj-velo.py /tmp/src/velo.json || echo "Pistes à vélo : fichier d'avant gardé"; else echo "Pistes à vélo : pas de réponse, fichier d'avant gardé"; fi
+          if [ -s /tmp/src/jardins.json ]; then python3 -I tools/maj-jardins.py /tmp/src/jardins.json "$TODAY" || echo "Jardins publics : fichier d'avant gardé"; else echo "Jardins publics : pas de réponse, fichier d'avant gardé"; fi
           node tools/maj-art.mjs /tmp/src/oeuvres.json /tmp/src/galeries.json "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
@@ -173,8 +177,8 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json"
-          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo (robot)"
+          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json data/jardins.json"
+          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo, jardins publics (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.
           # v259 : un fichier nouveau (data/velo.json au premier passage) n'est pas encore suivi par git : il compte aussi

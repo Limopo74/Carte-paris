@@ -119,6 +119,8 @@ test('météo : pluie, température, réponse illisible', () => {
   assert.deepEqual(readMeteo({ current: { precipitation: 0, weather_code: 61 } }), { rain: true, temp: null });
   assert.deepEqual(readMeteo({ current: { precipitation: 0, weather_code: 1, temperature_2m: 20 } }), { rain: false, temp: 20 });
   assert.equal(readMeteo({}), null);
+  assert.deepEqual(readMeteo({ current: { precipitation: 0, weather_code: 1, temperature_2m: 9, wind_gusts_10m: 71.6 } }), { rain: false, temp: 9, gust: 72 }, 'v261 : les rafales, pour les jardins');
+  assert.match(meteoUrl(), /wind_gusts_10m/);
 });
 
 test('Vélib via Paris Data : OUI/NON, coordonnées, champs manquants', async () => {

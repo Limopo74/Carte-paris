@@ -1,5 +1,6 @@
 // Fontaines à boire et toilettes publiques : données ouvertes de la Ville de Paris (licence ODbL).
 import { distanceM } from './geo.js';
+import { jardinName, jardinAddress } from './jardins.js';
 
 const BASE = 'https://opendata.paris.fr/api/explore/v2.1/catalog/datasets';
 export const DATASETS = {
@@ -60,12 +61,17 @@ export function parkHours(r, now = new Date()) {
     if (!t) return '';
     rules.push(`${osm} ${t}`);
   }
-  return rules.every((x) => x.endsWith(' 00:00-24:00')) ? '24/7' : rules.join('; ');
+  if (rules.every((x) => x.endsWith(' 00:00-24:00'))) {
+    // v261 : « 00h00 - 23h59 » tous les jours alors que la Ville dit « pas ouvert 24 h/24 » (21 jardins, dont le parc de Bercy,
+    // et les bois, en novembre 2026) : les deux champs se contredisent, on ne dit rien plutôt que « ouvert jour et nuit ».
+    return str(r?.ouvert_24h) === 'Non' ? '' : '24/7';
+  }
+  return rules.join('; ');
 }
 
 export function exportUrl(kind) {
   // Les parcs ont des contours lourds : on ne demande que le nom, le type, l'adresse, le point central et les horaires.
-  const q = kind === 'fraisParcs' ? `?select=nom,type,adresse,geo_point_2d,ouvert_24h,horaires_periode,${PARK_DAYS.map(([d]) => `horaires_${d}`).join(',')}` : '';
+  const q = kind === 'fraisParcs' ? `?select=identifiant,nom,type,adresse,geo_point_2d,ouvert_24h,horaires_periode,${PARK_DAYS.map(([d]) => `horaires_${d}`).join(',')}` : '';
   return `${BASE}/${DATASETS[kind]}/exports/json${q}`;
 }
 
@@ -105,11 +111,14 @@ export function parseRecords(json, kind) {
       const pay = str(r.payant).toLowerCase();
       out.push({
         ...p,
-        label: name || cap(str(r.type)) || 'Lieu frais',
-        detail: [cap(str(r.type)), str(r.adresse), pay === 'oui' ? 'payant' : pay === 'non' ? 'gratuit' : ''].filter(Boolean).join(' · '),
+        // v261 : « SQUARE DU TEMPLE » s'écrit « Square du Temple » ; pour un espace vert, l'adresse seule (« Promenades ouvertes » ne parle à personne)
+        label: jardinName(name) || cap(str(r.type)) || 'Lieu frais',
+        detail: (kind === 'fraisParcs' ? [jardinAddress(r.adresse)] : [cap(str(r.type)), str(r.adresse), pay === 'oui' ? 'payant' : pay === 'non' ? 'gratuit' : '']).filter(Boolean).join(' · '),
         ok: true,
         hours: parkHours(r),
         ...(kind === 'fraisLieux' && followsPark(r.horaires_periode) ? { inPark: true } : {}),
+        // v261 : l'identifiant relie un espace vert à son contour (data/jardins.json) ; le type distingue un jardin d'un bois ou d'une jardinière
+        ...(kind === 'fraisParcs' ? { id: str(r.identifiant), type: str(r.type), address: str(r.adresse) } : {}),
       });
     } else {
       out.push({

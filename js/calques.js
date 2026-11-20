@@ -36,10 +36,13 @@ export const velibOld = (at, now = Date.now()) => !at || now - at > VELIB_OLD_MS
  * La petite étiquette sous la barre du haut, quand un calque est allumé : { text, act } ou null.
  * act : 'zoom' (un appui rapproche la carte), 'refresh' (un appui recharge Vélib'), null (rien à faire).
  */
-export function layerNote({ velib = false, pratique = false, zoom = 0, at = 0, now = Date.now(), busy = false, need = 'bike' } = {}) {
-  if (!velib && !pratique) return null;
+export function layerNote({ velib = false, pratique = false, jardins = false, zoom = 0, at = 0, now = Date.now(), busy = false, need = 'bike' } = {}) {
+  if (!velib && !pratique && !jardins) return null;
   if (zoom < LAYER_ZOOM) {
-    const what = velib && pratique ? 'les Vélib\', fontaines et toilettes' : velib ? 'les stations Vélib\'' : 'les fontaines et toilettes';
+    const what = {
+      100: 'les stations Vélib\'', '010': 'les fontaines et toilettes', '001': 'les jardins', 110: 'les Vélib\', fontaines et toilettes',
+      101: 'les Vélib\' et les jardins', '011': 'les fontaines, toilettes et jardins', 111: 'les Vélib\', fontaines, toilettes et jardins',
+    }[`${+velib}${+pratique}${+jardins}`];
     return { text: `Zoome pour voir ${what}`, act: 'zoom' };
   }
   if (!velib) return null;

@@ -19,7 +19,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, VELO_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, VELO_FILE, JARDINS_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -52,6 +52,7 @@ import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMar
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
+import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
@@ -59,7 +60,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (260)';
+const VERSION = '20 novembre 2026 (261)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -171,7 +172,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -805,6 +806,7 @@ function chipItems(chip = null, catChip = null) {
   const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
   const toggleArc = () => { setArcadeLayer(!state.showPassages); refresh(); toast(state.showPassages ? 'Passages couverts sur la carte (le trait en zoomant)' : 'Passages couverts : masqués'); };
   const toggleVelo = async () => { await setVeloLayer(!state.showVelo); refresh(); if (!state.showVelo) toast('Pistes à vélo : masquées'); else if (veloData) toast('Pistes à vélo : trait plein, sans voitures ; pointillé, rue calme'); };
+  const toggleJardins = () => { setJardinLayer(!state.showJardins); refresh(); toast(state.showJardins ? 'Jardins publics sur la carte, en zoomant : vert clair, ouvert maintenant' : 'Jardins publics : masqués'); };
   const busOn = () => Boolean(state.showBusLines && (state.busLines ?? []).length);
   const fixed = [
     { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: () => { filterCats.clear(); favOnly = false; refresh(); },
@@ -833,6 +835,9 @@ function chipItems(chip = null, catChip = null) {
       make: () => chip(ico('door-open'), Boolean(state.showPassages), toggleArc, { class: 'pratique', aria: 'Passages couverts sur la carte' }) },
     { key: 'velo', name: 'Pistes à vélo', icon: ico('spline'), active: Boolean(state.showVelo), act: toggleVelo,
       make: () => chip('Vélo', Boolean(state.showVelo), toggleVelo, { class: 'velo', aria: 'Pistes à vélo sur la carte' }) },
+    // v261 (mon choix 1A) : rangé sous ⋯ Plus comme Passages couverts (dans la barre, il aurait poussé les catégories) ; déplaçable dans Réglages
+    { key: 'jardins', name: 'Jardins publics', icon: ico('trees'), active: Boolean(state.showJardins), act: toggleJardins,
+      make: () => chip(ico('trees'), Boolean(state.showJardins), toggleJardins, { class: 'pratique', aria: 'Jardins publics sur la carte' }) },
   ];
   return [...fixed, ...state.categories.map((c) => ({ key: `cat:${c.id}`, name: c.name, icon: catDot(c.id), cat: c.id, active: filterCats.has(c.id), act: () => toggleCat(c.id), make: () => catChip(c) }))];
 }
@@ -842,7 +847,7 @@ function openChipsMore() {
   const where = chipPlace();
   const list = chipItems().filter((x) => where(x.key) === 'more');
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes' }[x.key] ?? '');
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
@@ -934,7 +939,7 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
+    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Choisis d\'abord tes lignes (Réglages → Mes lignes de bus)', () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
@@ -946,6 +951,7 @@ function openFilters() {
     !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et toilettes', 'Celles de la zone, visibles en zoomant', () => { setPratLayer(!state.showPratique); }),
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
     !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', 'Trait plein : sans voitures. Pointillé : rue calme', async () => { await setVeloLayer(!state.showVelo); }),
+    !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', 'Squares, jardins, parcs et bois de la Ville, en zoomant ; vert clair : ouverts maintenant', () => { setJardinLayer(!state.showJardins); }),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('settings'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
@@ -992,7 +998,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['jardins', 'trees', 'Jardins publics']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -1387,6 +1393,26 @@ function updateNow(force = false) {
       el('span', { class: 'now-sub' }, `Prévu jusqu'à ${hhText(calm.to)} · Paris Respire`));
     card.querySelector('.now-open').onclick = () => openRespire(named('Carte', () => closeSheet()));
     return;
+  }
+  // Grand jardin (v261, mon choix 3B, réglage éteint au départ) : un jardin de 4 ha ou plus, ouvert d'après ses horaires connus,
+  // bord à 200 m au plus, pas sur le point de fermer ; rien quand on y est déjà, rien par grand vent (js/jardins.js bigJardinNear).
+  // Le téléphone n'est réveillé de rien : c'est le bandeau, appli ouverte (pas de notification).
+  if (state.jardinsNow === true && pos && !nowHidden && !windy()) {
+    if (!jardinsData) loadJardins().then((d) => { if (d) updateNow(true); });
+    else if (!pratique.fraisParcs) loadPratique('fraisParcs').then(() => updateNow(true)).catch(() => {});
+    else {
+      const g = bigJardinNear(jardinsData, pos, { parks: pratique.fraisParcs });
+      if (g && g.d > 0) {
+        card.hidden = false;
+        fill(card.querySelector('.now-text'),
+          el('span', { class: 'now-kicker' }, `Grand jardin · ${walkMinutes(g.d)} min à pied`),
+          el('span', { class: 'now-name' }, g.j.name),
+          el('span', { class: 'now-sub' }, hoursLine(null, g.hours)));
+        buzzNow(`jardin:${g.j.id}`);
+        card.querySelector('.now-open').onclick = () => openJardin(g.j);
+        return;
+      }
+    }
   }
   // Bientôt gratuit (v158) : aujourd'hui, demain ou après-demain ; la croix le cache pour la journée, la suggestion revient
   const fb = nowHidden || !sug || storage.getItem(FREE_SEEN_KEY) === new Date().toDateString() ? null : freeBanner();
@@ -4165,7 +4191,7 @@ function busNote() {
   return drawn.length ? { text: `Bus ${refsText(drawn)} · sans horaires ni sens`, act: 'buslines' }
     : { text: 'Bus : le chemin n\'est pas encore chargé (il faut du réseau)', act: 'buslines' };
 }
-const layerNoteNow = () => layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+const layerNoteNow = () => layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
@@ -4956,7 +4982,7 @@ const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', on
 let artCacheGone = false;
 const artFilesRead = new Set(); // Réglages → Données de l'appli : listes déjà lues une fois
 /** Œuvres ou galeries que le robot n'a encore jamais rangées dans l'appli (ni date ni liste). */
-const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'patrimoine' && !pvpInfo?.items?.length && !dates[id]) || (id === 'acr' && !acrInfo?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]) || (id === 'gares' && !gares.length && !dates[id]) || (id === 'velo' && !veloData && !dates[id]);
+const artNotYet = (id, dates) => (id === 'oeuvres' && !streetArt && !dates[id]) || (id === 'galeries' && !galleries && !dates[id]) || (id === 'respire' && !respireData?.secteurs?.length && !dates[id]) || (id === 'voies' && !Object.keys(voiesData?.voies ?? {}).length && !dates[id]) || (id === 'architectes' && !archData?.items?.length && !dates[id]) || (id === 'patrimoine' && !pvpInfo?.items?.length && !dates[id]) || (id === 'acr' && !acrInfo?.items?.length && !dates[id]) || (id === 'acces' && !acces.length && !dates[id]) || (id === 'gares' && !gares.length && !dates[id]) || (id === 'velo' && !veloData && !dates[id]) || (id === 'jardins' && !jardinsData?.length && !dates[id]);
 /** Les copies gardées avant la v170 (téléchargées par le téléphone) ne servent plus : place rendue au téléphone. */
 function dropOldArtCache() {
   if (artCacheGone) return;
@@ -7521,6 +7547,76 @@ async function setArcadeLayer(on) {
 }
 map.on('zoomend', drawArcadeLayer);
 
+/* ---------- Jardins publics (v261, mes choix 1A 2A 3B 4A du 20 nov.) ----------
+   Les contours viennent de data/jardins.json (robot, tools/maj-jardins.py) ; les horaires de la copie du jour du jeu
+   « Îlots de fraîcheur – Espaces verts frais » (Fontaine et WC). Vert clair : ouvert maintenant d'après ses horaires ;
+   contour seul : fermé, ou horaires inconnus. À partir du zoom 15 seulement, comme les autres calques.
+   Par grand vent (rafales de WIND_GUST km/h ou plus), la Ville ferme souvent ses jardins sans que les horaires le disent :
+   aucun jardin n'est alors peint « ouvert ». */
+let jardinsData = null;
+let jardinsDate = ''; // date du passage du robot (Données de l'appli)
+const loadJardins = async () => (jardinsData ??= await fetch('data/jardins.json').then((r) => (r.ok ? r.json() : null)).then((j) => { if (!j) return null; jardinsDate = typeof j.date === 'string' ? j.date : ''; return cleanJardins(j); }).catch(() => null));
+const jardinLayer = L.layerGroup().addTo(map);
+const mutedInk = () => (isDark() ? '#A9B0BC' : '#5C6370'); // le gris --muted
+const windy = () => (meteo?.gust ?? 0) >= WIND_GUST;
+/** Ouvert maintenant d'après ses horaires connus (jamais par grand vent). */
+const jardinOpen = (j) => !windy() && openState(jardinHours(j, pratique.fraisParcs))?.open === true;
+
+function drawJardinLayer() {
+  jardinLayer.clearLayers();
+  if (!state.showJardins || !jardinsData || map.getZoom() < JARDIN_ZOOM) return;
+  for (const j of jardinsInBox(jardinsData, boxNow())) {
+    const open = jardinOpen(j);
+    // Vert (« Garder », ouvert) seulement s'il est ouvert ; fermé ou horaires inconnus : contour gris (--muted), pour ne pas se confondre
+    // avec le trait vert d'une piste à vélo (v259) quand les deux couches sont allumées
+    L.polygon(j.rings, { color: open ? addInk() : mutedInk(), weight: 2, opacity: 0.9, fillColor: addInk(), fillOpacity: open ? 0.3 : 0 })
+      .on('click', (e) => {
+        if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } // Mes parcours : l'appui pose une étape, comme sur la carte
+        if (!moving) openJardin(j);
+      }).addTo(jardinLayer);
+  }
+}
+async function setJardinLayer(on) {
+  state.showJardins = on; persist();
+  if (!on) { jardinLayer.clearLayers(); drawLayerNote(); return; }
+  const [list] = await Promise.all([loadJardins(), loadPratique('fraisParcs')]);
+  if (!list) { toast('Les jardins n\'ont pas pu être lus. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
+  if (!list.length) { toast('Les jardins arrivent avec le prochain passage du robot des données (le 1er du mois).'); return; }
+  drawJardinLayer(); drawLayerNote();
+}
+map.on('zoomend', drawJardinLayer);
+map.on('moveend', drawJardinLayer);
+
+/** Un de mes lieux est-il ce jardin ? (dedans ou à 30 m du bord, et un mot du nom en commun, comme pour les horaires des parcs) */
+function myJardinPlace(j) {
+  const words = (t) => fold(t).split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !['square', 'jardin', 'jardins', 'parc', 'bois', 'des', 'les', 'del'].includes(w));
+  const mine = new Set(words(j.name));
+  return state.points.find((p) => distanceToJardin(p, j) <= 30 && words(p.name).some((w) => mine.has(w))) ?? null;
+}
+
+/** La page d'un jardin (mon choix 4A) : état du jour, Y aller, Boussole, Métro, Ajouter (ou Ma fiche). */
+async function openJardin(j, back = null) {
+  track('Jardin');
+  if (!pratique.fraisParcs) await loadPratique('fraisParcs').catch(() => null);
+  const rec = jardinRecord(j, pratique.fraisParcs);
+  const hours = rec?.hours ?? '';
+  const address = jardinAddress(rec?.address);
+  const from = startPos();
+  // Un grand jardin : on y va par le bord le plus proche (son centre peut être à 400 m de la grille)
+  const edge = from && j.big ? nearestEdge(from, j) : null;
+  const place = edge ? { lat: edge.lat, lng: edge.lng } : { lat: j.lat, lng: j.lng };
+  const cat = state.categories.find((c) => /parc|jardin/i.test(c.name))?.id;
+  const state0 = hours ? hoursLine(null, hours) : null;
+  openSpot({ icon: 'trees', title: j.name, kicker: jardinKind(j), place, key: `jardin:${j.id}`, back,
+    lines: [
+      windy() ? el('p', { class: 'warn' }, `Grand vent (rafales à ${meteo.gust} km/h) : la Ville ferme souvent ses jardins. Vérifie à l'entrée.`) : null,
+      state0 ? el('p', { class: 'summary' }, state0) : el('p', { class: 'help' }, 'Horaires inconnus'),
+      address ? el('p', { class: 'where' }, ico('map-pin'), address) : null,
+      hours ? el('p', { class: 'help tip' }, 'Horaires de la Ville de Paris pour la saison en cours (jeu « Îlots de fraîcheur – Espaces verts frais », mis à jour chaque jour). Un jour de grand vent ou d\'orage, la Ville ferme ses jardins sans changer ces horaires.') : null,
+    ],
+    add: { ...(cat ? { cat } : {}), ...(address ? { address } : {}) }, mine: myJardinPlace(j) });
+}
+
 /* ---------- Pistes à vélo : data/velo.json (robot, Ville de Paris), lu à la première demande, dessiné ici ----------
    Trait plein vert = séparé des voitures (piste, voie verte, chemin des bois) ; pointillé vert = rue calme (voie piétonne,
    vélorue, voie fermée aux voitures). Sous tout le reste, jamais touchable. Les travaux ne sont pas dans la source : l'étiquette le dit. */
@@ -8321,6 +8417,7 @@ function openSettings(section = null) {
     if (id === 'respire' && !respireData && !openSettings.respireTried) { openSettings.respireTried = true; loadRespire().then(() => openSettings(section)); return; }
     if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
     if (id === 'velo' && !veloData && !openSettings.veloTried) { openSettings.veloTried = true; loadVelo().then(() => openSettings(section)); return; }
+    if (id === 'jardins' && !jardinsData && !openSettings.jardinsTried) { openSettings.jardinsTried = true; loadJardins().then(() => openSettings(section)); return; }
     // Œuvres et galeries : lues une fois pour connaître leur date (une liste encore vide ne relance pas la lecture)
     if (id === 'oeuvres' && !streetArt && !artFilesRead.has(id)) { artFilesRead.add(id); loadStreetArt().catch(() => {}).finally(() => openSettings(section)); return; }
     if (id === 'galeries' && !galleries && !artFilesRead.has(id)) { artFilesRead.add(id); loadGalleries().catch(() => {}).finally(() => openSettings(section)); return; }
@@ -8412,6 +8509,10 @@ function openSettings(section = null) {
         el('p', { class: 'help tip' }, 'Sert à la couche « Pistes à vélo » de la carte : les pistes, voies vertes et chemins des bois (trait plein), les voies piétonnes, vélorues et voies fermées aux voitures (pointillé). Bandes, couloirs de bus et contresens ne sont pas gardés. Les travaux n\'y sont pas. Direction de la Voirie et des Déplacements, d\'après OpenStreetMap, licence ODbL.'),
         el('div', { class: 'menu' }, link(VELO_FILE)),
         say('Mets à jour les pistes à vélo', 'tools/maj-velo.py')],
+      jardins: () => [
+        el('p', { class: 'help tip' }, 'Sert à la couche « Jardins publics » de la carte et au grand jardin du bandeau « Maintenant » : les contours des squares, jardins, parcs et bois. Les horaires ne viennent pas de ce fichier : l\'appli lit ceux de la saison chaque jour dans le même jeu de la Ville. Licence ODbL.'),
+        el('div', { class: 'menu' }, link(JARDINS_FILE)),
+        say('Mets à jour les jardins publics', 'tools/maj-jardins.py')],
       oeuvres: () => [
         el('p', { class: 'help' }, 'Le serveur d\'OpenStreetMap n\'a sans doute pas répondu ce jour-là : la liste d\'avant reste dans l\'appli. Relance le robot un autre jour. Rien à faire à la main.')],
       galeries: () => [
@@ -8523,6 +8624,13 @@ function openSettings(section = null) {
         state.voice = !voiceOn; if (!state.voice) silence();
         toast(state.voice ? 'Voix activée' : 'Voix désactivée');
       })),
+      // v261 (mon choix 3B) : tout en bas, il ne pousse rien ; éteint au départ
+      el('h3', { class: 'fiche-sec' }, 'Grands jardins'),
+      el('div', { class: 'menu' }, onOff('jardins', 'trees', 'Signaler un grand jardin ouvert', 'Dans « Maintenant », à 200 m, appli ouverte', state.jardinsNow === true, () => {
+        state.jardinsNow = state.jardinsNow !== true; updateNow(true);
+        toast(state.jardinsNow ? 'Le bandeau signalera un grand jardin ouvert à 200 m' : 'Plus de grand jardin dans le bandeau');
+      })),
+      el('p', { class: 'help tip' }, 'Les jardins de 4 hectares ou plus (parcs Monceau, Montsouris, des Buttes-Chaumont…), ouverts d\'après les horaires de la Ville ; rien s\'il ferme dans moins de 20 min, rien par grand vent, rien quand tu y es déjà.'),
       backBtn,
     ), { tall: true, name: 'settings:alertes', again: () => openSettings('alertes') });
     return;
@@ -9172,7 +9280,7 @@ function importText(text, owner) {
       let at = Date.now();
       try { at = Date.parse(JSON.parse(text).exported) || at; } catch { /* date illisible : maintenant */ }
       if (!state.me) state.me = fileOwner(text);
-      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); drawBusLines(); refreshBusTraces(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); if (state.showVelo) setVeloLayer(true); else veloLayer.clearLayers(); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
+      if (r.settings) { state = { ...state, ...r.settings }; applyAllSettings(); drawMarkets(); drawTtb(); drawLines(); drawBusLines(); refreshBusTraces(); if (state.showPratique) loadPratLayer(); else pratLayer.clearLayers(); loadArcades().then(drawArcadeLayer); if (state.showVelo) setVeloLayer(true); else veloLayer.clearLayers(); if (state.showJardins) setJardinLayer(true); else jardinLayer.clearLayers(); drawLayerNote(); } // affichage, cercles, favori… comme avant l'effacement
       state.lastExport = at;
       state.backup = savedBackup(state);
     }
@@ -9381,7 +9489,8 @@ async function loadPratique(kind) {
   if (pratique[kind]) return pratique[kind];
   let cached = null;
   try { cached = JSON.parse(storage.getItem(`${PRATIQUE_KEY}.${kind}`) ?? 'null'); } catch { /* rien */ }
-  const fresh = cached && Date.now() - cached.time < 24 * 3600 * 1000;
+  // v261 : une copie des espaces verts d'avant la v261 n'a pas l'identifiant qui les relie à leur contour (ni la correction des « 24 h/24 ») : refaite
+  const fresh = cached && Date.now() - cached.time < 24 * 3600 * 1000 && !(kind === 'fraisParcs' && !cached.items?.some?.((x) => x.id));
   if (!fresh && navigator.onLine !== false) {
     try {
       const res = await net(exportUrl(kind), { headers: { Accept: 'application/json' } });
@@ -9432,11 +9541,15 @@ async function nearestPratique() {
   // Les plus proches, mais un lieu fermé en ce moment passe après un lieu ouvert (ou aux horaires inconnus)
   const openFirst = (list, n) => nearestOf(withPark(list), from, n * 3)
     .sort((a, b) => (openState(a.item.hours)?.open === false) - (openState(b.item.hours)?.open === false) || a.d - b.d).slice(0, n);
-  showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), openFirst([...fraisLieux, ...fraisParcs], 2));
+  // v261 (mon choix A) : hors chaleur, le dernier bloc donne les jardins ouverts maintenant (squares, jardins, parcs ;
+  // horaires connus seulement, rien par grand vent) ; à 28° et plus, il redevient « Lieu frais » (jardins, musées, bibliothèques).
+  if (meteo?.temp >= 28) { showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), openFirst([...fraisLieux, ...fraisParcs], 2)); return; }
+  const gardens = windy() ? [] : fraisParcs.filter((x) => /^(Promenades ouvertes|Jardins d'Etat)$/.test(x.type ?? '') && x.hours && openState(x.hours)?.open);
+  showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), nearestOf(gardens, from, 2), 'garden');
 }
 
-function showPratique(from, fs, ts, cs = []) {
-  const block = (title, icon, list) => [
+function showPratique(from, fs, ts, cs = [], last = 'cool') {
+  const block = (title, icon, list, none = 'Aucune trouvée.') => [
     el('h3', { class: 'ring-title' }, el('span', {}, title), el('span', {}, '')),
     list.length
       ? el('ul', { class: 'items' }, list.map(({ item, d }) => {
@@ -9448,19 +9561,20 @@ function showPratique(from, fs, ts, cs = []) {
           el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
       }))
-      : el('p', { class: 'empty' }, 'Aucune trouvée.'),
+      : el('p', { class: 'empty' }, none),
   ];
   openSheet('Pratique près de toi', el('div', { class: 'stack' },
     ...block('Fontaine à boire', 'glass-water', fs),
     ...block('Toilettes publiques', 'toilet', ts),
-    ...(cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', 'trees', cs) : []),
+    ...(last === 'garden' ? (windy() ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Jardin ouvert'), el('span', {}, '')), el('p', { class: 'warn' }, `Grand vent (rafales à ${meteo.gust} km/h) : la Ville ferme souvent ses jardins.`)] : block('Jardin ouvert', 'trees', cs, 'Aucun ouvert près d\'ici.'))
+      : cs.length ? block('Lieu frais (ombre, musée, bibliothèque…)', 'trees', cs) : []),
     el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
       setPratLayer(!state.showPratique);
-      if (state.showPratique) { nearLayer.clearLayers(); closeSheet(); } else showPratique(from, fs, ts, cs);
+      if (state.showPratique) { nearLayer.clearLayers(); closeSheet(); } else showPratique(from, fs, ts, cs, last);
     } }, ico('map'), state.showPratique ? 'Masquer fontaines et toilettes de la carte' : 'Toutes les fontaines et toilettes sur la carte'),
     el('p', { class: 'help' }, 'Ouvert ou fermé : d\'après les horaires publiés (ceux du parc pour les toilettes d\'un parc).'),
-    el('p', { class: 'help tip' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées ; un lieu fermé en ce moment passe en dernier. Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
-  ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs), tall: true });
+    el('p', { class: 'help tip' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées ; un lieu fermé en ce moment passe en dernier. « Jardin ouvert » : un square, un jardin ou un parc ouvert maintenant d\'après ses horaires de la saison ; à 28° et plus, ce bloc devient « Lieu frais ». Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
+  ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs, last), tall: true });
   nearLayer.clearLayers();
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng]];
@@ -9657,7 +9771,7 @@ const HELP = [
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
     '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC, Vélib\', Rentrer, Circuits et Note du jour.',
-    '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le lieu frais les plus proches. Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
+    '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
@@ -9798,6 +9912,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\'** et {droplets} **Fontaines et toilettes** : aussi dans Filtres → Afficher aussi sur la carte. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
+    '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller. Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -9846,6 +9961,7 @@ const HELP = [
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
+    '{trees} **Signaler un grand jardin ouvert** : éteint au départ ; {settings} → Alertes et bandeau, tout en bas. Le bandeau « Maintenant » te dit quand un jardin de 4 hectares ou plus (Monceau, Montsouris, Buttes-Chaumont…) est ouvert à 200 m. Rien s\'il ferme dans moins de 20 min, rien quand tu y es déjà, rien par grand vent. Appli ouverte seulement.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
     '{database} **Données de l\'appli** : {settings} → Mise à jour et confidentialité. Chaque donnée a sa date.',
@@ -9881,6 +9997,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
     '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
     '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
@@ -9890,7 +10007,6 @@ const HELP = [
     '{plus} Nouveau circuit : en bas de Circuits de visite. Touche la carte pour chaque étape, Enregistrer, puis un titre, un thème et tes textes si tu veux. Il se range dans Mes circuits, sans parcours en double dans Mes parcours.',
     '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
     '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
-    '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
   ]],
 ];
 
@@ -9924,6 +10040,7 @@ drawMarkets();
 if (state.showPratique) loadPratLayer();
 loadArcades().then(drawArcadeLayer); // petit fichier de l'appli : prêt pour Curiosités et le bandeau « Il pleut »
 if (state.showVelo) setVeloLayer(true);
+if (state.showJardins) setJardinLayer(true); // v261 : jardins publics, lus seulement s'ils sont allumés
 drawLayerNote();
 drawTtb();
 // « Dans la rue, à 5 min » (v158) : l'agenda du jour est chargé une fois par jour à l'ouverture (aucune position envoyée)

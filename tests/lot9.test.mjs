@@ -81,7 +81,7 @@ test('sorties : requête du jour sans position, lecture robuste, proches d\'abor
 });
 
 test('lieux frais : adresse légère pour les parcs, lecture des équipements', () => {
-  assert.match(exportUrl('fraisParcs'), /select=nom,type,adresse,geo_point_2d/);
+  assert.match(exportUrl('fraisParcs'), /select=identifiant,nom,type,adresse,geo_point_2d/);
   const r = parseRecords([{ nom: 'Bibliothèque X', type: 'Bibliothèques', adresse: '1 rue Y', payant: 'Non', geo_point_2d: { lat: 48.86, lon: 2.34 } }, { nom: 'Sans pos' }], 'fraisLieux');
   assert.equal(r.length, 1); assert.equal(r[0].label, 'Bibliothèque X'); assert.match(r[0].detail, /gratuit/);
 });

@@ -402,7 +402,7 @@ export function nearestVelib(stations, here, need = 'bike', k = 3, now = Date.no
 
 export function meteoUrl(lat = 48.857, lng = 2.352) {
   const u = new URL('https://api.open-meteo.com/v1/forecast');
-  u.search = new URLSearchParams({ latitude: lat.toFixed(2), longitude: lng.toFixed(2), current: 'precipitation,weather_code,temperature_2m', timezone: 'Europe/Paris' });
+  u.search = new URLSearchParams({ latitude: lat.toFixed(2), longitude: lng.toFixed(2), current: 'precipitation,weather_code,temperature_2m,wind_gusts_10m', timezone: 'Europe/Paris' });
   return u.toString();
 }
 
@@ -439,7 +439,8 @@ export function readMeteo(json) {
   const c = json?.current;
   if (!c || typeof c !== 'object') return null;
   const rain = Number(c.precipitation) >= 0.1 || RAIN.has(Number(c.weather_code));
-  return { rain, temp: Number.isFinite(c.temperature_2m) ? Math.round(c.temperature_2m) : null };
+  // v261 : rafales (km/h), seulement si la réponse les donne : par grand vent, la Ville ferme ses jardins sans que leurs horaires le disent
+  return { rain, temp: Number.isFinite(c.temperature_2m) ? Math.round(c.temperature_2m) : null, ...(Number.isFinite(c.wind_gusts_10m) ? { gust: Math.round(c.wind_gusts_10m) } : {}) };
 }
 
 /* ---------- Balade partagée et rendez-vous (dans le #, jamais envoyés au serveur) ---------- */

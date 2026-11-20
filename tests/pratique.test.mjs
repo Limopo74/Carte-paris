@@ -68,6 +68,9 @@ test('parcs : horaires de la saison (îlots de fraîcheur) au format OpenStreetM
   assert.equal(parkHours(sq, new Date(2027, 4, 1)), '', 'saison passée : horaires inconnus plutôt que faux');
   assert.equal(parkHours({ ...days('00h00 - 23h59', '00:00 - 23:59'), horaires_periode: 'None' }, nov), '24/7');
   assert.equal(parkHours({ ...days('None', 'None'), ouvert_24h: 'Oui' }, nov), '24/7');
+  // v261 : « 00h00 - 23h59 » partout mais « pas ouvert 24 h/24 » (parc de Bercy, les bois) : contradiction, rien plutôt que « jour et nuit »
+  assert.equal(parkHours({ ...days('00h00 - 23h59', '00h00 - 23h59'), horaires_periode: 'du 25/10/26 au 28/02/27', ouvert_24h: 'Non' }, nov), '');
+  assert.equal(parkHours({ ...days('00h00 - 23h59', '00h00 - 23h59'), horaires_periode: 'du 25/10/26 au 28/02/27', ouvert_24h: 'Oui' }, nov), '24/7');
   assert.equal(parkHours({ ...days('08h30 - 12h30 / 14h00 - 17h00', '-'), horaires_periode: 'à partir du 07/06/22' }, nov), 'Mo 08:30-12:30,14:00-17:00; Tu 08:30-12:30,14:00-17:00; We 08:30-12:30,14:00-17:00; Th 08:30-12:30,14:00-17:00; Fr 08:30-12:30,14:00-17:00; Sa off; Su off');
   assert.equal(parkHours({ ...days('15H - 18H', '10h-19h'), horaires_periode: null }, nov), 'Mo 15:00-18:00; Tu 15:00-18:00; We 15:00-18:00; Th 15:00-18:00; Fr 15:00-18:00; Sa 10:00-19:00; Su 10:00-19:00');
   assert.equal(parkHours({ ...days('08h00 - 17h00', 'None') }, nov), '', 'un jour inconnu : on ne devine pas');
