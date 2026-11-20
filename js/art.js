@@ -612,6 +612,38 @@ export function venueEvents(events, venues, now = new Date()) {
   return out.sort((a, b) => t(a) - t(b));
 }
 
+/**
+ * Salles près de moi (v296) : les lieux de l'agenda de la semaine qui ont un concert ou un spectacle, à moins de `maxM`
+ * du point de départ, pour les suivre dans Mes salles. Sans les Grands lieux, sans les salles déjà suivies, sans les
+ * lieux qui ne sont pas des salles (bibliothèques, médiathèques, gymnases, centres Paris Anim').
+ * Deux graphies d'une même salle à moins de 100 m (« 38Riv », « 38Riv Jazz Club ») n'en font qu'une, au nom le plus court :
+ * suivre ce nom trouve aussi l'autre (`atVenue`). Tri sur le téléphone : la position n'est envoyée nulle part.
+ * Rend [{ name, n (sorties différentes), d (mètres), lat, lng }], la plus proche d'abord.
+ */
+const NOT_A_HALL = ['biblioth', 'mediath', 'gymnase', 'centre paris anim'];
+export function venuesNear(events, from, maxM, { followed = [], isShow = () => true, places = ART_PLACES } = {}) {
+  if (!from || !Number.isFinite(from.lat)) return [];
+  const mine = cleanVenues(followed);
+  const groups = new Map();
+  for (const e of events ?? []) {
+    const name = String(e?.place ?? '').replace(/\s+/g, ' ').trim();
+    const key = artistKey(name);
+    if (key.replace(/ /g, '').length < 3 || !Number.isFinite(e.lat) || !isShow(e)) continue;
+    if (NOT_A_HALL.some((w) => plain(name).includes(w)) || artPlaceOf(e, places) || mine.some((v) => atVenue(e, v))) continue;
+    const g = groups.get(key) ?? { name, lat: e.lat, lng: e.lng, titles: new Set() };
+    g.titles.add(plain(e.title));
+    groups.set(key, g);
+  }
+  const kept = [];
+  for (const g of [...groups.values()].sort((a, b) => a.name.length - b.name.length)) {
+    const same = kept.find((k) => distanceM(k, g) <= 100 && atVenue({ place: g.name }, k.name));
+    if (same) g.titles.forEach((t) => same.titles.add(t));
+    else kept.push(g);
+  }
+  return kept.map((g) => ({ name: g.name, n: g.titles.size, d: distanceM(from, g), lat: g.lat, lng: g.lng }))
+    .filter((g) => g.d <= maxM).sort((a, b) => a.d - b.d);
+}
+
 /* ---------- 19. Garder un lieu en favori d'un appui (v167) : la catégorie devinée parmi les miennes ---------- */
 // Mots cherchés dans le nom de mes catégories, du plus juste au plus large (le premier mot trouvé l'emporte)
 const FAV_WORDS = {

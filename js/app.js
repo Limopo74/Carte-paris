@@ -21,7 +21,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, VELO_FILE, JARDINS_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
@@ -46,7 +46,7 @@ import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, mark
 import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (295)';
+const VERSION = '20 novembre 2026 (296)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5604,8 +5604,8 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
   const again = () => openVenues(back);
   const names = cleanVenues(state.venues);
   let failed = false;
-  if (names.length && (!weekCache || weekCache.day !== new Date().toDateString())) {
-    openSheet(title, el('p', { class: 'help' }, 'Recherche du programme de tes salles dans l\'agenda de la Ville de Paris (7 jours)…'), { name: 'salles' });
+  if (!weekCache || weekCache.day !== new Date().toDateString()) { // v296 : aussi sans salle suivie, pour les salles près de moi
+    openSheet(title, el('p', { class: 'help' }, names.length ? 'Recherche du programme de tes salles dans l\'agenda de la Ville de Paris (7 jours)…' : 'Recherche des salles dans l\'agenda de la Ville de Paris (7 jours)…'), { name: 'salles' });
     try { await weekEvents(); } catch { failed = true; }
   }
   const o = evFrom;
@@ -5628,7 +5628,15 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
     if (n && !known.has(artistKey(n))) { known.add(artistKey(n)); sugg.push(n); }
   }
   const follow = (n) => { state.venues = cleanVenues([...cleanVenues(state.venues), n]); persist(); again(); toast(`${n} : dans Mes salles`); };
+  // Salles près de moi (v296) : les lieux de l'agenda qui ont un concert ou un spectacle cette semaine, triés sur le téléphone
+  const from = o ?? (() => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng, kind: 'map' }; })();
+  const fromWords = from.kind === 'map' ? 'du centre de la carte' : from.kind === 'home' ? 'de chez toi' : from.kind === 'station' && from.label ? `de ${from.label}` : 'de toi';
+  const nearTitle = from.kind === 'map' ? 'Près du centre de la carte' : from.kind === 'station' ? 'Près de la station' : `Salles près ${fromWords}`; // une ligne à 360 px, même en Très grand (mesuré)
+  const nearM = tune('eventsM');
+  const isShow = (e) => ['musique', 'scene'].includes(tagGenre(e.tags) ?? genreOf(e));
+  const near = failed ? [] : venuesNear(weekCache?.items ?? [], from, nearM, { followed: names, isShow }).slice(0, 8);
   openSheet(title, el('div', { class: 'stack' },
+    !names.length && failed ? el('p', { class: 'summary' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.') : null,
     names.length ? el('p', { class: 'summary' }, failed ? 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'
       : found.length ? `${plural(found.length, 'rendez-vous', 'rendez-vous')} dans tes salles cette semaine.` : 'Rien dans l\'agenda de la Ville pour tes salles cette semaine.') : null,
     found.length ? el('ul', { class: 'items ev-list' }, found.slice(0, 60).map(({ e }) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, here, { week: true }))) : null,
@@ -5643,8 +5651,14 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n), el('span', { class: 'item-sub' }, 'Un appui pour la suivre')))))) : null,
     el('label', { class: 'field' }, 'Suivre une salle', input),
     el('button', { type: 'button', class: 'btn c-add', onclick: add }, ico('plus'), 'Ajouter'),
+    failed ? null : el('h3', { class: 'ring-title' }, el('span', {}, nearTitle), el('span', {}, String(near.length))),
+    failed ? null : near.length ? el('ul', { class: 'items' }, near.map((v) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => follow(v.name), 'aria-label': `Suivre ${v.name} dans Mes salles` },
+      el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('plus', { size: 18 })),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, v.name), el('span', { class: 'item-sub' }, `${plural(v.n, 'rendez-vous', 'rendez-vous')} · ${fmtDist(v.d)}`))))))
+      : el('p', { class: 'help' }, `Aucune salle avec un concert ou un spectacle cette semaine à moins de ${tuningText('eventsM', nearM)} ${fromWords}.`),
     el('p', { class: 'help' }, 'Les salles qui ne publient pas dans l\'agenda de la Ville n\'apparaîtront pas.'),
     el('p', { class: 'help tip' }, 'Le plus simple : « Suivre » sur la page d\'une sortie, d\'un Grand lieu, d\'une galerie ou d\'un musée gratuit. L\'appli cherche le nom tel quel (sans tenir compte des accents ni des majuscules) dans le lieu et l\'organisateur des sorties de l\'agenda « Que faire à Paris ? », sur 7 jours. Ta liste reste sur ce téléphone et part dans ta sauvegarde.'),
+    failed ? null : el('p', { class: 'help tip' }, `« ${nearTitle} » : les lieux qui ont un concert ou un spectacle dans l'agenda cette semaine, à moins de ${tuningText('eventsM', nearM)} ${fromWords} (la distance de Sorties), sans les Grands lieux ni les bibliothèques. Un appui la suit. Le tri se fait sur ce téléphone.`),
     foot(backBtn(back)),
   ), { tall: true, name: 'salles', again });
 }
@@ -10208,6 +10222,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
     '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
     '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
@@ -10217,7 +10232,6 @@ const HELP = [
     '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
     '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
-    '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
   ]],
 ];
 
