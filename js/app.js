@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (266)';
+const VERSION = '20 novembre 2026 (267)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -454,7 +454,9 @@ const filt = { open: false, top: false, covered: false, seen: false, lists: new 
 const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all', filt.arr > 0].filter(Boolean).length;
 const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
   && (!filt.covered || p.covered) && (!filt.seen || p.cat === SEEN_CAT.id) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
-  && (personFilter === 'all' || p.owner === personFilter) && (!filt.arr || arrOfPoint(p) === filt.arr);
+  && (personFilter === 'all' || p.owner === personFilter);
+/** v267 : l'arrondissement choisi ne trie que la carte et sa liste ; Autour de moi, la recherche, Surprise ou le bandeau n'en tiennent pas compte. */
+const onMap = () => visible().filter((p) => !filt.arr || arrOfPoint(p) === filt.arr);
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
 /** Ce que l'appli propose (Autour de moi, Surprise, balades, alertes…) : pas une œuvre « Disparue ou recouverte » (v161). Elle reste sur la carte et dans le journal. */
@@ -470,7 +472,7 @@ function renderMarkers() {
   drawnZoom = map.getZoom();
   // De loin, les lieux proches deviennent une goutte encre chiffrée ; les favoris restent seuls (js/groupes.js, v178).
   // Le lieu qu'on déplace n'est pas dessiné : le viseur le remplace.
-  const { single, groups } = groupPoints(visible(), (p) => map.project([p.lat, p.lng], drawnZoom), drawnZoom, moving?.id ?? null);
+  const { single, groups } = groupPoints(onMap(), (p) => map.project([p.lat, p.lng], drawnZoom), drawnZoom, moving?.id ?? null);
   for (const g of groups) {
     const { lat, lng } = groupCenter(g);
     const big = g.length >= 100 ? ' big' : '';
@@ -999,7 +1001,7 @@ function openListPlaces(listId, query = '', picked = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['jardins', 'trees', 'Jardins publics']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics']];
   openSheet([ico('settings'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -1106,6 +1108,9 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   navStack.push({ name: key, again, want: scroll });
   shownKey = key;
   if (name !== 'near') stopQuietNear(); // la position n'est suivie que sur l'écran Autour de moi
+  // v267 : l'arrondissement choisi ne dure que le temps de sa liste et des fiches ouvertes depuis elle (v202) ; un autre écran
+  // (Autour de moi, Réglages…) l'enlève, sinon il cachait mes autres lieux sans rien dire. Revenir à la liste le remet (openArrList).
+  if (filt.arr && name !== 'arrlist' && !String(name).startsWith('detail:')) { filt.arr = 0; renderChips(); renderMarkers(); drawArrOutline(); updateNow(true); }
   const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
   fill(sheetTitle, ...[title].flat().filter(Boolean));
@@ -4056,6 +4061,7 @@ async function velibStations() {
   let info = null;
   try { const c = JSON.parse(localStorage.getItem(VELIB_KEY) ?? 'null'); if (c && Date.now() - c.t < 7 * 864e5) info = c.info; } catch { /* rien */ }
   const statusP = net(VELIB_STATUS).then((r) => r.json());
+  statusP.catch(() => {}); /* v267 : si la liste des stations échoue d'abord, pas d'erreur orpheline */
   if (!info) {
     const full = await (await net(VELIB_INFO)).json();
     info = { data: { stations: (full?.data?.stations ?? []).map((s) => ({ station_id: s.station_id, name: s.name, lat: s.lat, lon: s.lon })) } };
@@ -4324,6 +4330,7 @@ function arrBack() {
   return n ? named(`Mes lieux du ${arrOrd(n)}`, () => openArrList(n)) : null;
 }
 function openArrList(n) {
+  if (filt.arr !== n) { filt.arr = n; renderChips(); renderMarkers(); drawArrOutline(); updateNow(true); } /* v267 : retour à la liste depuis une page de la fiche */
   const here = (p) => arrOfPoint(p) === n;
   const pts = visible().filter(here);
   const back = named(`Mes lieux du ${arrOrd(n)}`, () => openArrList(n));

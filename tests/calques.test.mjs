@@ -90,3 +90,12 @@ test('feuille Filtres : chaque ligne qu\'on peut masquer est une clé gardée (v
   for (const k of kept) assert.ok(FILTER_KEYS.includes(k), `ligne « ${k} » de Filtres pas gardée`);
   assert.deepEqual(cleanFilterKeys(['seen', 'x']), ['seen']);
 });
+
+test('Filtres affichés : chaque ligne de Filtres peut s\'y masquer (v267 : Pistes à vélo manquait)', () => {
+  const app = src('js/app.js');
+  const choice = app.slice(app.indexOf('function openFilterChoice'), app.indexOf('/** Ajoute ou retire une catégorie du filtre du haut. */'));
+  const rows = new Set([...choice.match(/const rows = (\[\[.*\]\]);/)[1].matchAll(/\['([a-z]+)', '/g)].map((m) => m[1]));
+  const filters = app.slice(app.indexOf('function openFilters()'), app.indexOf('function openListPlaces'));
+  const kept = new Set([...filters.matchAll(/keep\('([a-z]+)'/g)].map((m) => m[1]));
+  for (const k of kept) assert.ok(rows.has(k), `ligne « ${k} » de Filtres absente de « Filtres affichés »`);
+});
