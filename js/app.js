@@ -62,7 +62,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (307)';
+const VERSION = '20 novembre 2026 (308)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -511,7 +511,7 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
-    const seen = isPass(p) && p.photos?.length && !p.gone; // Vu en passant (v157 ; v305 : quelle que soit sa catégorie) ; disparue : une goutte grise
+    const seen = isPass(p) && p.photos?.length && !p.gone && state.seenPhotoMap !== false; // Vu en passant (v157 ; v305 : quelle que soit sa catégorie) ; disparue : une goutte grise
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
       : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
@@ -1758,8 +1758,16 @@ function openSeenForm(blob, where, back = null) {
   let fix = null;
   // v305 (mes choix du 20 nov.) : la catégorie, toutes sur une ligne qui défile ; puis sa sous-catégorie, ou l'artiste pour Street art.
   // La catégorie et la sous-catégorie restent choisies pour la photo suivante, le temps de la session.
-  let cat = back?.cat ?? (seenCats().some((c) => c.id === seenCat) ? seenCat : SEEN_CAT.id);
-  let sub = back?.sub ?? (cat === seenCat ? seenSub : '');
+  // v308 : celle de la photo d'avant (si « Garder la catégorie »), sinon celle de « Au départ, ranger dans »
+  const startPick = () => {
+    if (state.seenKeep !== false && seenCats().some((c) => c.id === seenCat)) return { cat: seenCat, sub: seenSub };
+    if (state.seenStart === 'street') return { cat: seenCats()[1].id, sub: '' };
+    if (state.seenStart === 'last' && state.seenLast && seenCats().some((c) => c.id === state.seenLast.cat)) return { ...state.seenLast };
+    return { cat: SEEN_CAT.id, sub: '' };
+  };
+  const start = startPick();
+  let cat = back?.cat ?? start.cat;
+  let sub = back?.sub ?? start.sub;
   const catObj = () => seenCats().find((c) => c.id === cat) ?? SEEN_CAT;
   const street = () => isStreetCat(catObj());
   const artist = artistInput(back?.artist ?? '');
@@ -1797,7 +1805,7 @@ function openSeenForm(blob, where, back = null) {
   drawCats();
   where.then((r) => {
     fix = r;
-    const near = !r?.error ? placeNear(state.points, r, 30) : null;
+    const near = !r?.error && state.seenNear !== false ? placeNear(state.points, r, 30) : null; // v308 : réglable
     if (near) {
       if (!back) target = near.p.id;
       let draw = () => fill(choice, 'Où la garder ?', el('div', { class: 'seg', role: 'group', 'aria-label': 'Où la garder' },
@@ -1840,6 +1848,7 @@ function openSeenForm(blob, where, back = null) {
     if (cat === SEEN_CAT.id) state = withSeenCat(state);
     else if (isStreet && !state.categories.some((x) => x.id === cat)) { state = withStreetCat(state); cat = streetCatId(state.categories); }
     seenCat = cat; seenSub = isStreet ? '' : sub;
+    state.seenLast = { cat, sub: seenSub }; // v308 : pour « La dernière »
     const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
     np.photos = [id];
     np.pass = true; // v305 : pris en passant, même rangé dans Culture : le diaporama, Filtres → Vu en passant et la photo sur la carte le suivent
@@ -9054,6 +9063,22 @@ function openSettings(section = null) {
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, 'aria-label': `${label(tuningText(key, tune(key)))} : moins`, onclick: () => tuneStep(key, -1, label) }, ico('minus')),
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, 'aria-label': `${label(tuningText(key, tune(key)))} : plus`, onclick: () => tuneStep(key, 1, label) }, ico('plus')));
 
+  if (section === 'vu') { // v308 : Réglages → Vu en passant
+    const startSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Au départ, ranger dans' },
+      [['vu', 'Vu en passant'], ['street', 'Street art'], ['last', 'La dernière']].map(([k, label]) => el('button', { type: 'button', 'aria-pressed': String((state.seenStart ?? 'vu') === k), onclick: () => { state.seenStart = k; persist(); openSettings('vu'); toast(`Au départ : ${label}`); } }, label)));
+    openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
+      el('div', { class: 'menu' },
+        onOff('seenKeep', 'rotate-cw', 'Garder la catégorie', 'Pour la photo suivante (appli ouverte)', state.seenKeep !== false, () => { state.seenKeep = state.seenKeep === false; })),
+      el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Au départ, ranger dans'), startSeg,
+        el('p', { class: 'help' }, '« La dernière » : celle de ta dernière photo, même un autre jour.')),
+      el('div', { class: 'menu' },
+        onOff('seenNear', 'map-pin', 'Proposer une adresse proche', 'Quand tu es à moins de 30 m d\'un de tes lieux', state.seenNear !== false, () => { state.seenNear = state.seenNear === false; }),
+        onOff('seenPhotoMap', 'image', 'Photo sur la carte', 'Sur le rond de chaque photo, en zoomant', state.seenPhotoMap !== false, () => { state.seenPhotoMap = state.seenPhotoMap === false; refresh(); })),
+      backBtn,
+    ), { tall: true, name: 'settings:vu', again: () => openSettings('vu') });
+    return;
+  }
+
   if (section === 'alertes') {
     const voiceOn = state.voice !== false;
     const buzzOn = state.vibrateNow === true; /* v189 : éteint au départ */
@@ -9213,6 +9238,8 @@ function openSettings(section = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
+    // v308 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
+    row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -10495,6 +10522,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
     '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
@@ -10504,7 +10532,6 @@ const HELP = [
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
-    '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
   ]],
 ];
 

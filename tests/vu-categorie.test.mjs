@@ -47,7 +47,7 @@ test('Pris en passant : la marque, ou la catégorie Vu en passant d\'avant la v3
   assert.equal(isPass({ cat: SEEN_CAT.id }), true);
   assert.equal(isPass({ cat: 'culture' }), false);
   assert.match(app, /\(!filt\.seen \|\| isPass\(p\)\)/, 'Filtres → Vu en passant');
-  assert.match(app, /const seen = isPass\(p\) && p\.photos\?\.length && !p\.gone;/, 'la photo sur la carte');
+  assert.match(app, /const seen = isPass\(p\) && p\.photos\?\.length && !p\.gone(?: && state\.seenPhotoMap !== false)?;/, 'la photo sur la carte');
 });
 
 test('Écran après la photo : catégorie, sous-catégorie ou artiste, plus de listes ; gardés pour la photo suivante', () => {
