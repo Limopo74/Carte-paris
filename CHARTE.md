@@ -74,7 +74,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 3. Copiée dans l'appli ou servie par la source de la donnée : pas de nouveau service d'images (seule exception aujourd'hui : cdn.paris.fr, pour l'agenda).
 4. **Jamais** dans une ligne de liste, le bandeau « Parcourir », une plaque ou sur la carte (sauf la vignette de mes « Vu en passant ») : seulement sur la page d'un lieu ou d'une sortie, et elle ne fait jamais bouger les boutons une fois la page ouverte.
 5. **Crédit visible** sous une photo officielle (« © … »), jamais replié dans « Aide ».
-6. Formats en usage : ma photo en bandeau de 150 px sur la fiche ; en tête d'un passage couvert ou d'un jardin, 100 px (84 en Grand, 60 en Très grand) ; la photo de l'agenda en 16:9 en tête d'une sortie (mesurée le 20 nov., décision en attente). Un toucher l'ouvre en grand. Pas de nouveau format sans mon accord.
+6. Formats en usage : ma photo en bandeau de 150 px sur la fiche ; en tête d'un passage couvert ou d'un jardin, 100 px (84 en Grand, 60 en Très grand) ; la photo de l'agenda en tête d'une sortie, même bandeau de 100 px (84, 60) depuis la v279 (mon choix B du 20 nov. ; avant : 16:9, 182 px). Un toucher l'ouvre en grand. Pas de nouveau format sans mon accord.
 7. Monuments, œuvres et musées : **pas de photo** dans l'appli ; le lien Wikipédia (qui s'ouvre souvent sur une photo) suffit (mon choix A du 20 nov.).
 
 ## 8. Navigation et vocabulaire

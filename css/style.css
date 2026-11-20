@@ -1140,7 +1140,11 @@ a.menu-row .menu-chev { font-size: 20px; }
 
 /* Photo officielle d'une sortie (agenda de la Ville) : dans la page d'une sortie (v133) */
 .ev-photo { margin: 0; display: flex; flex-direction: column; gap: 4px; }
-.ev-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r); background: var(--line); }
+.ev-photo img { display: block; width: 100%; height: 100px; object-fit: cover; border-radius: var(--r); background: var(--line); }
+/* v279 (mon choix B du 20 nov.) : bandeau de 100 px comme en tête d'un passage ou d'un jardin (avant : 16:9, 182 px à 360 px) :
+   « Y aller » et Boussole · Métro · Prévoir visibles à l'ouverture à 360 × 740 ; plus bas en Grand et Très grand */
+:root:is([data-text="grand"]) .ev-photo img { height: 84px; }
+:root:is([data-text="tresgrand"]) .ev-photo img { height: 60px; }
 .ev-photo figcaption { font-size: var(--t115); color: var(--muted); }
 
 /* En-tête de Sorties (v136) : onglets soulignés, un seul contrôle de départ et « Carte », une rangée de puces qui défile */
