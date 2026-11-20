@@ -234,7 +234,7 @@ export function cleanTtbMarks(obj) {
   const out = {};
   for (const [key, v] of Object.entries(obj && typeof obj === 'object' ? obj : {}).slice(0, 500)) {
     if (!/^[a-z0-9 ]+\|[a-z0-9 ]*$/.test(key) || !['closed', 'hidden', 'ok'].includes(v?.k) || !Number.isFinite(v?.at)) continue;
-    out[key] = { n: cut(v.n, 120), k: v.k, at: v.at };
+    out[key] = { n: cut(v.n, 120), k: v.k, at: v.at, ...(typeof v.by === 'string' && cut(v.by, 30) ? { by: cut(v.by, 30) } : {}) }; /* v330 : `by`, le prénom du proche qui a vérifié (absent : moi) */
   }
   return out;
 }
@@ -247,6 +247,8 @@ export const TTB_CHECK_DAYS = 183;
 const CHECK_MS = TTB_CHECK_DAYS * 864e5;
 /** Le moment de ma dernière vérification (même ancienne), sinon 0. */
 export const ttbCheckedAt = (marks, x) => { const m = marks?.[ttbKey(x)]; return m?.k === 'ok' ? m.at : 0; };
+/** Qui a vérifié (v330, mon choix 5A) : le prénom d'un proche, ou '' quand c'est moi. */
+export const ttbCheckedBy = (marks, x) => { const m = marks?.[ttbKey(x)]; return m?.k === 'ok' ? (m.by ?? '') : ''; };
 /** Jusqu'à quand vaut une vérification faite à ce moment. */
 export const ttbCheckEnd = (at) => at + CHECK_MS;
 /** 'ok' (vérifiée depuis moins de 6 mois), 'old' (vérifiée il y a plus longtemps), 'no' (jamais), '' (fermée ou masquée). */
@@ -276,30 +278,53 @@ export function ttbQueue(items, marks, skipped = new Set(), now = Date.now()) {
 /* TTB dans ma sauvegarde (v179, choix du 18 nov.) : la liste et mes marques partent dans le fichier quand la case
    « Avec la liste TTB » est cochée (cochée au départ). Le fichier reste sur le téléphone ou là où je l'envoie ;
    rien ne va dans le dépôt. */
-/** Ce qui part dans le fichier : { ttb: 1, date, items, marks }, ou null s'il n'y a ni liste ni marque. */
-export function ttbExport(data, marks) {
-  const items = Array.isArray(data?.items) ? data.items : [];
-  const m = cleanTtbMarks(marks);
+/** Ce qui part dans le fichier : { ttb: 1, date, items, marks }, ou null s'il n'y a ni liste ni marque.
+ * Pour un proche (v330, mes choix 1A 3A 4A du 20 nov.) : `friend` garde mes marques « masquée » pour moi ; `onlyOk` n'envoie
+ * que les adresses vérifiées depuis moins de 6 mois, leurs marques et mes « fermées », et marque le fichier partiel (`part: 1`) :
+ * à l'import, il ajoute ce qui manque et ne remplace jamais la liste. */
+export function ttbExport(data, marks, { friend = false, onlyOk = false, now = Date.now() } = {}) {
+  let items = Array.isArray(data?.items) ? data.items : [];
+  const all = cleanTtbMarks(marks);
+  let m = friend || onlyOk ? Object.fromEntries(Object.entries(all).filter(([, v]) => v.k !== 'hidden')) : all;
+  if (onlyOk) {
+    items = items.filter((x) => ttbState(all, x, now) === 'ok');
+    const keep = new Set(items.map(ttbKey));
+    m = Object.fromEntries(Object.entries(m).filter(([k, v]) => v.k === 'closed' || keep.has(k)));
+  }
   if (!items.length && !Object.keys(m).length) return null;
-  return { ttb: 1, date: /^\d{4}-\d{2}-\d{2}$/.test(data?.date ?? '') ? data.date : '', items, marks: m };
+  return { ttb: 1, date: /^\d{4}-\d{2}-\d{2}$/.test(data?.date ?? '') ? data.date : '', items, marks: m, ...(onlyOk ? { part: 1 } : {}) };
 }
 /**
  * Fusion à la restauration ou à l'import : la liste dont la page est la plus récente gagne (à date égale, ou sans
  * date, celle du téléphone reste) ; les marques du téléphone restent et celles du fichier s'ajoutent. Seule exception (v218) :
  * ma marque « ok » cède à une marque plus récente du fichier, « ok » ou « closed » (l'adresse a été revue depuis).
  * `mine` = { data: { items, date } | null, marks } ; `file` = l'objet `ttb` du fichier.
- * Renvoie { data, marks, list: true si la liste du fichier a été prise, newMarks: nombre de marques ajoutées }.
+ * Renvoie { data, marks, list: true si la liste a changé, added: adresses arrivées, part: fichier partiel, newMarks: marques ajoutées ou remplacées }.
+ * `by` (v330) : le prénom du proche qui envoie ; ses marques le gardent.
  */
-export function ttbMerge(mine, file) {
+export function ttbMerge(mine, file, by = '') {
   const a = mine?.data?.items?.length ? mine.data : null;
   const b = readTtb(file);
-  const list = Boolean(b?.items.length) && (!a || (Boolean(b.date) && (!a.date || b.date > a.date)));
+  let data, list, added = 0;
+  if (file?.part === 1) { /* v330 : seulement des adresses vérifiées, envoyées par un proche : elles s'ajoutent, rien n'est remplacé */
+    const have = new Set((a?.items ?? []).map(ttbKey));
+    const more = (b?.items ?? []).filter((x) => { const k = ttbKey(x); if (have.has(k)) return false; have.add(k); return true; });
+    added = more.length;
+    list = added > 0;
+    data = a ? (list ? { items: [...a.items, ...more].slice(0, MAX_ITEMS), date: a.date } : a) : (list ? { items: more, date: b.date } : null);
+  } else {
+    list = Boolean(b?.items.length) && (!a || (Boolean(b.date) && (!a.date || b.date > a.date)));
+    data = list ? b : (a ?? null);
+    if (list) added = b.items.length;
+  }
   const marks = cleanTtbMarks(mine?.marks);
+  const who = cut(by, 30);
   let newMarks = 0;
-  for (const [k, v] of Object.entries(cleanTtbMarks(file?.marks))) {
-    if (k in marks) { if (marks[k].k === 'ok' && v.k !== 'hidden' && v.at > marks[k].at) marks[k] = v; continue; }
+  for (const [k, v0] of Object.entries(cleanTtbMarks(file?.marks))) {
+    const v = who && !v0.by ? { ...v0, by: who } : v0; /* v330 : une marque d'un proche dit son prénom (sauf si elle venait déjà d'un autre) */
+    if (k in marks) { if (marks[k].k === 'ok' && v.k !== 'hidden' && v.at > marks[k].at) { marks[k] = v; newMarks++; } continue; }
     if (Object.keys(marks).length >= 500) continue;
     marks[k] = v; newMarks++;
   }
-  return { data: list ? b : (a ?? null), marks, list, newMarks };
+  return { data, marks, list, added, part: file?.part === 1, newMarks };
 }

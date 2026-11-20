@@ -39,7 +39,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -66,7 +66,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (329)';
+const VERSION = '20 novembre 2026 (330)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -7814,7 +7814,7 @@ function openTtbPlace(x, back = null) {
     el('a', { class: 'btn c-guide', href: reviewsUrl(x), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
     /* v218 (mon choix 3A) : les deux réponses juste sous « Avis Google » ; « Fermé définitivement » a quitté le Rangement */
     st ? ttbVerdict(x, again) : null,
-    st === 'ok' ? el('p', { class: 'help' }, `Vérifiée le ${shortDate(seenAt)} : toujours ouvert. À revoir en ${monthYear(ttbCheckEnd(seenAt))}.`) : null,
+    st === 'ok' ? el('p', { class: 'help' }, `Vérifiée${ttbCheckedBy(ttbMarksNow(), x) ? ` par ${ttbCheckedBy(ttbMarksNow(), x)}` : ''} le ${shortDate(seenAt)} : toujours ouvert. À revoir en ${monthYear(ttbCheckEnd(seenAt))}.`) : null,
     st === 'old' ? el('p', { class: 'help' }, `Dernière vérification : ${monthYear(seenAt)}. À refaire.`) : null,
     x.hours.length ? el('h3', { class: 'fiche-sec' }, 'Horaires selon TTB') : null,
     x.hours.length ? el('div', { class: 'fiche-lines' }, x.hours.map((h, i) => el('p', {}, el('b', {}, `${TTB_DAYS[i]} `), h))) : null,
@@ -7909,12 +7909,12 @@ function ttbChipBack() {
 
 /** TTB d'un fichier de sauvegarde (v179) : la liste dont la page est la plus récente gagne, mes marques restent et
  * celles du fichier s'ajoutent. Renvoie un bout de phrase pour le message (« liste TTB remise »…) ou ''. */
-function importTtb(text) {
+function importTtb(text, by = '') {
   let file = null;
   try { file = JSON.parse(text)?.ttb ?? null; } catch { return ''; }
   if (!file) return '';
   ttbList();
-  const r = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, file);
+  const r = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, file, by);
   try {
     if (r.list) storage.setItem(TTB_KEY, JSON.stringify(ttbStore(r.data.items, r.data.date)));
     if (r.newMarks) storage.setItem(TTB_MARKS_KEY, JSON.stringify(r.marks));
@@ -7924,7 +7924,7 @@ function importTtb(text) {
   if (r.list && !had) ttbChipBack(); // v314
   ttbMarks = r.marks;
   drawTtb();
-  return [r.list ? `liste TTB remise (${plural(r.data.items.length, 'adresse', 'adresses')})` : '', r.newMarks ? plural(r.newMarks, 'marque TTB ajoutée', 'marques TTB ajoutées') : ''].filter(Boolean).join(', ');
+  return [r.list ? (r.part ? plural(r.added, 'adresse TTB vérifiée ajoutée', 'adresses TTB vérifiées ajoutées') : `liste TTB remise (${plural(r.data.items.length, 'adresse', 'adresses')})`) : '', r.newMarks ? plural(r.newMarks, 'marque TTB ajoutée', 'marques TTB ajoutées') : ''].filter(Boolean).join(', ');
 }
 
 /* ---------- Météo (Open-Meteo, position arrondie, une fois par demi-heure au plus) ---------- */
@@ -10173,13 +10173,15 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
   const nbArtists = cleanArtists(state.artists).length;
   const nbVenues = cleanVenues(state.venues).length;
   const nbTtb = ttbList().length;
-  const nbMarks = Object.keys(ttbMarksNow()).length;
+  const nbMarks = Object.keys(ttbMarksNow()).filter((k) => ttbMarksNow()[k].k !== 'hidden').length; /* v330 (mon choix 4A) : mes « masquées » restent à moi */
+  const nbOk = ttbCounts(ttbList(), ttbMarksNow()).ok;
+  const ttbOnly = nbOk > 0 && !sendSel.ttbAll; /* v330 (mon choix 1A) : seulement mes vérifiées au départ */
   const summary = el('p', { class: 'ok-line', role: 'status' });
   const sumText = () => {
     const parts = [sendSel.lieux && pts.length ? `${plural(pts.length, 'lieu', 'lieux')}${sendSel.notes ? ' avec leurs commentaires' : ''}` : '',
       sendSel.lieux && pts.length && sendSel.passages && nbPassages ? 'leurs impressions' : '', sendSel.lieux && pts.length && sendSel.photos && nbPhotos ? plural(nbPhotos, 'photo', 'photos') : '',
       sendSel.plans && nbPlans ? plural(nbPlans, 'sortie prévue', 'sorties prévues') : '', sendSel.artists && nbArtists ? plural(nbArtists, 'artiste', 'artistes') : '',
-      sendSel.venues && nbVenues ? plural(nbVenues, 'salle', 'salles') : '', sendSel.ttb && (nbTtb || nbMarks) ? 'la liste TTB' : ''].filter(Boolean);
+      sendSel.venues && nbVenues ? plural(nbVenues, 'salle', 'salles') : '', sendSel.ttb && (nbTtb || nbMarks) ? (ttbOnly ? `${plural(nbOk, 'adresse TTB vérifiée', 'adresses TTB vérifiées')}` : 'la liste TTB') : ''].filter(Boolean);
     fill(summary, parts.length ? [ico('check'), ` Partiront : ${parts.join(', ')}.`] : 'Rien de coché : coche au moins une ligne.');
     return parts.length;
   };
@@ -10200,7 +10202,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
       for (const id of obj.points.flatMap((p) => photoIds(p))) { const b = await getPhoto(id).catch(() => null); if (b) obj.photos[id] = await blobToDataUrl(b); }
       if (Object.keys(obj.photos).length) obj.sent.push('photos'); else delete obj.photos;
     }
-    if (sendSel.ttb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) { obj.ttb = t; obj.sent.push('ttb'); } }
+    if (sendSel.ttb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow(), { friend: true, onlyOk: ttbOnly }); if (t) { obj.ttb = t; obj.sent.push('ttb'); } }
     const f = new File([JSON.stringify(obj)], friendFileName(new Date(), state.me, obj.points.length), { type: 'application/json' });
     let shared = false;
     try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch { return; /* annulé */ }
@@ -10229,7 +10231,10 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
       row('artists', 'Artistes', plural(nbArtists, 'artiste suivi', 'artistes suivis'), nbArtists > 0),
       row('venues', 'Salles', plural(nbVenues, 'salle suivie', 'salles suivies'), nbVenues > 0),
       row('circuits', 'Mes circuits', `${plural(cleanMyCircuits(state.myCircuits).filter((c) => !c.by).length, 'circuit', 'circuits')} · tes textes d'étapes suivent « Commentaires »`, cleanMyCircuits(state.myCircuits).some((c) => !c.by)),
-      row('ttb', 'TTB', `La liste du guide${nbTtb ? ` (${plural(nbTtb, 'adresse', 'adresses')}${ttbData?.date ? `, page du ${frenchDate(ttbData.date)}` : ''})` : ''}${nbMarks ? ` et tes marques (${nbMarks})` : ''}`, nbTtb + nbMarks > 0)),
+      row('ttb', 'TTB', ttbOnly ? `${nbOk > 1 ? 'Tes adresses vérifiées' : 'Ton adresse vérifiée'} et celles notées fermées` : `La liste du guide${nbTtb ? ` (${plural(nbTtb, 'adresse', 'adresses')}${ttbData?.date ? `, page du ${frenchDate(ttbData.date)}` : ''})` : ''}${nbMarks ? ` et tes marques (${nbMarks})` : ''}`, nbTtb + nbMarks > 0)),
+    nbOk && nbTtb ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Quelles adresses TTB' }, /* v330 (mon choix 1A) : sous les lignes, rien ne bouge au-dessus */
+      chip(`Mes vérifiées ${nbOk}`, ttbOnly, () => { sendSel = { ...sendSel, ttb: true, ttbAll: false }; }),
+      chip('Toute la liste', !ttbOnly, () => { sendSel = { ...sendSel, ttb: true, ttbAll: true }; })) : null,
     el('h3', { class: 'fiche-sec' }, 'Quelles catégories'),
     el('div', { class: 'list-chips', style: 'margin-top: 8px' },
       chip('Toutes', sendCats === null, () => { sendCats = null; sendLists = new Set(); }),
@@ -10316,9 +10321,12 @@ function openFriendImport(text, owner, fresh = true) {
   let ttbLine = '';
   if (hasTtb) {
     ttbList();
-    const t = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, obj.ttb);
+    const t = ttbMerge({ data: ttbData, marks: ttbMarksNow() }, obj.ttb, owner);
     const theirs = obj.ttb.date ? `du ${frenchDate(obj.ttb.date)}` : 'sans date';
-    ttbLine = [ttbData?.items?.length
+    ttbLine = t.part /* v330 : seulement ses adresses vérifiées ; elles s'ajoutent, rien n'est remplacé */
+      ? [`${plural(obj.ttb.items?.length ?? 0, 'adresse vérifiée', 'adresses vérifiées')} par ${owner}`, t.added ? `${plural(t.added, 'nouvelle s\'ajoute', 'nouvelles s\'ajoutent')} à ta liste, rien n'est remplacé.` : 'déjà toutes dans ta liste.'].join(' : ')
+      + (t.newMarks ? ` ${plural(t.newMarks, 'marque arrive', 'marques arrivent')}.` : '')
+      : [ttbData?.items?.length
       ? (t.list ? `Sa liste est ${theirs}, la tienne ${ttbData.date ? `du ${frenchDate(ttbData.date)}` : 'sans date'} : la sienne la remplace.` : `Ta liste est aussi récente ou plus récente : elle reste.`)
       : (t.list ? `Sa liste (${plural(t.data.items.length, 'adresse', 'adresses')}, page ${theirs}) arrive sur ton téléphone.` : ''),
     t.newMarks ? `Tes marques restent, ${plural(t.newMarks, 'des siennes s\'ajoute', 'des siennes s\'ajoutent')}.` : ''].filter(Boolean).join(' ') || 'Rien de nouveau pour ta liste TTB.';
@@ -10335,11 +10343,14 @@ function openFriendImport(text, owner, fresh = true) {
     try { r = mergeFriend(state, obj, owner, choice()); } catch (e) { toast(e.message || 'Import impossible.', true); return; }
     state = { ...r.state, ok: state.ok };
     if (impSel.photos) await importPhotos(text, state);
-    const ttbNote = impSel.ttb && hasTtb ? importTtb(text) : '';
+    const okBefore = ttbCounts(ttbList(), ttbMarksNow()).ok;
+    const ttbNote = impSel.ttb && hasTtb ? importTtb(text, owner) : '';
+    const okNew = impSel.ttb && hasTtb && !state.ttbOk && ttbCounts(ttbList(), ttbMarksNow()).ok > okBefore; /* v330 (mon choix 6A) : proposer l'interrupteur en un appui */
     persist(); refresh(); updatePlanningCount();
     openSettings('importer');
     toast([`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')} (lieux de ${owner})`, r.dups ? `${r.dups} déjà chez toi` : '', r.updated ? `${plural(r.updated, 'mis à jour', 'mis à jour')}` : '',
-      r.artists ? plural(r.artists, 'artiste', 'artistes') : '', r.venues ? plural(r.venues, 'salle', 'salles') : '', r.plans ? `${plural(r.plans, 'sortie', 'sorties')} dans Mon planning` : '', ttbNote].filter(Boolean).join(', ') + '.');
+      r.artists ? plural(r.artists, 'artiste', 'artistes') : '', r.venues ? plural(r.venues, 'salle', 'salles') : '', r.plans ? `${plural(r.plans, 'sortie', 'sorties')} dans Mon planning` : '', ttbNote].filter(Boolean).join(', ') + '.',
+      false, okNew ? { label: 'Seulement les vérifiées', fn: () => { state.ttbOk = true; persist(); drawTtb(); toast('TTB : seulement les adresses vérifiées. Pour tout revoir : Réglages → TTB.'); } } : null);
   };
   openSheet([ico('user'), ` Lieux de ${owner}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `${sent && !Number.isNaN(sent.getTime()) ? `Fichier envoyé le ${sent.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}. ` : ''}Tout est coché : décoche ce que tu ne veux pas garder.`),
@@ -11206,6 +11217,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
     '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
     '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
     '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
@@ -11215,7 +11227,6 @@ const HELP = [
     '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
-    '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Autres réglages → Style de la carte.',
   ]],
 ];
 
