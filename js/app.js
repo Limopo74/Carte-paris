@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (267)';
+const VERSION = '20 novembre 2026 (268)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -842,7 +842,11 @@ function chipItems(chip = null, catChip = null) {
     { key: 'jardins', name: 'Jardins publics', icon: ico('trees'), active: Boolean(state.showJardins), act: toggleJardins,
       make: () => chip(ico('trees'), Boolean(state.showJardins), toggleJardins, { class: 'pratique', aria: 'Jardins publics sur la carte' }) },
   ];
-  return [...fixed, ...state.categories.map((c) => ({ key: `cat:${c.id}`, name: c.name, icon: catDot(c.id), cat: c.id, active: filterCats.has(c.id), act: () => toggleCat(c.id), make: () => catChip(c) }))];
+  // v268 (mes choix 2A, 3A, 4A) : les boutons de l'appli dans mon ordre ; Tout et Filtres toujours en tête, les catégories après
+  const order = chipOrderOf(state.chipOrder);
+  const rank = (x) => (MOVABLE_CHIPS.includes(x.key) ? 1 + order.indexOf(x.key) : 0);
+  const sorted = fixed.map((x, i) => [x, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([x]) => x);
+  return [...sorted, ...state.categories.map((c) => ({ key: `cat:${c.id}`, name: c.name, icon: catDot(c.id), cat: c.id, active: filterCats.has(c.id), act: () => toggleCat(c.id), make: () => catChip(c) }))];
 }
 
 /** ⋯ Plus de la barre du haut (v151) : les boutons qu'on y a rangés, chacun s'allume ou s'éteint d'un appui. */
@@ -8162,9 +8166,9 @@ function openSettings(section = null) {
     const nTop = { bar: 0, more: 0, hidden: 0 };
     for (const x of chipItems()) nTop[placeOf(x.key)] += 1;
     const moreNow = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips));
-    const asStart = !cleanChips(state.hiddenChips).length && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
+    const asStart = !cleanChips(state.hiddenChips).length && !cleanChipOrder(state.chipOrder) && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
-      el('p', { class: 'help tip' }, 'La barre du haut, de gauche à droite. Pour chaque bouton : « Barre » le garde en haut, « Plus » le range sous le bouton ⋯ (à un appui), « Masqué » l\'enlève. Les lieux restent toujours sur la carte. Flèches pour ranger tes catégories, nom pour les modifier.'),
+      el('p', { class: 'help tip' }, 'La barre du haut, de gauche à droite. Pour chaque bouton : « Barre » le garde en haut, « Plus » le range sous le bouton ⋯ (à un appui), « Masqué » l\'enlève. Les lieux restent toujours sur la carte. ↑ ↓ règlent l\'ordre des boutons (Tout et Filtres restent en tête), dans la barre comme dans Plus, puis de tes catégories. Touche le nom d\'une catégorie pour la modifier.'),
       el('p', { class: 'summary' }, `En haut : ${plural(nTop.bar, 'bouton', 'boutons')}${nTop.more ? ` + ⋯ (${nTop.more} dans Plus)` : ''}${nTop.hidden ? ` · ${nTop.hidden} masqué${nTop.hidden > 1 ? 's' : ''}` : ''}`),
       // Réglage de toute la barre : en tête de page, sans faire défiler
       el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
@@ -8175,9 +8179,18 @@ function openSettings(section = null) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
       el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
       el('div', { class: 'legend' }, 'Les boutons de l\'appli'),
-      el('div', {}, fixed.map((x) => el('div', { class: `cat-row tool-row${placeOf(x.key) === 'hidden' ? ' off' : ''}` },
-        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, x.icon),
-        el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, x.name), topSeg(x.key, x.name))))),
+      el('div', {}, fixed.map((x) => {
+        // v268 : ↑ ↓ comme pour les catégories ; Tout et Filtres restent en tête, sans flèches (mon choix 3A)
+        const order = chipOrderOf(state.chipOrder);
+        const i = order.indexOf(x.key);
+        const moveTop = (delta) => { state = moveChip(state, x.key, delta); persist(); refresh(); openSettings('categories');
+          requestAnimationFrame(() => document.querySelector(`[data-move="${x.key}:${delta}"]`)?.focus()); };
+        return el('div', { class: `cat-row tool-row${placeOf(x.key) === 'hidden' ? ' off' : ''}` },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, x.icon),
+          el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, x.name), i < 0 ? el('span', { class: 'menu-sub' }, 'Toujours en tête') : null, topSeg(x.key, x.name)),
+          i < 0 ? null : el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${x.key}:-1`, onclick: () => moveTop(-1), 'aria-label': `Monter ${x.name}` }, '↑'),
+          i < 0 ? null : el('button', { type: 'button', class: 'btn move', disabled: i === order.length - 1, 'data-move': `${x.key}:1`, onclick: () => moveTop(1), 'aria-label': `Descendre ${x.name}` }, '↓'));
+      })),
       el('div', { class: 'legend' }, 'Mes catégories, dans cet ordre'),
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
@@ -8196,7 +8209,7 @@ function openSettings(section = null) {
           el('button', { type: 'button', class: 'btn move', disabled: i === last, 'data-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'));
       })),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null) }, ico('plus'), 'Nouvelle catégorie'),
-      asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; persist(); refresh(); openSettings('categories'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
+      asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; state.chipOrder = null; persist(); refresh(); openSettings('categories'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
       el('p', { class: 'help tip' }, 'Astuce : sur la carte, un appui long sur une catégorie en haut ouvre directement sa modification.'),
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Mes listes'), el('span', {}, String((state.lists ?? []).length))),
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => el('div', { class: 'cat-row' },
@@ -9850,7 +9863,7 @@ const HELP = [
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. Au départ : Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts. Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
-    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué. Exemple : Resto et Boutique dans Plus.',
+    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué, et l\'ordre par ↑ ↓ (Tout et Filtres restent en tête, tes catégories viennent après). Exemple : Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
@@ -10083,6 +10096,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
@@ -10092,7 +10106,6 @@ const HELP = [
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
     '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
     '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
-    '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
   ]],
 ];
 
