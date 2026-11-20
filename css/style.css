@@ -1289,3 +1289,8 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 .viewer-cap-btns { flex: none; display: flex; flex-direction: column; gap: 8px; }
 .viewer-cap .btn.danger { background: #fff; color: var(--danger); }
 .viewer-cap .btn.danger.solid { background: var(--danger); color: #fff; }
+
+/* Période de test : le porte-voix, toujours au même endroit, sous la barre du haut à droite, au-dessus des pages */
+.map-btn.remark-btn { position: fixed; right: 10px; top: 68px; z-index: 810; width: 44px; height: 44px; }
+.map-btn.remark-btn[hidden] { display: none; }
+body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100vh - 122px)); }

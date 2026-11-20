@@ -33,5 +33,5 @@ test('Passe Navigo : l\'interrupteur est tout en bas de Réglages, après Ce que
   assert.ok(a > 0 && b > a, 'après Ce que j\'utilise');
   const end = app.indexOf('mySettingsBlock(),', b);
   // v308 : une ligne ajoutée plus tard va tout en bas (Vu en passant) ; aucune autre ne s'est glissée avant lui
-  assert.ok(end > b && !app.slice(b, end).replace(/row\('camera', 'Vu en passant'/, '').includes('row('), 'en bas : après lui, d\'autres interrupteurs, la ligne Vu en passant (v308), puis mes réglages par défaut');
+  assert.ok(end > b && !app.slice(b, end).replace(/row\('camera', 'Vu en passant'/, '').replace(/row\('megaphone', 'Mes remarques'/, '').includes('row('), 'en bas : après lui, d\'autres interrupteurs, la ligne Vu en passant (v308), Mes remarques (v313), puis mes réglages par défaut');
 });

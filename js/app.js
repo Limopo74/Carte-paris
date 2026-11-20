@@ -51,6 +51,7 @@ import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageRe
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
+import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, readTest, addRemark, markSent, platformInfo, contextLine, remarksText } from './remarques.js';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
@@ -62,7 +63,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (312)';
+const VERSION = '20 novembre 2026 (313)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -9461,6 +9462,13 @@ function openSettings(section = null) {
     }),
     // v308 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
     row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
+    // v313 (mes choix du 20 nov.) : tout en bas, éteinte au départ ; le lien …/?test l'allume aussi
+    onOff('test', 'megaphone', 'Période de test', testState.on ? 'Le porte-voix, en haut à droite' : 'Éteinte : pas de porte-voix', testState.on, () => {
+      testState = { ...testState, on: !testState.on }; saveTest(); showRemarkBtn();
+      const n = testState.remarks.filter((r) => !r.sent).length;
+      toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
+    }),
+    testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Réglages', () => openSettings())), false, 'c-info') : null,
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -10693,6 +10701,7 @@ const HELP = [
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : chronomètre 1 km dans la rue, puis règle jusqu\'à lire ton temps en « min par km ».',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '{chart-no-axes-column} **Ce que j\'utilise** : {settings}, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
+    '{megaphone} **Période de test** : {settings}, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -10734,6 +10743,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
     '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
@@ -10743,7 +10753,6 @@ const HELP = [
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
     '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
-    '{camera} Vu en passant, ranger ta photo : après la photo, choisis la **catégorie** (toutes les tiennes, sur une ligne qui défile ; Vu en passant en premier), puis sa **sous-catégorie** (« Portes », « Cours »… : « Créer » en tape une), ou l\'**artiste** pour Street art. Elles restent choisies pour la photo suivante. Rangée dans Culture, la photo reste « prise en passant » : Filtres → Vu en passant la montre toujours. « Enregistrer » reste visible en bas.',
   ]],
 ];
 
@@ -10808,6 +10817,80 @@ if (state.points.length) {
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à sauvegarder tes lieux.', true);
 updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés : due même sans nouveau changement)
 
+/* ---------- Période de test (v313, mes choix 1A à 6A du 20 nov.) : le porte-voix, une remarque, le menu de partage ----------
+   Allumée par le lien …/?test ou par Réglages, tout en bas. Rangée à part (js/remarques.js), hors sauvegarde. */
+let testState = readTest((() => { try { return storage.getItem(TEST_KEY); } catch { return null; } })());
+const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } };
+const btnRemark = document.getElementById('btnRemark');
+const showRemarkBtn = () => { btnRemark.hidden = !testState.on; };
+let platform = platformInfo(null, navigator.userAgent); // Chrome seul ; Android si Chrome le donne (lu une fois, plus bas)
+navigator.userAgentData?.getHighEntropyValues?.(['platformVersion', 'fullVersionList'])
+  .then((h) => { platform = platformInfo({ ...h, platform: navigator.userAgentData.platform }, navigator.userAgent); }).catch(() => {});
+/** L'écran où l'on est : son titre tel qu'affiché (sans le numéro de version des Réglages), et son nom de code pour Claude. */
+const remarkWhere = () => (sheet.hidden ? { s: 'la carte', w: 'carte' } : { s: sheetTitle.textContent.replace(/\s*v\d+\s*$/, '').trim() || 'la carte', w: screenKey(view) });
+const remarkContext = () => contextLine({ version: VERSION_NUM, size: TEXT_NAME[cleanTextSize(state.textSize)], side: state.toolsSide, ...platform });
+/** Passe les remarques au menu de partage du téléphone (sans lui : copiées). Marquées « envoyées » si le menu n'a pas été annulé. */
+async function sendRemarks(list) {
+  const text = remarksText(list);
+  if (!text) return false;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Ma carte de Paris : remarques', text }); } catch (e) { if (e?.name === 'AbortError') return false; await copyText(text, 'Copié : colle-le dans un SMS ou un courriel.'); }
+  } else await copyText(text, 'Copié : colle-le dans un SMS ou un courriel.');
+  testState = markSent(testState, list.map((r) => r.id)); saveTest();
+  return true;
+}
+function openRemark() {
+  if (view === 'remarque') return; // déjà ouverte
+  const where = remarkWhere();
+  const again = sheet.hidden ? null : navStack.at(-1)?.again;
+  const prev = again ? named(where.s, again) : named('Carte', () => closeSheet());
+  let pick = '';
+  const text = el('textarea', { maxlength: String(REMARK_TEXT_MAX), placeholder: 'Ex. : je ne trouve pas comment revenir' });
+  const chips = REMARK_KINDS.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', onclick: (ev) => {
+    pick = k; for (const b of chips) b.setAttribute('aria-pressed', String(b === ev.currentTarget));
+  } }, label));
+  const send = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
+    if (!pick) { toast('Choisis d\'abord ce qui ne va pas, juste au-dessus.', true); return; }
+    const r = cleanRemark({ id: `rq-${Date.now().toString(36)}`, k: pick, t: text.value, ...where, c: remarkContext(), at: Date.now() });
+    testState = addRemark(testState, r); saveTest();
+    prev();
+    sendRemarks([r]).then((ok) => toast(ok ? 'Remarque transmise à l\'appli choisie : vérifie l\'envoi.' : 'Remarque gardée, pas envoyée. Réglages → Mes remarques pour l\'envoyer.', !ok));
+  } }, ico('send'), 'Envoyer');
+  openSheet([ico('megaphone'), ' Une remarque'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `Sur : ${where.s}`),
+    el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Ce qui ne va pas (un seul choix)' }, chips),
+    el('label', { class: 'field' }, 'Un mot (facultatif)', text),
+    el('p', { class: 'help' }, 'Part avec : la version, cet écran, la taille du texte, Android et Chrome. Jamais ta position.'),
+    el('p', { class: 'help tip' }, 'Envoyer ouvre le menu de partage du téléphone (SMS, WhatsApp, courriel). La remarque reste aussi dans Réglages → Mes remarques. Pour dicter : le micro du clavier.'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: prev }, 'Annuler'), send)),
+  ), { name: 'remarque', tall: true });
+}
+/** Mes remarques : la liste, tout envoyer, tout supprimer. */
+function openRemarks(back) {
+  const again = () => openRemarks(back);
+  const list = testState.remarks;
+  const unsent = list.filter((r) => !r.sent).length;
+  openSheet([ico('megaphone'), ' Mes remarques'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, list.length ? `${plural(list.length, 'remarque', 'remarques')}, de la plus récente${unsent ? ` · ${unsent} pas envoyée${unsent > 1 ? 's' : ''}` : ''}.` : 'Aucune remarque pour l\'instant.'),
+    list.length ? el('ul', { class: 'pb-list' }, list.map((r) => el('li', {},
+      el('b', {}, `${remarkLabel(r.k)} · ${r.s}`),
+      el('span', {}, `le ${dayText(r.at)}${r.sent ? '' : ' · pas envoyée'}`),
+      r.t ? el('span', { class: 'pb-text' }, `« ${r.t} »`) : null))) : null,
+    list.length ? el('button', { type: 'button', class: 'btn c-info', onclick: () => sendRemarks(list).then((ok) => { if (ok) toast('Remarques transmises à l\'appli choisie.'); again(); }) }, ico('send'), list.length > 1 ? 'Tout envoyer' : 'L\'envoyer') : null,
+    list.length ? el('button', { type: 'button', class: 'btn danger', onclick: () => {
+      if (!confirm(list.length > 1 ? `Supprimer ces ${list.length} remarques ?` : 'Supprimer cette remarque ?')) return;
+      testState = { ...testState, remarks: [] }; saveTest(); toast(list.length > 1 ? 'Remarques supprimées' : 'Remarque supprimée'); again();
+    } }, ico('trash-2'), list.length > 1 ? 'Tout supprimer' : 'La supprimer') : null,
+    el('p', { class: 'help' }, 'Gardées sur ce téléphone seulement, hors sauvegarde.'),
+    el('p', { class: 'help tip' }, 'Le texte envoyé est prêt à coller dans une conversation avec Claude. Une fois les remarques lues, supprime-les.'),
+    foot(backBtn(back)),
+  ), { name: 'remarques', again, tall: true });
+}
+btnRemark.addEventListener('click', openRemark);
+// Le lien …/Carte-paris/?test allume la période de test (lu avant que runLaunchAction n'efface l'adresse)
+if (new URLSearchParams(location.search).has('test')) { testState = { ...testState, on: true }; saveTest(); toast('Période de test : touche le porte-voix pour une remarque.'); }
+showRemarkBtn();
+
 const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
 runLaunchAction();
 if (!launched && state.ok && backupDue(state)) {
@@ -10868,3 +10951,4 @@ if (navigator.permissions && 'geolocation' in navigator) {
 }
 // Tes lieux n'existent que sur ce téléphone : on demande qu'ils ne soient jamais effacés automatiquement (manque de place).
 askPersist();
+
