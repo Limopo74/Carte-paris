@@ -65,7 +65,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (324)';
+const VERSION = '20 novembre 2026 (325)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -10243,7 +10243,7 @@ function renderMetroPlan(p, from, back, start = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
-    onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
+    onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     onFoot ? null : trafficLink(),
     back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
@@ -10263,8 +10263,11 @@ function renderMetroPlan(p, from, back, start = null) {
 
 /* ---------- Métro le plus proche, en un appui ---------- */
 
-// Ouvre l'appli Île-de-France Mobilités si elle est installée (Android), sinon son site d'itinéraires.
-const IDFM_APP = 'intent://#Intent;package=com.applidium.vianavigo;S.browser_fallback_url=https%3A%2F%2Fme-deplacer.iledefrance-mobilites.fr%2Fitineraire;end';
+// v325 (mon choix A du 20 nov.) : la fiche de l'appli dans Google Play (« Ouvrir » si elle est installée, « Installer » sinon).
+// Avant : un intent avec le seul nom du paquet ; l'appli IDFM ne déclare aucune entrée ouvrable depuis Chrome (ni lien https vérifié :
+// assetlinks.json absent, vérifié le 20 nov.), Chrome ouvrait toujours le site. Format documenté par Android (« Linking to Google Play »),
+// page ouverte le 20 nov. : « Île-de-France Mobilités », com.applidium.vianavigo.
+const IDFM_APP = 'https://play.google.com/store/apps/details?id=com.applidium.vianavigo';
 /** Lien vers les infos trafic d'IDFM, toujours au même endroit : sous l'appli IDFM (Station, trajet), au-dessus de « Mes stations » (Rentrer). */
 function trafficLink() {
   return el('a', { class: 'btn c-metro', href: TRAFFIC_URL, target: '_blank', rel: 'noopener' }, ico('triangle-alert'), 'Info trafic métro et RER');
@@ -10306,7 +10309,7 @@ function showNearestMetro(from, note = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(st, 0), target: '_blank', rel: 'noopener' }, 'Y aller')),
-    el('a', { class: 'btn c-metro', href: IDFM_APP }, ico('train-front'), 'Ouvrir l\'appli Île-de-France Mobilités'),
+    el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     trafficLink(),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
     el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
