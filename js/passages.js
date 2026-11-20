@@ -2,6 +2,7 @@
 import { decodeTrace, distanceToTrace } from './circuits.js';
 import { distanceM, minutesToMeters } from './geo.js';
 import { fold } from './search.js';
+import { inBox } from './calques.js';
 
 /** Zoom à partir duquel le trait d'une entrée à l'autre remplace le pictogramme. */
 export const ARCADE_LINE_ZOOM = 16;
@@ -65,4 +66,11 @@ export function myArcadePlace(points, a) {
     if (d <= ARCADE_MINE_M && (!best || d < best.d)) best = { p, d };
   }
   return best?.p ?? null;
+}
+
+/** v275 (mon choix 1A du 20 nov.) : les 12 passages tiennent dans un petit coin de Paris. Allumés alors qu'aucun n'est dans
+ * le cadre de la carte, l'étiquette sous la barre du haut le dit, et un appui les montre tous ; la carte ne bouge pas seule. */
+export function arcadeNote(list, box) {
+  if (!Array.isArray(list) || !list.length || !box || inBox(list, box, 1).length) return null;
+  return { text: `Aucun passage ici · Voir les ${list.length}`, act: 'arcades' };
 }

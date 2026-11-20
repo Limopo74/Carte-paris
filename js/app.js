@@ -36,7 +36,7 @@ import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, r
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
-import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace } from './passages.js';
+import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (274)';
+const VERSION = '20 novembre 2026 (275)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4244,12 +4244,14 @@ function busNote() {
   return drawn.length ? { text: `Bus ${refsText(drawn)} · sans horaires ni sens`, act: 'buslines' }
     : { text: 'Bus : le chemin n\'est pas encore chargé (il faut du réseau)', act: 'buslines' };
 }
-const layerNoteNow = () => layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+/** v275 : passages couverts allumés, aucun dans le cadre de la carte. */
+const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _southWest: sw, _northEast: ne }) => ({ s: sw.lat, w: sw.lng, n: ne.lat, e: ne.lng }))(map.getBounds())) : null);
+const layerNoteNow = () => arcadeNoteNow() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : 'bike'), n.text);
+  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), n.text);
   layerNoteBtn.disabled = !n.act;
 }
 layerNoteBtn.addEventListener('click', () => {
@@ -4258,6 +4260,7 @@ layerNoteBtn.addEventListener('click', () => {
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
   else if (n?.act === 'velo') openFilters();
+  else if (n?.act === 'arcades' && arcadesData?.length) map.fitBounds(L.latLngBounds(arcadesData.map((a) => [a.lat, a.lng])).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 16, animate: false }); // v275 : les 12, ni sous la barre ni sous la colonne
 });
 map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
 // Chaque minute, tant que le calque Vélib' est allumé : l'heure reste juste, et après 10 min les nombres s'effacent.
@@ -7617,9 +7620,9 @@ function drawArcadeLayer() {
 }
 async function setArcadeLayer(on) {
   state.showPassages = on; persist();
-  if (!on) { arcadeLayer.clearLayers(); return; }
+  if (!on) { arcadeLayer.clearLayers(); drawLayerNote(); return; }
   if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
-  drawArcadeLayer();
+  drawArcadeLayer(); drawLayerNote();
 }
 map.on('zoomend', drawArcadeLayer);
 
@@ -10126,6 +10129,7 @@ const HELP = [
     '**Vélib\', Curiosités ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, les galeries et Art dans la rue, eux, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
     '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
+    '{door-open} **Passages couverts allumés mais aucun sur la carte** : ils sont tous dans le 1er, le 2e, le 9e et le 10e. Touche « Voir les 12 » en haut à gauche.',
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
@@ -10175,7 +10179,7 @@ document.getElementById('btnSettings').addEventListener('click', openSettings);
 document.getElementById('btnSearch').addEventListener('click', () => openSearch());
 drawMarkets();
 if (state.showPratique) loadPratLayer();
-loadArcades().then(drawArcadeLayer); // petit fichier de l'appli : prêt pour Curiosités et le bandeau « Il pleut »
+loadArcades().then(() => { drawArcadeLayer(); drawLayerNote(); }); // petit fichier de l'appli : prêt pour Curiosités et le bandeau « Il pleut »
 if (state.showVelo) setVeloLayer(true);
 if (state.showJardins) setJardinLayer(true); // v261 : jardins publics, lus seulement s'ils sont allumés
 drawLayerNote();

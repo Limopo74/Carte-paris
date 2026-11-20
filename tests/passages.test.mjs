@@ -58,3 +58,22 @@ test('Passages : ceux du circuit des passages sont trouvés près de son tracé'
   assert.deepEqual(others, ['vero-dodat', 'choiseul'], 'les deux passages proches qui ne sont pas des étapes');
   assert.deepEqual(arcadesNearTrace(list, [], 1000), []);
 });
+
+// v275 (mon choix 1A du 20 nov.) : allumés sans aucun passage dans le cadre, l'étiquette du haut le dit ; un appui les montre tous.
+import { arcadeNote } from '../js/passages.js';
+test('Passages : « Aucun passage ici · Voir les 12 » seulement quand aucun n\'est dans le cadre', () => {
+  const montparnasse = { s: 48.835, n: 48.848, w: 2.31, e: 2.33 };
+  const bourse = { s: 48.865, n: 48.872, w: 2.335, e: 2.345 };
+  const loin = { s: 45.89, n: 45.91, w: 6.11, e: 6.14 }; // de chez moi, loin de Paris
+  assert.deepEqual(arcadeNote(list, montparnasse), { text: 'Aucun passage ici · Voir les 12', act: 'arcades' });
+  assert.deepEqual(arcadeNote(list, loin), { text: 'Aucun passage ici · Voir les 12', act: 'arcades' });
+  assert.equal(arcadeNote(list, bourse), null);
+  assert.equal(arcadeNote(null, montparnasse), null); // fichier pas encore lu : rien plutôt qu'un nombre faux
+  assert.equal(arcadeNote([], montparnasse), null);
+  assert.equal(arcadeNote(list.slice(0, 3), montparnasse).text, 'Aucun passage ici · Voir les 3'); // le nombre vient du fichier
+});
+test('Passages : l\'aide des problèmes cite les arrondissements où ils sont tous', async () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(src, /Passages couverts allumés mais aucun sur la carte\*\* : ils sont tous dans le 1er, le 2e, le 9e et le 10e\. Touche « Voir les 12 »/);
+  assert.equal(list.length, 12, 'si le nombre change, l\'aide doit changer');
+});
