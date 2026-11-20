@@ -3,7 +3,7 @@
 # plaques commémoratives (Paris Data), œuvres dans la rue et galeries (OpenStreetMap, v170), et, sans jamais bloquer
 # (v197 à v200) : secteurs Paris Respire, origine du nom des voies, auteurs des monuments, sorties du métro, RER et tram,
 # le chemin des lignes de bus (v228, Mes lignes de bus), et pour Monuments (v245) les immeubles protégés par la Ville
-# et l'architecture contemporaine remarquable.
+# et l'architecture contemporaine remarquable, et (v259) les pistes à vélo de la Ville.
 # Tourne seul le 1er de chaque mois, ou à la demande (« Run workflow »). Il télécharge les exports officiels,
 # relance les scripts de tools/, contrôle les données et les tests, et publie seulement si tout passe.
 # Rien ne concerne le téléphone ni la position : il ne lit que des données publiques.
@@ -38,6 +38,7 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/src /tmp/avant
           cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json /tmp/avant/
+          cp data/velo.json /tmp/avant/ 2>/dev/null || true # v259 : absent avant le premier passage
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
           PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
@@ -72,6 +73,13 @@ jobs:
             curl -fsSL --retry 3 --retry-delay 10 --max-time 120 -o "/tmp/src/acr/p$(printf %02d "$p").json" "$ACR&page=$p" || { rm -rf /tmp/src/acr; break; }
             grep -Eq '"next": ?null' "/tmp/src/acr/p$(printf %02d "$p").json" && break
           done
+          # Pistes à vélo (v259) : dernier export de la Ville, pistes et rues calmes seulement (environ 12 700 traits) ; jamais bloquant
+          { D=$(curl -fsSL --retry 3 --retry-delay 20 --max-time 120 -G "$PARIS/amenagements-cyclables/records" --data-urlencode 'select=max(date_export) as d' \
+              | python3 -I -c "import json,sys; print(json.load(sys.stdin)['results'][0]['d'])") \
+            && curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/velo.json "$PARIS/amenagements-cyclables/exports/json" \
+              --data-urlencode "where=date_export=date'$D' and amenagement in (\"piste cyclable\",\"voie verte\",\"chemin fermé à la circulation générale (bois)\",\"voie piétonne\",\"vélorue\",\"voie fermée à la circulation générale (bus inclus)\")" \
+              --data-urlencode 'select=amenagement,date_export,geo_shape' ; } || rm -f /tmp/src/velo.json
+          [ -s /tmp/src/velo.json ] && echo "/tmp/src/velo.json : $(wc -c < /tmp/src/velo.json) octets" || echo "Pistes à vélo : pas de réponse"
           # Origine du nom des voies (v198) : deux champs seulement, jamais bloquant
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/voies.json "$PARIS/denominations-emprises-voies-actuelles/exports/json" \
             --data-urlencode 'select=typo_min,orig' --data-urlencode 'where=orig is not null' || rm -f /tmp/src/voies.json
@@ -152,6 +160,7 @@ jobs:
           if [ -s /tmp/src/voies.json ]; then python3 -I tools/maj-voies.py /tmp/src/voies.json "$TODAY" || echo "Voies : fichier d'avant gardé"; else echo "Voies : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/pvp.json ] && [ -s /tmp/src/pvp-geos.json ] && [ -s /tmp/src/pvp-surf.json ]; then python3 -I tools/maj-patrimoine.py /tmp/src/pvp.json /tmp/src/pvp-geos.json /tmp/src/pvp-surf.json "$TODAY" || echo "Immeubles protégés par la Ville : fichier d'avant gardé"; else echo "Immeubles protégés par la Ville : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/acr ]; then python3 -I tools/maj-acr.py /tmp/src/acr "$TODAY" || echo "Architecture contemporaine remarquable : fichier d'avant gardé"; else echo "Architecture contemporaine remarquable : pas de réponse, fichier d'avant gardé"; fi
+          if [ -s /tmp/src/velo.json ]; then python3 -I tools/maj-velo.py /tmp/src/velo.json || echo "Pistes à vélo : fichier d'avant gardé"; else echo "Pistes à vélo : pas de réponse, fichier d'avant gardé"; fi
           node tools/maj-art.mjs /tmp/src/oeuvres.json /tmp/src/galeries.json "$TODAY"
 
       - name: Contrôler (garde-fou et tests)
@@ -164,11 +173,12 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json"
-          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine (robot)"
+          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json"
+          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.
-          CHANGED=$(git diff --name-only -- $FILES)
+          # v259 : un fichier nouveau (data/velo.json au premier passage) n'est pas encore suivi par git : il compte aussi
+          CHANGED=$( { git diff --name-only -- $FILES; git ls-files --others --exclude-standard -- $FILES; } | sort -u)
           if [ -z "$CHANGED" ]; then echo "Rien de changé."; exit 0; fi
           mkdir -p /tmp/neuf && cp $CHANGED /tmp/neuf/
           TESTE=$(git rev-parse HEAD)

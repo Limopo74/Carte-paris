@@ -107,6 +107,7 @@ const ECRANS = {
   artistemusees: async (p) => { await ECRANS.artistes(p); await feuille(p).locator('.item-main', { hasText: 'Claude Monet' }).click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); }, // v231
   artistemusee: async (p) => { await ECRANS.artistemusees(p); await feuille(p).locator('.ev-main', { hasText: 'Orsay' }).click(); await p.waitForTimeout(500); }, // v231
   artistes: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Mes artistes' }).click(); await p.waitForTimeout(1500); },
+  donneevelo: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Pistes à vélo' }).click(); await p.waitForTimeout(600); }, // v259 : fichier pas encore là avant le premier passage du robot
   donneegaleries: async (p) => { await ECRANS.donnees(p); await feuille(p).locator('.menu-row', { hasText: 'Galeries d' }).click(); await p.waitForTimeout(600); }, // v170 : liste encore vide
   artrue: async (p) => { await ECRANS.expos(p); await feuille(p).locator('.menu-row', { hasText: 'Art dans la rue' }).click(); await p.waitForTimeout(1200); },
   oeuvre: async (p) => { await ECRANS.artrue(p); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },

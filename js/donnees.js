@@ -39,6 +39,8 @@ export const PVP_FILES = [
 ];
 /** Architecture contemporaine remarquable (data/acr.json, refait par le robot avec tools/maj-acr.py, v245). */
 export const ACR_FILE = { name: 'Liste des édifices labellisés Architecture contemporaine remarquable', file: 'liste-des-edifices-labellises-acr.csv', url: 'https://www.data.gouv.fr/datasets/liste-des-edifices-labellises-architecture-contemporaine-remarquable-acr/' };
+/** Pistes à vélo (data/velo.json, refait par le robot avec tools/maj-velo.py, v259). */
+export const VELO_FILE = { name: 'Linéaires d\'aménagement cyclable', file: 'amenagements-cyclables.json', url: 'https://opendata.paris.fr/explore/dataset/amenagements-cyclables/export/' };
 /** Origine du nom des voies (data/voies.json, refait par le robot avec tools/maj-voies.py, v198). */
 export const VOIES_FILE = { name: 'Dénominations des emprises des voies actuelles', file: 'denominations-emprises-voies-actuelles.json', url: 'https://opendata.paris.fr/explore/dataset/denominations-emprises-voies-actuelles/export/' };
 /** Contours des secteurs « Paris Respire » (data/respire.json, refait par le robot avec tools/maj-respire.py, v197). */
@@ -70,6 +72,7 @@ export const FIXED_DATA = [
   { id: 'acr', name: 'Architecture contemporaine remarquable (Monuments)', every: 45, robot: true, lazy: true }, // v245 ; ministère de la Culture, Licence Ouverte 2.0
   { id: 'acces', name: 'Sorties du métro (fiche d\'un lieu)', every: 45, robot: true, lazy: true }, // v199 ; IDFM, Licence Ouverte 2.0
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
+  { id: 'velo', name: 'Pistes à vélo (carte)', every: 45, robot: true, lazy: true }, // v259 ; Ville de Paris d'après OpenStreetMap, licence ODbL
   { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâches programmées Claude chaque 1er mars et chaque 1er septembre (v225)

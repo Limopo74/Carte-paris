@@ -33,6 +33,7 @@ SOFT = {
     'data/bus-traces.json': ('lines', 400),   # v228 : chemin des lignes de bus (856 en septembre 2026)
     'data/patrimoine.json': ('items', 5000),  # v245 : immeubles protégés par la Ville (5 729 protections en novembre 2026)
     'data/acr.json': ('items', 50),           # v245 : architecture contemporaine remarquable à Paris (64 en novembre 2026)
+    'data/velo.json': ('s', 3000),            # v259 : pistes à vélo, traits séparés des voitures (environ 8 800 en novembre 2026)
 }
 
 
