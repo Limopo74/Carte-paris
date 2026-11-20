@@ -133,3 +133,15 @@ export function bigJardinNear(list, pos, { parks = [], shown = new Set(), now = 
   }
   return best;
 }
+
+/** v273 : la page paris.fr d'un jardin, quand le robot l'a trouvée et ouverte (data/jardins-liens.json,
+ * tools/maj-jardins-liens.py) : { id du jardin : "<nom>-<numéro>" } → Map id → adresse complète. Jamais d'adresse devinée ici. */
+export const JARDIN_PAGE = 'https://www.paris.fr/lieux/';
+export function cleanJardinLinks(json) {
+  const out = new Map();
+  const items = json && typeof json.items === 'object' && !Array.isArray(json.items) ? json.items : {};
+  for (const [id, path] of Object.entries(items)) {
+    if (typeof path === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*-\d+$/.test(path) && path.length <= 160) out.set(id, JARDIN_PAGE + path);
+  }
+  return out;
+}

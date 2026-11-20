@@ -35,6 +35,7 @@ SOFT = {
     'data/acr.json': ('items', 50),           # v245 : architecture contemporaine remarquable à Paris (64 en novembre 2026)
     'data/velo.json': ('s', 3000),            # v259 : pistes à vélo, traits séparés des voitures (environ 8 800 en novembre 2026)
     'data/jardins.json': ('items', 500),      # v261 : jardins publics de la Ville (contours ; vide tant que le robot n'est pas passé)
+    'data/jardins-liens.json': ('items', 50), # v273 : pages paris.fr des jardins (vide tant que le robot n'est pas passé)
 }
 
 

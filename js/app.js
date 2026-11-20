@@ -53,7 +53,7 @@ import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
-import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin } from './jardins.js';
+import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (272)';
+const VERSION = '20 novembre 2026 (273)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -7620,6 +7620,9 @@ map.on('zoomend', drawArcadeLayer);
 let jardinsData = null;
 let jardinsDate = ''; // date du passage du robot (Données de l'appli)
 const loadJardins = async () => (jardinsData ??= await fetch('data/jardins.json').then((r) => (r.ok ? r.json() : null)).then((j) => { if (!j) return null; jardinsDate = typeof j.date === 'string' ? j.date : ''; return cleanJardins(j); }).catch(() => null));
+/** v273 : les pages paris.fr des jardins (robot) ; une Map vide si le fichier manque ou n'est pas encore passé. */
+let jardinLinks = null;
+const loadJardinLinks = async () => (jardinLinks ??= await fetch('data/jardins-liens.json').then((r) => (r.ok ? r.json() : null)).then(cleanJardinLinks).catch(() => new Map()));
 const jardinLayer = L.layerGroup().addTo(map);
 const mutedInk = () => (isDark() ? '#A9B0BC' : '#5C6370'); // le gris --muted
 const windy = () => (meteo?.gust ?? 0) >= WIND_GUST;
@@ -7671,7 +7674,10 @@ async function openJardin(j, back = null) {
   const place = edge ? { lat: edge.lat, lng: edge.lng } : { lat: j.lat, lng: j.lng };
   const cat = state.categories.find((c) => /parc|jardin/i.test(c.name))?.id;
   const state0 = hours ? hoursLine(null, hours) : null;
-  openSpot({ icon: 'trees', title: j.name, kicker: jardinKind(j), place, key: `jardin:${j.id}`, back,
+  // v273 : la page paris.fr du jardin (horaires, équipements, fermetures), seulement si le robot l'a ouverte ; jamais plus d'1 s d'attente
+  if (!jardinLinks) await Promise.race([loadJardinLinks(), new Promise((ok) => { setTimeout(ok, 1000); })]);
+  const page = jardinLinks?.get(j.id) ?? null;
+  openSpot({ icon: 'trees', title: j.name, kicker: jardinKind(j), place, key: `jardin:${j.id}`, back, link: page ? [page, 'Site officiel'] : null,
     lines: [
       windy() ? el('p', { class: 'warn' }, `Grand vent (rafales à ${meteo.gust} km/h) : la Ville ferme souvent ses jardins. Vérifie à l'entrée.`) : null,
       state0 ? el('p', { class: 'summary' }, state0) : el('p', { class: 'help' }, 'Horaires inconnus'),
@@ -10029,7 +10035,7 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
-    '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires.',
+    '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
