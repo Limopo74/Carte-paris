@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (280)';
+const VERSION = '20 novembre 2026 (281)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2289,7 +2289,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'row row-big' },
       planBtn,
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'Écrire une impression')),
-    starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Étoiles retirées'); }),
+    !ficheShows('stars') ? null : starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Étoiles retirées'); }), /* v281 : masquable */
     photoWide(p, back),
     facts,
     ...passageSection(p, here),
@@ -8782,9 +8782,9 @@ function openSettings(section = null) {
 
   if (section === 'fiche') {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
-    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »']];
+    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
     openSheet([ico('list'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
-      el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien. Le QR code reste dans Partager.'),
+      el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
         if (hid.has(key)) hid.delete(key); else hid.add(key);
         state.ficheHidden = cleanFicheHidden([...hid]);
@@ -8884,7 +8884,7 @@ function openSettings(section = null) {
     row('list-filter', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
     row('settings', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('list', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
+    row('list', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
@@ -10046,10 +10046,10 @@ const HELP = [
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
-    '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer.',
+    '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer. Masquées ({settings} → Fiche d\'un lieu), elles se changent encore dans Modifier.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google ou Uber : {settings} → Fiche d\'un lieu.',
+    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Fiche d\'un lieu.',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',

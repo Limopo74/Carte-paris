@@ -40,6 +40,6 @@ export function tuningText(key, v) {
   return v < 1000 ? `${v} m` : `${String(v / 1000).replace('.', ',')} km`;
 }
 
-/** Lignes de la fiche d'un lieu qu'on peut masquer : QR code, Avis Google, Uber jusqu'ici. */
-export const FICHE_LINES = Object.freeze(['qr', 'avis', 'uber']);
+/** Lignes de la fiche d'un lieu qu'on peut masquer : QR code, Avis Google, Uber jusqu'ici, Mes étoiles (v281). */
+export const FICHE_LINES = Object.freeze(['qr', 'avis', 'uber', 'stars']);
 export const cleanFicheHidden = (list) => FICHE_LINES.filter((k) => Array.isArray(list) && list.includes(k));

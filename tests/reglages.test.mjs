@@ -66,7 +66,7 @@ test('valeurs écrites en clair', () => {
 });
 
 test('Fiche d\'un lieu : seuls QR code, Avis Google et Uber se masquent', () => {
-  assert.deepEqual(FICHE_LINES, ['qr', 'avis', 'uber']);
+  assert.deepEqual(FICHE_LINES, ['qr', 'avis', 'uber', 'stars']);
   assert.deepEqual(cleanFicheHidden(['uber', 'qr', 'horaires', 'qr', 7]), ['qr', 'uber']);
   assert.deepEqual(cleanFicheHidden(undefined), []);
   assert.deepEqual(cleanFicheHidden('qr'), []);
@@ -225,4 +225,17 @@ test('réglé à 90 jours, une sortie de l\'agenda vieille de 60 jours survit à
   const back = loadState(st);
   assert.deepEqual(back.plans.map((x) => x.id), ['vieux']);
   assert.deepEqual(JSON.parse(exportJSON(back)).plans.map((x) => x.id), ['vieux']);
+});
+
+test('Fiche d\'un lieu (v281) : Mes étoiles peut se masquer ; gardé, remis à l\'ancienne sauvegarde, étoiles du lieu intactes', () => {
+  const st = memStorage();
+  const s0 = loadState(st);
+  saveState(st, { ...s0, ficheHidden: ['stars'], points: [{ id: 'x', name: 'Musée', lat: 48.88, lng: 2.33, cat: s0.categories[0].id, stars: 4 }] });
+  const back = loadState(st);
+  assert.deepEqual(back.ficheHidden, ['stars']);
+  assert.equal(back.points[0].stars, 4, 'masquer ne retire pas les étoiles');
+  assert.deepEqual(readSettings(JSON.parse(exportJSON(back))).ficheHidden, ['stars']);
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /!ficheShows\('stars'\) \? null : starPicker\(p\.stars/, 'la fiche suit le réglage');
+  assert.match(app, /\['stars', 'star', 'Mes étoiles', [^\]]+\]\];/, 'la ligne est en dernier sur la page Fiche d\'un lieu');
 });
