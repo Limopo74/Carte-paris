@@ -4,7 +4,7 @@ import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
 import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (265)';
+const VERSION = '20 novembre 2026 (266)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -2285,7 +2285,7 @@ function openDetail(id, back = null) {
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
-        ico('star'), el('span', {}, 'Avis Google', el('small', {}, 'Note et avis, dans Google Maps')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+        ico('star'), el('span', {}, 'Avis Google', el('small', {}, reviewsSub(catOf(p.cat)))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
       !ficheShows('uber') ? null : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
         ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Ouvre Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     back ? backBtn(back) : null,

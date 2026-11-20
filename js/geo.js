@@ -105,6 +105,12 @@ export function reviewsUrl(p) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
+/** Petite ligne d'« Avis Google » sur la fiche (v266, mon choix A du 20 nov.) : pour un resto, elle dit qu'on peut y réserver,
+ *  « si le resto le propose » : l'appli ne sait pas si un resto prend les réservations, Google le montre seulement quand c'est possible.
+ *  Un resto = la catégorie Restos de départ, ou une catégorie dont le nom parle de repas. */
+export const isRestoCat = (c) => c?.id === 'resto' || /resto|restau|bistro|brasser|cantine|cr[eê]per|pizz|tables?\b/i.test(c?.name ?? '');
+export const reviewsSub = (c) => (isRestoCat(c) ? 'Avis, et réserver si le resto le propose' : 'Note et avis, dans Google Maps');
+
 /** Lien universel Uber : ouvre l'appli Uber avec la destination remplie ; le départ est la position que l'appli Uber prend elle-même.
  *  Ma carte de Paris n'envoie rien : seul l'appui transmet à Uber le lieu de destination. */
 export function uberUrl(p) {

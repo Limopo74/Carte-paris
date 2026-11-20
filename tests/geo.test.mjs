@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, uberUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
+import { distanceM, walkMinutes, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, DEFAULT_RINGS, minutesToMeters, normalizeMinuteRings, DEFAULT_MINUTE_RINGS } from '../js/geo.js';
 
 const notreDame = { lat: 48.852968, lng: 2.349902 };
 const eiffel = { lat: 48.858370, lng: 2.294481 };
@@ -106,4 +106,13 @@ test('walkLabel (v217) : plus de « 5984 min à pied » quand le téléphone est
   assert.equal(walkLabel(11000), '≈ 172 min à pied'); // 2 h 52 : on garde la durée
   assert.equal(walkLabel(12000), 'à 12 km');
   assert.equal(walkLabel(384600), 'à 385 km');
+});
+
+// v266 (mon choix A du 20 nov.) : pour un resto, la petite ligne d'« Avis Google » dit qu'on peut y réserver, sans le promettre
+test('Avis Google : « réserver si le resto le propose » seulement pour un resto', () => {
+  assert.equal(reviewsSub({ id: 'resto', name: 'Restos' }), 'Avis, et réserver si le resto le propose');
+  for (const name of ['Mes restaurants', 'Bistrots', 'Brasseries', 'Crêperies', 'Pizzas', 'Bonnes tables']) assert.ok(isRestoCat({ id: 'x', name }), name);
+  for (const name of ['Culture', 'Musées', 'Tableaux', 'Boutiques', 'Parcs et jardins', '?']) assert.equal(reviewsSub({ id: 'x', name }), 'Note et avis, dans Google Maps', name);
+  assert.equal(reviewsSub(undefined), 'Note et avis, dans Google Maps');
+  assert.doesNotMatch(reviewsSub({ id: 'resto' }), /^Réserver/); // jamais une promesse : le resto peut ne pas prendre de réservation
 });
