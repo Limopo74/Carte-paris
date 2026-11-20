@@ -75,7 +75,14 @@ const FAV_COLOR_NAMES = ['Doré', ...COLOR_NAMES];
 
 const failingStorage = { getItem() { throw new Error(); }, setItem() { throw new Error(); } };
 let storage;
-try { storage = window.localStorage; storage.getItem('test'); } catch { storage = failingStorage; }
+// v313 (mon choix du 20 nov.) : « Essayer le premier lancement » (Réglages) : le temps de l'essai, une mémoire à part, vide,
+// gardée seulement dans la page ; mes lieux et réglages ne sont ni lus ni écrits. L'onglet fermé ou « Terminer l'essai » : fini.
+const ESSAI_KEY = 'carte-paris.essai';
+const ESSAI = (() => { try { return sessionStorage.getItem(ESSAI_KEY) === '1'; } catch { return false; } })();
+const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
+try { storage = ESSAI ? memStorage() : window.localStorage; storage.getItem('test'); } catch { storage = failingStorage; }
+function startEssai() { try { sessionStorage.setItem(ESSAI_KEY, '1'); } catch { toast('Ce téléphone ne permet pas l\'essai.', true); return; } location.reload(); }
+function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); } catch { /* rien */ } location.reload(); }
 // v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
 let usage = readUsage(storage.getItem(USAGE_KEY));
 let usageTimer = 0;
@@ -1271,12 +1278,12 @@ let here = null; // dernière position GPS : { lat, lng, acc, time }
 let markets = null; // marchés de la Ville (liste gardée sur le téléphone)
 // Mes chiffres : totaux par jour, sur le téléphone seulement (pas dans la sauvegarde, jamais le tracé)
 const JOURNAL_KEY = 'carte-paris.journal';
-let journal = (() => { try { return pruneJournal(cleanJournal(JSON.parse(localStorage.getItem(JOURNAL_KEY) ?? 'null'))); } catch { return cleanJournal(null); } })();
+let journal = (() => { try { return pruneJournal(cleanJournal(JSON.parse(storage.getItem(JOURNAL_KEY) ?? 'null'))); } catch { return cleanJournal(null); } })();
 let journalSavedAt = 0;
 function saveJournal(force = false) {
   if (!force && Date.now() - journalSavedAt < 30000) return;
   journalSavedAt = Date.now();
-  try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(pruneJournal(journal))); } catch { /* stockage plein : tant pis */ }
+  try { storage.setItem(JOURNAL_KEY, JSON.stringify(pruneJournal(journal))); } catch { /* stockage plein : tant pis */ }
 }
 const lastUse = new Map();
 /** Compte une utilisation (une fois par minute au plus pour une même fonction). */
@@ -4700,18 +4707,19 @@ const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _s
 const ttbNote = () => {
   try { return state.showTtb && ttbList().length && (ttbRubs.size || ttbBudgets.size) ? { text: `Seulement ${ttbFilterText(ttbRubs, ttbBudgets)}\u00a0· Tout\u00a0voir`, act: 'ttb' } : null; } catch { return null; } // au démarrage, avant que la partie TTB soit lue
 };
-const layerNoteNow = () => arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' ? 'x' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
 layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
-  if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
+  if (n?.act === 'essai') endEssai(); // v313
+  else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
   else if (n?.act === 'velo') openFilters();
@@ -9479,6 +9487,11 @@ function openSettings(section = null) {
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
     testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Réglages', () => openSettings())), false, 'c-info') : null,
+    // v313 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
+    ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › */
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
+      : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', startEssai, false, 'c-guide'),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -10754,6 +10767,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} **Essayer le premier lancement** : {settings} → tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
     '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
     '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
     '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',

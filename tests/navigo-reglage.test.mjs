@@ -32,6 +32,6 @@ test('Passe Navigo : l\'interrupteur est tout en bas de Réglages, après Ce que
   const b = app.indexOf("onOff('navigo', 'badge-percent', 'J\\'ai un passe Navigo'");
   assert.ok(a > 0 && b > a, 'après Ce que j\'utilise');
   const end = app.indexOf('mySettingsBlock(),', b);
-  // v308 : une ligne ajoutée plus tard va tout en bas (Vu en passant) ; aucune autre ne s'est glissée avant lui
-  assert.ok(end > b && !app.slice(b, end).replace(/row\('camera', 'Vu en passant'/, '').replace(/row\('megaphone', 'Mes remarques'/, '').includes('row('), 'en bas : après lui, d\'autres interrupteurs, la ligne Vu en passant (v308), Mes remarques (v313), puis mes réglages par défaut');
+  // v308 : une ligne ajoutée plus tard va tout en bas (Vu en passant ; Mes remarques ; Essayer le premier lancement) ; aucune autre ne s'est glissée avant lui
+  assert.ok(end > b && !app.slice(b, end).replace(/row\('camera', 'Vu en passant'/, '').replace(/row\('megaphone', 'Mes remarques'/, '').replace(/row\('hand', 'Essayer le premier lancement'/, '').includes('row('), 'en bas : après lui, d\'autres interrupteurs, la ligne Vu en passant (v308), Mes remarques, Essayer le premier lancement, puis mes réglages par défaut');
 });

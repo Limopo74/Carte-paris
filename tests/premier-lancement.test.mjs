@@ -73,3 +73,15 @@ test('TTB : le bouton revient avec la première liste importée (page du guide o
   assert.match(app, /if \(!before\) ttbChipBack\(\);/);
   assert.match(app, /if \(r\.list && !had\) ttbChipBack\(\);/);
 });
+
+test('v313 : Essayer le premier lancement (Réglages) : une mémoire à part, mes données jamais lues ni écrites', () => {
+  assert.match(app, /storage = ESSAI \? memStorage\(\) : window\.localStorage/);
+  assert.match(app, /sessionStorage\.setItem\(ESSAI_KEY, '1'\)/, 'l\'essai ne dure que le temps de l\'onglet');
+  assert.ok(!/localStorage\.(get|set)Item\(JOURNAL_KEY/.test(app), 'Mes chiffres passent aussi par la mémoire de l\'essai');
+  assert.match(app, /ESSAI \? \{ text: 'Essai en cours · Terminer', act: 'essai' \} : null/, 'un mode allumé a toujours un bouton visible qui le dit et l\'éteint');
+  assert.match(app, /if \(n\?\.act === 'essai'\) endEssai\(\)/);
+  const end = app.indexOf('mySettingsBlock(),\n  ), { name: \'settings\'');
+  const row = app.lastIndexOf("'Essayer le premier lancement'", end);
+  assert.ok(row > 0 && end - row < 400, 'tout en bas de Réglages, au-dessus de mes réglages par défaut');
+  assert.match(app, /'Terminer l\\'essai'/);
+});
