@@ -152,6 +152,12 @@ export function ttbPass(x, rubs, budgets) {
   return (!rubs?.size || rubs.has(x.rub)) && (!budgets?.size || budgets.has(x.budget));
 }
 
+/** v287 : ce que trient les rubriques et budgets choisis, pour l'étiquette sous la barre du haut (« La Table », « 2 rubriques, €€ »). Rien choisi : ''. */
+export function ttbFilterText(rubs, budgets) {
+  const r = [...(rubs ?? [])], b = [...(budgets ?? [])];
+  return [r.length === 1 ? r[0] : r.length ? `${r.length} rubriques` : '', b.length === 1 ? '€'.repeat(b[0]) : b.length ? `${b.length} budgets` : ''].filter(Boolean).join(', ');
+}
+
 /** Horaires du jour (texte du site), lundi = 0. */
 export const ttbToday = (x, date = new Date()) => (x.hours?.length === 7 ? x.hours[(date.getDay() + 6) % 7] : '');
 export const TTB_DAYS = DAYS;

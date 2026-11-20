@@ -37,7 +37,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (286)';
+const VERSION = '20 novembre 2026 (287)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -4248,13 +4248,18 @@ function busNote() {
 }
 /** v275 : passages couverts allumés, aucun dans le cadre de la carte. */
 const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _southWest: sw, _northEast: ne }) => ({ s: sw.lat, w: sw.lng, n: ne.lat, e: ne.lng }))(map.getBounds())) : null);
-const layerNoteNow = () => arcadeNoteNow() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+/** v287 (mon choix 1A du 20 nov.) : une rubrique ou un budget choisi dans la liste TTB trie aussi la carte ; l'étiquette le dit tant que TTB est sur la carte (rond marqué « TTB », « Seulement La Table · Tout voir »), un appui remet tout. */
+const ttbNote = () => {
+  try { return state.showTtb && ttbList().length && (ttbRubs.size || ttbBudgets.size) ? { text: `Seulement ${ttbFilterText(ttbRubs, ttbBudgets)}\u00a0· Tout\u00a0voir`, act: 'ttb' } : null; } catch { return null; } // au démarrage, avant que la partie TTB soit lue
+};
+const layerNoteNow = () => arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), n.text);
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), n.text);
   layerNoteBtn.disabled = !n.act;
+  if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
 layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
@@ -4262,6 +4267,12 @@ layerNoteBtn.addEventListener('click', () => {
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
   else if (n?.act === 'velo') openFilters();
+  else if (n?.act === 'ttb') { // v287 : toutes les rubriques et tous les budgets, comme en ouvrant l'appli ; « Annuler » remet le tri
+    const r = [...ttbRubs], b = [...ttbBudgets];
+    const redo = () => { drawTtb(); if (!sheet.hidden && (view === 'ttb-list' || view === 'near')) navStack.at(-1)?.again?.(); };
+    ttbRubs.clear(); ttbBudgets.clear(); redo();
+    toast(`TTB : ${plural(ttbShown().length, 'adresse', 'adresses')}${ttbOkWord(ttbShown().length)} sur la carte.`, false, { label: 'Annuler', fn: () => { r.forEach((x) => ttbRubs.add(x)); b.forEach((x) => ttbBudgets.add(x)); redo(); } });
+  }
   else if (n?.act === 'arcades' && arcadesData?.length) map.fitBounds(L.latLngBounds(arcadesData.map((a) => [a.lat, a.lng])).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 16, animate: false }); // v275 : les 12, ni sous la barre ni sous la colonne
 });
 map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
@@ -6966,7 +6977,7 @@ map.on('zoomend', ttbFar);
 ttbFar();
 function drawTtb() {
   ttbLayer.clearLayers();
-  if (!state.showTtb) return;
+  if (!state.showTtb) { drawLayerNote(); return; }
   const mine = state.points.filter((p) => !p.owner);
   const marks = ttbMarksNow();
   for (const x of ttbShown()) {
@@ -6978,6 +6989,7 @@ function drawTtb() {
       .on('click', () => { if (!moving) openTtbPlace(x, arrBack()); })
       .addTo(ttbLayer);
   }
+  drawLayerNote(); // v287 : l'étiquette « Seulement … · Tout voir » suit les ronds
 }
 function toggleTtb() {
   if (!ttbList().length) { openTtb(); return; }

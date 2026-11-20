@@ -704,6 +704,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
   color: var(--ink); background: var(--bg); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
   font: inherit; font-family: var(--display); font-weight: 600; font-size: var(--t14); line-height: 1.25; text-align: left; }
 .layer-note .lucide { flex: none; color: var(--metro); }
+.layer-note .ttb-dot { width: 30px; height: 30px; } /* v287 : le rond « TTB » de l'étiquette « Seulement … · Tout voir » */
 .layer-note:disabled { color: var(--muted); border-style: dashed; }
 .wx-badge:not([hidden]) ~ .layer-note { top: 116px; }
 /* Station Vélib' : plaque carrée bleu transport et son nombre ; 0 en tirets ; nombre inconnu (trop ancien, station muette) : l'icône grise */
