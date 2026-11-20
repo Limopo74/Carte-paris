@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (283)';
+const VERSION = '20 novembre 2026 (284)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -9106,8 +9106,8 @@ function openCategory(id, ret = null) {
     el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
     el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Mots tout prêts.'),
     err, zone,
-    foot(el('div', { class: 'row' },
-      backBtn(ret ? named('Le lieu', () => ret.back()) : named('Catégories', () => openSettings('categories'))),
+    foot(el('div', { class: 'row' }, /* v284 : « Annuler | Enregistrer », comme toute page qui enregistre (charte § 8) ; Annuler ramène au même endroit qu'avant */
+      el('button', { type: 'button', class: 'btn', onclick: () => (ret ? ret.back() : openSettings('categories')) }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
   ), { tall: true, name: `category:${id ?? 'new'}`, again: () => openCategory(id, ret) });
 }

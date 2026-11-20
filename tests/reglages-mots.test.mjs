@@ -13,3 +13,10 @@ test('Boutons de la carte (v283) : le bouton de remise ne promet pas « Tout » 
   assert.ok(!/toolsSide\s*=/.test(before), 'le côté de l\'écran n\'est pas touché');
   assert.ok(!/essentials\s*=/.test(before), 'l\'essentiel n\'est pas touché');
 });
+
+test('Modifier une catégorie (v284) : « Annuler | Enregistrer » en bas, comme toute page qui enregistre', () => {
+  const i = app.indexOf('function openCategory(');
+  const body = app.slice(i, app.indexOf("name: `category:${id ?? 'new'}`", i));
+  assert.match(body, /onclick: \(\) => \(ret \? ret\.back\(\) : openSettings\('categories'\)\) \}, 'Annuler'\),\s*el\('button', \{ type: 'button', class: 'btn c-add solid', onclick: save \}, 'Enregistrer'\)/, 'Annuler puis Enregistrer');
+  assert.ok(!body.includes("named('Catégories'"), 'plus de « ← Catégories » (la page s\'appelle « Catégories et listes »)');
+});
