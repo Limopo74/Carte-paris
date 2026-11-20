@@ -70,3 +70,13 @@ test('liste du jour : ranger et déplacer d\'un cran', () => {
   assert.deepEqual(moveInList(l, 'zz', 1).map((p) => p.id), ['a', 'b', 'c']);
   assert.deepEqual(l.map((p) => p.id), ['a', 'b', 'c'], 'la liste donnée ne change pas');
 });
+
+test('planShort : le bouton « Prévu… » de la fiche tient sur une ligne (v297)', async () => {
+  const { planShort } = await import('../js/planning.js');
+  const now = new Date(2026, 10, 20, 10);
+  assert.equal(planShort({ at: +new Date(2026, 10, 20, 12, 56) }, now), '12h56');
+  assert.equal(planShort({ at: +new Date(2026, 10, 20, 19), part: 'soir' }, now), 'dès 19h');
+  assert.equal(planShort({ at: +new Date(2026, 10, 21, 9), part: 'matin' }, now), 'demain');
+  assert.equal(planShort({ at: +new Date(2026, 10, 22, 21, 30) }, now), 'dim. 22');
+  assert.equal(planShort({}, now), '');
+});

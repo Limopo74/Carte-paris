@@ -152,12 +152,12 @@ const ECRANS = {
   // v237 : le passage est dans mes lieux, avec une photo : « Ma fiche » à la place d'« Ajouter », ma photo sous « Source »
   passagemien: async (p) => { await avecLieu(p, { id: 'pc', name: 'Passage Choiseul', lat: 48.86807, lng: 2.33556, covered: true, photos: ['ph-pc'] }); await ECRANS.passagecouvert(p); await feuille(p).locator('.fiche-photo').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   passagemienphoto: async (p) => { await ECRANS.passagemien(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(500); },
-  // v237 : une photo prise sur un lieu déjà là sous un autre nom : « Y ajouter la photo » au lieu de la perdre
+  // v237 : une photo prise sur un lieu déjà là sous un autre nom : « La photo ici » (« Y ajouter la photo » avant la v297) au lieu de la perdre
   passagedoublon: async (p) => { await avecLieu(p, { id: 'pd', name: 'Galeries de Choiseul', lat: 48.86807, lng: 2.33556 }); await ECRANS.passagecouvert(p);
     await feuille(p).locator('button', { hasText: 'Ajouter' }).click(); await p.waitForTimeout(300);
     const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).getByRole('button', { name: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png'); await p.waitForTimeout(300);
     await p.locator('button', { hasText: 'Enregistrer' }).last().click(); await p.waitForTimeout(400); },
-  passagedoublonfait: async (p) => { await ECRANS.passagedoublon(p); await feuille(p).locator('button', { hasText: 'Y ajouter la photo' }).click(); await p.waitForSelector('#sheet .fiche-photo'); await p.waitForTimeout(400); },
+  passagedoublonfait: async (p) => { await ECRANS.passagedoublon(p); await feuille(p).locator('button', { hasText: 'La photo ici' }).click(); await p.waitForSelector('#sheet .fiche-photo'); await p.waitForTimeout(400); },
   // v238 : « Prendre une photo » sur la page d'un passage : le passage s'ajoute seul à mes lieux (Culture), la page montre « Ma fiche » et la photo
   passagephotofait: async (p) => { await ECRANS.passagecouvert(p);
     const [fc] = await Promise.all([p.waitForEvent('filechooser'), feuille(p).locator('button', { hasText: 'Prendre une photo' }).click()]); await fc.setFiles('icons/icon-512.png');
@@ -192,7 +192,7 @@ const ECRANS = {
   // v172 : « Vouliez-vous dire » sous le champ Artiste (Invader est déjà dans mes lieux)
   artisteaide: async (p) => { await ECRANS.vuenstreet(p); await feuille(p).locator('input[list="artist-names"]').fill('Invadr'); await p.waitForTimeout(500); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
-  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'Écrire une impression' }).click(); await p.waitForTimeout(300); },
+  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'Impression' }).click(); await p.waitForTimeout(300); },
   fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /impressions/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   curiosites: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); },
   plaque: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await feuille(p).locator('.item-main').first().click(); await p.waitForSelector('#sheet .plaque-text'); await p.waitForTimeout(300); },
@@ -368,7 +368,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
         if (b.closest('[hidden]') || b.closest('.leaflet-container') || !b.getClientRects().length || b.classList.contains('map-btn')) continue; // la pastille d'un bouton de la colonne dépasse exprès
         const r = b.getBoundingClientRect();
         if (!scrolls(b) && (r.right > innerWidth + 1 || r.left < -1)) out.push(`${b.tagName.toLowerCase()}#${b.id || [...b.classList].join('.')} sort de l'écran`);
-        if (b.scrollWidth > b.clientWidth + 2 && b.clientWidth > 20) out.push(`texte trop large dans ${b.tagName.toLowerCase()}${b.id ? `#${b.id}` : `.${[...b.classList].join('.')}`} « ${b.textContent.trim().slice(0, 20)} »`);
+        // v297 : la pastille de sauvegarde de Réglages dépasse exprès (avec le contour de 2 px, le contrôle la prenait pour un texte trop large)
+        if (b.scrollWidth > b.clientWidth + 2 && b.clientWidth > 20 && !b.querySelector('.set-dot')) out.push(`texte trop large dans ${b.tagName.toLowerCase()}${b.id ? `#${b.id}` : `.${[...b.classList].join('.')}`} « ${b.textContent.trim().slice(0, 20)} »`);
       }
       return [...new Set(out)].slice(0, 6);
     });

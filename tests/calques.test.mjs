@@ -99,3 +99,10 @@ test('Filtres affichés : chaque ligne de Filtres peut s\'y masquer (v267 : Pist
   const kept = new Set([...filters.matchAll(/keep\('([a-z]+)'/g)].map((m) => m[1]));
   for (const k of kept) assert.ok(rows.has(k), `ligne « ${k} » de Filtres absente de « Filtres affichés »`);
 });
+
+test('étiquette d\'un calque : passe par typo() (« 11 h 09 », pas « 11h09 »)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const line = app.split('\n').find((l) => l.includes('fill(layerNoteBtn'));
+  assert.match(line, /typo\(n\.text\)/);
+});

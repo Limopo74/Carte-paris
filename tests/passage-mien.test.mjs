@@ -52,11 +52,11 @@ test('chacun des 12 passages reconnaît un lieu à son nom exact', () => {
   for (const a of items) assert.ok(myArcadePlace([{ name: a.nom, lat: a.lat, lng: a.lng }], a), a.nom);
 });
 
-test('app.js : « Ma fiche » remplace « Ajouter » et « Y ajouter la photo » dans l\'alerte de doublon', () => {
+test('app.js : « Ma fiche » remplace « Ajouter » et « La photo ici » (« Y ajouter la photo » avant la v297) dans l\'alerte de doublon', () => {
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /mine: myArcadePlace\(state\.points, a\)/);
   assert.match(app, /'Ma fiche'\)/);
-  assert.match(app, /'Y ajouter la photo'\)/);
+  assert.match(app, /'La photo ici'\)/);
 });
 
 test('v238 : « Prendre une photo » sur la page d\'un passage, Culture au lieu de la 1re catégorie', () => {

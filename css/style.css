@@ -137,13 +137,14 @@ button { cursor: pointer; }
 .sheet-foot {
   position: sticky; bottom: -18px; z-index: 2;
   margin: 4px -18px -18px; padding: 10px 18px calc(12px + 6px);
-  background: var(--bg); border-top: 1.5px solid var(--ink);
+  background: var(--bg); border-top: 2px solid var(--ink);
   display: flex; flex-direction: column; gap: 8px;
 }
 .sheet-foot > .btn { width: 100%; }
 
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .row { display: flex; gap: 10px; }
+.row.duo .btn { padding-inline: 8px; gap: 6px; } /* v297 : deux boutons côte à côte (fiche, doublon) : le texte tient sur une ligne à 360 px */
 .row > * { flex: 1; }
 /* Grand et Très grand texte : ces deux boutons l'un sous l'autre, toujours (« Écrire une impression » ne tient pas en demi-largeur à 360 px) ; même ordre */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .row-big { flex-direction: column; }
@@ -154,12 +155,12 @@ button { cursor: pointer; }
 label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: var(--t16); }
 .field input, .field textarea {
   width: 100%; min-height: 48px; padding: 10px 12px; font-weight: 400; font-size: var(--t16);
-  border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface);
+  border: 2px solid var(--field); border-radius: var(--r); background: var(--surface);
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .step-text { align-items: flex-start; } /* Mes circuits : un texte sous chaque étape */
 .step-text .item-text { flex: 1; min-width: 0; }
-.step-text textarea { display: block; width: 100%; min-height: 64px; margin-top: 6px; padding: 8px 10px; font-size: var(--t15); border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); resize: vertical; }
+.step-text textarea { display: block; width: 100%; min-height: 64px; margin-top: 6px; padding: 8px 10px; font-size: var(--t15); border: 2px solid var(--field); border-radius: var(--r); background: var(--surface); resize: vertical; }
 .field input:focus, .field textarea:focus, .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible, .item-main:focus-visible {
   outline: 3px solid var(--focus); outline-offset: 2px;
 }
@@ -184,7 +185,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 
 /* Liste autour de moi */
 .ring-title {
-  margin: 18px 0 0; padding-top: 8px; border-top: 1.5px solid var(--ink); display: flex; justify-content: space-between; color: var(--ink);
+  margin: 18px 0 0; padding-top: 8px; border-top: 2px solid var(--ink); display: flex; justify-content: space-between; color: var(--ink);
 }
 .ring-title:first-child { margin-top: 0; }
 .items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -221,7 +222,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 }
 .toast.error { background: var(--danger); }
 /* Bouton dans un message (ex. TTB → « Voir la liste ») : rend visible ce qui n'était qu'un appui long */
-.toast-act { min-height: 44px; padding: 0 12px; margin-left: 4px; background: transparent; color: inherit; border: 1.5px solid currentColor; border-radius: var(--r); font: inherit; font-weight: 700; }
+.toast-act { min-height: 44px; padding: 0 12px; margin-left: 4px; background: transparent; color: inherit; border: 2px solid currentColor; border-radius: var(--r); font: inherit; font-weight: 700; }
 
 .leaflet-control-attribution { font-size: 10px; }
 .leaflet-bottom { bottom: calc(80px + var(--safe-b)); }
@@ -252,7 +253,6 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 /* Icônes de catégorie */
 .chip.star { font-size: var(--t18); padding: 0 12px; }
 .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
-.icon-choice[aria-pressed="true"] { border: 3px solid var(--ink); background: var(--soft); }
 
 /* Lieux sur la carte */
 .pin-wrap { background: none; border: none; }
@@ -268,7 +268,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 .presets { display: flex; flex-wrap: wrap; gap: 8px; }
 .preset {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px 4px 6px;
-  border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: var(--t16);
+  border-radius: var(--r); border: 2px solid var(--neutral-bd); background: var(--surface); font-size: var(--t16);
 }
 
 /* Boussole */
@@ -392,7 +392,7 @@ ol.items { padding: 0; }
 #sheetTitle .fiche-kick { display: block; margin-bottom: 2px; font: 700 var(--t13) var(--display); letter-spacing: .02em; color: var(--disc); }
 #sheetTitle .fiche-name { font-size: var(--t26); line-height: 1.1; font-stretch: 80%; }
 .fiche-lede { margin: 0; font-size: var(--t18); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fiche-cols { display: grid; grid-template-columns: 1fr 1fr; border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--line); }
+.fiche-cols { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); }
 .fiche-cols > div { min-width: 0; padding: 10px 0; }
 .fiche-cols > div + div { padding-left: 12px; border-left: 1px solid var(--line); }
 .fiche-k { font: 700 var(--t13) var(--display); color: var(--muted); } /* v191 : en lettres normales, 13 px (« Métro 2 » se lit au soleil) */
@@ -412,7 +412,7 @@ ol.items { padding: 0; }
 :root:is([data-text="tresgrand"]) .spot-photo button { height: 60px; }
 :root:is([data-text="grand"]) .photo-snap { height: calc(88px + 1.25 * var(--t13)); }
 :root:is([data-text="tresgrand"]) .photo-snap { height: calc(64px + 1.25 * var(--t13)); flex-direction: row; }
-.photo-snap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: calc(104px + 1.25 * var(--t13)); border: 2px dashed var(--add); border-radius: var(--r); background: var(--soft); color: var(--add); font: inherit; font-weight: 600; font-size: var(--t16); cursor: pointer; }
+.photo-snap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: calc(104px + 1.25 * var(--t13)); border: 2px solid var(--add); border-radius: var(--r); background: var(--soft); color: var(--add); font: inherit; font-weight: 600; font-size: var(--t16); cursor: pointer; }
 .photo-snap:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-photo button:focus-visible, .fiche-row:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-lines > * { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--t16); }
@@ -422,7 +422,7 @@ ol.items { padding: 0; }
 .fiche-lines > .muted { font-size: var(--t14); color: var(--muted); }
 .fiche-lines p > .ico { display: inline-flex; vertical-align: -2px; }
 .fiche-lines p > .ico svg { width: 16px; height: 16px; }
-.fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 1.5px solid var(--ink); font: 800 var(--t15)/1.3 var(--display); color: var(--ink); }
+.fiche-sec { margin: 8px 0 -10px; padding-top: 8px; border-top: 2px solid var(--ink); font: 800 var(--t15)/1.3 var(--display); color: var(--ink); }
 .fiche-toc { display: flex; flex-direction: column; }
 .fiche-row { display: grid; grid-template-columns: minmax(24px, auto) minmax(0, 1fr) minmax(20px, auto); align-items: center; gap: 12px; min-height: 52px; padding: 6px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; color: var(--ink); font: 700 var(--t16) var(--display); text-decoration: none; }
@@ -468,16 +468,16 @@ ol.items { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .switch, .switch .knob { transition: none; } }
 
 /* Code couleur : teinte claire + texte foncé de la même couleur (lisible), ou plein pour l'action principale */
-.btn.c-metro, .map-btn.c-metro { border-color: var(--metro-bd); }
-.btn.c-guide, .map-btn.c-guide, .go-compass { border-color: var(--guide-bd); }
-.btn.c-add, .map-btn.c-add { border-color: var(--add-bd); }
+.map-btn.c-metro { border-color: var(--metro-bd); }
+.map-btn.c-guide, .go-compass { border-color: var(--guide-bd); }
+.map-btn.c-add { border-color: var(--add-bd); }
 .btn.c-metro.solid, .tool.c-metro.on { background: var(--metro); color: var(--on-strong); border-color: var(--metro); }
 .btn.c-guide.solid, .tool.c-guide.on, .map-btn.c-guide[aria-pressed="true"] { background: var(--guide); color: var(--on-strong); border-color: var(--guide); }
 .btn.c-add.solid { background: var(--add); color: var(--on-strong); border-color: var(--add); --pl: var(--add); }
 .btn.solid:disabled, .btn.primary:disabled { background: var(--surface); color: var(--muted); border-color: var(--muted); border-style: dashed; --pl: var(--surface); } /* inactif : tirets, même plein (charte § 5) */
 .tool.c-guide .tool-ico, .tool.c-metro .tool-ico { filter: none; }
 .legend-colors { display: flex; flex-wrap: wrap; gap: 6px; }
-.legend-colors span { font-size: var(--t13); font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
+.legend-colors span { font-size: var(--t13); font-weight: 600; padding: 4px 10px; } /* v297 : même forme que les vrais boutons (4 px, contour 2 px) */
 
 /* Aide */
 
@@ -535,7 +535,6 @@ ol.items { padding: 0; }
 .chip.icon-only .cat-ico { width: 30px; height: 30px; font-size: 16px; margin: 0; }
 /* Ordre des catégories */
 .cat-row .btn.move { width: 44px; padding: 0; font-size: var(--t18); font-weight: 700; flex: none; }
-.cat-row .btn.move:disabled { color: var(--muted); border-color: var(--line); }
 
 .tool-prev { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; background: var(--surface); }
 .tool-prev.txt { font-size: 11.5px; font-weight: 700; }
@@ -567,7 +566,7 @@ ol.items { padding: 0; }
 .help-ico { color: var(--info); width: 36px; height: 36px; }
 .go-compass .ico svg { width: 22px; height: 22px; }
 .icon-choice .ico svg { width: 24px; height: 24px; }
-.icon-choice { height: 44px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; color: var(--ink); }
+.icon-choice { height: 44px; border-radius: var(--r); border: 2px solid var(--neutral-bd); background: var(--surface); font-size: 22px; line-height: 1; color: var(--ink); }
 #sheetTitle .ico svg { width: 22px; height: 22px; }
 #sheetTitle .ico { margin-right: 4px; vertical-align: -3px; }
 .tool-prev .ico svg { width: 20px; height: 20px; }
@@ -580,7 +579,7 @@ ol.items { padding: 0; }
 .list-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .list-chips .chip { box-shadow: none; }
 .list-chips .chip .ico svg { width: 16px; height: 16px; }
-.list-chips .chip[aria-pressed="true"] .cat-count { color: var(--on-strong); }
+.list-chips .chip[aria-pressed="true"] .cat-count { color: var(--ink); }
 
 .rain .ico svg { width: 22px; height: 22px; }
 .rain span:nth-child(2) { flex: 1; }
@@ -588,7 +587,7 @@ ol.items { padding: 0; }
 
 /* Mon Paris */
 .arr-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(5, 54px); gap: 5px; }
-.arr { border-radius: var(--r); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line); }
+.arr { border-radius: var(--r); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.15; border: 2px solid var(--neutral-bd); }
 .arr b { font-size: 14px; }
 .arr-pick .arr { background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
 .arr-pick .arr b { font-family: var(--display); font-size: 15px; }
@@ -610,7 +609,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #sheetTitle:focus { outline: none; }
 #sheetTitle .title-clamp { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; } /* Mes parcours : un nom long reste sur 2 lignes */
 #sheetTitle:focus-visible { outline: none; }
-.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: var(--t16); border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); }
+.row > input[type="text"] { min-height: 48px; padding: 10px 12px; font-size: var(--t16); border: 2px solid var(--field); border-radius: var(--r); background: var(--surface); }
 .m-badge::before { content: 'M'; }
 
 /* Styles de carte : filtres faits par le téléphone */
@@ -637,7 +636,6 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 :root[data-theme="dark"] .btn.c-metro.solid, :root[data-theme="dark"] .tool.c-metro.on,
 :root[data-theme="dark"] .btn.c-guide.solid, :root[data-theme="dark"] .tool.c-guide.on, :root[data-theme="dark"] .map-btn.c-guide[aria-pressed="true"],
 :root[data-theme="dark"] .field input, :root[data-theme="dark"] .field textarea, :root[data-theme="dark"] .row > input[type="text"], :root[data-theme="dark"] input[type="search"] { background: var(--surface); color: var(--ink); border-color: var(--field); }
-:root[data-theme="dark"] .seg button { border-color: var(--field); }
 :root[data-theme="dark"] .arr.l1 { background: #24502F; color: #D6F5DC; border-color: #4FAE66; }
 :root[data-theme="dark"] .arr.l2 { background: #3F9E56; color: #06180B; border-color: #6fd585; }
 :root[data-theme="dark"] .arr.l3 { background: #93E3A4; color: #06180B; border-color: #93E3A4; }
@@ -701,7 +699,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #map.z-11 .arr-num { display: none; }
 /* Calques Vélib' et Fontaines et WC (v150) : sous la météo, « Zoome pour voir… » ou l'heure des Vélib' (un appui : mettre à jour) */
 .layer-note { position: fixed; z-index: 499; left: 10px; top: 66px; max-width: calc(100vw - 90px); min-height: var(--h-s); padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;
-  color: var(--ink); background: var(--bg); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
+  color: var(--ink); background: var(--bg); border: 2px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
   font: inherit; font-family: var(--display); font-weight: 600; font-size: var(--t14); line-height: 1.25; text-align: left; }
 .layer-note .lucide { flex: none; color: var(--metro); }
 .layer-note .ttb-dot { width: 30px; height: 30px; } /* v287 : le rond « TTB » de l'étiquette « Seulement … · Tout voir » */
@@ -736,12 +734,12 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .ttb-far .ttb-pin { width: 14px; height: 14px; margin: 7px; border-width: 1.5px; }
 .ttb-far .ttb-pin svg { display: none; }
 /* v218 : adresse vérifiée par moi depuis moins de 6 mois. Coche encre sur pastille claire, en haut à droite (jamais la coche verte, qui veut dire « Déjà visité ») ; vue de loin, le bord du petit rond passe à l'encre. */
-.ttb-ok { position: absolute; top: -7px; right: -7px; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--ink); border: 1.5px solid var(--ink); }
+.ttb-ok { position: absolute; top: -7px; right: -7px; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--ink); border: 2px solid var(--ink); }
 .ttb-far .ttb-ok { display: none; }
 .ttb-far .ttb-pin.ok { border-color: var(--ink); }
 #sheetTitle .fiche-kick .tag { margin-left: 8px; letter-spacing: 0; }
 .ttb-verdict .btn { padding-inline: 6px; line-height: 1.15; }
-.ttb-card { border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--line); padding: 10px 0; }
+.ttb-card { border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); padding: 10px 0; }
 .ttb-card p { margin: 0; }
 .ttb-card .ttb-card-name { font: 800 var(--t22) / 1.15 var(--display); margin: 2px 0 6px; }
 .ttb-dot { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--disc); color: var(--bg); }
@@ -793,7 +791,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 18px; border-bottom: 1px solid var(--line); position: relative; touch-action: none; user-select: none; -webkit-user-select: none; } /* la barre se fait glisser (v166), sans sélectionner le titre */
 .sheet-head::before { content: ''; position: absolute; top: 4px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 999px; background: var(--line); } /* poignée : la barre se fait glisser */
 .sheet.mini .sheet-body { display: none; } /* réduite (v166) : seule la barre du titre reste, la carte se voit */
-.sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 1.5px solid var(--ink); background: transparent; }
+.sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 2px solid var(--ink); background: transparent; }
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
 .btn.c-metro { color: var(--metro); border-color: var(--metro); }
@@ -802,7 +800,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .btn.c-fav { color: var(--fav); border-color: var(--fav); }
 .btn.c-info { color: var(--info); border-color: var(--info); }
 .btn.c-disc { color: var(--disc); border-color: var(--disc); }
-.btn.danger { border-color: var(--danger); color: var(--danger); border: 1.5px solid var(--danger); }
+.btn.danger { border-color: var(--danger); color: var(--danger); border: 2px solid var(--danger); }
 
 /* ---- Action principale = plaque pleine, à plat (charte « Papier », v99) ; la barre de la carte garde son double filet jusqu'à l'étape 5 ---- */
 .btn.primary, .btn.solid, a.go, .item .go { --pl: var(--strong); border-color: var(--pl); color: var(--on-strong); box-shadow: none; }
@@ -816,12 +814,12 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .big-btn:active { transform: translateY(1px); }
 
 /* Barre du bas */
-.big-btn { flex: 1; min-height: var(--h-l); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; padding: 0 10px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
+.big-btn { flex: 1; min-height: var(--h-l); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; padding: 0 10px; border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-weight: 800; font-stretch: 92%; font-size: 18px; }
 .big-btn.c-add { border-color: var(--add); color: var(--add); }
 
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
 .tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
-  --fam: var(--guide); color: var(--ink); border: 1.5px solid var(--fam); border-radius: var(--r);
+  --fam: var(--guide); color: var(--ink); border: 2px solid var(--fam); border-radius: var(--r);
   min-height: 64px; gap: 2px; font-size: var(--t13); font-weight: 700; box-shadow: none; background: transparent;
 }
 .tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
@@ -835,10 +833,13 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .tool.on .tool-ico { animation: none; }
 
 /* ---- Jetons (catégories, filtres) ---- */
-.chip { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--h); min-width: var(--h); padding: 0 10px; font-size: var(--t14); border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
-.chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
+.chip { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--h); min-width: var(--h); padding: 0 10px; font-size: var(--t14); border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); font-weight: 600; }
+/* Choix sélectionné dans une page : fond léger, contour encre, gras, comme Favori (v297, ton choix du 20 nov.).
+   Sur la carte (barre du haut, bandeau « Maintenant »), il reste plein : un fond clair s'y verrait mal. */
+.chip[aria-pressed="true"], .seg button[aria-pressed="true"], .icon-choice[aria-pressed="true"] { background: var(--info-bg); color: var(--ink); border-color: var(--ink); font-weight: 800; }
+.top .chip[aria-pressed="true"], .deck .chip[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); font-weight: inherit; }
 .chip .cat-ico { width: 24px; height: 24px; font-size: 13px; margin-left: -4px; border-radius: var(--r); }
-.icon-btn { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
+.icon-btn { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--btn); box-shadow: var(--float); }
 
 /* ---- Tampons (états) ---- */
 /* Tampons droits, en lettres normales et en 13 px (v177) : les majuscules espacées et penchées se lisaient mal au soleil. */
@@ -853,18 +854,17 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 
 /* ---- Listes et cartes de rubrique ---- */
 .item-main, .menu-row, .ev, .results button, .help-item { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; font: inherit; color: var(--ink); min-height: 44px; text-align: left; border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: transparent; }
+.style-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 8px 10px; font: inherit; color: var(--ink); min-height: 44px; text-align: left; border: 2px solid var(--btn-bd); border-radius: var(--r); background: transparent; }
 .menu-row.c-disc .menu-ico { color: var(--disc); }
 .menu-row.c-disc .menu-chev { color: var(--disc); }
 .menu-row.c-guide .menu-ico { color: var(--guide); }
-.go-compass { flex: none; width: 48px; min-height: 48px; align-self: center; font-size: 20px; border-radius: var(--r); border: 1.5px solid var(--ink); color: var(--ink); }
+.go-compass { flex: none; width: 48px; min-height: 48px; align-self: center; font-size: 20px; border-radius: var(--r); border: 2px solid var(--ink); color: var(--ink); }
 .go-compass.add { border-color: var(--add); color: var(--add); }
-.seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
-.seg button[aria-pressed="true"] { color: var(--on-strong); border-color: var(--strong); background: var(--strong); }
+.seg button { flex: 1 1 30%; min-height: 48px; padding: 6px 10px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r); border: 2px solid var(--btn-bd); background: transparent; font-family: var(--display); font-weight: 700; }
 /* v244 : les 7 jours d'ouverture sur une ligne (page Horaires d'un lieu) */
 .seg.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .seg.days button { padding: 0; font-size: var(--t14); }
-.seg.two button { flex-basis: 40%; } /* v208 : 2 par rangée (Prévoir), plus de mot coupé */
+.seg.two button { flex: none; min-height: var(--h); padding: 0 12px; font-size: var(--t14); } /* v297 : puces, comme « Le bon moment » (ton choix du 20 nov. ; avant : 2 par rangée, v208) */
 .switch.on { background: var(--add); }
 
 /* ---- Boutons de la carte (charte « Papier », v102) : papier, contour de leur famille, 4 px.
@@ -872,7 +872,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .map-btn, .map-btn.c-guide, .map-btn.c-metro, .map-btn.c-add, .map-btn.c-disc, .metro-btn {
   --fam: var(--ink);
   width: 50px; height: 50px; border-radius: var(--r); background: var(--bg); color: var(--fam);
-  border: 1.5px solid var(--fam); box-shadow: var(--float);
+  border: 2px solid var(--fam); box-shadow: var(--float);
 }
 .map-btn.c-metro, .metro-btn { --fam: var(--metro); }
 .map-btn.c-add { --fam: var(--add); }
@@ -882,7 +882,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .map-btn.c-disc[aria-pressed="true"] { background: var(--fam); color: var(--bg); }
 .map-btn[aria-pressed="true"], .map-btn.c-guide[aria-pressed="true"] { background: var(--fam); color: var(--on-strong); border-color: var(--fam); }
 .paris-btn { letter-spacing: .01em; font-weight: 800; font-size: 13px; }
-.wx-badge { position: fixed; display: inline-flex; align-items: center; padding: 0 12px; color: var(--ink); font: inherit; font-size: var(--t14); z-index: 499; left: 10px; top: 66px; min-height: var(--h-s); gap: 6px; border-radius: var(--r); border: 1.5px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
+.wx-badge { position: fixed; display: inline-flex; align-items: center; padding: 0 12px; color: var(--ink); font: inherit; font-size: var(--t14); z-index: 499; left: 10px; top: 66px; min-height: var(--h-s); gap: 6px; border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
 
 /* ---- Épingles : goutte qui pointe le lieu exact ---- */
 .pin { position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; color: #fff; width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg); border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); }
@@ -916,7 +916,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
 /* Bandeaux */
-.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; border-radius: var(--r); border-width: 1.5px; }
+.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; border-radius: var(--r); border-width: 2px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t14); color: var(--muted); font-family: inherit; }
 .pin-in { display: flex; align-items: center; justify-content: center; line-height: 1; }
 /* Notes et favori : or Opéra */
@@ -928,7 +928,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 :root[data-theme="dark"] .star-pick button.on { color: var(--fav); }
 .go-dist { white-space: nowrap; font-weight: 600; margin-left: 4px; font-size: var(--t13); }
 /* Dans les listes, « Y aller » est secondaire : contour, pas de plaque (une seule plaque par écran) */
-a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow: none; border-radius: var(--r); font-family: var(--display); font-weight: 700; }
+a.go, .item .go { color: var(--ink); border: 2px solid var(--ink); box-shadow: none; border-radius: var(--r); font-family: var(--display); font-weight: 700; }
 .menu-group { margin: 18px 0 0; } .menu-group:first-of-type { margin-top: 2px; }
 .badge .ico svg, .where .ico svg { width: 15px; height: 15px; } .badge .ico, .where .ico { flex: none; margin-right: 4px; vertical-align: -2px; }
 /* Monuments : une ligne de liens sous chaque monument */
@@ -936,7 +936,7 @@ a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow:
 .item-row { display: flex; gap: 8px; align-items: center; }
 .item-row .item-main { flex: 1; min-width: 0; }
 .links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
-.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r); border: 1.5px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: var(--t14); text-decoration: none; }
+.mini-link { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: var(--r); border: 2px solid var(--disc); color: var(--disc); font-family: var(--display); font-weight: 700; font-size: var(--t14); text-decoration: none; }
 .mini-link .ico svg { width: 16px; height: 16px; }
 
 /* Bouton « Ma position et direction » : plus grand, mis en valeur ; plaque pleine quand il est actif */
@@ -946,7 +946,7 @@ a.go, .item .go { color: var(--ink); border: 1.5px solid var(--ink); box-shadow:
 #btnLocate.paused { color: var(--ink); border-style: dashed; }
 /* Carte « Maintenant » au-dessus de la barre du bas */
 .now-card { position: fixed; left: 10px; right: 72px; bottom: calc(86px + var(--safe-b)); z-index: 480; display: flex; align-items: stretch;
-  background: var(--bg); border: 1.5px solid var(--disc); border-radius: var(--r); box-shadow: var(--float); }
+  background: var(--bg); border: 2px solid var(--disc); border-radius: var(--r); box-shadow: var(--float); }
 body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
 .now-card[hidden] { display: none; }
 .now-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 8px 4px 8px 12px; text-align: left; color: var(--ink); min-height: 56px; font: inherit; }
@@ -960,12 +960,12 @@ body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
 .deck-top { display: flex; align-items: stretch; min-width: 0; }
 .deck-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid var(--line); touch-action: pan-y; }
 .deck-top { touch-action: pan-y; }
-.deck-step { width: var(--h-s); height: var(--h-s); display: grid; place-items: center; padding: 0; background: var(--bg); color: var(--disc); border: 1.5px solid var(--disc); border-radius: var(--r); }
-.deck-step:disabled { color: var(--muted); border-color: var(--line); }
+.deck-step { width: var(--h-s); height: var(--h-s); display: grid; place-items: center; padding: 0; background: var(--bg); color: var(--disc); border: 2px solid var(--disc); border-radius: var(--r); }
+.deck-step:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; } /* v297 : inactif comme .btn:disabled */
 .deck-count { min-width: 3.6em; text-align: center; font: 800 var(--t15)/1.2 var(--display); color: var(--ink); }
 .deck-days { display: flex; gap: 6px; margin-left: auto; }
 .deck-days .chip { min-height: var(--h-s); }
-.deck-list { margin-left: auto; min-height: var(--h-s); display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: var(--r); font: 700 var(--t14)/1.2 var(--display); }
+.deck-list { margin-left: auto; min-height: var(--h-s); display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--bg); color: var(--ink); border: 2px solid var(--neutral-bd); border-radius: var(--r); font: 700 var(--t14)/1.2 var(--display); }
 .deck .now-chev .ico svg { width: 20px; height: 20px; }
 .deck .now-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } /* le nom entier, sur deux lignes au plus */
 body:has(#sheet:not([hidden])) .now-card, body:has(.compass:not([hidden])) .now-card { display: none; }
@@ -978,7 +978,7 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 
 /* Boutons secondaires : contour de la couleur de la famille, sans fond (charte « Papier », v99).
    Un interrupteur allumé (Favori, Déjà visité…) prend un fond léger de sa famille. */
-.btn { min-height: var(--h); padding: 0 16px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; text-align: center; border-radius: var(--r); border: 1.5px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; background: transparent; border-color: var(--neutral-bd); }
+.btn { min-height: var(--h); padding: 0 16px; font-size: var(--t16); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; text-align: center; border-radius: var(--r); border: 2px solid var(--btn-bd); color: var(--ink); font-weight: 700; box-shadow: none; background: transparent; border-color: var(--neutral-bd); }
 .btn.primary, .btn.solid, .big-btn.solid, .big-btn.primary { background: var(--pl); }
 
 .btn.c-fav[aria-pressed="true"] { background: var(--fav-bg); font-weight: 800; }
@@ -1046,7 +1046,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .stats-table th, .stats-table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .stats-table th:first-child, .stats-table td:first-child { text-align: left; }
 .stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
-.stat-tile { background: var(--surface); border: 1.5px solid var(--btn-bd); border-radius: var(--r); padding: 8px 10px; display: flex; flex-direction: column; }
+.stat-tile { background: var(--surface); border: 2px solid var(--btn-bd); border-radius: var(--r); padding: 8px 10px; display: flex; flex-direction: column; }
 .stat-tile b { font-family: var(--display); font-weight: 800; font-size: var(--t22); font-stretch: 90%; font-variant-numeric: tabular-nums; color: var(--ink); }
 .stat-tile span { font-size: var(--t13); color: var(--muted); }
 .hbars { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -1082,7 +1082,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 
 /* Liste : le nom ouvre le choix des lieux */
 .cat-row .cat-open { background: none; border: 0; padding: 4px 0; min-height: 44px; text-align: left; font: inherit; font-size: var(--t16); color: var(--ink); cursor: pointer; }
-#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: var(--t16); border: 1.5px solid var(--field); border-radius: var(--r); background: var(--surface); color: var(--ink); }
+#sheet input[type=search] { min-height: 48px; padding: 10px 12px; font-size: var(--t16); border: 2px solid var(--field); border-radius: var(--r); background: var(--surface); color: var(--ink); }
 
 /* Dans la rue aujourd'hui : bouton de la barre du haut (terre cuite, plein quand allumé) */
 .chip.street { color: var(--disc); min-width: 44px; justify-content: center; padding: 0 12px; }
@@ -1149,16 +1149,16 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev-photo figcaption { font-size: var(--t115); color: var(--muted); }
 
 /* En-tête de Sorties (v136) : onglets soulignés, un seul contrôle de départ et « Carte », une rangée de puces qui défile */
-.tabs-line { display: flex; border-bottom: 1.5px solid var(--ink); margin: -4px 0 0; }
+.tabs-line { display: flex; border-bottom: 2px solid var(--ink); margin: -4px 0 0; }
 .tabs-line button {
-  flex: 1; min-height: var(--h); border: 0; border-bottom: 3px solid transparent; margin-bottom: -1.5px; background: none;
+  flex: 1; min-height: var(--h); border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; background: none;
   font-family: var(--display); font-stretch: 92%; font-weight: 700; font-size: var(--t16); color: var(--muted); cursor: pointer;
 }
 .tabs-line button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
 .ev-ctx { display: flex; gap: 8px; }
 .ev-from {
   flex: 1; min-width: 0; min-height: var(--h-s); display: flex; align-items: center; gap: 8px; padding: 0 10px;
-  border: 1.5px solid var(--btn-bd); border-radius: var(--r); background: var(--btn); color: var(--ink); font: inherit; font-size: var(--t14); text-align: left; cursor: pointer;
+  border: 2px solid var(--btn-bd); border-radius: var(--r); background: var(--btn); color: var(--ink); font: inherit; font-size: var(--t14); text-align: left; cursor: pointer;
 }
 .ev-from > .ico:first-child { color: var(--disc); }
 .ev-from .ico svg { width: 18px; height: 18px; }
@@ -1178,13 +1178,13 @@ a.menu-row .menu-chev { font-size: 20px; }
 .seg.seg-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 2px 18px 4px; scroll-padding: 0 18px; }
 .seg.seg-scroll::-webkit-scrollbar { display: none; }
 .seg.seg-scroll button { flex: none; padding: 6px 14px; }
-.seg .seg-new { border-style: dashed; border-color: var(--add); color: var(--add); background: transparent; }
+.seg .seg-new { border-color: var(--add); color: var(--add); background: transparent; }
 .form-more summary { min-height: 48px; }
 .form-photo { display: block; width: 100%; max-height: 22vh; object-fit: cover; border-radius: var(--r); background: var(--line); }
 .form-more summary .help-title { flex: none; }
 .form-more-sub { flex: 1; min-width: 0; color: var(--muted); font-size: var(--t14); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .form-more > .stack { padding: 4px 14px 14px; }
-.me-box { border: 1.5px dashed var(--line); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.me-box { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .me-box .help { margin: 0; }
 .me-line { display: flex; align-items: center; gap: 10px; }
 .me-line > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -1193,7 +1193,7 @@ a.menu-row .menu-chev { font-size: 20px; }
 /* « Plus » (⋯) : panneau à côté de la colonne, boutons avec leur nom */
 .more-panel {
   position: fixed; right: 76px; z-index: 520; display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 190px;
-  background: var(--bg); border: 1.5px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
+  background: var(--bg); border: 2px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);
 }
 .more-panel.left { right: auto; left: 76px; }
 .more-panel[hidden] { display: none; }

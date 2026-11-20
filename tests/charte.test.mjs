@@ -103,3 +103,43 @@ test('charte : dans une barre du bas, le retour « ← … » est toujours le de
   const bad = [...app.matchAll(/foot\((el\('button'[^\n]*?'← [^']*'\)|backBtn\([^\n]*?\)), *(el|ico)\(/g)].map((m) => m[0].slice(0, 80));
   assert.deepEqual(bad, [], `Mets le bouton de retour en dernier dans foot(...) :\n${bad.join('\n')}`);
 });
+
+// v297 (homogénéité, tes choix du 20 nov.) : ce que le contrôle des 135 écrans a trouvé ne doit pas revenir.
+const BTN_CLASSES = new Set([...app.matchAll(/el\('(?:button|a)', \{[^}]*?class: [`']([^`']+)[`']/g)].flatMap((m) => m[1].split(/\s+/)).filter((c) => /^[a-z][\w-]*$/.test(c)));
+const lastCompound = (sel) => sel.split(',').map((s) => s.trim().split(/[ >+~]+/).pop());
+const targetsButton = (sel) => lastCompound(sel).some((c) => /^button\b/.test(c) || [...c.matchAll(/\.([\w-]+)/g)].some((m) => BTN_CLASSES.has(m[1])));
+
+test('homogénéité : aucun bouton n\'a un contour couleur filet (--line), quel que soit son nom', () => {
+  const bad = [];
+  for (const r of rules) {
+    if (!targetsButton(r.sel) || /:disabled|\.tabs-line|menu-row|item-main|fiche-row|now-close|ev-more|\.arr\.l\d/.test(r.sel)) continue; // .arr.l0 à l3 : cases de Mon Paris (images, pas des boutons)
+    for (const v of decls(r, 'border(?:-color)?')) if (/var\(--line\)/.test(v)) bad.push(`${r.sel} → ${v}`);
+  }
+  assert.deepEqual(bad, [], `Un contour de bouton prend --neutral-bd ou la couleur de sa famille, jamais --line :\n${bad.join('\n')}`);
+});
+
+test('homogénéité : le contour en tirets veut dire « inactif », rien d\'autre', () => {
+  const STATE = /:disabled|\.paused|\.off\b|\.zero|\.unknown|\.shut|\.l0\b/;
+  const bad = rules.filter((r) => /dashed/.test(r.body) && !STATE.test(r.sel)).map((r) => r.sel);
+  assert.deepEqual(bad, [], `Tirets hors d'un état inactif :\n${bad.join('\n')}`);
+});
+
+test('homogénéité : contours de bouton et filets forts à 2 px (Chrome dessine 1,5 px comme 1 px)', () => {
+  const TAMPON = /tag|ttb-|prized|warn-row|bus-line|map-label|\.l0\b/;
+  const bad = rules.filter((r) => /1\.5px (solid|dashed)/.test(r.body) && !TAMPON.test(r.sel)).map((r) => r.sel);
+  assert.deepEqual(bad, [], `Encore 1,5 px :\n${bad.join('\n')}`);
+});
+
+test('homogénéité : un choix sélectionné dans une page a un fond léger ; le plein reste sur la carte', () => {
+  for (const r of rules) {
+    if (!/\[aria-pressed="true"\]/.test(r.sel) || !/\.chip|\.seg button|\.icon-choice/.test(r.sel)) continue;
+    if (/\.top |\.deck |\.chip\.(star|street|lines|velib|buslines)/.test(r.sel)) continue;
+    for (const v of decls(r, 'background(?:-color)?')) assert.ok(!/--strong|--ink\)/.test(v), `${r.sel} : fond plein dans une page (CHARTE.md § 8)`);
+  }
+});
+
+test('homogénéité : « Enregistrer… » est toujours la plaque verte', () => {
+  // Exception : « Enregistrer le prénom » (Sauvegarde, Envoyer à un proche) est en contour vert : l'envoi est la plaque de l'écran.
+  const bad = app.split('\n').filter((l) => /el\('button'/.test(l) && /'Enregistrer[^']*'\)/.test(l) && !/class: 'btn c-add solid'/.test(l) && !/class: 'btn c-add'.*'Enregistrer le prénom'/.test(l));
+  assert.deepEqual(bad.map((l) => l.trim().slice(0, 120)), [], 'Enregistrer = btn c-add solid (CHARTE.md § 8)');
+});

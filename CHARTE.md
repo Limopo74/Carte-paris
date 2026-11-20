@@ -46,7 +46,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 4. Mesures
 - Hauteur d'un bouton, d'une puce, d'un champ, d'un onglet : **`--h` = 48 px**. Cible compacte : **`--h-s` = 44 px**, jamais moins. Action principale en grand : **`--h-l` = 56 px**.
-- Contour d'un bouton, d'un champ ou d'une tuile : 1,5 px. Filet fin entre deux lignes : 1 px `--line`. Filet fort sous un intertitre : 1,5 px encre.
+- Contour d'un bouton, d'un champ ou d'une tuile : **2 px** (v297 : Chrome dessinait le 1,5 px d'avant comme 1 px, la différence ne se voyait pas). Filet fin entre deux lignes : 1 px `--line`. Filet fort sous un intertitre : 2 px encre. Les tampons (`.tag`), pastilles et épingles gardent 1,5 px.
 
 ## 5. Texte
 - Polices : **Inter** pour le texte, **Archivo** (étroit) pour les titres et les boutons. Pas de police à empattements.
@@ -82,6 +82,11 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Formulaires : **Annuler** (contour neutre) à gauche, **Enregistrer** (plaque pleine verte) à droite.
 - Placer un point : **Valider ici**. Supprimer : toujours confirmé, bouton brique.
 - Interrupteurs (Favori, Déjà visité) : libellé fixe, état dit par `aria-pressed` et un fond léger quand c'est allumé.
+- **Choix sélectionné dans une page** (segments, puces, icônes, jours ; v297, mon choix du 20 nov.) : fond léger `--info-bg`, contour encre, texte gras, comme Favori. Il n'y a donc qu'une plaque pleine par écran. Sur la carte (barre du haut, bandeau « Maintenant »), le bouton allumé reste plein : un fond clair s'y verrait mal.
+- **Oui / non dans un formulaire** (Favori et Abrité de Modifier le lieu, v297) : un interrupteur, comme dans Filtres et Réglages ; la fiche garde ses boutons Favori et Déjà visité.
+- **Enregistrer** : toujours la plaque pleine verte (`btn c-add solid`), même dans les Réglages (v297), et un seul par écran (Cercles : un seul « Enregistrer » en bas pour les deux champs). Exception : « Enregistrer le prénom » reste en contour vert là où l'envoi est la plaque de l'écran (Sauvegarde, Envoyer à un proche).
+- **Contour en tirets** = bouton inactif, et rien d'autre (v297 : « Prendre une photo » et « + Nouvelle » passés en contour plein).
+- Un choix parmi plusieurs (Matin, Midi, Soir…) : des puces de 48 px, partout la même forme (v297).
 - Les boutons ne changent jamais de place d'un écran à l'autre.
 - **Lexique** (v222, vérifié par `tests/vocabulaire.test.mjs`) : un mot par chose, une chose par mot.
   | Chose | Mot | Jamais |
@@ -94,7 +99,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
   | sortir d'une liste, l'objet reste | **Retirer** | Supprimer |
   | vider un texte ou des choix (note du jour, filtres) | **Effacer** | |
   | ne plus afficher | **Masquer** / **Réafficher** | Cacher |
-  | une visite datée d'un de mes lieux | **impression** (« Écrire une impression », « Mes impressions ») | passage (réservé aux **passages couverts**) |
+  | une visite datée d'un de mes lieux | **impression** (« Écrire une impression » pour la page, « Impression » pour le bouton de la fiche, v297 ; « Mes impressions ») | passage (réservé aux **passages couverts**) |
   | mon texte sur un lieu / les étoiles / la page du jour | **Commentaire** / **Mes étoiles** / **Note du jour** | note (pour les deux premiers) |
   | message électronique | **courriel** | mail |
   | les mots à toucher sous « Ce que j'ai vu » (v226) | **Mots tout prêts**, rangés en **séries** (« Repas », « Visite ») | liste (réservé aux listes de lieux), modèle |

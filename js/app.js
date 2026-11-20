@@ -43,7 +43,7 @@ import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
 import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
-import { PARTS, isPart, dayChoices, planAt, planText, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
+import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (296)';
+const VERSION = '20 novembre 2026 (297)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -198,6 +198,19 @@ function remindData() {
 /** Remplace le contenu d'un élément en ignorant les vides (null, false) : sinon le navigateur écrit « null ». */
 function fill(node, ...kids) {
   node.replaceChildren(...kids.flat().filter((c) => c != null && c !== false));
+}
+
+// v297 : un oui / non d'un formulaire est un interrupteur, comme dans Filtres et Réglages (ton choix du 20 nov. ; avant : une case à cocher)
+function formSwitch(title, sub, on, onToggle) {
+  const b = el('button', { type: 'button', class: 'menu-row c-guide form-switch', role: 'switch' });
+  const draw = () => {
+    b.setAttribute('aria-checked', String(on));
+    fill(b, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
+      el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  };
+  b.addEventListener('click', () => { on = !on; onToggle(on); draw(); });
+  draw();
+  return b;
 }
 
 const RAW_TAGS = new Set(['textarea', 'option', 'pre', 'code']);
@@ -391,7 +404,7 @@ function openCartoKey(back = () => openSettings('style')) {
     el('a', { class: 'btn c-disc', href: 'https://carto.com/basemaps/apikey/', target: '_blank', rel: 'noopener' }, ico('send'), 'Demander une clé sur carto.com'),
     el('label', { class: 'field' }, has ? 'Nouvelle clé' : 'Ta clé', input),
     err,
-    el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (state.mapStyle === 'clean') state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
     el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte')),
@@ -714,7 +727,7 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucune impression écrite.'),
-    all.length ? null : el('p', { class: 'help tip' }, 'Dans la fiche d\'un lieu : « Écrire une impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
+    all.length ? null : el('p', { class: 'help tip' }, 'Dans la fiche d\'un lieu : « Impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.n ? passageRow(x, () => openDayNote(named('Mon journal', again), x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
@@ -1993,7 +2006,7 @@ function openForm(draft, existing = null) {
   let rubTouched = Boolean(existing ? v.rubTouched : draft.rubTouched);
   const moments = new Set(cleanMoments(v.moments ?? draft.moments)); // Le bon moment (v158)
   const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
-  let dupOk = false; // « Ajouter quand même » après l'alerte doublon
+  let dupOk = false; // « Un autre lieu » après l'alerte doublon (avant v297 : « Ajouter quand même »)
 
   // Mes listes : un appui pour mettre ou retirer, et un champ pour en créer une
   const listBox = el('div', { class: 'list-chips' });
@@ -2103,14 +2116,14 @@ function openForm(draft, existing = null) {
         fill(err,
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
           draft.photoFile && !Number.isFinite(draft.ticketAt) && (dup.point.photos?.length ?? 0) >= MAX_PHOTOS ? `Il a déjà ${MAX_PHOTOS} photos : ta photo n'y entre pas. ` : '',
-          el('div', { class: 'row', style: 'margin-top:8px' },
+          el('div', { class: 'row duo', style: 'margin-top:8px' },
             Number.isFinite(draft.ticketAt)
               ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = draftPlan(draft); persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${planText(dup.point.ticket)}`); } }, 'Noter sur ce lieu')
               // v237 : une photo vient d'être prise : elle va sur ce lieu au lieu d'être perdue (6 au plus : sinon on le dit)
               : draft.photoFile && (dup.point.photos?.length ?? 0) < MAX_PHOTOS
-                ? el('button', { type: 'button', class: 'btn c-add', onclick: async () => { const pt = dup.point; if (await savePhotos(pt, [draft.photoFile])) { draft.photoFile = null; renderMarkers(); openDetail(pt.id); } } }, ico('camera'), 'Y ajouter la photo')
+                ? el('button', { type: 'button', class: 'btn c-add', onclick: async () => { const pt = dup.point; if (await savePhotos(pt, [draft.photoFile])) { draft.photoFile = null; renderMarkers(); openDetail(pt.id); } } }, ico('camera'), 'La photo ici')
                 : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
-            el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Ajouter quand même')));
+            el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Un autre lieu'))); // v297 : une ligne à 360 px
         err.scrollIntoView({ block: 'nearest' });
         return;
       }
@@ -2152,12 +2165,11 @@ function openForm(draft, existing = null) {
     existing ? noteField : null,
     artistField,
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
-    existing ? el('label', { class: 'item-main check-row' }, favBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Favori'))) : null,
+    existing ? formSwitch('Favori', null, fav, (on) => { fav = on; favBox.checked = on; }) : null,
     el('div', {}, el('div', { class: 'legend' }, 'Mes étoiles (facultatif)'), starPicker(stars, (n) => { stars = n; })),
     el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
       el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
-    el('label', { class: 'item-main check-row' }, coveredBox,
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
+    formSwitch('Abrité de la pluie', 'Musée, passage couvert, café avec salle…', covered, (on) => { covered = on; coveredBox.checked = on; }),
     momentBox,
     rubBox, /* v288 : en bas, il ne pousse rien */
   ];
@@ -2218,7 +2230,7 @@ function openDetail(id, back = null) {
   // Prévoir (v152) : juste sous les interrupteurs, il dit aussi quand la sortie est prévue.
   const planned = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
   const planBtn = el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(p, back) },
-    ico('alarm-clock'), planned ? `Prévu ${planText(p.ticket)}${p.ticket.with ? ` avec ${p.ticket.with}` : ''}` : 'Prévoir une visite');
+    ico('alarm-clock'), planned ? `Prévu ${planShort(p.ticket)}` : 'Prévoir'); // v297 : une ligne à 360 px (« avec qui » et l'heure d'un autre jour : dans Prévoir)
 
   // Deux colonnes de faits : aujourd'hui (horaires) et métro le plus proche.
   const st = openState(hoursOf(p));
@@ -2309,9 +2321,9 @@ function openDetail(id, back = null) {
     facts2,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
-    el('div', { class: 'row row-big' },
+    el('div', { class: 'row row-big duo' },
       planBtn,
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'Écrire une impression')),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openPassage(p, here) }, ico('footprints'), 'Impression')), // v297 : une ligne à 360 px (avant : « Écrire une impression »)
     !ficheShows('stars') ? null : starPicker(p.stars ?? 0, (n) => { p.stars = n; persist(); toast(n ? `${n} étoile${n > 1 ? 's' : ''} sur 5` : 'Étoiles retirées'); }), /* v281 : masquable */
     photoWide(p, back),
     facts,
@@ -4285,7 +4297,7 @@ function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), n.text);
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
@@ -4641,7 +4653,7 @@ function openPlanning(from = null) {
   ];
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
     ...todayBlock,
-    groups.length || timed.length ? null : el('p', { class: 'help' }, 'Pour prévoir un autre jour : touche un lieu sur la carte, puis Prévoir une visite.'),
+    groups.length || timed.length ? null : el('p', { class: 'help' }, 'Pour prévoir un autre jour : touche un lieu sur la carte, puis Prévoir.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.map(planLine)),
@@ -5584,7 +5596,7 @@ function openArtist(name, back = null) {
       el('button', { type: 'button', class: 'fiche-row danger', onclick: dropLink }, ico('trash-2'), el('span', {}, 'Retirer ce lien'), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))
       : el('div', { class: 'stack' },
         el('label', { class: 'field' }, 'Adresse (facultatif)', input),
-        el('button', { type: 'button', class: 'btn c-add', onclick: saveLink }, ico('save'), 'Enregistrer le lien'),
+        el('button', { type: 'button', class: 'btn c-add solid', onclick: saveLink }, ico('save'), 'Enregistrer le lien'),
         el('p', { class: 'help' }, 'Recopie l\'adresse de son site officiel ou son compte Instagram (@nom). L\'appli ne le cherche pas pour toi : un faux compte est vite arrivé.')),
     el('h3', { class: 'fiche-sec' }, 'Ses expos'),
     followed ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtists() }, ico('palette'), 'Voir Mes artistes')
@@ -7774,7 +7786,7 @@ async function openJardin(j, back = null) {
 /** v264 : « Prendre une photo » en tête de la page d'un jardin, comme pour un passage couvert (v238). L'appareil s'ouvre ;
  * la photo va sur ma fiche si le jardin est déjà dans mes lieux ; sinon le jardin y est ajouté seul (nom, adresse,
  * Parcs et jardins, à son point central), avec « Annuler » dans le message. Un autre de mes lieux au même endroit :
- * le formulaire s'ouvre avec la photo, pour choisir « Y ajouter la photo ». Rien ne part du téléphone. */
+ * le formulaire s'ouvre avec la photo, pour choisir « La photo ici ». Rien ne part du téléphone. */
 function jardinPhoto(j, back, add) {
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   camera.addEventListener('change', async () => {
@@ -7851,7 +7863,7 @@ function openArcade(a, back = null) {
 
 /** v238 (mes choix 1A 2A) : « Prendre une photo » sur la page d'un passage. L'appareil s'ouvre ; la photo va sur ma fiche
  * si le passage est dans mes lieux ; sinon le passage y est ajouté seul (nom, abrité, Culture), avec « Annuler ».
- * Un autre de mes lieux au même endroit (renommé ?) : le formulaire s'ouvre avec la photo, pour choisir « Y ajouter la photo ». */
+ * Un autre de mes lieux au même endroit (renommé ?) : le formulaire s'ouvre avec la photo, pour choisir « La photo ici ». */
 function arcadePhoto(a, back, add) {
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   camera.addEventListener('change', async () => {
@@ -8529,20 +8541,17 @@ function openSettings(section = null) {
       el('p', { class: 'ring-title' }, 'Autour de moi affiche les cercles en'), unitSeg,
       el('label', { class: 'field' }, 'En mètres', rings),
       el('p', { class: 'help', id: 'ringsHelp' }, '100 m au minimum, séparés par des virgules. Exemple : 100, 300, 500, 1000'),
-      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
-        state.rings = normalizeRings(rings.value);
-        rings.value = state.rings.join(', ');
-        if (persist()) toast(`Cercles : ${state.rings.map(fmtRing).join(', ')}`);
-      } }, 'Enregistrer les mètres'),
       el('label', { class: 'field' }, 'En minutes à pied', minRings),
       el('p', { class: 'help' }, `De 1 à 60 minutes. Estimation à ton pas (${kmhText(paceKmh(state.pace))} km/h), détours compris.`),
       el('p', { class: 'help tip' }, 'Exemple : 5, 10, 15, 20. Ton pas se règle dans Mon pas.'),
-      el('button', { type: 'button', class: 'btn c-guide solid', onclick: () => {
-        state.minuteRings = normalizeMinuteRings(minRings.value);
-        minRings.value = state.minuteRings.join(', ');
-        if (persist()) toast(`Cercles : ${state.minuteRings.map((m) => `${m} min`).join(', ')}`);
-      } }, 'Enregistrer les minutes'),
-      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('distances') }, '← Distances et durées')),
+      // v297 : un seul « Enregistrer » pour les deux champs, en bas, comme toute page qui enregistre (ton choix du 20 nov. ; avant : un bouton par champ)
+      foot(el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn', onclick: () => openSettings('distances') }, 'Annuler'),
+        el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
+          state.rings = normalizeRings(rings.value);
+          state.minuteRings = normalizeMinuteRings(minRings.value);
+          if (persist()) { toast(`Cercles : ${state.rings.map(fmtRing).join(', ')} · ${state.minuteRings.map((m) => `${m} min`).join(', ')}`); openSettings('distances'); }
+        } }, 'Enregistrer'))),
     ), { tall: true, name: 'settings:cercles', again: () => openSettings('cercles') });
     return;
   }
@@ -8751,7 +8760,7 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte (si elle reste grise)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager l\'appli'), el('span', {}, '')),
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer le lien'),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer'),
         el('button', { type: 'button', class: 'btn c-add', onclick: showAppQr }, ico('qr-code'), 'QR code')),
       el('p', { class: 'help tip' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux : Réglages → Sauvegarde → Envoyer le fichier.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
@@ -9345,7 +9354,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     state.me ? el('div', { class: 'me-line' }, el('span', {}, 'Tes lieux partiront au nom de ', el('b', {}, state.me)),
       el('button', { type: 'button', class: 'btn', onclick: () => openSettings('sauvegarde') }, 'Modifier'))
       : el('div', { class: 'me-box' }, el('label', { class: 'field' }, 'Tes lieux partiront au nom de', meInput),
-        el('button', { type: 'button', class: 'btn c-add', onclick: () => { state.me = meInput.value.trim().slice(0, 30); persist(); again(); } }, 'Enregistrer le prénom'),
+        el('button', { type: 'button', class: 'btn c-add', onclick: () => { state.me = meInput.value.trim().slice(0, 30); persist(); again(); } }, 'Enregistrer le prénom'), // v297 : contour vert, comme dans Sauvegarde : « Envoyer le fichier » est la plaque de l'écran
         el('p', { class: 'help' }, 'Sans prénom, ton proche ne saura pas de qui viennent ces lieux.')),
     el('h3', { class: 'fiche-sec' }, 'Quoi envoyer'),
     el('ul', { class: 'items' },
@@ -9937,7 +9946,7 @@ function mySettingsBlock() {
   const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); openSettings(); toast('Tes réglages par défaut sont remis'); }; /* v294 : « Seulement les vérifiées » peut changer les ronds TTB */
   return el('div', { class: 'my-settings' },
     !ms ? [
-      el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer mes réglages par défaut'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer mes réglages par défaut'),
       el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons et style de la carte, mode sombre) pour pouvoir y revenir d\'un appui.'),
     ] : sameAsMySettings(state) ? [
       el('p', { class: 'ok-line' }, ico('check'), ` Réglages par défaut enregistrés le ${when}.`),
@@ -9945,7 +9954,7 @@ function mySettingsBlock() {
     ] : [
       el('p', { class: 'help' }, `Tu as changé des réglages depuis ceux enregistrés par défaut le ${when}.`),
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer'),
+        el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer'),
         el('button', { type: 'button', class: 'btn c-info', onclick: restore }, ico('refresh-cw'), 'Revenir aux miens')),
     ]);
 }
@@ -10043,11 +10052,11 @@ const HELP = [
     '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda. Le lendemain, « Tu y es allée ? » : « Non » sur une expo encore à l\'affiche la garde, avec « Prévoir un autre jour » ou « Retirer ».',
-    '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom. Depuis une fiche : Prévoir une visite → Aujourd\'hui → Enregistrer, sans choisir de moment.',
+    '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom. Depuis une fiche : Prévoir → Aujourd\'hui → Enregistrer, sans choisir de moment.',
     '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
-    '{alarm-clock} **Prévoir une visite**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
+    '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
     '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allée ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche. « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
@@ -10104,15 +10113,15 @@ const HELP = [
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
-    '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Ajouter quand même ».',
+    '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
-    '{alarm-clock} **Prévoir une visite** : sous Favori, à côté d\'« Écrire une impression ». Une fois prévue, le bouton dit quand (« Prévu samedi après-midi »).',
-    '{footprints} **Écrire une impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
+    '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
+    '{footprints} **Impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
@@ -10174,7 +10183,7 @@ const HELP = [
     '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, tes circuits, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour, tes parcours, tes mots tout prêts et ton adresse Chez moi restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à Mon planning », ou Retirer.',
-    '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer le lien, ou QR code. Elle arrive vide chez ton ami.',
+    '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
     '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
@@ -10222,6 +10231,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
     '{heart} Salles près de toi : Sorties → Mes salles, sous « Ajouter ». Les petites salles qui ont un concert ou un spectacle dans l\'agenda de la Ville cette semaine, à la distance de Sorties. Un appui en suit une : son programme arrive en tête de Sorties.',
     '{music} Plus de salles de concert : Sorties → Expos → Grands lieux → Musique. Châtelet, Champs-Élysées, Pleyel, Gaveau, Cortot, Cigale, Trianon, les deux Opéras, l\'Olympia et la Seine Musicale, avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
@@ -10231,7 +10241,6 @@ const HELP = [
     '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
     '{ellipsis} Deux noms qui se distinguent : sous ⋯ Plus en haut, « **Vélib\' sur la carte** » et « **Fontaines et WC sur la carte** » montrent toutes les stations, fontaines et toilettes en zoomant. Vélib\' et Fontaine et WC de la colonne de droite donnent les plus proches de toi.',
     '{tags} L\'ordre des boutons du haut : {settings} → Catégories et listes, partie « Les boutons de l\'appli ». ↑ ↓ font monter ou descendre Favoris, Dans la rue, TTB, Lignes, Vélib\'… ; le même ordre vaut sous ⋯ Plus. Tout et Filtres restent en tête, tes catégories viennent après.',
-    '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
   ]],
 ];
 

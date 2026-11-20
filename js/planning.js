@@ -79,6 +79,18 @@ export function planText(t, now = new Date()) {
   return part ? `${day} ${part.day}` : `${day} à ${hm(d)}`;
 }
 
+/** v297 : texte court du bouton « Prévu… » de la fiche, sur une ligne à 360 px (ton choix du 20 nov.) :
+ *  « 15h », « dès 19h » (un moment du jour), « ce jour » (liste du jour), « demain », « dim. 22 ». Le reste (heure d'un autre jour, avec qui) est dans Prévoir et Mon planning. */
+export function planShort(t, now = new Date()) {
+  if (!Number.isFinite(t?.at)) return '';
+  const d = new Date(t.at);
+  const k = daysFrom(t.at, now);
+  if (k === 0) return isPart(t.part) ? `dès ${PARTS[t.part].from}h` : isDayList(t) ? 'ce jour' : hm(d);
+  if (k === 1) return 'demain';
+  if (k === -1) return 'hier';
+  return `${d.toLocaleDateString('fr-FR', { weekday: 'short' })} ${d.getDate()}`;
+}
+
 /** Ce qui s'écrit dans la colonne de l'heure de Mon planning : « 15h » ou « Soir ». */
 export const planClock = (t) => (isPart(t?.part) ? PARTS[t.part].label : isDayList(t) ? '' : hm(new Date(t.at)));
 
