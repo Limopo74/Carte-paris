@@ -180,7 +180,9 @@ const clean = (p) => ({
 
 /** v308 : Réglages → Vu en passant (mes choix du 20 nov.). Au départ : catégorie gardée, « Vu en passant », adresse proche proposée, photo sur la carte. */
 export const SEEN_STARTS = ['vu', 'street', 'last'];
-export const seenSettings = (o) => ({ seenKeep: o?.seenKeep !== false, seenStart: SEEN_STARTS.includes(o?.seenStart) ? o.seenStart : 'vu', seenNear: o?.seenNear !== false, seenPhotoMap: o?.seenPhotoMap !== false });
+const idList = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)))].slice(0, 80) : []);
+// v311 : `seenOff` = catégories décochées (pas proposées après la photo ; au départ, aucune) ; `seenOrder` = leur ordre après la photo
+export const seenSettings = (o) => ({ seenKeep: o?.seenKeep !== false, seenStart: SEEN_STARTS.includes(o?.seenStart) ? o.seenStart : 'vu', seenNear: o?.seenNear !== false, seenPhotoMap: o?.seenPhotoMap !== false, seenOff: idList(o?.seenOff), seenOrder: idList(o?.seenOrder) });
 /** La dernière catégorie (et sous-catégorie) choisie après une photo, gardée d'un jour à l'autre pour « La dernière ». */
 export const cleanSeenLast = (x) => (x && typeof x.cat === 'string' && /^[\w-]{1,64}$/.test(x.cat) ? { cat: x.cat, sub: typeof x.sub === 'string' && /^[\w-]{1,64}$/.test(x.sub) ? x.sub : '' } : null);
 
@@ -678,6 +680,19 @@ export function renameSub(state, catId, subId, name) {
   const same = subsOf(state, catId).find((x) => x.id !== subId && foldName(x.name) === foldName(n));
   if (same) throw new Error(`La sous-catégorie « ${same.name} » existe déjà.`);
   return withSubs(state, catId, subsOf(state, catId).map((x) => (x.id === subId ? { ...x, name: n } : x)));
+}
+/** v311 : monte (-1) ou descend (+1) une sous-catégorie : l'ordre où elle est proposée après la photo. */
+export function moveSub(state, catId, subId, delta) {
+  const list = [...subsOf(state, catId)];
+  const i = list.findIndex((x) => x.id === subId); const j = i + delta;
+  if (i < 0 || j < 0 || j >= list.length) return state;
+  [list[i], list[j]] = [list[j], list[i]];
+  return withSubs(state, catId, list);
+}
+/** v311 : l'ordre des catégories après la photo : `ids` (toutes, dans l'ordre de départ), rangées selon `order`, les autres au bout. */
+export function seenOrderOf(order, ids) {
+  const known = (order ?? []).filter((id) => ids.includes(id));
+  return [...known, ...ids.filter((id) => !known.includes(id))];
 }
 /** Supprime une sous-catégorie : ses lieux et leurs photos restent, sans sous-catégorie. */
 export function deleteSub(state, catId, subId) {

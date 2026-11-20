@@ -1249,12 +1249,12 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 .seg.tool-where button { flex: 1 1 0; min-height: 44px; padding: 0 4px; font-size: var(--t14); }
 /* v268 : en Très grand, une ligne avec ↑ ↓ met Barre / Plus / Masqué sur toute sa largeur, sous le nom et les flèches
    (à 360 px, « Masqué » passait sous la flèche ↑ ; défaut déjà là pour les catégories, étendu aux boutons de l'appli) */
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 6px; align-items: start; }
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) > .tool-main { display: contents; }
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) > .tool-main > * { grid-column: 2 / -1; }
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) > .tool-main > :first-child { grid-column: 2; grid-row: 1; align-self: center; }
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) > .btn.move,
-:root:is([data-text="tresgrand"]) .tool-row:has(> .btn.move) > .tool-prev { grid-row: 1; }
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 6px; align-items: start; }
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) > .tool-main { display: contents; }
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) > .tool-main > * { grid-column: 2 / -1; }
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) > .tool-main > :first-child { grid-column: 2; grid-row: 1; align-self: center; }
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) > .btn.move,
+:root:is([data-text="tresgrand"]) .tool-row:not(.seen-cat-row):has(> .btn.move) > .tool-prev { grid-row: 1; }
 /* Plaque commémorative (v159) : le texte gravé, avec ses retours à la ligne, comme sur la pierre */
 .plaque-text { margin: 0; padding: 12px 14px; border-left: 3px solid var(--ink); font-size: var(--t18); line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
 
@@ -1277,3 +1277,11 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 .viewer-cap[hidden] { display: none; }
 .viewer-cap-text { white-space: pre-line; font-size: var(--t16); line-height: 1.35; }
 .viewer-cap .btn { flex: none; background: #fff; color: #15181D; }
+/* v311 : Réglages → Vu en passant, la case « proposée après la photo » de chaque catégorie */
+.seen-check { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: var(--r); background: var(--bg); color: var(--ink); padding: 0; }
+.seen-check[aria-checked="true"], .seen-check.fixed { background: var(--ink); color: var(--bg); }
+.seen-check.fixed { opacity: .45; }
+.seen-cat-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; align-items: center; column-gap: 8px; flex-wrap: nowrap; }
+.seen-cat-row .tool-main { min-width: 0; }
+.seen-cat-row .tool-rename { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; text-align: left; }
+.seen-cat-row .tool-rename .menu-sub { grid-column: 2; }
