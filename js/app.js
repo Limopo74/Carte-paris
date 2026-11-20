@@ -58,7 +58,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (257)';
+const VERSION = '20 novembre 2026 (258)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -9560,7 +9560,20 @@ function mySettingsBlock() {
 
 /* ---------- Aide ---------- */
 
+// Prise en main (v258) : les 8 gestes à connaître en premier, en tête de l'Aide, fermée comme les autres (mon choix B) ;
+// ouverte seulement depuis le bouton de « Ta carte est vide ». 8 lignes au plus
+// (tests/prise-en-main.test.mjs). À revoir avec « Ce que j'utilise » (v255) quand il aura quelques semaines de comptes.
 const HELP = [
+  ['hand', 'Prise en main', [
+    '{locate-fixed} **Où suis-je** : Ma position, en bas de la colonne de boutons. Le point bleu, c\'est toi ; la carte te suit.',
+    '**Autour de moi**, le gros bouton en bas : tes lieux du plus proche au plus loin. En haut : Itinéraire, Sorties, Station, Où suis-je ?…',
+    '**Aller à un lieu** : touche sa goutte sur la carte, ou sa ligne dans une liste. Sur sa fiche, **Y aller** ouvre Google Maps, **Boussole** montre la direction (même sans réseau), **Métro** dit quel métro prendre.',
+    '**M** : la station de métro la plus proche de toi. {house} **Rentrer** : quel métro prendre vers ta station Maison (au départ dans ⋯ Plus ; tes stations : {settings} → Mes stations).',
+    '{plus} **Ajouter un lieu** : + Ajouter, en bas, ou laisse le doigt appuyé sur la carte à l\'endroit voulu.',
+    '{calendar-days} **Sortir** : Sorties, l\'agenda autour du centre de la carte. {alarm-clock} **Mon planning** : ce que tu as prévu.',
+    '{save} **Ne rien perdre** : tes lieux sont seulement sur ce téléphone. Fais souvent {settings} → Sauvegarde ; une pastille sur Réglages te le rappelle.',
+    '{info} **Perdue dans un écran** : la ligne « Aide », tout en bas, explique l\'écran. {chevron-down} à côté de la croix montre la carte ; le retour du téléphone ramène à l\'écran d\'avant.',
+  ]],
   ['map', 'Se repérer', [
     '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
@@ -9811,6 +9824,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
     '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
     '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
     '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
@@ -9820,7 +9834,6 @@ const HELP = [
     '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
     '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
     '{search} Ajouter plusieurs lieux d\'une même recherche : + Ajouter → Avec un nom ou une adresse. Après « Enregistrer » (ou « Annuler »), tu reviens aux résultats, sans tout retaper : touche le suivant. Ceux déjà dans tes lieux sont marqués « Sur ta carte » ; un appui ouvre ta fiche.',
-    '{signpost} Mes circuits : sur un de tes parcours (Itinéraire → Mes parcours), « **En faire un circuit** » : un titre, un thème, un texte par étape si tu veux. Il se range dans Circuits de visite → Mes circuits, avec Balade guidée et « Je l\'ai fait ». Il ne revient jamais sur ses pas. Partage-le par un lien, ou dans le fichier pour un proche (case « Mes circuits »). « **Partager** » envoie aussi un parcours.',
   ]],
 ];
 
@@ -9832,15 +9845,16 @@ function helpLine(l) {
     return part;
   });
 }
-function openHelp() {
+function openHelp(first) {
+  const openFirst = first === true; // depuis une ligne de menu, l'argument est l'événement du clic
   openSheet([ico('circle-help'), ' Aide'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
-    el('div', { class: 'help-list' }, HELP.map(([icon, title, lines]) => el('details', { class: 'help-item' },
+    el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
       el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l))))))),
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
-  ), { name: 'help', again: openHelp, tall: true });
+  ), { name: 'help', again: () => openHelp(openFirst), tall: true });
 }
 
 /* ---------- Démarrage ---------- */
@@ -9875,6 +9889,7 @@ if (state.points.length) {
     el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => { closeSheet(); openAddChoice(); } }, ico('plus'), 'Ajouter mon premier lieu'),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'), // v258 : l'Aide s'ouvre sur la Prise en main, déjà ouverte
     el('p', { class: 'help tip' }, 'Tu peux aussi laisser le doigt appuyé sur la carte. L\'aide est en tête des Réglages, en bas à gauche.'),
   ), { name: 'vide' });
 }
