@@ -59,7 +59,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (259)';
+const VERSION = '20 novembre 2026 (260)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1509,13 +1509,20 @@ function setHomeOn(on, { quiet = false } = {}) {
 /* ---------- Ajouter ---------- */
 
 function openAddChoice() {
-  openSheet([ico('plus'), ' Ajouter un lieu'], el('div', { class: 'stack' },
+  const back = named('Ajouter', openAddChoice);
+  openSheet([ico('plus'), ' Ajouter'], el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'),
     el('p', { class: 'help tip' }, 'Une photo et une ligne, posées là où tu es. Pour les trouvailles de la rue : une cour, une vitrine, une plaque.'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
-    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, { name: 'Ajouter un lieu', fn: openAddChoice }) }, ico('search'), 'Avec un nom ou une adresse'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, back) }, ico('search'), 'Avec un nom ou une adresse'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
     el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux.'),
+    // v257 : créer une balade en 2 appuis, depuis le bouton toujours visible ; sous les boutons des lieux, qui ne bougent pas
+    el('h3', { class: 'fiche-sec' }, 'Une balade'),
+    el('p', { class: 'help' }, 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant »
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewRoute(back) }, ico('route'), 'Un parcours'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'),
+    el('p', { class: 'help tip' }, 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
   ), { name: 'add', again: openAddChoice });
 }
 
@@ -3428,7 +3435,7 @@ function openMyRoutes(after = null) {
       get.disabled = true; get.textContent = 'Téléchargement…'; err.hidden = true;
       try { await downloadStreets(); if (after) after.fn(); else openMyRoutes(); } catch (e) { err.textContent = e.message; err.hidden = false; get.disabled = false; fill(get, ico('download'), 'Télécharger le plan des rues'); }
     } }, ico('download'), 'Télécharger le plan des rues');
-    openSheet(after ? [ico('signpost'), after.title] : [ico('route'), ' Mes parcours'], el('div', { class: 'stack' },
+    openSheet(after ? [ico(after.icon ?? 'signpost'), after.title] : [ico('route'), ' Mes parcours'], el('div', { class: 'stack' },
       el('p', { class: 'summary' }, 'Pour que ton chemin suive les rues'),
       el('p', { class: 'help' }, `L'appli a besoin du plan des rues de Paris (${RUES_SIZE}), téléchargé une seule fois.`),
       el('p', { class: 'help tip' }, 'Il vient d\'OpenStreetMap, reste ensuite sur ton téléphone, même sans réseau, et il est refait chaque mois avec les autres données.'),
@@ -3450,7 +3457,7 @@ function openMyRoutes(after = null) {
       return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openRoute(r.id) },
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, r.name),
           el('span', { class: 'item-sub' }, [plural(r.steps.length, 'étape', 'étapes'), legs.every(Boolean) ? fmtDist(m) : null, legs.every(Boolean) ? routeMin(m) : null].filter(Boolean).join(' · ')))));
-    })) : el('p', { class: 'help' }, 'Touche « Nouveau parcours », puis la carte, là où tu veux passer.'),
+    })) : el('p', { class: 'help' }, 'Touche « Nouveau parcours », puis la carte, là où tu veux passer. Pour une visite à suivre, avec tes textes, fais plutôt un circuit (Circuits de visite → Nouveau circuit).'),
     foot(backBtn(named('Itinéraire', openRoutes))),
   ), { name: 'myroutes', again: openMyRoutes });
 }
@@ -3463,6 +3470,13 @@ function openNewCircuit(back) {
     showTrace(true);
   };
   if (!streets) { openMyRoutes({ title: ' Nouveau circuit', fn: go, back }); return; }
+  go();
+}
+
+/** v257 : « Un parcours » de + Ajouter : un parcours vierge (le plan des rues d'abord s'il manque) ; Annuler ramène à Ajouter. */
+function openNewRoute(back) {
+  const go = () => { trace = { id: null, name: '', steps: [], legs: [], back }; nearLayer.clearLayers(); showTrace(true); };
+  if (!streets) { openMyRoutes({ title: ' Nouveau parcours', icon: 'route', fn: go, back }); return; }
   go();
 }
 
@@ -3482,7 +3496,7 @@ function showTrace(fit = false) {
   if (t.sel != null && !t.steps[t.sel]) t.sel = null;
   const nameIn = t.id && !cm ? el('input', { type: 'text', maxlength: 80, value: t.name, 'aria-label': 'Nom du parcours', placeholder: autoName(t.steps) }) : null;
   nameIn?.addEventListener('input', () => { t.name = nameIn.value; });
-  const leave = () => { if (cm) { cm.cancel(); return; } if (nc) { trace = null; nearLayer.clearLayers(); nc.back(); return; } const id = t.id; trace = null; nearLayer.clearLayers(); if (id && cleanRoutes(state.routes).some((x) => x.id === id)) openRoute(id); else openMyRoutes(); };
+  const leave = () => { if (cm) { cm.cancel(); return; } if (nc) { trace = null; nearLayer.clearLayers(); nc.back(); return; } const id = t.id; trace = null; nearLayer.clearLayers(); if (id && cleanRoutes(state.routes).some((x) => x.id === id)) openRoute(id); else if (t.back) t.back(); else openMyRoutes(); }; // t.back (v257) : venu de + Ajouter
   const save = () => {
     if (n < 2) { toast('Pose au moins 2 étapes.'); return; }
     if ((cm || nc) && !t.legs.every(Boolean)) { toast('Un bout du chemin n\'est pas trouvé : retire ou déplace l\'étape.'); return; }
@@ -7204,7 +7218,7 @@ function openRoutes() {
     row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
     row('route', 'Mes parcours', 'La distance et la durée à pied entre tes étapes, par les rues', () => openMyRoutes()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
-    row('signpost', 'Circuits de visite', 'Des balades d\'un métro à l\'autre, avec leur tracé', () => openCircuits(openRoutes)),
+    row('signpost', 'Circuits de visite', 'Des visites à suivre étape par étape, avec leurs textes', () => openCircuits(openRoutes)),
     row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { name: 'routes', again: openRoutes });
@@ -9723,6 +9737,7 @@ const HELP = [
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet.',
     '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer.',
+    '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
@@ -9738,7 +9753,7 @@ const HELP = [
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
   ]],
   ['map-pin', 'Mes lieux', [
-    '{plus} **Ajouter un lieu** : + Ajouter, en bas. À ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche.',
+    '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Une balade », « **Un parcours** » et « **Un circuit** » ouvrent directement la carte pour poser tes étapes.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
@@ -9866,6 +9881,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{plus} Une balade en 2 appuis : + Ajouter, en bas, a maintenant « **Un parcours** » et « **Un circuit** », sous les boutons des lieux. La carte s\'ouvre tout de suite pour poser tes étapes. Une phrase dit la différence : un parcours mesure (distance et durée), un circuit se visite (titre, textes, jamais deux fois la même rue). La page s\'appelle « Ajouter ». Le chemin par Itinéraire reste.',
     '{spline} Pistes à vélo sur la carte : ⋯ Plus → Pistes à vélo (ou le bouton « Vélo » en haut, une fois allumé). Trait plein vert : sans voitures (pistes, voies vertes, chemins des bois). Pointillé : rues calmes, en zoomant. La date de la Ville est en haut de la carte ; les travaux n\'y sont pas.',
     '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
     '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
@@ -9875,7 +9891,6 @@ const HELP = [
     '{info} Aide : les écrans sont plus courts. Quand un texte gris faisait plusieurs lignes, l\'explication et la source vont dans la ligne « Aide », tout en bas ; restent visibles, en une ou deux lignes, les mises en garde (« vérifie sur le site », « sans horaires »…) et ce qui part de ton téléphone. La page {settings} → Aide est remise à jour : Mes parcours, Mes circuits, Modifier ce circuit, Horaires, sauvegarde, robot.',
     '{signpost} Circuits de visite : le Marais, Saint-Germain et les Passages ne reviennent plus sur leurs pas. Un bout de chacun passe par d\'autres rues : rue du Prévôt au Marais, rue de Buci et rue des Quatre-Vents à Saint-Germain, rue Drouot pour les Passages (environ 160 m de plus). Si tu avais modifié l\'un d\'eux, ta version reste.',
     '{sofa} Partir de chez moi en 2 appuis : touche la pastille météo, l\'interrupteur est toujours en haut de la page, pour allumer comme pour éteindre (il faut une adresse dans {settings} → La carte → Chez moi). Autour de moi suit tout de suite quand tu reviens.',
-    '{pencil} Modifier un circuit : en bas d\'un circuit de visite, « **Modifier ce circuit** » : les étapes, le titre, le thème, les textes. Sur la carte, touche un numéro pour retirer une étape, ou la carte pour en ajouter une : elle se place là où elle allonge le moins le chemin. Ta version remplace celle de l\'appli sur ton téléphone ; « Revenir au circuit d\'origine » la remet. Tes propres circuits se modifient aussi. Dans Mes parcours, toucher un numéro retire aussi l\'étape.',
   ]],
 ];
 

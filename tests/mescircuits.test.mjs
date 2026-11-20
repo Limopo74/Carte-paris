@@ -187,3 +187,12 @@ test('v253 : « Nouveau circuit » en bas de Circuits de visite, sans parcours g
   assert.match(m, /\.\.\.\(r\.id \? \{ from: r\.id \} : \{\}\)/); // pas de parcours derrière : pas de « from »
   assert.match(m, /navStack = navStack\.filter\(/); // le retour ne rouvre pas le formulaire
 });
+
+test('v257 : + Ajouter crée aussi une balade (Un parcours, Un circuit), sous les boutons des lieux', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const add = app.slice(app.indexOf('function openAddChoice()'), app.indexOf("{ name: 'add', again: openAddChoice }"));
+  assert.ok(add.includes("' Ajouter'"), 'la page s\'appelle « Ajouter »');
+  const order = ['Vu en passant', 'À ma position', 'Avec un nom ou une adresse', 'Depuis une photo de ma galerie', 'Un parcours', 'Un circuit'].map((t) => add.indexOf(`'${t}'`));
+  assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), 'les boutons des lieux restent en tête, à leur place');
+  assert.ok(add.includes('openNewRoute(back)') && add.includes('openNewCircuit(back)'), 'Annuler ramène à Ajouter');
+});
