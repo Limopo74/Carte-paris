@@ -99,3 +99,14 @@ test('v314 : le fond « Éclairci » (sans clé) est celui d\'un nouveau venu ; 
   assert.match(css, /#map\[data-style="eclairci"\] \.leaflet-tile-pane \{ filter: saturate\(\.5\) brightness\(1\.06\); \}/);
   assert.match(css, /\.s-eclairci \{/);
 });
+
+test('v315 : Très épuré (Positron) et Nuit épurée (Dark Matter) avec la même clé CARTO', async () => {
+  const { MAP_STYLES } = await import('../js/store.js');
+  for (const id of ['positron', 'darkmatter']) assert.ok(MAP_STYLES.includes(id), id);
+  assert.match(app, /positron: \{ name: 'Très épuré', [^\n]*rastertiles\/light_all\/[^\n]*\?key=\{k\}/);
+  assert.match(app, /darkmatter: \{ name: 'Nuit épurée', [^\n]*rastertiles\/dark_all\/[^\n]*\?key=\{k\}/);
+  assert.match(app, /const id = needsKey\(state\.mapStyle\) && !cartoKey\(\) \? 'classic'/, 'sans clé : Classique, jamais un filigrane');
+  assert.match(app, /if \(needsKey\(id\) && !cartoKey\(\)\) \{ openCartoKey\(undefined, id\)/);
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(css, /:root\[data-theme="dark"\] #map:not\(\[data-style="darkmatter"\]\) \.leaflet-tile-pane/, 'le mode sombre ne retourne pas une carte déjà sombre');
+});

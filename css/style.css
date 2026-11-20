@@ -616,7 +616,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Styles de carte : filtres faits par le téléphone */
 #map[data-style="pastel"] .leaflet-tile-pane { filter: saturate(1.35) brightness(1.06) hue-rotate(-12deg) contrast(.92); }
 #map[data-style="night"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
-#map[data-style="night"] { background: #1d2230; }
+#map:is([data-style="night"], [data-style="darkmatter"]) { background: #1d2230; } /* v315 : Nuit épurée, déjà sombre */
 #map[data-style="eclairci"] .leaflet-tile-pane { filter: saturate(.5) brightness(1.06); } /* v314 : couleurs adoucies, textes plus nets sur un fond plus clair (5,6:1 au lieu de 5,0:1, mesuré sur une tuile du Louvre) */
 .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: none; }
@@ -629,6 +629,8 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .s-hot { background: linear-gradient(135deg, #f6f1f0 0 40%, #c3dbe8 40% 55%, #f3e3e0 55% 70%, #d7ecc6 70%); }
 .s-pastel { background: linear-gradient(135deg, #fbf3ff 0 40%, #b9e6f5 40% 55%, #fff3e3 55% 70%, #d6f5c5 70%); }
 .s-eclairci { background: linear-gradient(135deg, #fffdfa 0 40%, #c6dbe2 40% 55%, #fffdfa 55% 70%, #e4f3d4 70%); }
+.s-positron { background: linear-gradient(135deg, #fafaf8 0 40%, #d4dadc 40% 55%, #f2f2f0 55% 70%, #e6ece0 70%); }
+.s-darkmatter { background: linear-gradient(135deg, #262626 0 40%, #3b4447 40% 55%, #2c2c2c 55% 70%, #303730 70%); }
 .s-night { background: linear-gradient(135deg, #1f2433 0 40%, #2d4a5e 40% 55%, #262b3a 55% 70%, #2b3a2b 70%); }
 
 /* Ce qui reste blanc même en mode sombre */
@@ -644,7 +646,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 :root[data-theme="dark"] .arr.l3 { background: #93E3A4; color: #06180B; border-color: #93E3A4; }
 :root[data-theme="dark"] .leaflet-control-attribution { background: rgba(21, 25, 34, .85) !important; color: var(--muted); }
 :root[data-theme="dark"] .leaflet-control-attribution a { color: var(--metro); }
-:root[data-theme="dark"] #map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
+:root[data-theme="dark"] #map:not([data-style="darkmatter"]) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
 :root[data-theme="dark"] #map { background: #1d2230; }
 :root[data-theme="dark"] .leaflet-tooltip { background: var(--surface); color: var(--ink); border-color: var(--line); }
 
@@ -678,7 +680,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .me-cone svg { display: block; overflow: visible; }
 /* Contour plein (≥ 3,7:1 sur toutes les couleurs de la carte) + liseré qui le détache du fond ; remplissage dégradé sans aller à zéro. */
 .me-cone { position: absolute; left: -30px; top: -30px; width: 80px; height: 80px; pointer-events: none; transform-origin: 40px 40px; transition: transform .12s linear; --cone: #1B56E8; --cone-halo: #ffffff; }
-#map[data-style="night"] .me-cone { --cone: #8CB1FF; --cone-halo: #10131c; }
+#map:is([data-style="night"], [data-style="darkmatter"]) .me-cone { --cone: #8CB1FF; --cone-halo: #10131c; }
 .me-cone .cone-a { stop-color: var(--cone); stop-opacity: .7; }
 .me-cone .cone-b { stop-color: var(--cone); stop-opacity: .3; }
 .me-cone .cone-halo { fill: none; stroke: var(--cone-halo); stroke-width: 5; stroke-linejoin: round; stroke-opacity: .95; }

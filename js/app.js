@@ -63,7 +63,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (314)';
+const VERSION = '20 novembre 2026 (315)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -359,7 +359,12 @@ const STYLE_INFO = {
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   // v314 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
   eclairci: { name: 'Éclairci', sub: 'La classique, plus pâle et plus calme', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+  // v315 (ma demande du 20 nov.) : les deux autres fonds CARTO, avec la même clé qu'Épuré
+  positron: { name: 'Très épuré', sub: 'Gris très pâle, presque rien d\'autre (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
+  darkmatter: { name: 'Nuit épurée', sub: 'Fond sombre, très peu d\'éléments (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
 };
+/** Les fonds qui demandent la clé CARTO (v315 : Épuré, Très épuré, Nuit épurée). */
+const needsKey = (id) => /basemaps\.cartocdn\.com/.test(STYLE_INFO[id]?.url ?? '');
 /* ---------- Mode sombre : suit le téléphone tant qu'on n'a pas choisi ---------- */
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && darkQuery.matches));
@@ -381,7 +386,7 @@ const cartoKey = () => { try { return localStorage.getItem(CARTO_KEY) ?? ''; } c
 const validCartoKey = (k) => /^[A-Za-z0-9_.-]{8,200}$/.test(k);
 function applyMapStyle() {
   // Épuré sans clé : on garde le style Classique (le choix reste enregistré pour quand la clé sera là)
-  const id = state.mapStyle === 'clean' && !cartoKey() ? 'classic' : state.mapStyle;
+  const id = needsKey(state.mapStyle) && !cartoKey() ? 'classic' : state.mapStyle;
   const st = STYLE_INFO[id] ?? STYLE_INFO.classic;
   if (tiles) map.removeLayer(tiles);
   // Tuiles demandées en CORS : le service worker peut les garder pour le métro sans réseau.
@@ -397,7 +402,7 @@ function applyMapStyle() {
 }
 
 /** Saisir, changer ou retirer la clé CARTO (style Épuré). */
-function openCartoKey(back = () => openSettings('style')) {
+function openCartoKey(back = () => openSettings('style'), style = 'clean') {
   const has = cartoKey();
   const input = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Colle ta clé ici', 'aria-label': 'Clé CARTO' });
   const err = el('div', { class: 'error', role: 'alert' });
@@ -405,10 +410,10 @@ function openCartoKey(back = () => openSettings('style')) {
     const k = input.value.trim();
     if (!validCartoKey(k)) { err.textContent = typo('Cette clé ne ressemble pas à une clé CARTO : vérifie le copier-coller.'); return; }
     try { localStorage.setItem(CARTO_KEY, k); } catch { err.textContent = 'Le téléphone refuse de garder la clé.'; return; }
-    state.mapStyle = 'clean'; persist(); applyMapStyle(); toast('Carte : Épuré'); back();
+    state.mapStyle = needsKey(state.mapStyle) ? state.mapStyle : style; persist(); applyMapStyle(); toast(`Carte : ${STYLE_INFO[state.mapStyle].name}`); back();
   };
-  openSheet([ico('palette'), ' Style Épuré : clé CARTO'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Le style Épuré vient de CARTO, qui demande une clé gratuite pour un usage personnel (5 millions de tuiles par mois : ton usage en fait quelques milliers). Comme OpenStreetMap, CARTO voit les quartiers affichés à l\'écran, jamais tes lieux.'),
+  openSheet([ico('palette'), ' Clé CARTO'], el('div', { class: 'stack' },
+    el('p', { class: 'help tip' }, 'Épuré, Très épuré et Nuit épurée viennent de CARTO, qui demande une clé gratuite pour un usage personnel (5 millions de tuiles par mois : ton usage en fait quelques milliers). Comme OpenStreetMap, CARTO voit les quartiers affichés à l\'écran, jamais tes lieux.'),
     el('ol', { class: 'steps' },
       el('li', {}, 'Ouvre la page CARTO ci-dessous et demande une clé (usage non commercial).'),
       el('li', {}, 'Copie la clé reçue.'),
@@ -417,7 +422,7 @@ function openCartoKey(back = () => openSettings('style')) {
     el('label', { class: 'field' }, has ? 'Nouvelle clé' : 'Ta clé', input),
     err,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
-    has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (state.mapStyle === 'clean') state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
+    has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (needsKey(state.mapStyle)) state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
     el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte')),
   ), { tall: true, name: 'carto-key' });
@@ -8826,12 +8831,12 @@ function openSettings(section = null) {
 
   if (section === 'style') {
     openSheet([ico('palette'), ' Style de la carte'], el('div', { class: 'stack' },
-      el('div', { class: 'style-grid' }, Object.entries(STYLE_INFO).map(([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id && (id !== 'clean' || !!cartoKey())), onclick: () => {
-        if (id === 'clean' && !cartoKey()) { openCartoKey(); return; }
+      el('div', { class: 'style-grid' }, Object.entries(STYLE_INFO).map(([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id && (!needsKey(id) || !!cartoKey())), onclick: () => {
+        if (needsKey(id) && !cartoKey()) { openCartoKey(undefined, id); return; }
         state.mapStyle = id; persist(); applyMapStyle(); openSettings('style'); toast(`Carte : ${st.name}`);
-      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name), el('span', { class: 'menu-sub' }, id === 'clean' && !cartoKey() ? 'Sans icônes de commerces : touche pour saisir ta clé CARTO gratuite' : st.sub)))),
+      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name), el('span', { class: 'menu-sub' }, needsKey(id) && !cartoKey() ? 'Touche pour saisir ta clé CARTO gratuite' : st.sub)))),
       cartoKey() ? el('button', { type: 'button', class: 'btn c-info', onclick: () => openCartoKey() }, ico('settings'), 'Clé CARTO (changer ou retirer)') : null,
-      el('p', { class: 'help tip' }, 'Épuré vient de CARTO (clé gratuite, gardée sur ton téléphone). Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel et Nuit sont des filtres faits par ton téléphone.'),
+      el('p', { class: 'help tip' }, 'Épuré, Très épuré et Nuit épurée viennent de CARTO (une seule clé gratuite, gardée sur ton téléphone). Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel, Nuit et Éclairci sont des filtres faits par ton téléphone.'),
       backBtn,
     ), { tall: true, name: 'settings:style', again: () => openSettings('style') });
     return;
@@ -10547,7 +10552,7 @@ const HELP = [
     '**Choisir l\'essentiel** : même page. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant » annule.',
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
-    '{palette} **Allure de la carte** : {settings} → Style de la carte. Le style Épuré demande une clé CARTO gratuite, à coller une fois.',
+    '{palette} **Allure de la carte** : {settings} → Style de la carte. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
     '{moon} **Fond sombre** : {settings} → Mode sombre ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages par défaut », en bas des Réglages, permet d\'y revenir d\'un appui.',
   ]],
@@ -10755,7 +10760,7 @@ const HELP = [
     '**Pour que ça n\'arrive plus** : Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome.',
     '**Puis** Paramètres → Applis → Ma carte de Paris → Ouvrir par défaut : active « Ouvrir les liens compatibles ».',
     '**Dans Messages ou WhatsApp**, désactive « Ouvrir les liens dans l\'appli » s\'il existe. Les noms varient selon les téléphones.',
-    '**Style Épuré vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
+    '**Style Épuré, Très épuré ou Nuit épurée vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
     '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Alertes et bandeau → Voix.',
     '**Vélib\', Curiosités ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, les galeries et Art dans la rue, eux, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
@@ -10769,6 +10774,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Style de la carte.',
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Style de la carte. C\'est le fond d\'un téléphone neuf.',
     '{hand} **Essayer le premier lancement** : {settings} → tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
     '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
@@ -10780,7 +10786,6 @@ const HELP = [
     '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
     '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
     '{images} **Mes Vu en passant** : + Ajouter, sous le bouton Vu en passant. Toutes tes photos prises en passant en mosaïque, les plus récentes d\'abord. En haut, une vignette par catégorie ; dessous, ses sous-catégories, ou ses artistes pour Street art. Touche une photo : elle s\'ouvre en grand, glisse de côté pour la suivante, « Voir la fiche » ouvre son lieu.',
-    '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
   ]],
 ];
 
