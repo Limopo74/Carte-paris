@@ -179,25 +179,34 @@ export function withNewChips(list, v) {
 }
 
 /** v268 : l'ordre des boutons de l'appli dans la barre du haut, et le même sous ⋯ Plus (mes choix 2A, 4A). Tout et Filtres
- * restent toujours en tête (3A), les catégories toujours après. null = l'ordre de départ, qu'un bouton ajouté plus tard suit tout seul. */
+ * restent toujours en tête (3A). v304 (mon choix « une seule file » du 20 nov.) : une catégorie (`cat:<id>`) peut aussi s'y
+ * ranger, parmi les boutons de l'appli ; une catégorie absente de la liste va au bout, dans l'ordre de mes catégories.
+ * null = l'ordre de départ, qu'un bouton ajouté plus tard suit tout seul. */
 export const MOVABLE_CHIPS = ['fav', 'street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins'];
+const isCatKey = (k) => typeof k === 'string' && /^cat:[\w-]{1,40}$/.test(k);
 export function cleanChipOrder(list) {
   if (!Array.isArray(list)) return null;
-  const out = [...new Set(list.filter((k) => MOVABLE_CHIPS.includes(k)))];
-  if (!out.length) return null;
+  const out = [...new Set(list.filter((k) => MOVABLE_CHIPS.includes(k) || isCatKey(k)))].slice(0, 80);
+  if (!out.some((k) => MOVABLE_CHIPS.includes(k))) return null;
   // Un bouton absent (ajouté après coup) reprend sa place de départ : juste après celui qui le précède au départ
   MOVABLE_CHIPS.forEach((k, i) => {
     if (out.includes(k)) return;
     const prev = MOVABLE_CHIPS.slice(0, i).reverse().find((x) => out.includes(x));
     out.splice(prev ? out.indexOf(prev) + 1 : 0, 0, k);
   });
-  return out.every((k, i) => k === MOVABLE_CHIPS[i]) ? null : out;
+  return out.every((k, i) => k === MOVABLE_CHIPS[i]) && out.length === MOVABLE_CHIPS.length ? null : out;
 }
 /** L'ordre en vigueur (celui de départ quand je n'ai rien changé). */
 export const chipOrderOf = (list) => cleanChipOrder(list) ?? [...MOVABLE_CHIPS];
-/** Monte (delta -1) ou descend (+1) un bouton de l'appli d'une place. */
-export function moveChip(state, key, delta) {
-  const list = chipOrderOf(state.chipOrder);
+/** v304 : toute la file, catégories comprises : celles qui existent, les autres au bout dans l'ordre de `catIds`. */
+export function barOrderOf(list, catIds = []) {
+  const keys = new Set(catIds.map((id) => `cat:${id}`));
+  const base = chipOrderOf(list).filter((k) => !isCatKey(k) || keys.has(k));
+  return [...base, ...[...keys].filter((k) => !base.includes(k))];
+}
+/** Monte (delta -1) ou descend (+1) un bouton d'une place dans la file (v304 : `catIds` = mes catégories, dans leur ordre). */
+export function moveChip(state, key, delta, catIds = []) {
+  const list = barOrderOf(state.chipOrder, catIds);
   const i = list.indexOf(key);
   const j = i + delta;
   if (i < 0 || j < 0 || j >= list.length) return state;
