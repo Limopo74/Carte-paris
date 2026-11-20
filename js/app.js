@@ -10819,7 +10819,10 @@ function openWelcome(step = 1) {
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   const pages = {
     1: ['Bienvenue', [
-      el('p', {}, 'Tes lieux à Paris, et ce qui est près de toi. Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
+      // v312 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
+      el('div', { class: 'help-list' }, ...['{locate-fixed} **Où suis-je** : le point bleu, c\'est toi.', '**Autour de moi** : tes lieux, du plus proche au plus loin.',
+        '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.', '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
+      el('p', { class: 'help' }, 'Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
       el('h3', { class: 'fiche-sec' }, 'Tu as déjà des lieux ?'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 0; pickImport('mine'); } }, ico('upload'), 'Restaurer ma sauvegarde'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 2; pickImport('friend'); } }, ico('users'), 'Importer les lieux d\'un proche'),
