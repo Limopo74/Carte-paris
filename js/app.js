@@ -38,6 +38,7 @@ import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, r
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { openIdOf, needsCenter } from './lieu-ouvert.js';
+import { sheetStep } from './hauteurs.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
@@ -67,7 +68,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (331)';
+const VERSION = '20 novembre 2026 (332)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1224,8 +1225,11 @@ function gatherTips() {
 }
 new MutationObserver(() => { if (!sheet.hidden) gatherTips(); }).observe(sheetBody, { childList: true, subtree: true }); // explications posées après l'ouverture
 
+let userTall = null; // v332 : hauteur choisie au doigt pour l'écran affiché (null : celle prévue pour lui)
+let sheetNatural = Infinity; // v332 : hauteur de la page entière, mesurée fenêtre ouverte (moitié et grande se confondent sur une page courte)
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
   if (moving && name !== 'move') stopMove();
+  if (!(name && name === view && !sheet.hidden)) userTall = null; // v332 : un nouvel écran prend sa hauteur prévue ; le même, redessiné, garde celle choisie au doigt
   setSheetMini(false); // un nouvel écran (ou le même redessiné) s'ouvre toujours en grand
   const focusOutside = !sheet.contains(document.activeElement);
   if (sheet.hidden && focusOutside && document.activeElement !== document.body) sheetOpener = document.activeElement;
@@ -1254,7 +1258,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
   gatherTips(); // avant de remettre la hauteur de lecture : la page a déjà sa longueur finale
-  sheet.classList.toggle('tall', tall);
+  sheet.classList.toggle('tall', userTall ?? tall);
   sheet.hidden = false;
   sheetBody.scrollTop = scroll;
   usageOpened(name, was);
@@ -1325,26 +1329,47 @@ document.getElementById('sheetClose').before(sheetMin);
 let miniScroll = 0;
 function setSheetMini(on) {
   if (on === sheet.classList.contains('mini')) return;
-  if (on) miniScroll = sheetBody.scrollTop;
+  if (on) { miniScroll = sheetBody.scrollTop; sheetNatural = sheet.getBoundingClientRect().height + sheetBody.scrollHeight - sheetBody.clientHeight; }
   sheet.classList.toggle('mini', on);
   fill(sheetMin, ico(on ? 'chevron-up' : 'chevron-down'));
   sheetMin.setAttribute('aria-label', on ? 'Agrandir la fenêtre' : 'Réduire pour voir la carte');
   sheetMin.setAttribute('aria-expanded', String(!on));
   if (!on) sheetBody.scrollTop = miniScroll;
 }
-{ // glisser la barre du titre : vers le bas, la feuille se réduit ; vers le haut, elle s'agrandit
+{ // v332 : glisser la barre du titre fait passer d'une hauteur à l'autre : réduite, moitié (58 %), grande (85 %) — js/hauteurs.js
   const head = sheet.querySelector('.sheet-head');
   let drag = null;
-  head.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; drag = { y: e.clientY }; head.setPointerCapture?.(e.pointerId); });
-  head.addEventListener('pointermove', (e) => { if (!drag) return; const dy = e.clientY - drag.y; sheet.style.transform = !sheet.classList.contains('mini') && dy > 0 ? `translateY(${dy}px)` : ''; });
+  const sizeNow = () => (sheet.classList.contains('mini') ? 'mini' : sheet.classList.contains('tall') ? 'tall' : 'mid');
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;
+    const h0 = sheet.getBoundingClientRect().height;
+    if (!sheet.classList.contains('mini')) sheetNatural = h0 + sheetBody.scrollHeight - sheetBody.clientHeight;
+    drag = { y: e.clientY, h0 }; head.setPointerCapture?.(e.pointerId);
+  });
+  head.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    const open = !sheet.classList.contains('mini');
+    sheet.style.transform = open && dy > 0 ? `translateY(${dy}px)` : '';
+    sheet.style.maxHeight = open && dy < 0 ? `${Math.min(drag.h0 - dy, innerHeight * 0.85)}px` : ''; // la fenêtre suit le doigt vers le haut
+  });
+  const reset = () => { drag = null; sheet.style.transform = ''; sheet.style.maxHeight = ''; };
   const end = (e) => {
     if (!drag) return;
     const dy = e.clientY - drag.y;
-    drag = null; sheet.style.transform = '';
-    if (dy > 50) setSheetMini(true); else if (dy < -30) setSheetMini(false);
+    const cur = sizeNow();
+    const mini = cur === 'mini' ? drag.h0 : head.offsetHeight;
+    const h = { mini, mid: Math.min(sheetNatural, innerHeight * 0.58), tall: Math.min(sheetNatural, innerHeight * 0.85) };
+    reset();
+    const to = sheetStep(dy, cur, h, sheet.classList.contains('tall') ? 'tall' : 'mid');
+    if (to === cur) return;
+    if (to === 'mini') { setSheetMini(true); return; }
+    userTall = to === 'tall';
+    sheet.classList.toggle('tall', userTall);
+    setSheetMini(false);
   };
   head.addEventListener('pointerup', end);
-  head.addEventListener('pointercancel', () => { drag = null; sheet.style.transform = ''; });
+  head.addEventListener('pointercancel', reset);
 }
 
 /* ---------- Localisation ---------- */
@@ -10998,7 +11023,7 @@ const HELP = [
   ]],
   ['map', 'Se repérer', [
     '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
-    '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
+    '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre : la fenêtre se cale sur une des trois hauteurs, réduite, moitié de l\'écran ou grande. Un autre écran s\'ouvre à sa hauteur habituelle.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
@@ -11259,6 +11284,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{chevron-up} **Trois hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), moitié de l\'écran, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
     '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
@@ -11268,7 +11294,6 @@ const HELP = [
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
     '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
-    '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
   ]],
 ];
 
