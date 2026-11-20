@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (270)';
+const VERSION = '20 novembre 2026 (271)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1168,6 +1168,8 @@ function closeSheet(fromHistory = false) {
 window.addEventListener('popstate', () => {
   if (compassOpen || viewerOpen) return; // le retour ferme d'abord la boussole ou la photo
   if (sheet.hidden) return;
+  if (view === 'trace' && trace?.ask) { trace.ask = null; history.pushState({ sheet: true }, ''); showTrace(); return; } // v271 : pendant la question, le retour vaut « Continuer le tracé »
+  if (traceAsk('back')) { history.pushState({ sheet: true }, ''); return; } // v271 : un nouveau tracé demande confirmation
   // Revenir à l'écran précédent qui sait se rouvrir, sinon fermer.
   navStack.pop();
   while (navStack.length && !navStack.at(-1).again) navStack.pop();
@@ -1179,7 +1181,7 @@ window.addEventListener('popstate', () => {
     closeSheet(true);
   }
 });
-document.getElementById('sheetClose').addEventListener('click', () => closeSheet());
+document.getElementById('sheetClose').addEventListener('click', () => { if (traceAsk('close')) return; closeSheet(); }); // v271 : un nouveau tracé demande confirmation
 
 /* Réduire la feuille pour voir la carte (v166) : un bouton à côté de la croix, et la barre du titre qui se fait glisser.
    Réduite, seule la barre du titre reste ; la carte se voit et se déplace. Agrandie, la liste revient à la même hauteur. */
@@ -3420,6 +3422,14 @@ const LIEU_SNAP_M = 20; // une étape posée à 20 m d'un de mes lieux prend ce 
 let streets = null; // plan des rues lu
 let streetsAt = 0; // date d'enregistrement sur le téléphone
 let trace = null; // parcours en cours : { id, name, steps: [{ lat, lng, name, pid?, s }], legs: [chemin entre deux étapes], sel (étape touchée), circuit? (v3 : étapes d'un circuit) }
+/** v271 (ma réponse 2a) : abandonner un nouveau parcours ou un nouveau circuit de 2 étapes ou plus (croix, Annuler, retour du téléphone)
+ * demande d'abord confirmation. Pas pour modifier un parcours enregistré ni les étapes d'un circuit : ce qui est enregistré reste. Renvoie vrai si la question est posée. */
+function traceAsk(how) {
+  const t = trace;
+  if (view !== 'trace' || !t || t.id || t.circuit || t.ask || t.steps.length < 2) return false;
+  t.ask = how; t.sel = null; showTrace();
+  return true;
+}
 
 async function streetsStored() {
   try {
@@ -3560,6 +3570,7 @@ function showTrace(fit = false) {
     const rec = { id: t.id ?? routeId(), name: (t.name || '').trim() || autoName(steps), at: Date.now(), steps };
     state.routes = cleanRoutes([rec, ...cleanRoutes(state.routes).filter((x) => x.id !== rec.id)]);
     persist(); trace = null;
+    navStack = navStack.filter((e) => e.name !== 'trace'); // v271 : comme pour un circuit (v253), le retour ne rouvre pas le tracé enregistré (il plantait, trace vide)
     openRoute(rec.id);
     toast('Parcours enregistré');
   };
@@ -3573,11 +3584,15 @@ function showTrace(fit = false) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', disabled: !n, onclick: () => removeStep(n - 1) }, 'Retirer la dernière'),
       el('button', { type: 'button', class: 'btn', disabled: n < (cm ? 4 : 3), onclick: bestOrder }, 'Meilleur ordre')),
-    pickZone = picked ? el('div', { class: 'step-pick', role: 'group', 'aria-label': `Étape ${t.sel + 1}` }, // sous les boutons : rien ne bouge au-dessus
+    pickZone = t.ask ? el('div', { class: 'step-pick', role: 'group', 'aria-label': nc ? 'Abandonner ce circuit ?' : 'Abandonner ce parcours ?' }, // v271 : même place, rien ne bouge au-dessus
+      el('p', { class: 'warn', role: 'alert' }, `${nc ? 'Abandonner ce circuit' : 'Abandonner ce parcours'} ? Tes ${n} étapes seront perdues.`),
+      el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { t.ask = null; showTrace(); } }, 'Continuer le tracé'),
+        el('button', { type: 'button', class: 'btn danger', onclick: () => { const how = t.ask; t.ask = null; if (how === 'close') { trace = null; closeSheet(); } else leave(); } }, ico('trash-2'), 'Oui, abandonner')))
+      : picked ? el('div', { class: 'step-pick', role: 'group', 'aria-label': `Étape ${t.sel + 1}` }, // sous les boutons : rien ne bouge au-dessus
       el('p', { class: 'summary' }, `Étape ${t.sel + 1} : ${picked.name}`),
       el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { t.sel = null; showTrace(); } }, 'Garder'),
         el('button', { type: 'button', class: 'btn danger', onclick: () => removeStep(t.sel) }, ico('trash-2'), 'Retirer cette étape'))) : null,
-    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { if (!traceAsk('leave')) leave(); } }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))), // toujours actif : « Pose au moins 2 étapes » sinon
   ), { name: 'trace', again: () => showTrace() });
   drawTrace(t.steps, t.legs, fit && n > 0, (i) => { t.sel = t.sel === i ? null : i; showTrace(); }, t.sel);
@@ -9952,7 +9967,7 @@ const HELP = [
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet.',
-    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer.',
+    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',

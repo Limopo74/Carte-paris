@@ -22,3 +22,17 @@ test('Bandeau « Maintenant » : la croix le cache pour la journée seulement (a
   const tick = body('let markersDay', 'document.addEventListener(\'visibilitychange\'');
   assert.match(tick, /markersDay = new Date\(\)\.toDateString\(\); nowHidden = false;/);
 });
+
+test('Nouveau parcours ou nouveau circuit : dès 2 étapes, croix, Annuler et retour du téléphone demandent confirmation (v271, ma réponse 2a)', () => {
+  const ask = body('function traceAsk(how)', '\n}\n');
+  assert.match(ask, /t\.id \|\| t\.circuit \|\| t\.ask \|\| t\.steps\.length < 2\) return false;/);
+  assert.match(app, /addEventListener\('click', \(\) => \{ if \(traceAsk\('close'\)\) return; closeSheet\(\); \}\)/);
+  assert.match(app, /onclick: \(\) => \{ if \(!traceAsk\('leave'\)\) leave\(\); \} \}, 'Annuler'\)/);
+  const pop = body("window.addEventListener('popstate', () => {\n  if (compassOpen", 'navStack.pop();');
+  assert.match(pop, /if \(view === 'trace' && trace\?\.ask\) \{ trace\.ask = null;/);
+  assert.match(pop, /if \(traceAsk\('back'\)\)/);
+});
+
+test('Après Enregistrer un nouveau parcours, le retour ne rouvre pas le tracé vide (il plantait)', () => {
+  assert.match(app, /persist\(\); trace = null;\n    navStack = navStack\.filter\(\(e\) => e\.name !== 'trace'\);/);
+});
