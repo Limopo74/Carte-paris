@@ -65,7 +65,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (323)';
+const VERSION = '20 novembre 2026 (324)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -9400,7 +9400,7 @@ function openSettings(section = null) {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
     const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Dans « Pratique »'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
     openSheet([ico('file-text'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
-      el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager.'),
+      el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager pour un lieu avec un commentaire.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
         if (hid.has(key)) hid.delete(key); else hid.add(key);
         state.ficheHidden = cleanFicheHidden([...hid]);
