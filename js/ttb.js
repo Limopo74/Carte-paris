@@ -10,6 +10,8 @@ export const TTB_RUBS = ['La Table', 'Boui-boui', 'Street-food', 'Bec sucré', '
 /** L'icône (Lucide) de chaque rubrique, dans le rond terre cuite. Pour en changer une : seulement ici. */
 export const TTB_ICONS = { 'La Table': 'utensils', 'Boui-boui': 'soup', 'Street-food': 'sandwich', 'Bec sucré': 'croissant', 'Le panier': 'shopping-basket', Cave: 'wine' };
 export const ttbIcon = (rub) => TTB_ICONS[rub] ?? 'utensils';
+/** Les rubriques du guide qui sont des restos : le « Genre » qu'un de mes restos peut avoir (v288). Les trois autres sont des commerces. */
+export const RESTO_RUBS = ['La Table', 'Boui-boui', 'Street-food'];
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const MAX_ITEMS = 2000;
 
@@ -187,6 +189,32 @@ export function ttbCategory(rub, categories) {
   const re = RUB_WORDS[foldName(rub)];
   if (!re) return null;
   return (Array.isArray(categories) ? categories : []).find((c) => re.test(foldName(c?.name)))?.id ?? null;
+}
+
+/* Le genre d'un de mes restos d'après le guide (v288) : seulement quand un mot du nom est commun, à moins de 150 m.
+   Jamais par la seule distance (le resto d'à côté) ni par un mot courant (« Chez », « Café », « Bistrot »…).
+   Seulement une rubrique de resto ; sinon ''. */
+const NAME_STOP = new Set(['le', 'la', 'les', 'de', 'du', 'des', 'et', 'au', 'aux', 'en', 'un', 'une', 'the', 'paris', 'saint', 'chez', 'restaurant', 'restaurants',
+  'resto', 'cafe', 'bar', 'bistrot', 'bistro', 'brasserie', 'cantine', 'comptoir', 'table', 'tables', 'cave', 'maison', 'petit', 'petite', 'grand', 'grande',
+  'bon', 'bonne', 'vieux', 'vieille', 'nouveau', 'nouvelle', 'chef', 'cuisine', 'kitchen', 'food', 'street', 'boui', 'pizza', 'pizzeria', 'creperie', 'sushi', 'ramen', 'burger']);
+const nameKeys = (s) => foldName(s).split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !NAME_STOP.has(w));
+const metres = (a, b) => {
+  const r = (d) => (d * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+};
+export function ttbRubByName(place, items) {
+  if (!place || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return '';
+  const mine = new Set(nameKeys(place.name));
+  if (!mine.size) return '';
+  let best = null;
+  for (const x of Array.isArray(items) ? items : []) {
+    if (!RESTO_RUBS.includes(x?.rub)) continue;
+    const d = metres(place, x);
+    if (d > 150 || !nameKeys(x.name).some((w) => mine.has(w))) continue;
+    if (!best || d < best.d) best = { rub: x.rub, d };
+  }
+  return best?.rub ?? '';
 }
 
 /* Adresses TTB masquées ou fermées (v165) : notées par moi, gardées sur le téléphone avec la liste (hors sauvegarde),

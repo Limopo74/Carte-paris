@@ -4,7 +4,7 @@ import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
 import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -37,7 +37,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
-import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText } from './ttb.js';
+import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (287)';
+const VERSION = '20 novembre 2026 (288)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -1983,6 +1983,9 @@ function openForm(draft, existing = null) {
   let fav = v.fav;
   let stars = v.stars ?? 0;
   let covered = Boolean(v.covered);
+  // v288 : le genre d'un resto. Modifier : celui déjà choisi, ou celui du guide ; nouveau lieu : celui de l'adresse TTB gardée
+  let rub = v.rub !== undefined ? v.rub : existing ? ttbRubByName(existing, ttbList()) : RESTO_RUBS.includes(draft.rub) ? draft.rub : '';
+  let rubTouched = Boolean(existing ? v.rubTouched : draft.rubTouched);
   const moments = new Set(cleanMoments(v.moments ?? draft.moments)); // Le bon moment (v158)
   const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
   let dupOk = false; // « Ajouter quand même » après l'alerte doublon
@@ -2005,6 +2008,12 @@ function openForm(draft, existing = null) {
   drawMoments();
   const momentBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Le bon moment (facultatif)'), momentChips,
     el('p', { class: 'help tip' }, 'Ex. : Printemps pour une glycine, Week-end + Matin pour un marché. « Maintenant » te le rappellera quand ce sera le moment.'));
+  const rubChips = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Genre' });
+  const drawRub = () => fill(rubChips, RESTO_RUBS.map((r) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(rub === r),
+    onclick: () => { rub = rub === r ? '' : r; rubTouched = true; drawRub(); } }, r))); /* un second appui retire le genre */
+  drawRub();
+  const rubBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Genre (facultatif)'), rubChips);
+  const syncRub = () => { rubBox.hidden = !isRestoCat(catOf(cat)); };
   const coveredBox = el('input', { type: 'checkbox', class: 'check', checked: covered });
   coveredBox.addEventListener('change', () => { covered = coveredBox.checked; });
 
@@ -2023,7 +2032,7 @@ function openForm(draft, existing = null) {
   // Nouveau lieu : les catégories sur une seule ligne qui défile, pour laisser de la place à la carte.
   const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
-    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
+    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
@@ -2068,14 +2077,14 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] };
+    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     openCategory(null, { back: reopen, done: (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); } });
   };
   /** Ajuster la position d'un nouveau lieu sur toute la carte, sans perdre ce qui est déjà rempli. */
   const adjust = () => {
-    Object.assign(draft, { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments] });
+    Object.assign(draft, { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched });
     startDraftMove(draft);
   };
 
@@ -2107,12 +2116,14 @@ function openForm(draft, existing = null) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
       if (cleanArtist(artist.value)) existing.artist = cleanArtist(artist.value); else delete existing.artist;
+      if (isRestoCat(catOf(cat)) && (rubTouched || rub)) existing.rub = rub; /* v288 : '' = « aucun » choisi : le guide ne le remplit plus */
       existing.address = addr.value.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
       markDone(existing, done);
     } else {
       const np = newPoint({ name: n, cat, note: note.value, done, fav, lat: draft.lat, lng: draft.lng, address: draft.address || '', hours: draft.hours || '', stars, covered, lists: listIds });
       if (moments.size) np.moments = cleanMoments([...moments]);
       if (cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
+      if (isRestoCat(catOf(cat)) && (rubTouched || rub)) np.rub = rub; /* v288 */
       /* v207 : horaires reçus par un lien : la date où mon proche les a notés, pas aujourd'hui ; date inconnue = pas de date (rien ne s'affiche) */
       if (draft.hoursLink && np.hours) { if (Number.isFinite(draft.hoursAt)) np.hoursAt = draft.hoursAt; else delete np.hoursAt; }
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
@@ -2143,8 +2154,10 @@ function openForm(draft, existing = null) {
     el('label', { class: 'item-main check-row' }, coveredBox,
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Abrité de la pluie'), el('span', { class: 'item-sub' }, 'Musée, passage couvert, café avec salle…'))),
     momentBox,
+    rubBox, /* v288 : en bas, il ne pousse rien */
   ];
   syncArtist();
+  syncRub();
   const filled = Boolean(v.artist || draft.artist || v.done || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
@@ -2279,10 +2292,13 @@ function openDetail(id, back = null) {
   const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].filter(Boolean).join(', ')
     .replace(/^./, (c) => c.toUpperCase()).replace(/, F/, ', f');
 
-  const kick = [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ');
+  const rubName = placeRub(p); /* v288 : le genre, comme dans TTB */
+  const kick = [catOf(p.cat).name, rubName, arrLabel(p)].filter(Boolean).join(' · ');
+  const kickShort = [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ');
   // v274 : « a pu fermer » dans le surtitre : rien ne bouge sur la fiche ; la date d'ajout et de visite est en bas
   const staleKick = stale ? el('span', { class: 'stale', title: staleText(stale) }, ' · a pu fermer') : null;
-  openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, staleKick), favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}${stale ? `, ${staleText(stale)}` : ''}`)], el('div', { class: 'stack detail' },
+  const kickEl = el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, staleKick);
+  openSheet([kickEl, favMark(p), el('span', { class: 'fiche-name' }, p.name), el('span', { class: 'sr-only' }, `, ${kick}${stale ? `, ${staleText(stale)}` : ''}`)], el('div', { class: 'stack detail' },
     goBox,
     // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
     facts2,
@@ -2313,6 +2329,13 @@ function openDetail(id, back = null) {
         ico('car-taxi-front'), el('span', {}, 'Uber jusqu\'ici', el('small', {}, 'Appli Uber, destination déjà remplie')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
+  // v288 : le genre ne tient pas sur la ligne (grand texte, nom de catégorie long, « a pu fermer ») : on le retire de la ligne
+  // plutôt que de la couper en deux, ce qui ferait descendre Y aller. Il reste dans Modifier et pour le lecteur d'écran.
+  if (rubName && kickEl.isConnected) {
+    const h = kickEl.offsetHeight;
+    kickEl.firstChild.textContent = kickShort;
+    if (h <= kickEl.offsetHeight) kickEl.firstChild.textContent = kick;
+  }
   if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
 }
 
@@ -6970,6 +6993,9 @@ const ttbDot = () => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, el(
 const ttbDotFor = (rub) => el('span', { class: 'ttb-dot', 'aria-hidden': 'true' }, ico(ttbIcon(rub), { size: 15, stroke: 2.4 }));
 const ttbOf = (p) => (ttbList().length ? navigoFor(p, ttbList()) : null); // l'adresse du guide qui correspond à un de mes lieux
 const ttbDateText = () => (ttbData?.date ? frenchDate(ttbData.date) : '');
+/** v288 : le genre d'un de mes restos (La Table, Boui-boui, Street-food) : celui choisi dans Modifier ('' = aucun),
+ * sinon celui du guide TTB quand un mot du nom est commun à moins de 150 m. Rien pour un lieu qui n'est pas un resto. */
+const placeRub = (p) => (!p || !isRestoCat(catOf(p.cat)) ? '' : p.rub !== undefined ? p.rub : ttbRubByName(p, ttbList()));
 
 // Vue de loin (zoom 13 ou moins) : petits ronds sans icône, pour que les 200 adresses ne couvrent pas la carte.
 const ttbFar = () => document.getElementById('map').classList.toggle('ttb-far', map.getZoom() <= 13);
@@ -7042,7 +7068,7 @@ function ttbAdd(x) {
   const mine = navigoFor(x, state.points);
   if (mine) { openDetail(mine.id); toast('Déjà dans tes lieux'); return; }
   // Catégorie d'après la rubrique du guide quand une des miennes correspond ; sinon aucune : je la choisis (v155)
-  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}`, cat: ttbCategory(x.rub, state.categories) ?? '' });
+  openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `TTB : ${ttbKicker(x)}`, cat: ttbCategory(x.rub, state.categories) ?? '', rub: x.rub });
 }
 
 function openTtbPlace(x, back = null) {
@@ -10176,6 +10202,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{utensils} Le genre de tes restos, comme dans TTB : « La Table », « Boui-boui » ou « Street-food », en haut de la fiche, à côté de « Restos ». Rempli tout seul quand le resto est dans le guide ; sinon fiche → Modifier, tout en bas.',
     '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
     '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
@@ -10185,7 +10212,6 @@ const HELP = [
     '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
-    '{check} TTB, seulement les adresses vérifiées : {settings} → TTB, l\'interrupteur « **Seulement les vérifiées** », sous « Encore ouvertes ? » (le même est en haut de la liste TTB). La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
   ]],
 ];
 

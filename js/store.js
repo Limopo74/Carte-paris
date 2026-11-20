@@ -134,6 +134,9 @@ function cleanCategories(list) {
   return out;
 }
 
+/** Genres d'un resto, repris des rubriques TTB qui sont des restos (v288 ; même liste que RESTO_RUBS de js/ttb.js). */
+export const PLACE_RUBS = ['La Table', 'Boui-boui', 'Street-food'];
+
 // Ne garde que les champs connus, avec les bons types.
 const clean = (p) => ({
   id: p.id, name: p.name.trim(), cat: p.cat,
@@ -155,6 +158,7 @@ const clean = (p) => ({
   ...(cleanArtist(p.artist) ? { artist: cleanArtist(p.artist) } : {}), // l'artiste de l'œuvre (v161)
   ...(Number.isFinite(p.gone) ? { gone: p.gone } : {}), // « Disparue ou recouverte », noté ce jour-là (v161)
   ...(Number.isFinite(p.checked) && p.checked > 0 ? { checked: p.checked } : {}), // « Toujours ouvert », vu sur place ce jour-là (v274)
+  ...(PLACE_RUBS.includes(p.rub) || p.rub === '' ? { rub: p.rub } : {}), // genre d'un resto, comme dans TTB (v288) ; '' = « aucun », choisi par moi
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -442,7 +446,7 @@ export function mergeFriend(state, obj, owner, choice) {
       if (!points[i].owner || points[i].owner !== c.owner) continue; // un de ses lieux à elle : on n'y touche pas
       const old = points[i];
       const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, ...(Number.isFinite(c.hoursAt) ? { hoursAt: c.hoursAt } : {}), lists: c.lists,
-        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}),
+        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}),
         ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
       if (c.gone) next.gone = c.gone; else delete next.gone;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
