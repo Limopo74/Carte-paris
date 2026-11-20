@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -63,7 +63,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (317)';
+const VERSION = '20 novembre 2026 (318)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -8675,6 +8675,7 @@ function openSettings(section = null) {
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
   // La liste TTB et mes marques partent aussi, case cochée au départ (v179) : après une remise à zéro, plus besoin de réimporter la page du guide.
   const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
+  const withCarto = el('input', { type: 'checkbox', class: 'check' }); // v318 : la clé CARTO ne part que si je coche
   const nbTtb = ttbList().length;
   const nbTtbMarks = Object.keys(ttbMarksNow()).length;
   const canShareFile = (() => {
@@ -8710,6 +8711,12 @@ function openSettings(section = null) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
+      // v318 (mes choix 1a 2b 3a 4a du 20 nov.) : mes réglages seuls, pour un autre téléphone qui garde ses lieux
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => sendSettings(withCarto.checked) }, ico('settings'), 'Envoyer mes réglages'),
+      cartoKey() ? el('label', { class: 'item-main check-row' }, withCarto,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma clé CARTO'),
+          el('span', { class: 'item-sub' }, 'Elle sera lisible dans le fichier : envoie-le seulement à un proche'))) : null,
+      el('p', { class: 'help tip' }, 'Tes boutons, filtres, cercles, style de carte, catégories et listes, sans aucun lieu. Sur l\'autre téléphone : Restaurer ou importer → Importer des réglages.'),
       el('p', { class: 'help' }, 'Envoie-toi aussi ce fichier par courriel ou sur ton Drive : si tu perds ton téléphone, Téléchargements part avec lui.'),
       el('p', { class: 'help tip' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
@@ -8725,6 +8732,8 @@ function openSettings(section = null) {
       el('button', { type: 'button', class: 'btn c-add', onclick: () => pickImport('friend') }, ico('user'), 'Importer les lieux d\'un proche'),
       el('p', { class: 'help tip' }, 'Ses lieux s\'ajoutent aux tiens, à son nom. Le bouton Filtres en haut permet ensuite d\'afficher les tiens, les siens ou tous.'),
       el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => pickImport('settings') }, ico('settings'), 'Importer des réglages'), // v318
+      settingsQuestion(),
       foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')),
     ), { tall: true, name: 'settings:importer', again: () => openSettings('importer') });
     return;
@@ -9837,6 +9846,46 @@ async function sendBackup(withPhotos = true, withTtb = true) {
   } catch { /* annulé */ }
 }
 
+/* ---------- Mes réglages pour un autre téléphone (v318, mes choix 1a 2b 3a 4a du 20 nov.) ---------- */
+/** Envoie le fichier de réglages par le menu de partage, sinon le met dans Téléchargements. */
+async function sendSettings(withCarto = false) {
+  const f = new File([exportSettingsJSON(state, withCarto ? cartoKey() : '')], settingsFileName(new Date(), state.me ?? ''), { type: 'application/json' });
+  let shared = false;
+  try { shared = Boolean(navigator.canShare?.({ files: [f] })); } catch { shared = false; }
+  if (shared) {
+    try { await navigator.share({ files: [f], title: 'Mes réglages de Ma carte de Paris' }); toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.'); } catch { /* annulé */ }
+    return;
+  }
+  const url = URL.createObjectURL(f);
+  const a = el('a', { href: url, download: f.name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast(`« ${f.name} » enregistré dans tes Téléchargements`);
+}
+let pendingSettings = null; // fichier de réglages choisi, en attente du « Oui » (une seule fois : un retour vaut « Non »)
+/** La question sous « Importer des réglages » : remplacer les miens ? Les miens restent derrière « Revenir aux miens ». */
+function settingsQuestion() {
+  const sf = pendingSettings; pendingSettings = null;
+  if (!sf) return null;
+  const adds = settingsAdds(state, sf);
+  const when = sf.at ? ` du ${new Date(sf.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : '';
+  const more = [adds.categories.length ? plural(adds.categories.length, 'catégorie s\'ajoute', 'catégories s\'ajoutent') : '', adds.lists.length ? plural(adds.lists.length, 'liste s\'ajoute', 'listes s\'ajoutent') : ''].filter(Boolean).join(', ');
+  const yes = () => {
+    const r = applySettingsFile(state, sf);
+    state = r.state;
+    if (sf.carto && !cartoKey()) { try { localStorage.setItem(CARTO_KEY, sf.carto); } catch { /* le téléphone refuse : le style reste Classique */ } }
+    persist(); applyAllSettings(); drawTtb(); drawLayerNote();
+    openSettings();
+    toast(`Réglages${sf.owner ? (/^[aeiouyhâéèêîôûAEIOUYHÂÉÈÊÎÔÛ]/.test(sf.owner) ? ` d'${sf.owner}` : ` de ${sf.owner}`) : ''} appliqués${more ? ` ; ${more}` : ''}. Pour revenir aux tiens : « Revenir aux miens », en bas des Réglages.`);
+  };
+  const de = sf.owner ? (/^[aeiouyhâéèêîôûAEIOUYHÂÉÈÊÎÔÛ]/.test(sf.owner) ? ` d'${sf.owner}` : ` de ${sf.owner}`) : '';
+  return el('div', { class: 'set-ask stack', role: 'group', 'aria-label': 'Importer des réglages' },
+    el('p', { class: 'warn', role: 'alert' }, `Remplacer tes réglages par ceux${de}${when} ? Tes lieux ne changent pas ; les tiens restent dans « Revenir aux miens ».${more ? ` ${more}.` : ''}${sf.carto && !cartoKey() ? ' Sa clé CARTO s\'ajoute.' : ''}`),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: () => openSettings('importer') }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: yes }, 'Remplacer')));
+}
+
 /* ---------- Envoyer à un proche (v180, maquette validée le 18 nov.) ---------- */
 // Un fichier séparé de ma sauvegarde : seulement ce que je coche (le temps de la session), seulement mes lieux.
 let sendSel = { ...SEND_DEFAULT };
@@ -9941,6 +9990,10 @@ async function onImportFile() {
   importInput.value = '';
   if (!f) return;
   const text = await f.text();
+  // v318 : un fichier de réglages, quel que soit le bouton touché ; « Importer des réglages » refuse un autre fichier
+  const sf = readSettingsFile(text);
+  if (sf) { pendingSettings = sf; openSettings('importer'); requestAnimationFrame(() => document.querySelector('#sheetBody .set-ask .row')?.scrollIntoView({ block: 'center' })); return; }
+  if (importMode === 'settings') { toast('Ce fichier n\'est pas un fichier de réglages. Pour une sauvegarde : « Restaurer ma sauvegarde ».', true); return; }
   const from = fileOwner(text);
   // Ma sauvegarde : directement. Si le fichier porte un autre prénom que le mien, on demande.
   if (importMode === 'mine' && (!from || !state.me || from === state.me)) { importText(text, ''); return; }
@@ -10781,6 +10834,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Style de la carte.',
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Style de la carte. C\'est le fond d\'un téléphone neuf.',
     '{hand} **Essayer le premier lancement** : {settings} → tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
@@ -10790,7 +10844,6 @@ const HELP = [
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
     '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
     '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
-    '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
   ]],
 ];
 

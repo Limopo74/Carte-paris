@@ -958,3 +958,68 @@ export function owners(points) {
   for (const p of points) if (p.owner) m.set(p.owner, (m.get(p.owner) ?? 0) + 1);
   return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }
+
+/* ---------- Mes réglages pour un autre téléphone (v318, mes choix 1a 2b 3a 4a du 20 nov.) ----------
+   Un fichier à part de la sauvegarde : l'affichage (boutons, filtres masqués, cercles, style, thème, voix, favoris…),
+   mes catégories et mes listes, sans aucun lieu, ni Chez moi, ni stations, ni carnet. La clé CARTO seulement si je coche.
+   Restent propres à chaque téléphone : Écrire au masculin, la taille du texte, le passe Navigo, la vitesse de marche. */
+export const SETTINGS_OWN = ['masculin', 'textSize', 'navigo', 'pace'];
+const withoutOwn = (s) => Object.fromEntries(Object.entries(s).filter(([k]) => !SETTINGS_OWN.includes(k)));
+/** Clé CARTO acceptée : la même règle que la saisie (validCartoKey d'app.js). */
+export const cleanCartoKey = (k) => (typeof k === 'string' && /^[A-Za-z0-9_.-]{8,200}$/.test(k.trim()) ? k.trim() : '');
+
+export function exportSettingsJSON(state, carto = '') {
+  const key = cleanCartoKey(carto);
+  return JSON.stringify({
+    app: 'carte-paris', kind: 'reglages', version: 1, exported: new Date().toISOString(), owner: state.me ?? '',
+    settings: withoutOwn(cleanSettings(state)),
+    categories: cleanCategories(state.categories), lists: cleanLists(state.lists),
+    ...(key ? { carto: key } : {}),
+  }, null, 2);
+}
+
+/** Nom du fichier de réglages, sans accent (comme la sauvegarde). */
+export function settingsFileName(date, me = '') {
+  const z = (n) => String(n).padStart(2, '0');
+  const who = foldName(me).replace(/[^a-z0-9 -]/g, '').trim().slice(0, 20);
+  return `Ma carte de Paris - reglages${who ? ` de ${who}` : ''} du ${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()}.json`;
+}
+
+/** Lit un fichier de réglages. Renvoie null si ce n'en est pas un (une sauvegarde, par exemple). */
+export function readSettingsFile(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch { return null; }
+  if (!obj || obj.app !== 'carte-paris' || obj.kind !== 'reglages' || !obj.settings || typeof obj.settings !== 'object') return null;
+  const at = Date.parse(obj.exported);
+  return {
+    owner: typeof obj.owner === 'string' ? obj.owner.trim().slice(0, 30) : '',
+    at: Number.isFinite(at) ? at : null,
+    settings: withoutOwn(cleanSettings(obj.settings)),
+    categories: cleanCategories(obj.categories), lists: cleanLists(obj.lists),
+    carto: cleanCartoKey(obj.carto),
+  };
+}
+
+/** Ce que le fichier ajouterait : catégories et listes qui manquent (ni même id, ni même nom, accents ignorés). */
+export function settingsAdds(state, file) {
+  const cats = state.categories ?? []; const lists = state.lists ?? [];
+  const catIds = new Set(cats.map((c) => c.id)); const catNames = new Set(cats.map((c) => foldName(c.name)));
+  const listIds = new Set(lists.map((l) => l.id)); const listNames = new Set(lists.map((l) => foldName(l.name)));
+  const newCats = []; const newLists = [];
+  for (const c of file.categories) if (!catIds.has(c.id) && !catNames.has(foldName(c.name))) { newCats.push(c); catIds.add(c.id); catNames.add(foldName(c.name)); }
+  for (const l of file.lists) if (!listIds.has(l.id) && !listNames.has(foldName(l.name))) { newLists.push(l); listIds.add(l.id); listNames.add(foldName(l.name)); }
+  return { categories: newCats, lists: newLists.slice(0, Math.max(0, 50 - lists.length)) };
+}
+
+/** Remplace mes réglages par ceux du fichier. Les miens d'avant deviennent « mes réglages par défaut » (« Revenir aux miens »).
+ *  Mes catégories et listes ne changent pas : celles qui manquent s'ajoutent. Aucun lieu n'est touché. */
+export function applySettingsFile(state, file, now = Date.now()) {
+  const adds = settingsAdds(state, file);
+  const mine = { at: now, settings: cleanSettings(state) };
+  const next = {
+    ...state, ...file.settings, mySettings: mine,
+    categories: [...(state.categories ?? []), ...adds.categories.map((c) => ({ ...c }))],
+    lists: [...(state.lists ?? []), ...adds.lists.map((l) => ({ ...l }))],
+  };
+  return { state: next, addedCats: adds.categories.length, addedLists: adds.lists.length };
+}
