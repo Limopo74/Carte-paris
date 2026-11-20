@@ -85,3 +85,17 @@ test('v313 : Essayer le premier lancement (Réglages) : une mémoire à part, me
   assert.ok(row > 0 && end - row < 400, 'tout en bas de Réglages, au-dessus de mes réglages par défaut');
   assert.match(app, /'Terminer l\\'essai'/);
 });
+
+test('v314 : le fond « Éclairci » (sans clé) est celui d\'un nouveau venu ; mon style ne change pas', async () => {
+  const { MAP_STYLES } = await import('../js/store.js');
+  assert.ok(MAP_STYLES.includes('eclairci'));
+  assert.equal(loadState(memStorage()).mapStyle, 'eclairci');
+  const st = memStorage(); st.setItem(KEY, JSON.stringify({ points: [], mapStyle: 'clean' }));
+  assert.equal(loadState(st).mapStyle, 'clean');
+  const st2 = memStorage(); st2.setItem(KEY, JSON.stringify({ points: [] }));
+  assert.equal(loadState(st2).mapStyle, 'classic', 'une mémoire déjà là sans style garde Classique');
+  assert.match(app, /eclairci: \{ name: 'Éclairci', [^\n]*url: 'https:\/\/tile\.openstreetmap\.org\//, 'mêmes tuiles que Classique : rien de nouveau envoyé, et gardées pour le métro');
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(css, /#map\[data-style="eclairci"\] \.leaflet-tile-pane \{ filter: saturate\(\.5\) brightness\(1\.06\); \}/);
+  assert.match(css, /\.s-eclairci \{/);
+});

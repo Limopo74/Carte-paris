@@ -617,6 +617,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 #map[data-style="pastel"] .leaflet-tile-pane { filter: saturate(1.35) brightness(1.06) hue-rotate(-12deg) contrast(.92); }
 #map[data-style="night"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.7); }
 #map[data-style="night"] { background: #1d2230; }
+#map[data-style="eclairci"] .leaflet-tile-pane { filter: saturate(.5) brightness(1.06); } /* v314 : couleurs adoucies, textes plus nets sur un fond plus clair (5,6:1 au lieu de 5,0:1, mesuré sur une tuile du Louvre) */
 .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .style-card[aria-pressed="true"] { border: 2px solid var(--guide); box-shadow: none; }
 .style-card b { font-size: var(--t16); }
@@ -627,6 +628,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .s-fr { background: linear-gradient(135deg, #f8f4ea 0 35%, #9fc8f0 35% 52%, #fbe3a2 52% 66%, #b9e3a0 66%); }
 .s-hot { background: linear-gradient(135deg, #f6f1f0 0 40%, #c3dbe8 40% 55%, #f3e3e0 55% 70%, #d7ecc6 70%); }
 .s-pastel { background: linear-gradient(135deg, #fbf3ff 0 40%, #b9e6f5 40% 55%, #fff3e3 55% 70%, #d6f5c5 70%); }
+.s-eclairci { background: linear-gradient(135deg, #fffdfa 0 40%, #c6dbe2 40% 55%, #fffdfa 55% 70%, #e4f3d4 70%); }
 .s-night { background: linear-gradient(135deg, #1f2433 0 40%, #2d4a5e 40% 55%, #262b3a 55% 70%, #2b3a2b 70%); }
 
 /* Ce qui reste blanc même en mode sombre */

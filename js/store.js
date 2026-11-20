@@ -252,7 +252,7 @@ export const FRESH_TOOLS = { mapTools: ['locate', 'paris', 'pratique', 'metro', 
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
-  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools] };
+  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci' }; // v314 : le fond « Éclairci », sans clé
 }
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
@@ -716,7 +716,7 @@ export function deleteSub(state, catId, subId) {
 export const subNameOf = (categories, p) => (p?.sub ? (categories ?? []).find((c) => c.id === p.cat)?.subs?.find((x) => x.id === p.sub)?.name ?? '' : '');
 
 /** Styles de carte proposés dans les Réglages. */
-export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];
+export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', 'eclairci'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
