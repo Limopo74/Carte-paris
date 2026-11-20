@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (301)';
+const VERSION = '20 novembre 2026 (302)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1632,6 +1632,7 @@ function captureSeen() {
   camera.click();
 }
 let seenStreet = false; // dernier rangement choisi dans Vu en passant (le temps de la session) : Street art ou non
+let seenLists = null; // v302 : dernières listes choisies dans Vu en passant (le temps de la session) ; null = jamais choisi
 function openSeenForm(blob, where) {
   const url = URL.createObjectURL(blob);
   const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine' });
@@ -1646,12 +1647,17 @@ function openSeenForm(blob, where) {
   const artist = artistInput();
   const artistBox = el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Artiste (facultatif)', artist), artistHelp(artist));
   const sortBox = el('div', { class: 'field' });
+  // v302 : Mes listes, tout en bas ; celles de la photo d'avant (le temps de la session), sinon la liste du filtre, comme Nouveau lieu
+  const known = new Set((state.lists ?? []).map((l) => l.id));
+  const lists = new Set((seenLists ?? (filt.lists.size === 1 ? [...filt.lists] : [])).filter((id) => known.has(id)));
+  const listField = listChooser(lists);
   const drawSort = () => {
     fill(sortBox, 'Ranger dans', el('div', { class: 'seg', role: 'group', 'aria-label': 'Ranger dans' },
       el('button', { type: 'button', 'aria-pressed': String(!street), onclick: () => { street = false; drawSort(); } }, 'Vu en passant'),
       el('button', { type: 'button', 'aria-pressed': String(street), onclick: () => { street = true; drawSort(); } }, 'Street art')));
     sortBox.hidden = target !== 'new';
     artistBox.hidden = target !== 'new' || !street;
+    listField.hidden = target !== 'new'; // ajoutée à une de mes adresses : ses listes restent celles de Modifier
   };
   drawSort();
   where.then((r) => {
@@ -1698,7 +1704,8 @@ function openSeenForm(blob, where) {
     seenStreet = street;
     state = street ? withStreetCat(state) : withSeenCat(state);
     const cat = street ? streetCatId(state.categories) : SEEN_CAT.id;
-    const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
+    seenLists = [...lists];
+    const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng, lists: [...lists] });
     np.photos = [id];
     if (street && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
     state.points.push(np);
@@ -1717,10 +1724,11 @@ function openSeenForm(blob, where) {
     starBox,
     sortBox,
     artistBox,
-    el('div', { class: 'row' },
+    listField,
+    foot(el('div', { class: 'row' }, // v302 : toujours visibles en bas, même quand la page défile (Mes listes)
       el('button', { type: 'button', class: 'btn', onclick: () => { URL.revokeObjectURL(url); closeSheet(); toast('Photo non gardée'); } }, 'Annuler'),
-      keep),
-  ), { name: 'seen' });
+      keep)),
+  ), { name: 'seen', tall: true }); // v302 : en grand, la barre du bas ne cache plus le champ
 }
 
 /** Ouvre le formulaire à une position et cherche l'adresse en arrière-plan. */
@@ -2015,6 +2023,25 @@ function artistHelp(input) {
   return box;
 }
 
+/** Mes listes : un appui pour mettre ou retirer, et un champ pour en créer une. `lists` : un Set d'ids, changé sur place.
+ *  Le même bloc dans Modifier et dans Vu en passant (v302). */
+function listChooser(lists) {
+  const box = el('div', { class: 'list-chips' });
+  const input = el('input', { type: 'text', maxlength: '30', placeholder: 'Ex. : Pour fêter', 'aria-label': 'Nom de la nouvelle liste', enterkeyhint: 'done' });
+  const draw = () => fill(box, ...(state.lists ?? []).map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(lists.has(l.id)), onclick: () => {
+    if (lists.has(l.id)) lists.delete(l.id); else lists.add(l.id); draw();
+  } }, lists.has(l.id) ? ico('check') : ico('list'), ` ${l.name}`)));
+  const create = () => {
+    const n = input.value.trim();
+    if (!n) { input.focus(); return; }
+    try { const r = addList(state, n); state = r.state; lists.add(r.id); persist(); input.value = ''; draw(); } catch (e) { toast(e.message, true); }
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+  draw();
+  return el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), box,
+    el('div', { class: 'row' }, input, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: create }, ico('plus'), 'Créer')));
+}
+
 function artistInput(value = '') {
   const id = 'artist-names';
   document.getElementById(id)?.remove();
@@ -2038,19 +2065,7 @@ function openForm(draft, existing = null) {
   const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
   let dupOk = false; // « Un autre lieu » après l'alerte doublon (avant v297 : « Ajouter quand même »)
 
-  // Mes listes : un appui pour mettre ou retirer, et un champ pour en créer une
-  const listBox = el('div', { class: 'list-chips' });
-  const newList = el('input', { type: 'text', maxlength: '30', placeholder: 'Nouvelle liste, ex. Pour fêter', 'aria-label': 'Nom de la nouvelle liste', enterkeyhint: 'done' });
-  const drawLists = () => fill(listBox, ...(state.lists ?? []).map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(lists.has(l.id)), onclick: () => {
-    if (lists.has(l.id)) lists.delete(l.id); else lists.add(l.id); drawLists();
-  } }, lists.has(l.id) ? ico('check') : ico('list'), ` ${l.name}`)));
-  const createList = () => {
-    const n = newList.value.trim();
-    if (!n) { newList.focus(); return; }
-    try { const r = addList(state, n); state = r.state; lists.add(r.id); persist(); newList.value = ''; drawLists(); } catch (e) { toast(e.message, true); }
-  };
-  newList.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); createList(); } });
-  drawLists();
+  const listField = listChooser(lists); // Mes listes (v302 : le même bloc que dans Vu en passant)
   const momentChips = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Le bon moment' });
   const drawMoments = () => fill(momentChips, MOMENTS.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(moments.has(k)), onclick: () => { if (moments.has(k)) moments.delete(k); else moments.add(k); drawMoments(); } }, label)));
   drawMoments();
@@ -2197,8 +2212,7 @@ function openForm(draft, existing = null) {
     el('div', {}, el('div', { class: 'legend' }, 'État'), doneSeg),
     existing ? formSwitch('Favori', null, fav, (on) => { fav = on; favBox.checked = on; }) : null,
     el('div', {}, el('div', { class: 'legend' }, 'Mes étoiles (facultatif)'), starPicker(stars, (n) => { stars = n; })),
-    el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Mes listes (facultatif)'), listBox,
-      el('div', { class: 'row' }, newList, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createList }, ico('plus'), 'Créer'))),
+    listField,
     formSwitch('Abrité de la pluie', 'Musée, passage couvert, café avec salle…', covered, (on) => { covered = on; coveredBox.checked = on; }),
     momentBox,
     rubBox, /* v288 : en bas, il ne pousse rien */
@@ -10166,6 +10180,7 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
+    '{list} **Mes listes** dans Vu en passant : sous « Ranger dans », touche une ou plusieurs listes (Portes, Cours…), ou crée-en une. Elles restent choisies pour la photo suivante. Pour les retrouver : Filtres → Mes listes.',
     '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
@@ -10295,6 +10310,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list} Vu en passant, ranger dans une liste : après la photo, sous « Ranger dans », « **Mes listes** » (facultatif). Touche une ou plusieurs listes, ou crée-en une ; elles restent choisies pour la photo suivante tant que l\'appli est ouverte. « Enregistrer » reste toujours visible en bas.',
     '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',
@@ -10304,7 +10320,6 @@ const HELP = [
     '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
     '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
-    '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
   ]],
 ];
 
