@@ -258,6 +258,11 @@ export function cleanSettings(o = {}) {
     mapTools: normalizeTools(o.mapTools), hiddenTools: cleanHidden(o.hiddenTools), moreTools: cleanMore(withNewInMore(o.moreTools ?? DEFAULT_MORE, o.mapTools), cleanHidden(o.hiddenTools)), toolsSide: o.toolsSide === 'left' ? 'left' : 'right',
     toolNames: cleanToolNames(o.toolNames), toolLabels: o.toolLabels === true, startOnMe: o.startOnMe !== false, vibrateNow: o.vibrateNow === true, jardinsNow: o.jardinsNow === true, navigo: o.navigo !== false, masculin: o.masculin === true, showArrNums: o.showArrNums !== false, tuning: cleanTuning(o.tuning), suggestNow: o.suggestNow !== false, alertNear: o.alertNear !== false, ficheHidden: cleanFicheHidden(o.ficheHidden), pace: cleanPace(o.pace), textSize: cleanTextSize(o.textSize), essentials: cleanEssentials(o.essentials),
     mapStyle: MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : 'classic', theme: ['light', 'dark'].includes(o.theme) ? o.theme : 'auto',
+    // v294 (mon choix A du 20 nov.) : les boutons du haut (masqués, sous ⋯ Plus, leur ordre), les lignes masquées de Filtres et
+    // « Seulement les vérifiées » (TTB). Seulement quand ils y sont : des réglages par défaut enregistrés avant ne les changent pas.
+    ...(Array.isArray(o.hiddenChips) ? { hiddenChips: cleanChips(o.hiddenChips), moreChips: cleanMoreChips(withNewChips(o.moreChips, o.chipsV ?? CHIPS_V), cleanChips(o.hiddenChips)), chipOrder: cleanChipOrder(o.chipOrder), chipsV: CHIPS_V } : {}), // l'état du téléphone n'a pas de chipsV : il est à jour
+    ...(Array.isArray(o.hiddenFilters) ? { hiddenFilters: cleanFilterKeys(o.hiddenFilters) } : {}),
+    ...(typeof o.ttbOk === 'boolean' ? { ttbOk: o.ttbOk } : {}),
   };
 }
 /** Mes stations (personnelles, comme mes lieux) : { id, station, label, bus?, moreBus? }, 10 au plus. */
@@ -305,7 +310,12 @@ export const saveMySettings = (state, now = Date.now()) => ({ ...state, mySettin
 /** Remet « mes réglages par défaut ». Renvoie un nouvel état (inchangé s'il n'y en a pas). */
 export const applyMySettings = (state) => (state.mySettings ? { ...state, ...cleanSettings(state.mySettings.settings) } : state);
 /** Les réglages actuels sont-ils ceux enregistrés par défaut ? */
-export const sameAsMySettings = (state) => Boolean(state.mySettings) && JSON.stringify(cleanSettings(state)) === JSON.stringify(cleanSettings(state.mySettings.settings));
+/** v294 : seuls les réglages que contiennent mes réglages par défaut comptent (ceux enregistrés avant n'ont pas les boutons du haut). */
+export const sameAsMySettings = (state) => {
+  if (!state.mySettings) return false;
+  const now = cleanSettings(state); const mine = cleanSettings(state.mySettings.settings);
+  return Object.keys(mine).every((k) => JSON.stringify(now[k]) === JSON.stringify(mine[k]));
+};
 
 /** Enregistre l'état. Renvoie false si l'écriture a échoué. */
 export function saveState(storage, state) {

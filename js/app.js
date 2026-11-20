@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (293)';
+const VERSION = '20 novembre 2026 (294)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -9914,7 +9914,7 @@ function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
   const save = () => { state = saveMySettings(state); persist(); openSettings(); toast('Réglages enregistrés par défaut'); };
-  const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); openSettings(); toast('Tes réglages par défaut sont remis'); };
+  const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); openSettings(); toast('Tes réglages par défaut sont remis'); }; /* v294 : « Seulement les vérifiées » peut changer les ronds TTB */
   return el('div', { class: 'my-settings' },
     !ms ? [
       el('button', { type: 'button', class: 'btn c-info solid', onclick: save }, ico('save'), 'Enregistrer mes réglages par défaut'),
