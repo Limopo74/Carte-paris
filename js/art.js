@@ -236,6 +236,7 @@ export function freeDayNear(here, date = new Date(), maxM = 1200) {
 /* ---------- 5 ter. Grands lieux : liste fixe, leurs événements tirés de l'agenda de la Ville (toute distance) ---------- */
 
 export const ART_PLACES_CHECKED = '17 novembre 2026';
+export const ART_MUSIC_CHECKED = '20 novembre 2026'; // v290 : les 11 salles de concert ajoutées ce jour-là
 // kind : art (art contemporain et photo), expo (musées aux grandes expositions temporaires), musique.
 // Musée Maillol écarté : fermé pour travaux jusqu'au 13 janvier 2027. Centre Pompidou : fermé jusqu'en 2030 (ses expos sont au Grand Palais).
 // match : morceau du nom du lieu tel que l'agenda « Que faire à Paris ? » l'écrit (sans accents ni majuscules).
@@ -275,6 +276,23 @@ export const ART_PLACES = [
   { name: 'Palais Galliera', kind: 'expo', address: '10 avenue Pierre-Ier-de-Serbie, 16e', lat: 48.8660, lng: 2.2967, site: 'https://www.palaisgalliera.paris.fr', match: 'galliera' },
   { name: 'Maison de la Radio et de la Musique', kind: 'musique', address: '116 avenue du Président-Kennedy, 16e', lat: 48.8524, lng: 2.2785, site: 'https://www.maisondelaradioetdelamusique.fr/agenda', match: 'maison de la radio' },
   { name: 'Philharmonie de Paris', kind: 'musique', address: '221 avenue Jean-Jaurès, 19e', lat: 48.8919, lng: 2.3940, site: 'https://philharmoniedeparis.fr', match: 'philharmonie de paris' },
+  // v290 : 11 salles de concert de plus (mes choix 1B 2B du 20 nov.), vérifiées le ART_MUSIC_CHECKED. Adresse lue sur le site
+  // officiel de chaque salle ; position de la base des adresses de l'IGN, sauf les deux Opéras (Wikidata, sans numéro de rue)
+  // et la Seine Musicale (bâtiment d'OpenStreetMap, concordant avec Wikidata ; le point d'adresse de l'IGN est à 600 m).
+  // match : nom écrit par l'agenda « Que faire à Paris ? » le 20 nov. ; « l'olympia » et pas « olympia » (les Olympiades),
+  // « theatre des champs » (écrit « Champs-Elysées », « Champs Elysées » ou « champs-Elysées »).
+  // Opéras et Olympia : presque rien dans l'agenda (1 rendez-vous chacun) ; ils sont là pour leur programme officiel.
+  { name: 'Théâtre du Châtelet', kind: 'musique', address: '1 place du Châtelet, 1er', lat: 48.8576, lng: 2.3468, site: 'https://www.chatelet.com', match: 'theatre du chatelet' },
+  { name: 'Théâtre des Champs-Élysées', kind: 'musique', address: '15 avenue Montaigne, 8e', lat: 48.8657, lng: 2.3033, site: 'https://www.theatrechampselysees.fr', match: 'theatre des champs' },
+  { name: 'Salle Pleyel', kind: 'musique', address: '252 rue du Faubourg-Saint-Honoré, 8e', lat: 48.8770, lng: 2.3010, site: 'https://www.sallepleyel.com', match: 'salle pleyel' },
+  { name: 'Salle Gaveau', kind: 'musique', address: '45-47 rue La Boétie, 8e', lat: 48.8735, lng: 2.3142, site: 'https://www.sallegaveau.com', match: 'salle gaveau' },
+  { name: 'Salle Cortot', kind: 'musique', address: '78 rue Cardinet, 17e', lat: 48.8842, lng: 2.3093, site: 'https://www.sallecortot.com', match: 'salle cortot' },
+  { name: 'La Cigale', kind: 'musique', address: '120 boulevard Marguerite-de-Rochechouart, 18e', lat: 48.8823, lng: 2.3402, site: 'https://www.lacigale.fr', match: 'la cigale' },
+  { name: 'Le Trianon', kind: 'musique', address: '80 boulevard Marguerite-de-Rochechouart, 18e', lat: 48.8829, lng: 2.3430, site: 'https://www.letrianon.fr', match: 'le trianon' },
+  { name: 'Opéra Garnier', kind: 'musique', address: 'Place de l\'Opéra, 9e', lat: 48.8719, lng: 2.3317, site: 'https://www.operadeparis.fr', match: 'opera garnier' },
+  { name: 'Opéra Bastille', kind: 'musique', address: 'Place de la Bastille, 12e', lat: 48.8519, lng: 2.3706, site: 'https://www.operadeparis.fr', match: 'opera bastille' },
+  { name: 'L\'Olympia', kind: 'musique', address: '28 boulevard des Capucines, 9e', lat: 48.8702, lng: 2.3284, site: 'https://www.olympiahall.com', match: 'l\'olympia' },
+  { name: 'La Seine Musicale', kind: 'musique', address: 'Île Seguin, Boulogne-Billancourt', lat: 48.8260, lng: 2.2298, site: 'https://www.laseinemusicale.com', match: 'seine musicale' },
 ];
 
 const plain = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, '\'').replace(/\s+/g, ' ');
