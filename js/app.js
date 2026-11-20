@@ -39,6 +39,7 @@ import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTime
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { openIdOf, needsCenter } from './lieu-ouvert.js';
 import { sheetStep, SHARE } from './hauteurs.js';
+import { remoteVersionOf, isNewer, shouldCheck, versionNote } from './nouvelle-version.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
@@ -68,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (335)';
+const VERSION = '21 novembre 2026 (336)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -4907,12 +4908,14 @@ const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _s
 const ttbNote = () => {
   try { return state.showTtb && ttbList().length && (ttbRubs.size || ttbBudgets.size) ? { text: `Seulement ${ttbFilterText(ttbRubs, ttbBudgets)}\u00a0· Tout\u00a0voir`, act: 'ttb' } : null; } catch { return null; } // au démarrage, avant que la partie TTB soit lue
 };
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
+let versionCheckedAt = 0;
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
@@ -4920,6 +4923,7 @@ layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
   if (n?.act === 'essai') endEssai(); // v315
   else if (n?.act === 'prep') stopPrep(); // v321
+  else if (n?.act === 'update') updateApp(); // v333 : le même geste que Réglages → Autres réglages → Mise à jour et confidentialité
   else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
@@ -4933,6 +4937,19 @@ layerNoteBtn.addEventListener('click', () => {
   else if (n?.act === 'arcades' && arcadesData?.length) map.fitBounds(L.latLngBounds(arcadesData.map((a) => [a.lat, a.lng])).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 16, animate: false }); // v275 : les 12, ni sous la barre ni sous la colonne
 });
 map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
+// v333 (mes choix 1A 3A du 20 nov.) : au retour sur l'appli, une nouvelle version publiée se dit sous la barre du haut.
+// On relit sw.js sur le site de l'appli (rien de toi n'est envoyé), au plus tous les quarts d'heure (js/nouvelle-version.js).
+async function checkNewVersion() {
+  if (newVersion || !shouldCheck({ lastAt: versionCheckedAt, online: navigator.onLine, hidden: document.hidden })) return;
+  versionCheckedAt = Date.now();
+  try {
+    const r = await net('sw.js', { cache: 'no-store' }); // 10 s au plus (métro, quai)
+    const remote = r.ok ? remoteVersionOf(await r.text()) : null;
+    if (isNewer(remote, VERSION_NUM)) { newVersion = remote; drawLayerNote(); }
+  } catch { /* pas de réseau : rien ne s'affiche */ }
+}
+setTimeout(checkNewVersion, 10e3); // après l'ouverture, pour ne pas la ralentir
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkNewVersion(); });
 // Chaque minute, tant que le calque Vélib' est allumé : l'heure reste juste, et après 10 min les nombres s'effacent.
 setInterval(() => {
   if (!velibOn) return;
@@ -9579,7 +9596,7 @@ function openSettings(section = null) {
         el('span', { class: 'btn danger', style: 'min-height:0' }, 'Supprimer')),
       el('p', { class: 'help' }, `Version du ${VERSION}. La mise à jour ne touche pas à tes lieux.`),
       el('details', { class: 'help-item sources' }, el('summary', {}, ico('info'), 'Confidentialité'), el('div', { class: 'stack sources-body' }, /* v234 : 33 lignes repliées (mon choix 3A) */
-      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire » ; celui d\'un de tes circuits, son titre, ses étapes et son tracé, et tes textes seulement si tu coches « Avec mes textes ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
+      el('p', { class: 'help' }, 'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Quand tu reviens sur l\'appli, elle lui redemande son numéro de version, au plus tous les quarts d\'heure, sans rien envoyer de toi. Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde. L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi), le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde), les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche), l\'annuaire et les horaires (OpenStreetMap), les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position), la liste des monuments (Wikidata, tout Paris, sans ta position), les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m), la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée). Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ; un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ; « Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ; Instagram, seulement le compte de l\'artiste : chaque fois seulement quand tu touches le lien. Mon Paris et les arrondissements se calculent sur le téléphone. Un lien de partage contient le lieu, et ton commentaire seulement si tu coches « Avec mon commentaire » ; celui d\'un de tes circuits, son titre, ses étapes et son tracé, et tes textes seulement si tu coches « Avec mes textes ». Comme tout site, ces services voient l\'adresse internet du téléphone.'))),
       el('p', { class: 'help' }, '« Ce que j\'utilise » ne garde que le nom des écrans et des boutons touchés, et combien de fois, sur ce téléphone : ni lieu, ni heure, ni position, et hors sauvegarde.'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran.`),
@@ -11280,6 +11297,7 @@ const HELP = [
   ['wrench', 'Ça ne marche pas ?', [
     '**Position refusée** : Chrome ⋮ → Paramètres → Paramètres des sites → Position. Autorise limopo74.github.io et allume la Position du téléphone.',
     '**Carte grise** : vérifie internet, puis {settings} → Autres réglages → Mise à jour et confidentialité → Recharger la carte.',
+    '{rotate-cw} **Une nouvelle version** : quand tu reviens sur l\'appli, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, seulement quand une version plus récente est publiée. Touche-le. Tes lieux ne bougent pas.',
     '**Une nouveauté n\'apparaît pas** : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Un lien reçu ouvre une carte vide** : il s\'est ouvert dans le navigateur de Messages ou de WhatsApp. Touche « Ouvrir dans Chrome ».',
     '**Pour que ça n\'arrive plus** : Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome.',
@@ -11299,6 +11317,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
     '{arrow-right} **« Y aller en transports »** : au-delà de ta limite à pied, la plaque d\'un lieu le dit, avec la distance dessous. Google Maps s\'y ouvre en transports, comme avant. La limite : {settings} → Autres réglages → Distances et durées.',
     '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
@@ -11308,7 +11327,6 @@ const HELP = [
     '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
     '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
-    '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
   ]],
 ];
 
