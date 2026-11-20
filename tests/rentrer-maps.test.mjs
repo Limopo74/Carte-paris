@@ -1,4 +1,4 @@
-// v275 (mon choix C du 20 nov. 2026) : Rentrer a un bouton « Google Maps » : le trajet en transports
+// v276 (mon choix C du 20 nov. 2026) : Rentrer a un bouton « Google Maps » : le trajet en transports
 // jusqu'à ma station Maison, avec les horaires, sans point de départ dans le lien.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (275)';
+const VERSION = '20 novembre 2026 (276)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -6265,7 +6265,7 @@ async function openHomePlan(home) {
     el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour la boussole.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),
     trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
-    // v275 : le trajet exact (horaires, correspondances, bus) vers ma station Maison, comme le bouton de la page Métro ;
+    // v276 : le trajet exact (horaires, correspondances, bus) vers ma station Maison, comme le bouton de la page Métro ;
     // pas de point de départ dans le lien : Google prend sa propre position
     el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${home.st.lat},${home.st.lng}&travelmode=transit`, target: '_blank', rel: 'noopener', 'aria-label': `Google Maps : le trajet en transports jusqu'à ${home.st.n}` }, 'Google Maps'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
