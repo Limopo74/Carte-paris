@@ -449,6 +449,10 @@ export function mergeFriend(state, obj, owner, choice) {
         ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}),
         ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
       if (c.gone) next.gone = c.gone; else delete next.gone;
+      // v291 : la date de ses horaires suit ses horaires (de nouveaux horaires sans date ne gardent pas celle des anciens)
+      if (!Number.isFinite(c.hoursAt) && c.hours !== old.hours) delete next.hoursAt;
+      // v291 : « Toujours ouvert » (v274) revu par lui depuis : la date la plus récente des deux reste (« a pu fermer » ne revient pas à tort)
+      if (Number.isFinite(c.checked) && !(old.checked >= c.checked)) next.checked = c.checked;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
       continue;
     }
