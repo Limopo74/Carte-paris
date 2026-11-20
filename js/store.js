@@ -121,7 +121,20 @@ const cleanCategory = (c) => ({
   ...(cleanLog(c.log) ? { log: cleanLog(c.log) } : {}), // nom de l'historique (« Mes repas »…), v157
   ...(cleanLog(c.did) ? { did: cleanLog(c.did) } : {}), // nom de « Déjà visité » (« Déjà goûté »…), v162
   ...(typeof c.words === 'string' && /^[\w-]{0,64}$/.test(c.words) ? { words: c.words } : {}), // série de Mots tout prêts ('' : aucune), v226
+  ...(cleanSubs(c.subs).length ? { subs: cleanSubs(c.subs) } : {}), // sous-catégories de mes photos prises en passant (v305)
 });
+/** v305 : sous-catégories d'une catégorie, { id, name } ; un nom en double (majuscules et accents comptent pour rien) n'est gardé qu'une fois. */
+export const SUB_MAX = 30;
+export function cleanSubs(list) {
+  const out = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    const name = typeof x?.name === 'string' ? x.name.replace(/\s+/g, ' ').trim().slice(0, SUB_MAX) : '';
+    if (!name || typeof x.id !== 'string' || !/^[\w-]{1,64}$/.test(x.id)) continue;
+    if (out.some((y) => y.id === x.id || foldName(y.name) === foldName(name))) continue;
+    out.push({ id: x.id, name });
+  }
+  return out.slice(0, 40);
+}
 
 function cleanCategories(list) {
   const seen = new Set();
@@ -159,6 +172,8 @@ const clean = (p) => ({
   ...(Number.isFinite(p.gone) ? { gone: p.gone } : {}), // « Disparue ou recouverte », noté ce jour-là (v161)
   ...(Number.isFinite(p.checked) && p.checked > 0 ? { checked: p.checked } : {}), // « Toujours ouvert », vu sur place ce jour-là (v274)
   ...(PLACE_RUBS.includes(p.rub) || p.rub === '' ? { rub: p.rub } : {}), // genre d'un resto, comme dans TTB (v288) ; '' = « aucun », choisi par moi
+  ...(p.pass === true ? { pass: true } : {}), // pris par + Ajouter → Vu en passant, quelle que soit sa catégorie (v305)
+  ...(typeof p.sub === 'string' && /^[\w-]{1,64}$/.test(p.sub) ? { sub: p.sub } : {}), // sa sous-catégorie, dans sa catégorie (v305)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -465,7 +480,7 @@ export function mergeFriend(state, obj, owner, choice) {
       if (!points[i].owner || points[i].owner !== c.owner) continue; // un de ses lieux à elle : on n'y touche pas
       const old = points[i];
       const next = { ...old, name: c.name, cat: c.cat, lat: c.lat, lng: c.lng, address: c.address, hours: c.hours, ...(Number.isFinite(c.hoursAt) ? { hoursAt: c.hoursAt } : {}), lists: c.lists,
-        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}),
+        ...(choice.notes ? { note: c.note } : {}), ...(c.artist ? { artist: c.artist } : {}), ...(c.rub !== undefined ? { rub: c.rub } : {}), ...(c.pass ? { pass: true } : {}), ...(c.sub ? { sub: c.sub } : {}),
         ...(choice.passages && c.passages ? { passages: c.passages } : {}), ...(choice.photos && c.photos ? { photos: c.photos } : {}) };
       if (c.gone) next.gone = c.gone; else delete next.gone;
       // v291 : la date de ses horaires suit ses horaires (de nouveaux horaires sans date ne gardent pas celle des anciens)
@@ -633,9 +648,37 @@ export function deleteCategory(state, id, moveTo) {
   return {
     ...state,
     categories: state.categories.filter((c) => c.id !== id),
-    points: state.points.map((p) => (p.cat === id ? { ...p, cat: target.id } : p)),
+    points: state.points.map((p) => { if (p.cat !== id) return p; const { sub, ...q } = p; return { ...q, cat: target.id }; }), // v305 : sa sous-catégorie reste dans l'ancienne
   };
 }
+
+/* ---------- Sous-catégories (v305) : seulement pour mes lieux pris en passant ; Street art a l'artiste à la place ---------- */
+const subsOf = (state, catId) => state.categories.find((c) => c.id === catId)?.subs ?? [];
+const withSubs = (state, catId, subs) => ({ ...state, categories: state.categories.map((c) => { if (c.id !== catId) return c; const { subs: _, ...rest } = c; return subs.length ? { ...rest, subs } : rest; }) });
+/** Ajoute une sous-catégorie (ou reprend celle qui a déjà ce nom). Renvoie { state, id }. */
+export function addSub(state, catId, name) {
+  const n = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, SUB_MAX);
+  if (!n) throw new Error('Donne un nom à la sous-catégorie.');
+  if (!state.categories.some((c) => c.id === catId)) throw new Error('Choisis d\'abord la catégorie.');
+  const same = subsOf(state, catId).find((x) => foldName(x.name) === foldName(n));
+  if (same) return { state, id: same.id };
+  const id = makeId();
+  return { state: withSubs(state, catId, [...subsOf(state, catId), { id, name: n }]), id };
+}
+export function renameSub(state, catId, subId, name) {
+  const n = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, SUB_MAX);
+  if (!n) throw new Error('Donne un nom à la sous-catégorie.');
+  const same = subsOf(state, catId).find((x) => x.id !== subId && foldName(x.name) === foldName(n));
+  if (same) throw new Error(`La sous-catégorie « ${same.name} » existe déjà.`);
+  return withSubs(state, catId, subsOf(state, catId).map((x) => (x.id === subId ? { ...x, name: n } : x)));
+}
+/** Supprime une sous-catégorie : ses lieux et leurs photos restent, sans sous-catégorie. */
+export function deleteSub(state, catId, subId) {
+  const next = withSubs(state, catId, subsOf(state, catId).filter((x) => x.id !== subId));
+  return { ...next, points: next.points.map((p) => { if (p.cat !== catId || p.sub !== subId) return p; const { sub, ...q } = p; return q; }) };
+}
+/** Le nom de la sous-catégorie d'un lieu, ou '' (une sous-catégorie d'une autre catégorie ne compte pas). */
+export const subNameOf = (categories, p) => (p?.sub ? (categories ?? []).find((c) => c.id === p.cat)?.subs?.find((x) => x.id === p.sub)?.name ?? '' : '');
 
 /** Styles de carte proposés dans les Réglages. */
 export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night'];

@@ -9,7 +9,7 @@ import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, clea
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, subNameOf, SUB_MAX, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -42,7 +42,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
-import { SEEN_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
+import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, fold } from './search.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (304)';
+const VERSION = '20 novembre 2026 (305)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -474,7 +474,7 @@ let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 const filt = { open: false, top: false, covered: false, seen: false, lists: new Set(), arr: 0 }; // arr : numéro de l'arrondissement choisi (0 = tous), le temps de la session
 const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all', filt.arr > 0].filter(Boolean).length;
 const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
-  && (!filt.covered || p.covered) && (!filt.seen || p.cat === SEEN_CAT.id) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
+  && (!filt.covered || p.covered) && (!filt.seen || isPass(p)) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
   && (personFilter === 'all' || p.owner === personFilter);
 /** v267 : l'arrondissement choisi ne trie que la carte et sa liste ; Autour de moi, la recherche, Surprise ou le bandeau n'en tiennent pas compte. */
 const onMap = () => visible().filter((p) => !filt.arr || arrOfPoint(p) === filt.arr);
@@ -510,7 +510,7 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
-    const seen = p.cat === SEEN_CAT.id && p.photos?.length && !p.gone; // Vu en passant (v157) ; disparue : une goutte grise
+    const seen = isPass(p) && p.photos?.length && !p.gone; // Vu en passant (v157 ; v305 : quelle que soit sa catégorie) ; disparue : une goutte grise
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
       : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
@@ -978,7 +978,7 @@ function openFilters() {
       !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(hoursOf(p))?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
       !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
       !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
-      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count((p) => p.cat === SEEN_CAT.id), 'lieu', 'lieux')}`, () => { filt.seen = !filt.seen; }),
+      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count(isPass), 'lieu', 'lieux')}`, () => { filt.seen = !filt.seen; }),
       !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
       !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
         ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
@@ -1632,45 +1632,74 @@ function captureSeen() {
   document.body.append(camera);
   camera.click();
 }
-let seenStreet = false; // dernier rangement choisi dans Vu en passant (le temps de la session) : Street art ou non
-let seenLists = null; // v302 : dernières listes choisies dans Vu en passant (le temps de la session) ; null = jamais choisi
-function openSeenForm(blob, where) {
+let seenCat = null; // v305 : dernière catégorie choisie dans Vu en passant (le temps de la session), null = Vu en passant
+let seenSub = ''; // v305 : sa dernière sous-catégorie (id), '' = aucune
+/** Petit rond d'une catégorie, même pas encore créée (Vu en passant, Street art). */
+const dotOf = (c) => { const d = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, glyph(c.icon, { filled: true })); d.style.background = c.color; return d; };
+/** v305 : les catégories proposées après une photo : Vu en passant, Street art (créées au premier usage), puis les miennes. */
+function seenCats() {
+  const vu = state.categories.find((c) => c.id === SEEN_CAT.id) ?? SEEN_CAT;
+  const street = state.categories.find(isStreetCat) ?? STREET_CAT;
+  return [vu, street, ...state.categories.filter((c) => c.id !== vu.id && c.id !== street.id)];
+}
+function openSeenForm(blob, where, back = null) {
   const url = URL.createObjectURL(blob);
-  const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine' });
+  const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine', value: back?.line ?? '' });
   const posLine = el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche de ta position…');
   const choice = el('div', { class: 'field', hidden: true });
-  let stars = 0;
-  const starBox = el('div', { class: 'field', hidden: true }, 'Mes étoiles (facultatif)', starPicker(0, (n) => { stars = n; }));
-  let target = 'new'; // id d'une de mes adresses proches, ou une nouvelle note
+  let stars = back?.stars ?? 0;
+  const starBox = el('div', { class: 'field', hidden: true }, 'Mes étoiles (facultatif)', starPicker(stars, (n) => { stars = n; }));
+  let target = back?.target ?? 'new'; // id d'une de mes adresses proches, ou une nouvelle note
   let fix = null;
-  // Ranger une nouvelle note (v161) : Vu en passant, ou Street art avec son artiste (facultatif)
-  let street = seenStreet;
-  const artist = artistInput();
+  // v305 (mes choix du 20 nov.) : la catégorie, toutes sur une ligne qui défile ; puis sa sous-catégorie, ou l'artiste pour Street art.
+  // La catégorie et la sous-catégorie restent choisies pour la photo suivante, le temps de la session.
+  let cat = back?.cat ?? (seenCats().some((c) => c.id === seenCat) ? seenCat : SEEN_CAT.id);
+  let sub = back?.sub ?? (cat === seenCat ? seenSub : '');
+  const catObj = () => seenCats().find((c) => c.id === cat) ?? SEEN_CAT;
+  const street = () => isStreetCat(catObj());
+  const artist = artistInput(back?.artist ?? '');
   const artistBox = el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Artiste (facultatif)', artist), artistHelp(artist));
-  const sortBox = el('div', { class: 'field' });
-  // v302 : Mes listes, tout en bas ; celles de la photo d'avant (le temps de la session), sinon la liste du filtre, comme Nouveau lieu
-  const known = new Set((state.lists ?? []).map((l) => l.id));
-  const lists = new Set((seenLists ?? (filt.lists.size === 1 ? [...filt.lists] : [])).filter((id) => known.has(id)));
-  const listField = listChooser(lists);
-  const drawSort = () => {
-    fill(sortBox, 'Ranger dans', el('div', { class: 'seg', role: 'group', 'aria-label': 'Ranger dans' },
-      el('button', { type: 'button', 'aria-pressed': String(!street), onclick: () => { street = false; drawSort(); } }, 'Vu en passant'),
-      el('button', { type: 'button', 'aria-pressed': String(street), onclick: () => { street = true; drawSort(); } }, 'Street art')));
-    sortBox.hidden = target !== 'new';
-    artistBox.hidden = target !== 'new' || !street;
-    listField.hidden = target !== 'new'; // ajoutée à une de mes adresses : ses listes restent celles de Modifier
+  const catSeg = el('div', { class: 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
+  const catBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Catégorie'), catSeg);
+  const subBox = el('div', { class: 'stack', style: 'gap:8px' });
+  const subInput = el('input', { type: 'text', maxlength: String(SUB_MAX), autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : Portes', 'aria-label': 'Nom de la nouvelle sous-catégorie' });
+  const keepNow = () => ({ line: line.value, stars, target, cat, sub, artist: artist.value });
+  const reopen = (over = {}) => { URL.revokeObjectURL(url); openSeenForm(blob, where, { ...keepNow(), ...over }); };
+  const newCat = () => openCategory(null, { back: () => reopen(), done: (id) => reopen({ cat: id, sub: '' }) });
+  const createSub = () => {
+    const n = subInput.value.trim();
+    if (!n) { subInput.focus(); return; }
+    try {
+      if (cat === SEEN_CAT.id) state = withSeenCat(state); // la catégorie Vu en passant naît avec sa première sous-catégorie
+      const r = addSub(state, cat, n); state = r.state; sub = r.id; persist(); subInput.value = ''; drawCats();
+    } catch (e) { toast(e.message, true); }
   };
-  drawSort();
+  subInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); createSub(); } });
+  const drawCats = () => {
+    fill(catSeg, ...seenCats().map((c) => el('button', { type: 'button', 'aria-pressed': String(c.id === cat), onclick: () => { if (cat !== c.id) { cat = c.id; sub = ''; } drawCats(); } }, dotOf(c), c.name)),
+      el('button', { type: 'button', class: 'seg-new', onclick: newCat }, ico('plus'), 'Nouvelle'));
+    const subs = state.categories.find((c) => c.id === cat)?.subs ?? [];
+    if (!subs.some((x) => x.id === sub)) sub = '';
+    fill(subBox, el('div', { class: 'legend' }, 'Sous-catégorie (facultatif)'),
+      subs.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Sous-catégorie' }, subs.map((x) =>
+        el('button', { type: 'button', class: 'chip', 'aria-pressed': String(sub === x.id), onclick: () => { sub = sub === x.id ? '' : x.id; drawCats(); } }, x.name))) : null, // un second appui la retire
+      el('div', { class: 'row' }, subInput, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createSub }, ico('plus'), 'Créer')));
+    catBox.hidden = target !== 'new';
+    subBox.hidden = target !== 'new' || street();
+    artistBox.hidden = target !== 'new' || !street();
+    requestAnimationFrame(() => catSeg.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  };
+  drawCats();
   where.then((r) => {
     fix = r;
     const near = !r?.error ? placeNear(state.points, r, 30) : null;
     if (near) {
-      target = near.p.id;
+      if (!back) target = near.p.id;
       let draw = () => fill(choice, 'Où la garder ?', el('div', { class: 'seg', role: 'group', 'aria-label': 'Où la garder' },
         el('button', { type: 'button', 'aria-pressed': String(target === near.p.id), onclick: () => { target = near.p.id; draw(); } }, `Ajouter à : ${near.p.name}`),
         el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouveau lieu')));
       const drawAll = draw;
-      draw = () => { drawAll(); starBox.hidden = target === 'new'; drawSort(); };
+      draw = () => { drawAll(); starBox.hidden = target === 'new'; drawCats(); };
       draw();
       choice.hidden = false;
     }
@@ -1702,19 +1731,22 @@ function openSeenForm(blob, where) {
       else toast(`Ajouté à « ${place.name} »`, false, { label: 'Voir', fn: () => openDetail(place.id) });
       return;
     }
-    seenStreet = street;
-    state = street ? withStreetCat(state) : withSeenCat(state);
-    const cat = street ? streetCatId(state.categories) : SEEN_CAT.id;
-    seenLists = [...lists];
-    const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng, lists: [...lists] });
+    const isStreet = street();
+    if (cat === SEEN_CAT.id) state = withSeenCat(state);
+    else if (isStreet && !state.categories.some((x) => x.id === cat)) { state = withStreetCat(state); cat = streetCatId(state.categories); }
+    seenCat = cat; seenSub = isStreet ? '' : sub;
+    const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
     np.photos = [id];
-    if (street && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
+    np.pass = true; // v305 : pris en passant, même rangé dans Culture : le diaporama, Filtres → Vu en passant et la photo sur la carte le suivent
+    if (!isStreet && sub) np.sub = sub;
+    if (isStreet && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
     state.points.push(np);
     persist(); refresh();
     URL.revokeObjectURL(url);
     closeSheet();
     centerOn(at.lat, at.lng, Math.max(map.getZoom(), 17));
-    toast(rough ? 'Gardé · position approximative' : `Gardé dans ${street ? catOf(cat).name : 'Vu en passant'}`, false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
+    const where2 = [catOf(cat).name, subNameOf(state.categories, np)].filter(Boolean).join(' · ');
+    toast(rough ? 'Gardé · position approximative' : `Gardé dans ${where2}`, false, rough ? { label: 'Déplacer', fn: () => startMove(np) } : { label: 'Voir', fn: () => openDetail(np.id) });
     reverseAddress(at.lat, at.lng).then((label) => { if (label) { np.address = label; persist(); } }).catch(() => {});
   };
   openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
@@ -1723,10 +1755,10 @@ function openSeenForm(blob, where) {
     posLine,
     choice,
     starBox,
-    sortBox,
+    catBox,
+    subBox,
     artistBox,
-    listField,
-    foot(el('div', { class: 'row' }, // v302 : toujours visibles en bas, même quand la page défile (Mes listes)
+    foot(el('div', { class: 'row' }, // v302 : toujours visibles en bas, même quand la page défile
       el('button', { type: 'button', class: 'btn', onclick: () => { URL.revokeObjectURL(url); closeSheet(); toast('Photo non gardée'); } }, 'Annuler'),
       keep)),
   ), { name: 'seen', tall: true }); // v302 : en grand, la barre du bas ne cache plus le champ
@@ -2062,6 +2094,17 @@ function openForm(draft, existing = null) {
   // v288 : le genre d'un resto. Modifier : celui déjà choisi, ou celui du guide ; nouveau lieu : celui de l'adresse TTB gardée
   let rub = v.rub !== undefined ? v.rub : existing ? ttbRubByName(existing, ttbList()) : RESTO_RUBS.includes(draft.rub) ? draft.rub : '';
   let rubTouched = Boolean(existing ? v.rubTouched : draft.rubTouched);
+  // v305 : la sous-catégorie, seulement pour un lieu pris en passant (Street art garde l'artiste)
+  const passPlace = Boolean(existing && isPass(existing));
+  let sub = typeof v.sub === 'string' ? v.sub : '';
+  const subChips = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Sous-catégorie' });
+  const subBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Sous-catégorie (facultatif)'), subChips);
+  const syncSub = () => {
+    const subs = state.categories.find((c) => c.id === cat)?.subs ?? [];
+    if (!subs.some((x) => x.id === sub)) sub = '';
+    subBox.hidden = !passPlace || isStreetCat(catOf(cat)) || !subs.length;
+    fill(subChips, subs.map((x) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(sub === x.id), onclick: () => { sub = sub === x.id ? '' : x.id; syncSub(); } }, x.name)));
+  };
   const moments = new Set(cleanMoments(v.moments ?? draft.moments)); // Le bon moment (v158)
   const lists = new Set(v.lists ?? (filt.lists.size === 1 ? [...filt.lists] : []));
   let dupOk = false; // « Un autre lieu » après l'alerte doublon (avant v297 : « Ajouter quand même »)
@@ -2096,7 +2139,7 @@ function openForm(draft, existing = null) {
   // Nouveau lieu : les catégories sur une seule ligne qui défile, pour laisser de la place à la carte.
   const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const drawCats = () => fill(catSeg, ...state.categories.map((c) =>
-    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
+    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); syncSub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
@@ -2141,7 +2184,7 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched };
+    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched, sub };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     openCategory(null, { back: reopen, done: (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); } });
@@ -2181,6 +2224,7 @@ function openForm(draft, existing = null) {
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
       if (cleanArtist(artist.value)) existing.artist = cleanArtist(artist.value); else delete existing.artist;
       if (isRestoCat(catOf(cat)) && (rubTouched || rub)) existing.rub = rub; /* v288 : '' = « aucun » choisi : le guide ne le remplit plus */
+      if (passPlace && sub && !isStreetCat(catOf(cat))) existing.sub = sub; else delete existing.sub; /* v305 */
       existing.address = addr.value.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
       markDone(existing, done);
     } else {
@@ -2217,9 +2261,11 @@ function openForm(draft, existing = null) {
     formSwitch('Abrité de la pluie', 'Musée, passage couvert, café avec salle…', covered, (on) => { covered = on; coveredBox.checked = on; }),
     momentBox,
     rubBox, /* v288 : en bas, il ne pousse rien */
+    subBox, /* v305 : tout en bas, seulement pour un lieu pris en passant */
   ];
   syncArtist();
   syncRub();
+  syncSub();
   const filled = Boolean(v.artist || draft.artist || v.done || stars || covered || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? ' Modifier le lieu' : ' Nouveau lieu'], el('div', { class: 'stack' },
     existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
@@ -2354,7 +2400,7 @@ function openDetail(id, back = null) {
   const tidySub = [stale && !vanish ? 'Toujours ouvert' : '', p.gone ? (vanish ? 'De nouveau là' : 'De nouveau ouvert') : (vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'), 'déplacer', 'supprimer'].filter(Boolean).join(', ')
     .replace(/^./, (c) => c.toUpperCase()).replace(/, F/, ', f');
 
-  const rubName = placeRub(p); /* v288 : le genre, comme dans TTB */
+  const rubName = placeRub(p) || subNameOf(state.categories, p); /* v288 : le genre, comme dans TTB ; v305 : ou la sous-catégorie d'une photo prise en passant */
   const kick = [catOf(p.cat).name, rubName, arrLabel(p)].filter(Boolean).join(' · ');
   const kickShort = [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · ');
   // v274 : « a pu fermer » dans le surtitre : rien ne bouge sur la fiche ; la date d'ajout et de visite est en bas
@@ -9242,6 +9288,22 @@ function openCategory(id, ret = null) {
   };
   showButtons();
 
+  // v305 (mon choix du 20 nov.) : les sous-catégories de mes photos prises en passant, tout en bas ; renommer et supprimer agissent tout de suite
+  const subsBlock = c?.subs?.length ? el('div', { class: 'stack', style: 'gap:8px' },
+    el('div', { class: 'legend' }, 'Sous-catégories (photos prises en passant)'),
+    el('div', {}, c.subs.map((x) => el('div', { class: 'cat-row' },
+      el('span', { class: 'cat-name' }, x.name, el('br'), el('span', { class: 'cat-count' }, plural(state.points.filter((p) => p.cat === id && p.sub === x.id).length, 'lieu', 'lieux'))),
+      el('button', { type: 'button', class: 'btn', 'aria-label': `Renommer ${x.name}`, onclick: () => {
+        const nn = prompt('Nouveau nom de la sous-catégorie', x.name);
+        if (nn == null) return;
+        try { state = renameSub(state, id, x.id, nn); persist(); refresh(); openCategory(id, ret); toast('Sous-catégorie renommée'); } catch (e) { toast(e.message, true); }
+      } }, 'Renommer'),
+      el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Supprimer la sous-catégorie ${x.name}`, onclick: () => {
+        if (!confirm(`Supprimer la sous-catégorie « ${x.name} » ? Ses lieux et leurs photos restent, sans sous-catégorie.`)) return;
+        state = deleteSub(state, id, x.id); persist(); refresh(); openCategory(id, ret); toast('Sous-catégorie supprimée');
+      } }, ico('x'))))),
+    el('p', { class: 'help' }, 'Elles se créent après une photo, dans + Ajouter → Vu en passant.')) : null;
+
   const presets = id ? [] : suggestedPresets(state.categories);
   const presetBox = presets.length ? el('div', {},
     el('div', { class: 'legend' }, 'Toutes prêtes (un appui suffit)'),
@@ -9268,6 +9330,7 @@ function openCategory(id, ret = null) {
     el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
     el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
     el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Mots tout prêts.'),
+    subsBlock,
     err, zone,
     foot(el('div', { class: 'row' }, /* v284 : « Annuler | Enregistrer », comme toute page qui enregistre (charte § 8) ; Annuler ramène au même endroit qu'avant */
       el('button', { type: 'button', class: 'btn', onclick: () => (ret ? ret.back() : openSettings('categories')) }, 'Annuler'),
@@ -10191,8 +10254,8 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
-    '{list} **Mes listes** dans Vu en passant : sous « Ranger dans », touche une ou plusieurs listes (Portes, Cours…), ou crée-en une. Elles restent choisies pour la photo suivante. Pour les retrouver : Filtres → Mes listes.',
-    '{palette} **Street art** : dans Vu en passant, « Ranger dans : Street art » garde la photo dans ta catégorie Street art (créée la première fois), avec son artiste si tu le connais.',
+    '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les sous-catégories se renomment dans {settings} → Catégories et listes → la catégorie, tout en bas.',
+    '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
@@ -10323,7 +10386,7 @@ const HELP = [
   ['sparkles', 'Nouveautés', [
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
     '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
-    '{list} Vu en passant, ranger dans une liste : après la photo, sous « Ranger dans », « **Mes listes** » (facultatif). Touche une ou plusieurs listes, ou crée-en une ; elles restent choisies pour la photo suivante tant que l\'appli est ouverte. « Enregistrer » reste toujours visible en bas.',
+    '{camera} Vu en passant, ranger ta photo : après la photo, choisis la **catégorie** (toutes les tiennes, sur une ligne qui défile ; Vu en passant en premier), puis sa **sous-catégorie** (« Portes », « Cours »… : « Créer » en tape une), ou l\'**artiste** pour Street art. Elles restent choisies pour la photo suivante. Rangée dans Culture, la photo reste « prise en passant » : Filtres → Vu en passant la montre toujours. « Enregistrer » reste visible en bas.',
     '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
     '{landmark} Théâtre et danse : Sorties → Expos → Grands lieux, tout en bas. Chaillot, le Théâtre de la Ville (Châtelet et Abbesses), la Colline, le Rond-Point et le Centquatre (104), avec ce que l\'agenda de la Ville annonce et leur programme officiel.',
     '{sparkles} Boutons plus homogènes : un choix sélectionné (jour, moment, catégorie, état) a un fond gris clair et un contour noir, au lieu d\'être tout noir ; la seule plaque pleine reste l\'action principale, et « Enregistrer » est toujours vert. Contours plus épais, Matin, Midi, Soir en petites cases dans Prévoir, Favori et Abrité en interrupteurs dans Modifier le lieu, textes plus courts sur la fiche (« Prévoir », « Prévu 15 h », « Impression »).',

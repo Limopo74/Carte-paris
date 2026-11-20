@@ -16,6 +16,9 @@ export function seenName(line, date = new Date()) {
   return `${cut.slice(0, cut.lastIndexOf(' ') > 20 ? cut.lastIndexOf(' ') : 40).trim()}…`;
 }
 
+/** v305 : un lieu pris par + Ajouter → Vu en passant, rangé dans n'importe quelle catégorie (avant la v305 : la catégorie Vu en passant). */
+export const isPass = (p) => Boolean(p) && (p.pass === true || p.cat === SEEN_CAT.id);
+
 /** Ajoute la catégorie « Vu en passant » si elle manque (en dernier), et la cache de la barre du haut la première fois. */
 export function withSeenCat(state) {
   if (state.categories.some((c) => c.id === SEEN_CAT.id)) return state;
@@ -40,7 +43,7 @@ export function withStreetCat(state) {
  * « Encore là ? » : une note Vu en passant, une œuvre de ma catégorie street art ou un lieu dont l'artiste est noté
  * peuvent être marqués « Disparue ou recouverte ».
  */
-export const canVanish = (p, categories = []) => Boolean(p) && (p.cat === SEEN_CAT.id || Boolean(p.artist) || isStreetCat((categories ?? []).find((c) => c.id === p.cat)));
+export const canVanish = (p, categories = []) => Boolean(p) && (isPass(p) || Boolean(p.artist) || isStreetCat((categories ?? []).find((c) => c.id === p.cat)));
 /** Le dernier jour où je l'ai vue : ajout, visite ou passage le plus récent (null si aucune date). */
 export function lastSeen(p) {
   const t = Math.max(p?.created ?? 0, Number.isFinite(p?.visited) ? p.visited : 0, ...cleanPassages(p?.passages).map((x) => x.at));
@@ -157,7 +160,7 @@ export const photoIds = (p) => [...new Set([...(p?.photos ?? []), ...(p?.passage
 export function placeNear(points, pos, maxM = 30) {
   let best = null;
   for (const p of points) {
-    if (p.owner || p.cat === SEEN_CAT.id) continue;
+    if (p.owner || isPass(p)) continue; // v305 : une note prise en passant, quelle que soit sa catégorie
     const d = distanceM(pos, p);
     if (d <= maxM && (!best || d < best.d)) best = { p, d };
   }

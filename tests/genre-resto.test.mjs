@@ -51,7 +51,7 @@ test('Genre gardé avec le lieu : un genre de resto ou « aucun » choisi ; le r
 });
 
 test('Genre dans l\'appli : surtitre de la fiche, Modifier tout en bas, adresse TTB gardée avec son genre', () => {
-  assert.match(app, /const rubName = placeRub\(p\);[^\n]*\n\s*const kick = \[catOf\(p\.cat\)\.name, rubName, arrLabel\(p\)\]/);
+  assert.match(app, /const rubName = placeRub\(p\)(?: \|\| subNameOf\(state\.categories, p\))?;[^\n]*\n\s*const kick = \[catOf\(p\.cat\)\.name, rubName, arrLabel\(p\)\]/);
   assert.match(app, /if \(h <= kickEl\.offsetHeight\) kickEl\.firstChild\.textContent = kick;/); // retiré de la ligne s'il la coupe en deux
   assert.match(app, /const placeRub = \(p\) => \(!p \|\| !isRestoCat\(catOf\(p\.cat\)\)/); // jamais pour un lieu qui n'est pas un resto
   assert.match(app, /momentBox,\n\s*rubBox,/); // en bas du formulaire : il ne pousse rien

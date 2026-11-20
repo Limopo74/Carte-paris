@@ -726,7 +726,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .seen-img { display: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 3px solid; border-color: inherit; background: var(--line); box-shadow: var(--float); }
 #map.z-name .seen-pin.has-img .seen-img { display: block; }
 #map.z-name .seen-pin.has-img .seen-dot { display: none; }
-.seen-preview { display: block; width: 100%; max-height: 42vh; object-fit: contain; border-radius: var(--r); background: var(--line); }
+.seen-preview { display: block; width: 100%; max-height: 24vh; /* v305 : plus basse, la catégorie et la sous-catégorie se voient sans faire défiler */ object-fit: contain; border-radius: var(--r); background: var(--line); }
 .passage-img { flex: none; width: 44px; height: 44px; border-radius: var(--r); object-fit: cover; background: var(--line); }
 .plan-time.passage-date { font-size: var(--t14); min-width: 4.6em; max-width: 4.8em; white-space: normal; }
 .passage-stars { display: block; color: var(--fav); font-size: var(--t13); letter-spacing: 1px; }
