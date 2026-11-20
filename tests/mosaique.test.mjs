@@ -22,8 +22,8 @@ test('Seulement mes photos prises en passant (v310 : aussi celles rangées en im
   assert.match(items, /return out\.sort\(\(a, b\) => \(b\.at/);
 });
 
-test('Vignettes par catégorie, puis sous-catégories ou artistes, une à la fois ; mosaïque ; diaporama', () => {
-  assert.match(page, /tile\('Tout', all\.length/);
+test('Catégories (v327 : en onglets), puis sous-catégories ou artistes, une à la fois ; mosaïque ; diaporama', () => {
+  assert.match(page, /tab\('Tout', all\.length/);
   assert.match(page, /isStreetCat\(catOf\(seenPick\.cat\)\)/);
   assert.match(page, /street \? 'Tous les artistes' : 'Toutes'/);
   assert.match(page, /class: 'seen-grid'/);

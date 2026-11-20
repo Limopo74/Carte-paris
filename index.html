@@ -104,10 +104,10 @@
   </div>
 
   <div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Photo en grand">
-    <p class="viewer-count" aria-live="polite" hidden></p>
+    <div class="viewer-top"><p class="viewer-count" aria-live="polite"></p><button type="button" class="viewer-close" aria-label="Fermer la photo"></button></div>
     <img alt="" draggable="false">
-    <div class="viewer-cap" hidden></div>
-    <p class="viewer-hint">Touche pour fermer</p>
+    <div class="viewer-film" role="group" aria-label="Toutes les photos" hidden></div>
+    <div class="viewer-cap"></div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

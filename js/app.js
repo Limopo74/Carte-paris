@@ -66,7 +66,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (328)';
+const VERSION = '20 novembre 2026 (329)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1681,6 +1681,28 @@ function seenItems() {
 const seenPhotoCount = () => seenItems().length;
 /** « Vendredi 20 novembre 2026 à 17 h 15 » : la date complète d'une photo. */
 const fullDate = (t) => { const d = new Date(t); const s = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return typo(`${s[0].toUpperCase()}${s.slice(1)} à ${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')}`); };
+/** v329 : le cartel d'une photo prise en passant : surtitre (catégorie · sous-catégorie), titre (ma ligne, sinon la date), date. */
+function seenCap({ p, at, text, inPass }) {
+  const line = inPass ? [p.name, text].filter(Boolean).join(' : ') : text;
+  const date = at ? fullDate(at) : 'Date de la photo inconnue';
+  return { sur: [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '), title: line || date, date: line ? date : '' };
+}
+/** v329 (mon choix 2B) : les photos rangées par jour, du plus récent ; celles sans date à la fin, sous « Date inconnue ». */
+function seenDays(items) {
+  const out = [];
+  const year = new Date().getFullYear();
+  for (const it of items) {
+    const t = it.x.at;
+    let label = 'Date inconnue';
+    if (t) { const d = new Date(t); const s = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', ...(d.getFullYear() === year ? {} : { year: 'numeric' }) }); label = typo(s[0].toUpperCase() + s.slice(1)); }
+    let g = out.find((x) => x.label === label);
+    if (!g) { g = { label, items: [] }; out.push(g); }
+    g.items.push(it);
+  }
+  const k = out.findIndex((g) => g.label === 'Date inconnue');
+  if (k >= 0) out.push(...out.splice(k, 1));
+  return out;
+}
 function openSeenPhotos(from = null) {
   track('Mes Vu en passant');
   const back = from ?? named('Ajouter', openAddChoice);
@@ -1697,31 +1719,38 @@ function openSeenPhotos(from = null) {
   if (seenPick.sub && !subsHere.some((x) => x.id === seenPick.sub)) seenPick.sub = '';
   const photos = !seenPick.sub ? inCat : inCat.filter((x) => (seenPick.sub.startsWith('a:') ? x.p.artist === seenPick.sub.slice(2) : x.p.sub === seenPick.sub));
   const pick = (cat, sub = '') => { seenPick = { cat, sub }; again(); };
-  const tile = (label, n, photoId, pressed, onclick, color = null) => {
-    const b = el('button', { type: 'button', class: 'seen-tile', 'aria-pressed': String(pressed), onclick, 'aria-label': `${label}, ${plural(n, 'photo', 'photos')}` },
-      el('span', { class: 'seen-tile-img' }, photoId ? el('img', { alt: '', 'data-photo': photoId }) : ico('images')),
-      el('span', { class: 'seen-tile-name', 'aria-hidden': 'true' }, label), el('span', { class: 'seen-tile-n', 'aria-hidden': 'true' }, String(n)));
-    if (color) b.style.setProperty('--tile', color);
-    return b;
-  };
-  const tiles = all.length ? el('div', { class: 'seen-tiles', role: 'group', 'aria-label': 'Catégories' },
-    tile('Tout', all.length, all[0].id, !seenPick.cat, () => pick('')),
-    ...[...byCat].map(([id, list]) => tile(catOf(id).name, list.length, list[0].id, seenPick.cat === id, () => pick(seenPick.cat === id ? '' : id), catOf(id).color))) : null;
+  // v329 (mes choix A + B, 1A 2B 3A du 20 nov., maquette) : onglets texte au lieu des vignettes ; la plus récente « à la une »,
+  // les autres rangées par jour (« Date inconnue » à la fin), 3 par rangée.
+  const tab = (label, n, pressed, onclick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick, 'aria-label': `${label}, ${plural(n, 'photo', 'photos')}` },
+    el('span', { 'aria-hidden': 'true' }, label), el('span', { class: 'seen-tab-n', 'aria-hidden': 'true' }, String(n)));
+  const tiles = all.length ? el('div', { class: 'tabs-line seen-tabs', role: 'group', 'aria-label': 'Catégories' },
+    tab('Tout', all.length, !seenPick.cat, () => pick('')),
+    ...[...byCat].map(([id, list]) => tab(catOf(id).name, list.length, seenPick.cat === id, () => pick(seenPick.cat === id ? '' : id)))) : null;
   const subChips = subsHere.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': street ? 'Artistes' : 'Sous-catégories' },
     el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!seenPick.sub), onclick: () => pick(seenPick.cat) }, street ? 'Tous les artistes' : 'Toutes'),
     ...subsHere.map((x) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(seenPick.sub === x.id), onclick: () => pick(seenPick.cat, seenPick.sub === x.id ? '' : x.id) }, x.name))) : null;
-  const grid = photos.length ? el('div', { class: 'seen-grid' }, photos.map(({ id, p }, i) =>
-    el('button', { type: 'button', class: 'seen-cell', 'aria-label': `${p.name}, ${[catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(', ')}`, onclick: () => openSeenSlides(photos, i, again) },
-      el('img', { alt: '', 'data-photo': id })))) : null;
+  const cell = ({ id, p }, i) => el('button', { type: 'button', class: 'seen-cell', 'aria-label': `${p.name}, ${[catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(', ')}`, onclick: () => openSeenSlides(photos, i, again) },
+    el('img', { alt: '', 'data-photo': id }));
+  const top = photos[0];
+  const topCap = top ? seenCap(top) : null;
+  const une = top ? el('button', { type: 'button', class: 'seen-une', onclick: () => openSeenSlides(photos, 0, again), 'aria-label': `${topCap.title}, ${topCap.sur}${topCap.date ? `, ${topCap.date}` : ''}` },
+    el('img', { alt: '', 'data-photo': top.id, 'data-big': '1' }),
+    el('span', { class: 'seen-une-cap', 'aria-hidden': 'true' }, el('span', { class: 'seen-une-sur' }, topCap.sur), el('span', { class: 'seen-une-title' }, topCap.title),
+      topCap.date ? el('span', { class: 'seen-une-date' }, topCap.date) : null)) : null;
+  const days = seenDays(photos.slice(1).map((x, k) => ({ x, i: k + 1 })));
+  const grid = days.flatMap((g) => [
+    el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, plural(g.items.length, 'photo', 'photos'))),
+    el('div', { class: 'seen-grid' }, g.items.map(({ x, i }) => cell(x, i))),
+  ]);
   openSheet([ico('images'), ' Mes Vu en passant'], el('div', { class: 'stack' }, // le nombre est sous « Tout » : le titre tient sur une ligne
     all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant. + Ajouter → Vu en passant : une photo, une ligne, et elle arrive ici.'),
-    tiles, subChips, grid,
+    tiles, subChips, une, ...grid,
     foot(el('div', { class: 'row' }, backBtn(back), // v307 : exporter ce qui est affiché (tout, une catégorie, une sous-catégorie, un artiste)
       el('button', { type: 'button', class: 'btn c-add', disabled: !photos.length, onclick: () => openSeenExport(photos, [seenPick.cat ? catOf(seenPick.cat).name : 'Tout', subsHere.find((x) => x.id === seenPick.sub)?.name].filter(Boolean).join(' · '), named('Mes Vu en passant', again)) }, ico('download'), `Exporter (${photos.length})`))),
   ), { tall: true, name: 'seen-photos', again });
-  requestAnimationFrame(() => document.querySelector('#sheet .seen-tile[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
-  // les vignettes arrivent une à une (96 px, faites une fois par session)
-  for (const img of document.querySelectorAll('#sheet img[data-photo]')) thumbUrl(img.dataset.photo).then((u) => { if (u && img.isConnected) img.src = u; });
+  requestAnimationFrame(() => document.querySelector('#sheet .seen-tabs [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  // les vignettes arrivent une à une (96 px, faites une fois par session) ; la photo à la une en taille normale
+  for (const img of document.querySelectorAll('#sheet img[data-photo]')) (img.dataset.big ? photoUrl : thumbUrl)(img.dataset.photo).then((u) => { if (u && img.isConnected) img.src = u; });
 }
 /** v307 (mes choix du 20 nov.) : exporter les photos affichées, en .zip : chaque photo avec sa position, sa date et ma ligne,
  *  et un tableau. Tout se fait sur le téléphone ; le fichier part seulement là où je l'envoie, avec un rappel visible. */
@@ -1914,10 +1943,8 @@ function openAttach(note, back) {
 /** Le diaporama : la photo en grand, glisser de côté pour la suivante ; sous la photo, son nom, sa catégorie, sa date et « Voir la fiche ». */
 function openSeenSlides(photos, i, back) {
   // v310 : ma ligne (ou, rangée dans un de mes lieux, son nom et ma ligne) ; catégorie · sous-catégorie ; la date complète.
-  // Le nom tout fait « Vu le 20 nov. » n'est plus répété : la date complète le dit.
-  const caps = photos.map(({ p, at, text, inPass }) => [inPass ? [p.name, text].filter(Boolean).join(' : ') : text,
-    [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '),
-    at ? fullDate(at) : 'Date de la photo inconnue'].filter(Boolean).join('\n'));
+  // v329 : en cartel (surtitre, titre, date), comme la photo à la une.
+  const caps = photos.map(seenCap);
   viewPhoto(photos.map((x) => x.id), i, 'Vu en passant', { caps, open: (k) => openDetail(photos[k].p.id, back),
     del: (k) => { deleteSeenItems([photos[k]]); back(); toast('Photo supprimée'); } }); // v312 (mes choix 1A 2A 3A)
 }
@@ -2960,7 +2987,7 @@ function askDeletePhoto(p, id, back) {
   ), { name: 'photodel' });
 }
 
-/** Photos en plein écran ; le retour d'Android ou un appui ferme. Avec plusieurs photos, glisser de côté passe à la suivante ou à la précédente (v201). */
+/** Photos en plein écran ; le retour d'Android, la croix (v329) ou un appui ferme. Avec plusieurs photos, glisser de côté passe à la suivante ou à la précédente (v201). */
 async function viewPhoto(ids, i, name, extra = null) {
   const u = await photoUrl(ids[i]);
   if (!u) { toast('Photo introuvable.', true); return; }
@@ -2979,23 +3006,35 @@ function showViewerPhoto(u, from = 0) {
   const many = ids.length > 1;
   img.src = u;
   img.alt = many ? `Photo ${i + 1} sur ${ids.length} de ${name}` : `Photo de ${name}`;
-  const count = v.querySelector('.viewer-count');
-  count.textContent = photoCount(i, ids.length);
-  count.hidden = !many;
-  v.querySelector('.viewer-hint').textContent = many ? 'Glisse de côté : autre photo.\nTouche pour fermer.' : 'Touche pour fermer';
-  const cap = v.querySelector('.viewer-cap'); // v306 : la légende du diaporama Vu en passant
-  cap.hidden = !viewerSet.caps;
+  v.querySelector('.viewer-count').textContent = photoCount(i, ids.length); // v329 : « 1 / 2 » en haut, à côté de la croix
+  // v329 (mon choix 3A) : la pellicule, pour toutes les photos en grand ; un appui va à la photo, sans glisser
+  const film = v.querySelector('.viewer-film');
+  film.hidden = !many;
+  if (many) {
+    fill(film, ids.map((id, k) => {
+      const t = el('img', { alt: '' });
+      thumbUrl(id).then((x) => { if (x && t.isConnected) t.src = x; });
+      return el('button', { type: 'button', 'aria-label': `Photo ${k + 1} sur ${ids.length}`, 'aria-current': k === i ? 'true' : null,
+        onclick: async (e) => { e.stopPropagation(); if (k === viewerSet.i) return; const w = await photoUrl(id); if (!w || !viewerOpen) return; const d = k > viewerSet.i ? 1 : -1; viewerSet.i = k; showViewerPhoto(w, d); } }, t);
+    }));
+    requestAnimationFrame(() => film.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  }
+  // v329 : sous la photo, son cartel : surtitre, titre, date (Vu en passant) ; ailleurs, le nom du lieu
+  const cap = v.querySelector('.viewer-cap');
+  const c = viewerSet.caps?.[i] ?? { title: name };
+  const text = () => el('div', { class: 'viewer-cap-text' }, c.sur ? el('span', { class: 'viewer-cap-sur' }, c.sur) : null,
+    c.title ? el('span', { class: 'viewer-cap-title' }, c.title) : null, c.date ? el('span', { class: 'viewer-cap-date' }, c.date) : null);
   const leave = (go) => { const k = viewerSet.i; window.addEventListener('popstate', () => setTimeout(() => go(k), 0), { once: true }); closeViewer(); };
-  const capMain = () => fill(cap, el('span', { class: 'viewer-cap-text' }, viewerSet.caps[i] ?? ''),
-    el('div', { class: 'viewer-cap-btns' },
-      viewerSet.open ? el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); leave(viewerSet.open); } }, 'Voir la fiche', ico('chevron-right')) : null,
-      viewerSet.del ? el('button', { type: 'button', class: 'btn danger', onclick: (e) => { e.stopPropagation(); capAsk(); } }, ico('trash-2'), 'Supprimer') : null));
+  const capMain = () => fill(cap, text(),
+    viewerSet.open || viewerSet.del ? el('div', { class: 'viewer-cap-btns' },
+      viewerSet.del ? el('button', { type: 'button', class: 'btn danger', onclick: (e) => { e.stopPropagation(); capAsk(); } }, ico('trash-2'), 'Supprimer') : null,
+      viewerSet.open ? el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); leave(viewerSet.open); } }, 'Voir la fiche', ico('chevron-right')) : null) : null);
   // v312 : la question sur place, sous la photo ; « Annuler » revient à la légende
   const capAsk = () => fill(cap, el('p', { class: 'viewer-cap-text', role: 'alert' }, 'Supprimer cette photo ? C\'est définitif : elle est effacée du téléphone.'),
     el('div', { class: 'viewer-cap-btns' },
       el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); capMain(); } }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: (e) => { e.stopPropagation(); leave(viewerSet.del); } }, 'Oui, supprimer')));
-  if (viewerSet.caps) capMain();
+  capMain();
   // la nouvelle photo arrive du côté où on l'a tirée (sans mouvement si le téléphone le demande : voir style.css)
   img.classList.add('drag');
   img.style.transform = from ? `translateX(${from * 48}px)` : '';
@@ -3033,6 +3072,7 @@ function closeViewer(fromHistory = false) {
   v.addEventListener('pointerdown', (e) => {
     moved = false;
     if (e.target.closest('.viewer-cap button')) { drag = null; return; } // v306 : « Voir la fiche » n'est pas un glissement
+    if (e.target.closest('.viewer button')) { drag = null; return; } // v329 : ni la croix ni la pellicule
     drag = e.isPrimary && !zoomed() && viewerSet?.ids.length > 1 ? { x: e.clientX, y: e.clientY } : null;
     if (drag) v.setPointerCapture?.(e.pointerId);
   });
@@ -3054,7 +3094,8 @@ function closeViewer(fromHistory = false) {
   };
   v.addEventListener('pointerup', drop);
   v.addEventListener('pointercancel', drop);
-  v.addEventListener('click', () => { if (moved) { moved = false; return; } closeViewer(); });
+  v.addEventListener('click', () => { if (moved) { moved = false; return; } closeViewer(); }); // la croix (v329) ferme aussi : elle passe par ici
+  v.querySelector('.viewer-close').append(ico('x'));
 }
 window.addEventListener('popstate', () => { if (viewerOpen) closeViewer(true); });
 
@@ -11165,6 +11206,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
     '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
     '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
@@ -11174,7 +11216,6 @@ const HELP = [
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Autres réglages → Style de la carte.',
-    '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Autres réglages → Style de la carte. C\'est le fond d\'un téléphone neuf.',
   ]],
 ];
 
