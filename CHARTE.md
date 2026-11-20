@@ -69,7 +69,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - Seul symbole permis dans un libellé : la flèche de retour « ← Nom de l'écran ».
 
 ## 7 bis. Photos (règle du 20 novembre 2026, mon choix A)
-1. **Ma photo d'abord** : elle seule va sur mes lieux. Réduite à 1280 px, sans position (EXIF effacé), gardée sur le téléphone, jamais envoyée.
+1. **Ma photo d'abord** : elle seule va sur mes lieux. Réduite à 1280 px, sans position (EXIF effacé), gardée sur le téléphone, jamais envoyée par l'appli. Exception (mon choix du 20 nov. 2026, v307) : « Exporter » de Mes Vu en passant, que je lance moi-même, remet la position, la date et ma ligne dans chaque photo du fichier, avec un rappel visible (« qui les reçoit le voit »).
 2. **Une photo officielle** seulement si la source de la donnée la fournit (agenda de la Ville) ou si la liste est courte et chaque photo choisie à la main. **Jamais appariée automatiquement** (une photo de Wikidata n'est pas toujours le bon lieu).
 3. Copiée dans l'appli ou servie par la source de la donnée : pas de nouveau service d'images (seule exception aujourd'hui : cdn.paris.fr, pour l'agenda).
 4. **Jamais** dans une ligne de liste, le bandeau « Parcourir », une plaque ou sur la carte : seulement sur la page d'un lieu ou d'une sortie, et elle ne fait jamais bouger les boutons une fois la page ouverte. **Deux exceptions** : la vignette de mes « Vu en passant » sur la carte ; la page **Mes Vu en passant** (+ Ajouter), mosaïque de mes photos prises en passant, 3 par rangée, avec une vignette par catégorie en haut (mon choix du 20 nov. 2026, v306). Seulement mes photos, jamais une photo officielle.
