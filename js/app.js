@@ -27,7 +27,7 @@ import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, 
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
 import { cleanAcces, exitFor } from './acces.js';
-import { typo } from './typo.js';
+import { typo, accord, setMasculin } from './typo.js';
 import { wordsOf, seriesOf, seriesIdOf, hasWord, toggleWord, saveSeries, deleteSeries, WORDS_MAX, WORD_MAX, SERIES_NAME_MAX, SERIES_MAX } from './mots.js';
 import { cleanGares, gareLines, garesNear } from './gares.js';
 import { cleanArch, archLine, sameAuthor, authorName } from './architectes.js';
@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (285)';
+const VERSION = '20 novembre 2026 (286)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -202,6 +202,7 @@ function el(tag, attrs = {}, ...children) {
     if (v == null || v === false) continue;
     if (k === 'class') n.className = v;
     else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k === 'aria-label' || k === 'title') n.setAttribute(k, accord(v)); /* v286 : TalkBack lit aussi le masculin */
     else n.setAttribute(k, v === true ? '' : v);
   }
   const raw = RAW_TAGS.has(tag); // un champ garde le texte tel quel ; le reste suit la typographie (v222)
@@ -334,6 +335,7 @@ const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && darkQuery.matches));
 /** Couleur des traits dessinés sur la carte (cercles, chemins), lisible sur le fond clair comme sombre. */
 const ink = () => (isDark() ? '#e9edf5' : '#1f2a44');
+setMasculin(state.masculin === true); // v286 : avant le premier écran
 function applyTheme() {
   document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark() ? '#14171D' : '#15181D');
@@ -8895,6 +8897,11 @@ function openSettings(section = null) {
       state.navigo = state.navigo === false;
       toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
     }),
+    // v286 (mon choix 3A) : tout en bas, éteint au départ ; l'appli s'adresse à moi au féminin (v223)
+    onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? », « Déjà passée ici »' /* affichés au masculin par accord() */ : 'L\'appli écrit au féminin : « Tu y es allée ? »', state.masculin === true, () => {
+      state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
+      toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
+    }),
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -9864,7 +9871,7 @@ document.getElementById('btnParis').addEventListener('click', () => {
 
 /* ---------- Mes réglages par défaut ---------- */
 
-function applyAllSettings() { setWalkSpeed(paceKmh(state.pace)); setWalkLimit(tune('walkM')); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); drawArrNums(); refresh(); }
+function applyAllSettings() { setMasculin(state.masculin === true); /* v286 */ setWalkSpeed(paceKmh(state.pace)); setWalkLimit(tune('walkM')); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); drawArrNums(); refresh(); }
 function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
@@ -10157,6 +10164,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{spell-check} Écrire au masculin : {settings} → « **Écrire au masculin** », tout en bas. Les phrases qui s\'adressent à toi s\'accordent alors au masculin, TalkBack compris. Éteint au départ : l\'appli écrit au féminin, comme avant.',
     '{badge-percent} Sans passe Navigo ? {settings} → « **J\'ai un passe Navigo** », tout en bas, éteint : l\'onglet Navigo de Sorties, la ligne « Avantage Navigo » des fiches et les avantages dans la loupe disparaissent. Rien n\'est supprimé.',
     '{house} Rentrer, le trajet exact : en bas de Rentrer, « **Google Maps** » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). Google prend ta position lui-même.',
     '{eye} Fiche ancienne : un resto ou un commerce sans nouvelles depuis plus d\'un an dit « a pu fermer » en haut de sa fiche, à côté de sa catégorie. Vu ouvert ? Rangement → « Toujours ouvert ». En bas de chaque fiche, la date d\'ajout du lieu.',
@@ -10166,7 +10174,6 @@ const HELP = [
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
     '{check} TTB, seulement les adresses vérifiées : {settings} → TTB, l\'interrupteur « **Seulement les vérifiées** », sous « Encore ouvertes ? » (le même est en haut de la liste TTB). La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
-    '{trees} Jardins publics sur la carte : ⋯ Plus → Jardins publics. Squares, jardins, parcs et bois de la Ville, en zoomant : vert s\'il est ouvert maintenant, contour gris s\'il est fermé (ou ses horaires inconnus). Touche un jardin pour son heure de fermeture, son adresse et Y aller. Fontaine et WC propose aussi le jardin ouvert le plus proche. Et si tu veux : {settings} → Alertes et bandeau → « Signaler un grand jardin ouvert ». Les jardins arrivent avec le prochain passage du robot des données.',
   ]],
 ];
 

@@ -35,7 +35,7 @@ test('typo : « 1er » pour le premier jour du mois, jamais pour le 11 ou le 21'
 });
 
 test('typo : branchée sur el() et toast(), jamais sur un champ, gardée hors réseau', () => {
-  assert.match(app, /import \{ typo \} from '\.\/typo\.js';/);
+  assert.match(app, /import \{ typo(, [\w, ]+)? \} from '\.\/typo\.js';/); // v286 : avec accord et setMasculin
   assert.match(app, /createTextNode\(raw \? String\(c\) : typo\(c\)\)/);
   assert.match(app, /const RAW_TAGS = new Set\(\['textarea', 'option', 'pre', 'code'\]\);/);
   assert.match(app, /t\.textContent = typo\(msg\);/);
@@ -55,6 +55,9 @@ test('lexique : un mot par chose (CHARTE.md § 8)', () => {
     [/'[^'\n]*\bmail\b[^'\n]*'/, '« courriel »'],
   ];
   for (const [f, src] of js) {
-    for (const [rx, why] of banned) assert.doesNotMatch(src, rx, `${f} : ${why}`);
+    for (const [rx, why] of banned) {
+      if (f.endsWith('typo.js') && why === 'accords au féminin') continue; // v286 : la table « Écrire au masculin » (ACCORDS)
+      assert.doesNotMatch(src, rx, `${f} : ${why}`);
+    }
   }
 });

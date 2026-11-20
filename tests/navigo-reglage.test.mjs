@@ -31,5 +31,6 @@ test('Passe Navigo : l\'interrupteur est tout en bas de Réglages, après Ce que
   const a = app.indexOf("'Ce que j\\'utilise', usage.off");
   const b = app.indexOf("onOff('navigo', 'badge-percent', 'J\\'ai un passe Navigo'");
   assert.ok(a > 0 && b > a, 'après Ce que j\'utilise');
-  assert.ok(app.indexOf('mySettingsBlock(),', b) - b < 600, 'juste avant mes réglages par défaut');
+  const end = app.indexOf('mySettingsBlock(),', b);
+  assert.ok(end > b && !app.slice(b, end).includes('row('), 'en bas : après lui, seulement d\'autres interrupteurs, puis mes réglages par défaut');
 });
