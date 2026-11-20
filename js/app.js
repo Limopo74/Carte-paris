@@ -10482,7 +10482,7 @@ function mySettingsBlock() {
 // (tests/prise-en-main.test.mjs). À revoir avec « Ce que j'utilise » (v255) quand il aura quelques semaines de comptes.
 const HELP = [
   ['hand', 'Prise en main', [
-    '{locate-fixed} **Où suis-je** : Ma position, en bas de la colonne de boutons. Le point bleu, c\'est toi ; la carte te suit.',
+    '{locate-fixed} **Où suis-je** : Ma position, la cible dans la colonne de boutons. Le point bleu, c\'est toi ; la carte te suit.',
     '**Autour de moi**, le gros bouton en bas : tes lieux du plus proche au plus loin. En haut : Itinéraire, Sorties, Station, Où suis-je ?…',
     '**Aller à un lieu** : touche sa goutte sur la carte, ou sa ligne dans une liste. Sur sa fiche, **Y aller** ouvre Google Maps, **Boussole** montre la direction (même sans réseau), **Métro** dit quel métro prendre.',
     '**M** : la station de métro la plus proche de toi. {house} **Rentrer** : quel métro prendre vers ta station Maison (au départ dans ⋯ Plus ; tes stations : {settings} → Mes stations).',
@@ -10495,7 +10495,7 @@ const HELP = [
     '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
-    '**{locate-fixed} Ma position**, en bas de la colonne de droite : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
+    '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Alertes et bandeau.',
@@ -10516,8 +10516,8 @@ const HELP = [
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
-    '**La colonne de droite** : Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning, {ellipsis} Plus et Ma position.',
-    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : au départ Fontaine et WC et Vélib\' (les plus proches de toi), Rentrer et Circuits, et Note du jour sauf sur un nouveau téléphone, où elle est sur la carte.',
+    '**La colonne de boutons** : Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
+    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, et Fontaine et WC s\'il n\'est pas masqué.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
@@ -10849,7 +10849,7 @@ function openWelcome(step = 1) {
           state = home ? { ...state, myStations: state.myStations.map((x) => (x.id === home.id ? { ...x, station: st.n } : x)) } : addMyStation(state, st.n, 'Maison');
           persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(4);
         }, { name: 'Rentrer', fn: go(4) }) }, ico('house'), home ? 'Changer de station' : 'Choisir ma station Maison'),
-        el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, en bas de la colonne.'),
+        el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, dans la colonne de boutons.'),
       ];
     })(), [back, next()]],
     5: ['Ta position', [

@@ -244,12 +244,15 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 
 /** v312 (mes choix du 20 nov., d'après ma capture) : le départ d'un nouveau venu, seulement quand la mémoire est vide.
  * Barre du haut : Dans la rue et Lignes ; les catégories et Vu en passant sous ⋯ Plus (2e capture, 18 h 50) ; Favoris masqué,
- * TTB aussi tant qu'aucune liste n'est importée. Colonne : Note du jour sur la carte. Mon téléphone et les « comme au début » ne changent pas. */
+ * TTB aussi tant qu'aucune liste n'est importée. Colonne : FRESH_TOOLS. Mon téléphone et les « comme au début » ne changent pas. */
 export const FRESH_HIDDEN_CHIPS = ['ttb', 'fav'];
+/** Colonne de la carte d'un nouveau venu (3e capture, 18 h 53) : Ma position en tête, Paris, M, Sorties, Mon planning ;
+ * sous ⋯ Plus, dans cet ordre : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué. */
+export const FRESH_TOOLS = { mapTools: ['locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes'] };
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
-  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], moreTools: (st.moreTools ?? DEFAULT_MORE).filter((t) => t !== 'notes') };
+  return { ...st, categories, hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...cats], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools] };
 }
 
 /** Lit l'état enregistré. ok=false si le stockage est indisponible ou illisible. */
