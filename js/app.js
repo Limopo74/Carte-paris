@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (279)';
+const VERSION = '20 novembre 2026 (280)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -8871,6 +8871,12 @@ function openSettings(section = null) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(isDark() ? 'moon' : 'sun')),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
     el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    // v280 : après un choix à la main, le chemin pour revenir au réglage du téléphone (avant : perdu pour de bon)
+    state.theme === 'light' || state.theme === 'dark' ? el('button', { type: 'button', class: 'menu-row c-info', onclick: () => {
+      state.theme = 'auto'; persist(); applyTheme(); refresh(); openSettings();
+      toast('Mode sombre : comme le téléphone');
+    } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('rotate-ccw')), /* une action, pas une page : pas de › */
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Comme le téléphone'), el('span', { class: 'menu-sub' }, 'Clair ou sombre selon son réglage'))) : null,
     row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
     arrNumsSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
@@ -9931,7 +9937,7 @@ const HELP = [
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
     '{palette} **Allure de la carte** : {settings} → Style de la carte. Le style Épuré demande une clé CARTO gratuite, à coller une fois.',
-    '{moon} **Fond sombre** : {settings} → Mode sombre. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '{moon} **Fond sombre** : {settings} → Mode sombre ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages par défaut », en bas des Réglages, permet d\'y revenir d\'un appui.',
   ]],
   ['calendar-days', 'Trouver une sortie', [
