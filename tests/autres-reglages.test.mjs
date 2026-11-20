@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
-const OTHERS = ['Mes lignes de bus', 'Mots tout prêts', 'Favoris', 'Vu en passant', 'Ouvrir sur ma position', 'Distances et durées', 'Mon pas',
+const OTHERS = ['Mes lignes de bus', 'Mots tout prêts', 'Favoris', 'Vu en passant', 'À l\\\'ouverture, la carte montre', 'Distances et durées', 'Mon pas',
   'Style de la carte', 'Alertes et bandeau', 'Numéros des arrondissements', 'Filtres affichés', 'Fiche d\\\'un lieu', 'J\\\'ai un passe Navigo',
   'Écrire au masculin', 'Mise à jour et confidentialité', 'Ce que j\\\'utilise', 'Période de test', 'Mes remarques', 'Essayer le premier lancement',
   'Préparer le démarrage d\\\'un proche']; // v322 : la ligne de la v321 d'une autre conversation, rangée aussi
@@ -38,7 +38,7 @@ test('Aucun texte ne cite un chemin qui saute « Autres réglages »', () => {
 });
 
 test('Les pages rangées ramènent à Autres réglages', () => {
-  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli'\];/);
+  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'\];/);
   assert.match(app, /inOthers \? '← Autres réglages' : '← Réglages'/);
   for (const f of ['function openFavStyle', 'function openUsage', 'async function openMyBusLines', 'function openWordSeries', 'function openPrepList']) {
     const i = app.indexOf(f);

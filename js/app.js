@@ -12,7 +12,7 @@ import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, re
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend,
+  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
@@ -66,7 +66,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (327)';
+const VERSION = '20 novembre 2026 (328)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -356,6 +356,23 @@ const foot = (...kids) => { const k = kids.flat().filter(Boolean); return k.leng
 /* ---------- Carte ---------- */
 
 const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(PARIS, 13);
+// v328 : « À l'ouverture, la carte montre » : les noms, et la dernière vue gardée à part (hors sauvegarde, pas en essai)
+const START_VIEW_NAME = { me: 'Ma position', all: 'Tous mes lieux', home: 'Chez moi', paris: 'Le centre de Paris', last: 'Là où je l\'ai laissée' };
+const START_VIEW_SUB = { me: 'Dans Paris, si elle est déjà autorisée ; sinon tous tes lieux', all: 'Tous tes lieux d\'un coup d\'œil', home: 'Autour de Chez moi', paris: 'Châtelet, tout Paris autour', last: 'Le même endroit, le même zoom' };
+const START_VIEW_ICON = { me: 'locate', all: 'map-pin', home: 'house', paris: 'map', last: 'rotate-ccw' };
+const START_VIEWS = Object.keys(START_VIEW_NAME);
+const VIEW_KEY = 'carte-paris.vue';
+function readLastView() {
+  try {
+    const v = JSON.parse(storage.getItem(VIEW_KEY) ?? 'null');
+    return v && Number.isFinite(v.lat) && Number.isFinite(v.lng) && Number.isFinite(v.zoom) && Math.abs(v.lat) <= 90 && Math.abs(v.lng) <= 180 ? { lat: v.lat, lng: v.lng, zoom: Math.min(19, Math.max(3, v.zoom)) } : null;
+  } catch { return null; }
+}
+map.on('moveend', () => {
+  if (startViewOf(state) !== 'last') return;
+  const c = map.getCenter();
+  try { storage.setItem(VIEW_KEY, JSON.stringify({ lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom() })); } catch { /* stockage plein : tant pis */ }
+});
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 // Fonds de carte sans clé : OpenStreetMap, et les rendus d'OpenStreetMap France (« FR » et humanitaire).
 // Pastel et Nuit sont des filtres de couleur appliqués sur le téléphone : aucun service de plus.
@@ -8830,7 +8847,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli'];
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'];
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 function openSettings(section = null) {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
@@ -9475,6 +9492,19 @@ function openSettings(section = null) {
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, 'aria-label': `${label(tuningText(key, tune(key)))} : moins`, onclick: () => tuneStep(key, -1, label) }, ico('minus')),
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, 'aria-label': `${label(tuningText(key, tune(key)))} : plus`, onclick: () => tuneStep(key, 1, label) }, ico('plus')));
 
+  if (section === 'ouverture') { // v328 : où la carte s'ouvre (Réglages → Autres réglages → La carte)
+    const cur = startViewOf(state);
+    const hasHome = Boolean(cleanHome(state.home));
+    const choose = (k) => { state.startView = k; state.startOnMe = k === 'me'; persist(); openSettings('ouverture'); toast(`À l'ouverture : ${START_VIEW_NAME[k].toLowerCase()}`); };
+    openSheet([ico('locate'), ' À l\'ouverture'], el('div', { class: 'stack' },
+      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'À l\'ouverture, la carte montre' }, START_VIEWS.map((k) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(cur === k), 'data-start-view': k, onclick: () => choose(k) },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(cur === k ? 'check' : START_VIEW_ICON[k])),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, START_VIEW_NAME[k]), el('span', { class: 'menu-sub' }, k === 'home' && !hasHome ? 'Chez moi n\'est pas posé : tous tes lieux' : START_VIEW_SUB[k]))))),
+      el('p', { class: 'help tip' }, 'Un lien reçu (lieu, balade, rendez-vous) passe avant ce choix. « Ma position » ne demande rien : seulement si elle est déjà autorisée, récente et dans Paris.'),
+      backBtn,
+    ));
+    return;
+  }
   if (section === 'vu') { // v308 : Réglages → Vu en passant
     const startSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Au départ, ranger dans' },
       [['vu', 'Vu en passant'], ['street', 'Street art'], ['last', 'La dernière']].map(([k, label]) => el('button', { type: 'button', 'aria-pressed': String((state.seenStart ?? 'vu') === k), onclick: () => { state.seenStart = k; persist(); openSettings('vu'); toast(`Au départ : ${label}`); } }, label)));
@@ -9614,14 +9644,8 @@ function openSettings(section = null) {
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
     row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
-    // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
-    el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.startOnMe !== false), onclick: () => {
-      state.startOnMe = state.startOnMe === false; persist(); openSettings('autres');
-      toast(state.startOnMe ? 'La carte s\'ouvrira sur ta position, dans Paris' : 'La carte s\'ouvrira sur tous tes lieux');
-    } },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
-    el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    // v328 (mes choix du 20 nov.) : où la carte s'ouvre, à la place de l'interrupteur « Ouvrir sur ma position » (v176)
+    row('locate', 'À l\'ouverture, la carte montre', START_VIEW_NAME[startViewOf(state)], () => openSettings('ouverture'), false, 'c-guide'),
     row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
     row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
@@ -10883,7 +10907,7 @@ const HELP = [
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
-    '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → Autres réglages → Ouvrir sur ma position.',
+    '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
@@ -11141,6 +11165,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
     '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
@@ -11150,7 +11175,6 @@ const HELP = [
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
     '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Autres réglages → Style de la carte.',
     '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Autres réglages → Style de la carte. C\'est le fond d\'un téléphone neuf.',
-    '{hand} **Essayer le premier lancement** : {settings} → Autres réglages, tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
   ]],
 ];
 
@@ -11541,8 +11565,13 @@ async function receiveDepart(code) {
 
 renderChips();
 renderMarkers();
+const startHome = startViewOf(state) === 'home' ? cleanHome(state.home) : null;
+const startLast = startViewOf(state) === 'last' ? readLastView() : null;
+if (startLast) map.setView([startLast.lat, startLast.lng], startLast.zoom, { animate: false }); // v328 : là où je l'ai laissée
+else if (startHome) map.setView([startHome.lat, startHome.lng], 15, { animate: false }); // v328 : Chez moi
+else if (startViewOf(state) === 'paris') map.setView(PARIS, 13, { animate: false }); // v328 : le centre de Paris
 if (state.points.length) {
-  map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
+  if (!startLast && !startHome && startViewOf(state) !== 'paris') map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
 } else if (state.ok && !/(lieu|balade|rdv|ouvrir|depart)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
   // v314 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
   if (state.fresh) { openWelcome(1); persist(); } else openSheet('Ta carte est vide', el('div', { class: 'stack' },
@@ -11673,7 +11702,7 @@ const startedAt = Date.now();
 let mapTouched = false;
 map.getContainer().addEventListener('pointerdown', () => { mapTouched = true; }, { once: true });
 function startOnMe(fix, age) {
-  if (state.startOnMe === false || mapTouched || launched || following || Date.now() - startedAt > 2000) return;
+  if (startViewOf(state) !== 'me' || mapTouched || launched || following || Date.now() - startedAt > 2000) return;
   if (age > 30000 || !(fix.acc <= 150) || !(fix.lat > 48.80 && fix.lat < 48.92 && fix.lng > 2.22 && fix.lng < 2.48)) return;
   centerOn(fix.lat, fix.lng, 16);
   meShown = fix;

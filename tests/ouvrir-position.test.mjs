@@ -17,7 +17,7 @@ test('allumé sur une appli neuve et chez qui avait déjà ses réglages', () =>
 
 test('éteint, il le reste après rechargement et part avec la sauvegarde', () => {
   const st = memStorage();
-  assert.ok(saveState(st, { ...loadState(st), startOnMe: false }));
+  assert.ok(saveState(st, { ...loadState(st), startOnMe: false, startView: 'all' }));
   const back = loadState(st);
   assert.equal(back.startOnMe, false);
   assert.equal(readSettings(JSON.parse(exportJSON(back))).startOnMe, false);
