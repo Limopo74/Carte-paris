@@ -79,6 +79,7 @@ export const FIXED_DATA = [
   { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâches programmées Claude chaque 1er mars et chaque 1er septembre (v225)
+  { id: 'primes', name: 'Boulangeries primées (Autour de moi)', every: 365 }, // v265 ; listes tenues à la main (js/baguettes.js)
 ];
 /** « tous les 6 mois », « tous les ans »… (les données du robot : « chaque mois »). */
 export const everyText = (days) => (days >= 360 ? 'tous les ans' : days <= 45 ? 'chaque mois' : `tous les ${Math.round(days / 30.5)} mois`);

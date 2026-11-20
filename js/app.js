@@ -51,6 +51,7 @@ import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageRe
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg } from './explore.js';
+import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -60,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (264)';
+const VERSION = '20 novembre 2026 (265)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -173,7 +174,7 @@ function net(url, opts = {}) {
 let ratpUpdated = '';
 function dataDates() {
   return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
-    merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON };
+    merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON, primes: BAGUETTES_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
 function remindData() {
@@ -3166,6 +3167,21 @@ function renderNear(fit = false) {
     body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
   }
 
+  { /* v265 (mes choix du 20 nov. : bas d'Autour de moi, 10 premiers sur 3 ans, la ligne ne s'ouvre pas, croissant ajouté) :
+       les boulangeries primées à la distance du plus grand cercle, après tout le reste (ne pousse rien) ; rien du tout s'il n'y en a aucune */
+    const prized = prizedNear(origin, maxRing, distanceM);
+    if (prized.length) {
+      body.push(el('h3', { class: 'ring-title' }, el('span', {}, `Boulangeries primées à moins de ${ringText(maxRing)}`), el('span', {}, String(prized.length))));
+      body.push(el('ul', { class: 'items' }, prized.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
+        el('div', { class: 'item-main' },
+          el('span', { class: 'cat-ico prized-ico', 'aria-hidden': 'true' }, ico('wheat')),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${prizeText(x)}`))),
+        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
+        el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
+      body.push(el('p', { class: 'help' }, 'Baguette : Grand Prix de la Ville de Paris. Croissant : concours des boulangers du Grand Paris. 2024 à 2026 ; une boulangerie a pu fermer depuis.'),
+        el('p', { class: 'help tip' }, `Listes tenues à la main d'après paris.fr et le site du Syndicat des boulangers du Grand Paris, vérifiées le ${BAGUETTES_CHECKED}. Les 10 premiers de chaque année, adresses de Paris seulement ; croissant 2026 : seulement la gagnante (le Syndicat n'a pas mis sa liste en ligne). Un prix vaut pour l'adresse primée, pas pour les autres boutiques de la même enseigne. Les heures d'ouverture ne sont pas connues ici.`));
+    }
+  }
   openSheet([ico('map-pinned'), ` ${nearTitle()}`], body, { name: 'near', again: nearAgain });
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
   if (fit) {
@@ -8577,6 +8593,12 @@ function openSettings(section = null) {
         el('p', { class: 'help' }, `Les horaires des 9 marchés couverts sont relevés à la main sur paris.fr (le ${COVERED_CHECKED}). Rien à télécharger : demande à Claude « Vérifie les horaires des marchés couverts ».`),
         el('p', { class: 'help tip' }, `Deux marchés en plein air, Télégraphe et Saint-Didier, ont des jours faux dans le fichier de la Ville : corrigés à la main d'après paris.fr le ${MARKET_FIX_CHECKED}.`),
         el('a', { class: 'btn c-info', href: COVERED_SOURCE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Les marchés sur paris.fr')],
+      primes: () => [
+        el('p', { class: 'help' }, `Relevées à la main le ${BAGUETTES_CHECKED}. Rien à télécharger : demande à Claude « Vérifie les boulangeries primées ».`),
+        el('p', { class: 'help tip' }, 'Sert au bas d\'Autour de moi. Les palmarès sortent en février ou mars (baguette, Ville de Paris) et en mai (croissant, Syndicat des boulangers du Grand Paris).'),
+        el('div', { class: 'menu' },
+          el('a', { class: 'menu-row c-info', href: BAGUETTES_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Grand Prix de la baguette'), el('span', { class: 'menu-sub' }, 'Ville de Paris, paris.fr')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))),
+          el('a', { class: 'menu-row c-info', href: CROISSANT_SOURCE, target: '_blank', rel: 'noopener' }, el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Meilleur croissant du Grand Paris'), el('span', { class: 'menu-sub' }, 'Syndicat des boulangers du Grand Paris')), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link'))))],
       listes: () => [
         el('p', { class: 'help' }, `Listes tenues par Claude, vérifiées le ${FREE_CHECKED} : musées et monuments gratuits (et leurs jours), temps forts de l'année ; Kiosque Théâtre vérifié le ${KIOSQUE_CHECKED} ; grands lieux (${ART_PLACES.length}, vérifiés le ${ART_PLACES_CHECKED}). Deux tâches programmées les préparent, chaque 1er mars et chaque 1er septembre, et te demandent ton accord. Sinon, demande à Claude « Mets à jour les listes annuelles ».`),
         el('div', { class: 'menu' },
@@ -10054,6 +10076,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{wheat} Boulangeries primées : en bas d\'Autour de moi, les plus proches, si l\'une est à la distance de ton plus grand cercle. Baguette : Grand Prix de la Ville de Paris ; croissant : concours des boulangers du Grand Paris (2024 à 2026). Boussole et Y aller ; la boulangerie a pu fermer depuis.',
     '{camera} Une photo d\'un jardin : touche un jardin sur la carte (⋯ Plus → Jardins publics), puis « Prendre une photo » en haut de sa page. La photo va sur ta fiche ; si le jardin n\'est pas encore dans tes lieux, il s\'y ajoute seul (Parcs et jardins), avec « Annuler » dans le message. Rien ne part de ton téléphone.',
     '{bus} Rentrer en bus depuis plusieurs arrêts : {settings} → Mes stations → « Ajouter un arrêt de bus », sous ton premier arrêt (3 au plus par station). Rentrer réunit les lignes de tes arrêts et dit à lequel chacune te dépose.',
     '{check} TTB, seulement les adresses vérifiées : {settings} → TTB → Voir la liste (ou un appui long sur le bouton TTB), puis l\'interrupteur « **Seulement les vérifiées** », en haut. La carte, la liste, Autour de moi et la loupe ne gardent que celles que tu as vérifiées depuis moins de 6 mois. Il reste allumé jusqu\'à ce que tu l\'éteignes.',
@@ -10063,7 +10086,6 @@ const HELP = [
     '{hand} Prise en main : en tête de {settings} → Aide, les 8 gestes à connaître en premier (Où suis-je, Autour de moi, aller à un lieu, M et Rentrer, ajouter, sortir, sauvegarder, se retrouver dans un écran).',
     '{house} Rentrer, M, Ma position, Où suis-je ? : le message « Recherche… » reste affiché tant que le téléphone cherche ta position (jusqu\'à 15 s à l\'intérieur). Avant, il partait au bout de 3 s et l\'écran semblait ne rien faire.',
     '{route} La distance entre deux lieux : Autour de moi → Itinéraire → Mes parcours → Nouveau parcours, puis touche les deux lieux sur la carte. La distance et la durée à pied, par les rues, s\'affichent en haut. « Annuler » si tu ne veux pas le garder.',
-    '{chart-no-axes-column} Ce que j\'utilise : {settings} → Ce que j\'utilise, tout en bas. L\'appli compte, sur ton téléphone seulement, les écrans que tu ouvres et les boutons que tu touches. Dans quelques semaines, tu verras ceux que tu ne touches jamais, pour les masquer ou en parler à Claude. Ni lieu, ni heure, ni position.',
   ]],
 ];
 
