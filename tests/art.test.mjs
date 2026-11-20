@@ -314,3 +314,8 @@ test('Kiosque : une date de vérification lisible, affichée dans Données de l\
   assert.equal((app.match(/\$\{KIOSQUE_CHECKED\}/g) ?? []).length, 2);
   assert.match(app, /chaque 1er mars et chaque 1er septembre/);
 });
+
+test('musées et monuments gratuits : chacun a son site officiel, en https (v269)', () => {
+  for (const p of FREE_PLACES) assert.match(p.url ?? '', /^https:\/\/[^\s"<>]+$/, `${p.name} : site officiel manquant`);
+  assert.ok(freeToday(new Date(2026, 11, 6, 12)).every((p) => p.url), 'le lien suit le lieu dans « Gratuit aujourd\'hui »');
+});

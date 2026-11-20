@@ -61,7 +61,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (268)';
+const VERSION = '20 novembre 2026 (269)';
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
 const FRESH_MS = 10 * 60 * 1000; // une position de moins de 10 min sert encore aux distances
@@ -5232,7 +5232,8 @@ const eventRow = (e, back, { last = false, week = false } = {}) => {
 /** Un musée gratuit aujourd'hui. */
 /** Page d'un musée gratuit : quand c'est gratuit, et s'il est ouvert en ce moment (v156 ; rien si l'horaire n'est pas sûr). */
 const openFreeSpot = (f, back = null) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
-  lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}`, fav: 'musee' });
+  lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur son site officiel avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}`, fav: 'musee',
+  link: f.url ? [f.url, 'Site officiel'] : null }); // v269 : la page dit de vérifier sur le site : le lien y mène
 /* ---------- Un jour gratuit à venir (v168) : les lieux gratuits ce jour-là, leurs heures, Prévoir ---------- */
 /** Les heures d'un lieu un jour donné : « 9h30 – 18h », « Fermé ce jour-là » ou null (horaires inconnus). */
 function hoursOn(f, date) {
@@ -5259,7 +5260,8 @@ function openFreeDaySpot(f, date, back) {
   };
   openSpot({ icon: 'landmark', title: f.name, kicker: `Gratuit ${dayTitle(date)}`, place: f, back, key: `gratuitjour:${f.lat},${f.lng}:${date.getTime()}`, fav: 'musee',
     lines: [h ? el('p', {}, ico('clock'), ` Ce jour-là : ${h}`) : el('p', { class: 'help' }, 'Horaires de ce jour-là inconnus : vérifie avant d\'y aller.'),
-      `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur le site du musée avant d\'y aller.'],
+      `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur son site officiel avant d\'y aller.'],
+    link: f.url ? [f.url, 'Site officiel'] : null, // v269
     extra: el('button', { type: 'button', class: 'btn c-disc', onclick: plan }, ico('alarm-clock'), `Prévoir ce ${day}`) });
 }
 /** La page d'un jour gratuit à venir (Sorties → Gratuit → Bientôt gratuit, ou le bandeau « Maintenant ») : du plus proche au plus loin. */
