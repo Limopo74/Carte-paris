@@ -1285,3 +1285,7 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 .seen-cat-row .tool-main { min-width: 0; }
 .seen-cat-row .tool-rename { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; text-align: left; }
 .seen-cat-row .tool-rename .menu-sub { grid-column: 2; }
+/* v312 : sous la photo du diaporama, « Voir la fiche » et « Supprimer » l'un sous l'autre ; la question sur place */
+.viewer-cap-btns { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.viewer-cap .btn.danger { background: #fff; color: var(--danger); }
+.viewer-cap .btn.danger.solid { background: var(--danger); color: #fff; }

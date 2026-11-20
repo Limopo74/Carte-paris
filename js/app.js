@@ -62,7 +62,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (311)';
+const VERSION = '20 novembre 2026 (312)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -1726,6 +1726,57 @@ function openSeenExport(photos, label, back) {
     foot(backBtn(back)),
   ), { name: 'seen-export', again: () => openSeenExport(photos, label, back) });
 }
+/** v312 (mes choix 2A du 20 nov.) : supprimer des photos prises en passant. Une note perd la photo ; sans autre photo, la note
+ *  part avec ; une photo rattachée à un de mes lieux ne retire que son impression (le lieu reste). Définitif : photos effacées
+ *  du téléphone. Renvoie le nombre de photos effacées. */
+function deleteSeenItems(items) {
+  let n = 0;
+  for (const { id, p, inPass } of items) {
+    const place = state.points.find((x) => x.id === p.id);
+    if (!place) continue;
+    if (inPass) place.passages = (place.passages ?? []).filter((x) => x.photo !== id);
+    else {
+      place.photos = (place.photos ?? []).filter((x) => x !== id);
+      if (!place.photos.length) { // la note n'a plus de photo : elle part, avec les photos de ses impressions
+        for (const ph of photoIds(place)) deletePhoto(ph).catch(() => {});
+        state.points = state.points.filter((x) => x.id !== place.id);
+      }
+    }
+    deletePhoto(id).catch(() => {});
+    n += 1;
+  }
+  persist(); refresh();
+  return n;
+}
+/** v312 (mes choix 1A 3A 4A) : en bas de la page d'une catégorie (Réglages → Vu en passant) : supprimer d'un coup ses photos prises
+ *  en passant ; si elle ne contient rien d'autre, la catégorie part aussi. Une question sur place, avec le nombre. */
+function seenDeleteZone(catId, again) {
+  const items = seenItems().filter((x) => x.p.cat === catId);
+  if (!items.length) return null;
+  const c = catOf(catId);
+  const onlyPass = !state.points.some((p) => p.cat === catId && (!isPass(p) || p.owner));
+  const zone = el('div', { class: 'stack' });
+  const one = items.length === 1;
+  const its = one ? 'sa photo' : `ses ${items.length} photos`; // « sa photo », jamais « ses 1 photo »
+  const label = onlyPass ? `Supprimer la catégorie et ${its}` : `Supprimer ${its} prise${one ? '' : 's'} en passant`;
+  const show = () => fill(zone, el('button', { type: 'button', class: 'btn danger', onclick: ask }, ico('trash-2'), label));
+  const ask = () => fill(zone,
+    el('p', { class: 'warn', role: 'alert' }, onlyPass
+      ? `Supprimer « ${c.name} » et ${its} ? C'est définitif : ${one ? 'elle est effacée' : 'elles sont effacées'} du téléphone.`
+      : `Supprimer ${one ? 'la photo' : `les ${items.length} photos`} de « ${c.name} » prise${one ? '' : 's'} en passant ? C'est définitif : ${one ? 'elle est effacée' : 'elles sont effacées'} du téléphone. Tes autres lieux de « ${c.name} » restent.`),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn', onclick: show }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
+        const n = deleteSeenItems(items);
+        if (onlyPass && state.categories.length > 1 && !state.points.some((p) => p.cat === catId)) {
+          try { state = deleteCategory(state, catId, null); persist(); refresh(); } catch { /* la dernière catégorie reste */ }
+          openSettings('vu'); toast(`« ${c.name} » supprimée, avec ${plural(n, 'photo', 'photos')}`);
+        } else { again(); toast(plural(n, 'photo supprimée', 'photos supprimées')); }
+      } }, 'Oui, supprimer')));
+  show();
+  return zone;
+}
+
 /** v311 (mes choix 3A 4A 5C du 20 nov.) : les sous-catégories d'une catégorie, préparées avant la balade : créer, renommer,
  *  supprimer (ses photos restent), ↑ ↓ pour l'ordre où elles sont proposées après la photo. Street art : l'artiste, pas de sous-catégorie. */
 function openSeenSubs(catId) {
@@ -1736,6 +1787,7 @@ function openSeenSubs(catId) {
   if (isStreetCat(c0)) {
     openSheet([dotOf(c0), ` ${c0.name}`], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Pour Street art, l\'appli demande l\'artiste à la place d\'une sous-catégorie. Dans Mes Vu en passant, tes artistes servent de sous-catégories.'),
+      seenDeleteZone(catId, again), // v312
       foot(backBtn(back))), { name: `seen-subs:${catId}`, again });
     return;
   }
@@ -1775,6 +1827,7 @@ function openSeenSubs(catId) {
       moveBtn(x, i, -1), moveBtn(x, i, 1),
       el('button', { type: 'button', class: 'btn danger move', 'aria-label': `Supprimer la sous-catégorie ${x.name}`, onclick: () => remove(x) }, ico('x'))))) : el('p', { class: 'empty' }, 'Aucune sous-catégorie pour l\'instant.'),
     el('div', { class: 'row' }, input, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: create }, ico('plus'), 'Créer')),
+    seenDeleteZone(catId, again), // v312 : tout en bas
     foot(backBtn(back)),
   ), { tall: true, name: `seen-subs:${catId}`, again });
 }
@@ -1824,7 +1877,8 @@ function openSeenSlides(photos, i, back) {
   const caps = photos.map(({ p, at, text, inPass }) => [inPass ? [p.name, text].filter(Boolean).join(' : ') : text,
     [catOf(p.cat).name, subNameOf(state.categories, p) || p.artist].filter(Boolean).join(' · '),
     at ? fullDate(at) : 'Date de la photo inconnue'].filter(Boolean).join('\n'));
-  viewPhoto(photos.map((x) => x.id), i, 'Vu en passant', { caps, open: (k) => openDetail(photos[k].p.id, back) });
+  viewPhoto(photos.map((x) => x.id), i, 'Vu en passant', { caps, open: (k) => openDetail(photos[k].p.id, back),
+    del: (k) => { deleteSeenItems([photos[k]]); back(); toast('Photo supprimée'); } }); // v312 (mes choix 1A 2A 3A)
 }
 
 /* ---------- Vu en passant (v157) : la position se cherche pendant la photo ; une ligne facultative ; Garder ---------- */
@@ -2843,7 +2897,17 @@ function showViewerPhoto(u, from = 0) {
   v.querySelector('.viewer-hint').textContent = many ? 'Glisse de côté : autre photo.\nTouche pour fermer.' : 'Touche pour fermer';
   const cap = v.querySelector('.viewer-cap'); // v306 : la légende du diaporama Vu en passant
   cap.hidden = !viewerSet.caps;
-  if (viewerSet.caps) fill(cap, el('span', { class: 'viewer-cap-text' }, viewerSet.caps[i] ?? ''), viewerSet.open ? el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); const k = viewerSet.i; const go = viewerSet.open; window.addEventListener('popstate', () => setTimeout(() => go(k), 0), { once: true }); closeViewer(); } }, 'Voir la fiche', ico('chevron-right')) : null);
+  const leave = (go) => { const k = viewerSet.i; window.addEventListener('popstate', () => setTimeout(() => go(k), 0), { once: true }); closeViewer(); };
+  const capMain = () => fill(cap, el('span', { class: 'viewer-cap-text' }, viewerSet.caps[i] ?? ''),
+    el('div', { class: 'viewer-cap-btns' },
+      viewerSet.open ? el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); leave(viewerSet.open); } }, 'Voir la fiche', ico('chevron-right')) : null,
+      viewerSet.del ? el('button', { type: 'button', class: 'btn danger', onclick: (e) => { e.stopPropagation(); capAsk(); } }, ico('trash-2'), 'Supprimer') : null));
+  // v312 : la question sur place, sous la photo ; « Annuler » revient à la légende
+  const capAsk = () => fill(cap, el('p', { class: 'viewer-cap-text', role: 'alert' }, 'Supprimer cette photo ? C\'est définitif : elle est effacée du téléphone.'),
+    el('div', { class: 'viewer-cap-btns' },
+      el('button', { type: 'button', class: 'btn', onclick: (e) => { e.stopPropagation(); capMain(); } }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn danger solid', onclick: (e) => { e.stopPropagation(); leave(viewerSet.del); } }, 'Oui, supprimer')));
+  if (viewerSet.caps) capMain();
   // la nouvelle photo arrive du côté où on l'a tirée (sans mouvement si le téléphone le demande : voir style.css)
   img.classList.add('drag');
   img.style.transform = from ? `translateX(${from * 48}px)` : '';
@@ -9200,6 +9264,8 @@ function openSettings(section = null) {
     const startSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Au départ, ranger dans' },
       [['vu', 'Vu en passant'], ['street', 'Street art'], ['last', 'La dernière']].map(([k, label]) => el('button', { type: 'button', 'aria-pressed': String((state.seenStart ?? 'vu') === k), onclick: () => { state.seenStart = k; persist(); openSettings('vu'); toast(`Au départ : ${label}`); } }, label)));
     openSheet([ico('camera'), ' Vu en passant'], el('div', { class: 'stack' },
+      // v312 (mon choix 5A) : tout Vu en passant depuis ici : la mosaïque (diaporama, export), puis les réglages, les catégories
+      el('div', { class: 'menu' }, row('images', `Mes Vu en passant · ${seenPhotoCount()}`, 'La mosaïque, le diaporama, l\'export', () => openSeenPhotos(named('Vu en passant', () => openSettings('vu'))), false, 'c-add')),
       el('div', { class: 'menu' },
         onOff('seenKeep', 'rotate-cw', 'Garder la catégorie', 'Pour la photo suivante (appli ouverte)', state.seenKeep !== false, () => { state.seenKeep = state.seenKeep === false; })),
       el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Au départ, ranger dans'), startSeg,
@@ -10535,6 +10601,7 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
+    '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
     '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant → Rangement) : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
     '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
     '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Vu en passant → « Après la photo ».',
@@ -10667,6 +10734,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
     '{camera} Prépare ta balade : {settings} → Vu en passant → « **Après la photo** ». Coche les catégories proposées après la photo, règle leur ordre (↑ ↓), et touche une catégorie pour créer, renommer, ordonner ou supprimer ses sous-catégories. Après la photo, « Nouvelle » et « Créer » restent là pour en ajouter sur place.',
     '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
     '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
@@ -10676,7 +10744,6 @@ const HELP = [
     '{panel-top} Barre du haut, sa propre page : {settings} → Barre du haut. Toutes tes catégories y sont, **Vu en passant** compris, même avant ta première photo ; ↑ ↓ peuvent maintenant les faire passer devant TTB ou l\'étoile. « Catégories et listes » ne garde que les noms, couleurs et listes.',
     '{settings} Réglages plus clairs : la ligne du haut s\'appelle « **Aide de l\'appli** » (« ⓘ Aide », tout en bas, explique seulement Réglages) ; « Barre du haut », « Filtres affichés » et « Fiche d\'un lieu » ont leur propre icône.',
     '{camera} Vu en passant, ranger ta photo : après la photo, choisis la **catégorie** (toutes les tiennes, sur une ligne qui défile ; Vu en passant en premier), puis sa **sous-catégorie** (« Portes », « Cours »… : « Créer » en tape une), ou l\'**artiste** pour Street art. Elles restent choisies pour la photo suivante. Rangée dans Culture, la photo reste « prise en passant » : Filtres → Vu en passant la montre toujours. « Enregistrer » reste visible en bas.',
-    '{rotate-ccw} Fausse manœuvre rattrapée : décocher « Déjà visité », supprimer une impression, « Retirer de Mon planning » ou répondre Non à « Tu y es allée ? » affiche un message avec « **Annuler** » (6 s), qui remet tout, date comprise. Sur la fiche, « Déjà visité » a un rond vide, puis plein une fois visité, comme l\'étoile de Favori.',
   ]],
 ];
 
