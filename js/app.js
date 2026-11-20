@@ -63,7 +63,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (316)';
+const VERSION = '20 novembre 2026 (317)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -75,7 +75,7 @@ const FAV_COLOR_NAMES = ['Doré', ...COLOR_NAMES];
 
 const failingStorage = { getItem() { throw new Error(); }, setItem() { throw new Error(); } };
 let storage;
-// v314 (mon choix du 20 nov.) : « Essayer le premier lancement » (Réglages) : le temps de l'essai, une mémoire à part, vide,
+// v315 (mon choix du 20 nov.) : « Essayer le premier lancement » (Réglages) : le temps de l'essai, une mémoire à part, vide,
 // gardée seulement dans la page ; mes lieux et réglages ne sont ni lus ni écrits. L'onglet fermé ou « Terminer l'essai » : fini.
 const ESSAI_KEY = 'carte-paris.essai';
 const ESSAI = (() => { try { return sessionStorage.getItem(ESSAI_KEY) === '1'; } catch { return false; } })();
@@ -357,13 +357,13 @@ const STYLE_INFO = {
   hot: { name: 'Douce', sub: 'Couleurs pastel du rendu humanitaire (OSM France). Pas de carte sans réseau', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — tuiles <a href="https://www.hotosm.org/">HOT</a>, OSM France`, maxZoom: 19 },
   pastel: { name: 'Pastel', sub: 'La carte classique en tons doux et lumineux', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
-  // v315 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
+  // v316 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
   eclairci: { name: 'Éclairci', sub: 'La classique, plus pâle et plus calme', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
-  // v316 (ma demande du 20 nov.) : les deux autres fonds CARTO, avec la même clé qu'Épuré
+  // v317 (ma demande du 20 nov.) : les deux autres fonds CARTO, avec la même clé qu'Épuré
   positron: { name: 'Très épuré', sub: 'Gris très pâle, presque rien d\'autre (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
   darkmatter: { name: 'Nuit épurée', sub: 'Fond sombre, très peu d\'éléments (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
 };
-/** Les fonds qui demandent la clé CARTO (v316 : Épuré, Très épuré, Nuit épurée). */
+/** Les fonds qui demandent la clé CARTO (v317 : Épuré, Très épuré, Nuit épurée). */
 const needsKey = (id) => /basemaps\.cartocdn\.com/.test(STYLE_INFO[id]?.url ?? '');
 /* ---------- Mode sombre : suit le téléphone tant qu'on n'a pas choisi ---------- */
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -4725,7 +4725,7 @@ function drawLayerNote() {
 }
 layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
-  if (n?.act === 'essai') endEssai(); // v314
+  if (n?.act === 'essai') endEssai(); // v315
   else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
@@ -7671,13 +7671,13 @@ async function importTtbFile(file, back) {
   const before = ttbList().length;
   try { storage.setItem(TTB_KEY, JSON.stringify(ttbStore(res.items, res.date))); } catch { toast('Le téléphone n\'a pas pu garder la liste (plus de place).', true); return; }
   ttbData = { items: res.items, date: res.date };
-  if (!before) ttbChipBack(); // v313 : masqué au départ d'un nouveau venu, le bouton TTB revient avec la première liste
+  if (!before) ttbChipBack(); // v314 : masqué au départ d'un nouveau venu, le bouton TTB revient avec la première liste
   state.showTtb = true; persist(); drawTtb(); refresh();
   openTtb(back);
   toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
 }
 
-/** v313 : le bouton TTB, masqué au départ d'un nouveau venu, revient dans la barre du haut avec la première liste importée. */
+/** v314 : le bouton TTB, masqué au départ d'un nouveau venu, revient dans la barre du haut avec la première liste importée. */
 function ttbChipBack() {
   if (!cleanChips(state.hiddenChips).includes('ttb')) return;
   state.hiddenChips = cleanChips(state.hiddenChips).filter((k) => k !== 'ttb');
@@ -7698,7 +7698,7 @@ function importTtb(text) {
   } catch { return 'la liste TTB n\'a pas pu être gardée (plus de place)'; }
   const had = (ttbData?.items ?? []).length;
   if (r.list) ttbData = { items: r.data.items, date: r.data.date };
-  if (r.list && !had) ttbChipBack(); // v313
+  if (r.list && !had) ttbChipBack(); // v314
   ttbMarks = r.marks;
   drawTtb();
   return [r.list ? `liste TTB remise (${plural(r.data.items.length, 'adresse', 'adresses')})` : '', r.newMarks ? plural(r.newMarks, 'marque TTB ajoutée', 'marques TTB ajoutées') : ''].filter(Boolean).join(', ');
@@ -8830,7 +8830,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'style') {
-    // v316 (ma demande du 20 nov.) : deux groupes bien séparés : les fonds sans clé, puis ceux qui demandent la clé CARTO
+    // v317 (ma demande du 20 nov.) : deux groupes bien séparés : les fonds sans clé, puis ceux qui demandent la clé CARTO
     const card = ([id, st]) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String((state.mapStyle ?? 'classic') === id && (!needsKey(id) || !!cartoKey())), onclick: () => {
       if (needsKey(id) && !cartoKey()) { openCartoKey(undefined, id); return; }
       state.mapStyle = id; persist(); applyMapStyle(); openSettings('style'); toast(`Carte : ${st.name}`);
@@ -9501,7 +9501,7 @@ function openSettings(section = null) {
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
     testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Réglages', () => openSettings())), false, 'c-info') : null,
-    // v314 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
+    // v315 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
     ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › */
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
@@ -10062,7 +10062,7 @@ function importText(text, owner) {
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
     toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
-    if (welcomeNext && owner) { const n = welcomeNext; welcomeNext = 0; openWelcome(n); } // v313 : lieux d'un proche depuis le circuit, on reprend les réglages
+    if (welcomeNext && owner) { const n = welcomeNext; welcomeNext = 0; openWelcome(n); } // v314 : lieux d'un proche depuis le circuit, on reprend les réglages
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
   }
@@ -10791,7 +10791,6 @@ const HELP = [
     '{link} Rattacher une photo prise en passant à un de tes lieux : sur sa fiche, Rangement → « **Rattacher à un de mes lieux** » (les plus proches d\'abord). Elle devient une impression de ce lieu et reste dans Mes Vu en passant, comme celles rangées par « Ajouter à ». Dans le diaporama, la date complète, sans date en double.',
     '{image} Une photo de ta galerie en Vu en passant : + Ajouter → « Depuis une photo de ma galerie », puis « **Vu en passant** ». Elle se pose à l\'endroit lu dans la photo ; « Un lieu, avec sa fiche » fait comme avant.',
     '{camera} {settings} → **Vu en passant**, tout en bas : garder la catégorie pour la photo suivante, la catégorie choisie au départ (Vu en passant, Street art ou la dernière), proposer ou non une adresse proche, et la photo sur la carte.',
-    '{download} Exporter tes Vu en passant : Mes Vu en passant → « **Exporter** », en bas. Les photos affichées (toutes, une catégorie, une sous-catégorie ou un artiste) partent dans un dossier compressé, chacune avec sa position, sa date et ta ligne, plus un tableau (adresse, lien Google Maps…). Qui reçoit les photos voit où tu les as prises.',
   ]],
 ];
 
@@ -10810,13 +10809,13 @@ function openHelp(first) {
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
       el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l)))),
-      i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openWelcome(2) }, 'Refaire les réglages du début') : null))), // v313 : le circuit du premier lancement, sans la page Bienvenue
+      i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openWelcome(2) }, 'Refaire les réglages du début') : null))), // v314 : le circuit du premier lancement, sans la page Bienvenue
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { name: 'help', again: () => openHelp(openFirst), tall: true });
 }
 
-/* ---------- Premier lancement (v313, mes choix du 20 nov.) : 6 étapes dans la feuille du bas, à la place de « Ta carte est vide »
+/* ---------- Premier lancement (v314, mes choix du 20 nov.) : 6 étapes dans la feuille du bas, à la place de « Ta carte est vide »
    quand la mémoire est vide. Ouvert une fois : fermé par ✕ ou fini, il ne revient pas ; il se relance depuis Aide → Prise en main. ---------- */
 const FIRST_KEY = 'carte-paris.premier-lancement';
 const WELCOME_STEPS = 6;
@@ -10847,7 +10846,7 @@ function openWelcome(step = 1) {
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   const pages = {
     1: ['Bienvenue', [
-      // v313 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
+      // v314 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
       el('div', { class: 'help-list' }, ...['{locate-fixed} **Où suis-je** : le point bleu, c\'est toi.', '**Autour de moi** : tes lieux, du plus proche au plus loin.',
         '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.', '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
       el('p', { class: 'help' }, 'Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
@@ -10943,7 +10942,7 @@ renderMarkers();
 if (state.points.length) {
   map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
 } else if (state.ok && !/(lieu|balade|rdv|ouvrir)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
-  // v313 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
+  // v314 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
   if (state.fresh) { openWelcome(1); persist(); } else openSheet('Ta carte est vide', el('div', { class: 'stack' },
     el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),

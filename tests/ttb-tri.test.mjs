@@ -16,7 +16,7 @@ test('TTB trié : le texte de l\'étiquette dit la rubrique ou le budget choisi'
 });
 
 test('TTB trié : l\'étiquette du haut existe, passe juste après celle des passages, et un appui remet tout avec « Annuler »', () => {
-  assert.match(app, /const layerNoteNow = \(\) => \(ESSAI \? [^\n]*?\) \?\? arcadeNoteNow\(\) \?\? ttbNote\(\) \?\?/); // v314 : l'essai du premier lancement passe avant tout
+  assert.match(app, /const layerNoteNow = \(\) => \(ESSAI \? [^\n]*?\) \?\? arcadeNoteNow\(\) \?\? ttbNote\(\) \?\?/); // v315 : l'essai du premier lancement passe avant tout
   assert.match(app, /const ttbNote = [\s\S]{0,120}state\.showTtb && ttbList\(\)\.length && \(ttbRubs\.size \|\| ttbBudgets\.size\)/);
   const click = app.slice(app.indexOf("n?.act === 'ttb'"), app.indexOf("n?.act === 'ttb'") + 700);
   assert.match(click, /ttbRubs\.clear\(\); ttbBudgets\.clear\(\)/);
