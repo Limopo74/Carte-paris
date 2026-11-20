@@ -27,11 +27,11 @@ test('Passe Navigo éteint : onglet, ligne de la fiche et loupe suivent le régl
   assert.match(app, /state\.navigo === false \? \[\] : block\('Avantages Navigo'/, 'loupe');
 });
 
-test('Passe Navigo : l\'interrupteur est tout en bas de Réglages, après Ce que j\'utilise', () => {
-  const a = app.indexOf("'Ce que j\\'utilise', usage.off");
-  const b = app.indexOf("onOff('navigo', 'badge-percent', 'J\\'ai un passe Navigo'");
-  assert.ok(a > 0 && b > a, 'après Ce que j\'utilise');
-  const end = app.indexOf('mySettingsBlock(),', b);
-  // v308 : une ligne ajoutée plus tard va tout en bas (Vu en passant ; Mes remarques ; Essayer le premier lancement) ; aucune autre ne s'est glissée avant lui
-  assert.ok(end > b && !app.slice(b, end).replace(/row\('camera', 'Vu en passant'/, '').replace(/row\('megaphone', 'Mes remarques'/, '').replace(/row\('hand', 'Essayer le premier lancement'/, '').replace(/row\('users', 'Préparer le démarrage/, '').includes('row('), 'en bas : après lui, d\'autres interrupteurs, la ligne Vu en passant (v308), Mes remarques, Essayer le premier lancement, puis mes réglages par défaut');
+test('Passe Navigo : l\'interrupteur est dans Autres réglages → Ce qui s\'affiche, sous Fiche d\'un lieu (v322)', () => {
+  const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
+  const a = page.indexOf("'Fiche d\\'un lieu'");
+  const b = page.indexOf("onOff('navigo', 'badge-percent', 'J\\'ai un passe Navigo'");
+  const c = page.indexOf("onOff('masculin'");
+  assert.ok(a > 0 && b > a && c > b, 'sous Fiche d\'un lieu, au-dessus d\'Écrire au masculin');
+  assert.ok(!page.slice(a, b).includes('row('), 'rien entre les deux');
 });

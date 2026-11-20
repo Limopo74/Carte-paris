@@ -36,6 +36,6 @@ test('Dans l\'appli : seulement les cochées après la photo, Vu en passant touj
   assert.match(app, /el\('span', \{\}, 'Après la photo'\)/);
   assert.match(app, /function openSeenSubs\(catId\)/);
   assert.match(app, /« \$\{x\.name\} » supprimée \(ses photos restent\)`, false, \{ label: 'Annuler'/);
-  assert.match(app, /Ses \$\{plural\(c\.subs\.length, 'sous-catégorie', 'sous-catégories'\)\} \(photos prises en passant\) : Réglages → Vu en passant → \$\{c\.name\}\./, 'la page de la catégorie dit seulement où');
+  assert.match(app, /Ses \$\{plural\(c\.subs\.length, 'sous-catégorie', 'sous-catégories'\)\} \(photos prises en passant\) : Réglages → Autres réglages → Vu en passant → \$\{c\.name\}\./, 'la page de la catégorie dit seulement où');
   assert.match(app, /if \(state\.seenStart === 'street' && seenCats\(\)\.some\(isStreetCat\)\)/, 'Street art décochée : pas une autre catégorie à sa place');
 });

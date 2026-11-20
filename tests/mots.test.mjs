@@ -104,8 +104,9 @@ test('l\'appli : rangée de mots sous « Ce que j\'ai vu », ligne dans Réglage
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   assert.match(app, /'Ce que j\\'ai vu \(facultatif\)', text\),\n\s+wordBox,/);
-  // v239 : une ligne à elle dans Réglages → Mes lieux, juste sous Catégories et listes ; plus dans la page Catégories et listes
-  assert.match(app, /openSettings\('categories'\), false, 'c-add'\),\n\s+row\('message-square-text', 'Mots tout prêts'/);
+  // v239 : une ligne à elle dans Réglages → Mes lieux ; plus dans la page Catégories et listes.
+  // v322 (mon choix 1a) : rangée dans Autres réglages → Mes lieux, sous Mes lignes de bus
+  assert.match(app, /'Le chemin de tes lignes sur la carte', \(\) => openMyBusLines\(\), false, 'c-metro'\),\n\s+row\('message-square-text', 'Mots tout prêts'/);
   assert.equal((app.match(/\(\) => openWordSeries\(\)/g) ?? []).length, 1);
   assert.doesNotMatch(app, /Catégories et listes → Mots tout prêts/);
   assert.match(sw, /'js\/mots\.js'/);

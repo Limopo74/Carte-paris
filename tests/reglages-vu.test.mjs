@@ -26,8 +26,11 @@ test('Gardés au rechargement, dans mes réglages par défaut ; « La dernière 
 });
 
 test('Dans l\'appli : la ligne tout en bas, et chaque réglage agit', () => {
-  const end = app.indexOf('    mySettingsBlock(),\n  ), { name: \'settings\'');
-  assert.ok(app.lastIndexOf("row('camera', 'Vu en passant'", end) > app.lastIndexOf("onOff('masculin'", end), 'sous le dernier réglage');
+  // v322 : rangée dans Autres réglages → Mes lieux, sous Favoris
+  const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
+  const fav = page.indexOf("'Favoris', 'Étoile ou cœur, couleur'");
+  const vu = page.indexOf("row('camera', 'Vu en passant'");
+  assert.ok(fav > 0 && vu > fav && !page.slice(fav, vu).includes("row("), 'sous Favoris');
   assert.match(app, /if \(state\.seenKeep !== false && seenCats\(\)\.some\(\(c\) => c\.id === seenCat\)\) return \{ cat: seenCat, sub: seenSub \};/);
   assert.match(app, /if \(state\.seenStart === 'last' && state\.seenLast/);
   assert.match(app, /const near = !r\?\.error && state\.seenNear !== false \? placeNear/);

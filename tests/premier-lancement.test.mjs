@@ -80,9 +80,12 @@ test('v315 : Essayer le premier lancement (Réglages) : une mémoire à part, me
   assert.ok(!/localStorage\.(get|set)Item\(JOURNAL_KEY/.test(app), 'Mes chiffres passent aussi par la mémoire de l\'essai');
   assert.match(app, /ESSAI \? \{ text: 'Essai en cours · Terminer', act: 'essai' \} : null/, 'un mode allumé a toujours un bouton visible qui le dit et l\'éteint');
   assert.match(app, /if \(n\?\.act === 'essai'\) endEssai\(\)/);
-  const end = app.indexOf('mySettingsBlock(),\n  ), { name: \'settings\'');
+  // v322 : tout en bas d'Autres réglages, au-dessus du retour ; « Terminer l'essai » reste sur Réglages pendant l'essai
+  const end = app.indexOf("), { name: 'settings:autres'");
   const row = app.lastIndexOf("'Essayer le premier lancement'", end);
-  assert.ok(row > 0 && end - row < 900, 'tout en bas de Réglages, au-dessus de mes réglages par défaut (v321 : « Préparer le démarrage d\'un proche » entre les deux)');
+  assert.ok(row > 0 && end - row < 900, 'tout en bas d\'Autres réglages (« Préparer le démarrage d\'un proche » juste dessous)');
+  const main = app.indexOf('mySettingsBlock(),\n  ), { name: \'settings\'');
+  assert.ok(main - app.lastIndexOf("'Terminer l\\'essai'", main) < 400, 'Terminer l\'essai sur Réglages, en bas');
   assert.match(app, /'Terminer l\\'essai'/);
 });
 

@@ -65,7 +65,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (321)';
+const VERSION = '20 novembre 2026 (322)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -204,7 +204,7 @@ function remindData() {
   try { last = Number(storage.getItem('carte-paris.rappel-transports')) || 0; } catch { /* rien */ }
   if (Date.now() - last < 7 * 864e5) return;
   try { storage.setItem('carte-paris.rappel-transports', String(Date.now())); } catch { /* rien */ }
-  setTimeout(() => toast(`${due.length > 1 ? `${due.length} données de l'appli à mettre à jour` : `${FIXED_DATA.find((d) => d.id === due[0]).name} : à mettre à jour`}. Réglages → Mise à jour et confidentialité → Données de l'appli.`), 2500);
+  setTimeout(() => toast(`${due.length > 1 ? `${due.length} données de l'appli à mettre à jour` : `${FIXED_DATA.find((d) => d.id === due[0]).name} : à mettre à jour`}. Réglages → Autres réglages → Mise à jour et confidentialité → Données de l'appli.`), 2500);
 }
 
 
@@ -1020,7 +1020,7 @@ function openFilters() {
     ]),
     keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Choisis d\'abord tes lignes (Réglages → Mes lignes de bus)', () => {
+    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Choisis d\'abord tes lignes (Réglages → Autres réglages → Mes lignes de bus)', () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
       state.showBusLines = !state.showBusLines; persist(); drawBusLines(); if (state.showBusLines) refreshBusTraces();
     }),
@@ -5547,7 +5547,7 @@ async function readArtFile(read, parse) {
 }
 /** Le message quand une liste manque : pas encore remplie par le robot, ou illisible. */
 const artFileWarn = (what, e) => (e?.message === 'vide'
-  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Mise à jour et confidentialité → Données de l'appli).`
+  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Autres réglages → Mise à jour et confidentialité → Données de l'appli).`
   : `La liste ${what} n'a pas pu être lue. Réessaie plus tard.`);
 let galleries = null;
 let galleriesTime = 0;
@@ -6940,7 +6940,7 @@ async function openMyBusLines(query = '') {
     mine.length >= BUS_LINES_MAX ? null : results,
     date ? el('p', { class: 'help' }, `Chemin des lignes du ${date}. Une déviation pour travaux ne se voit pas. Arrêts connus à Paris et en petite couronne.`) : null,
     date ? el('p', { class: 'help tip' }, 'Chemin des lignes et arrêts : Île-de-France Mobilités.') : null,
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('autres') }, '← Autres réglages')),
   ), { tall: true, name: 'buslines', again: back });
   if (busTracesFile || mine.length >= BUS_LINES_MAX) { draw(); return; }
   fill(results, el('li', { class: 'empty' }, 'Chargement des lignes…'));
@@ -7181,7 +7181,7 @@ function toggleLines() {
 }
 
 /* ---------- Mes lignes de bus (v228, mes choix 1A 2A 3A 4A du 19 nov.) ----------
-   Le chemin des lignes que j'ai choisies (Réglages → Mes lignes de bus), dans leur couleur, aller et retour, sans
+   Le chemin des lignes que j'ai choisies (Réglages → Autres réglages → Mes lignes de bus), dans leur couleur, aller et retour, sans
    horaires ni sens. Le fichier de toutes les lignes (data/bus-traces.json, robot) est téléchargé en entier, seulement
    quand j'ouvre l'écran pour en ajouter une ou quand ma copie a plus d'un mois : GitHub ne sait pas lesquelles je
    choisis. Le téléphone n'en garde que mes lignes (localStorage carte-paris.bus-traces, hors sauvegarde : le fichier
@@ -7909,7 +7909,7 @@ async function openRespire(back = openRoutes) {
   const n = respireOn(sectors, today).length;
   const next = n ? null : respireNextDay(sectors, today);
   openSheet(title, el('div', { class: 'stack' },
-    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Mise à jour et confidentialité → Données de l\'appli).')
+    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Autres réglages → Mise à jour et confidentialité → Données de l\'appli).')
       : n ? el('p', { class: 'summary' }, `${cap(dayTitle(today))} : ${plural(n, 'secteur prévu', 'secteurs prévus')}. À gauche, l'heure de fin.`)
         : el('p', { class: 'summary' }, 'Rien de prévu aujourd\'hui.'),
     n ? rows(today) : null,
@@ -7941,7 +7941,7 @@ async function openCircuits(back = null) {
   if (!circuitsData) openSheet([ico('signpost'), ' Circuits'], el('p', { class: 'help' }, 'Chargement des circuits…'), { name: 'circuits' });
   const [list] = await Promise.all([loadCircuits(), loadArcades()]);
   if (!list?.length) {
-    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
+    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
     return;
   }
   const from = circuitFrom();
@@ -8173,7 +8173,7 @@ function drawArcadeLayer() {
 async function setArcadeLayer(on) {
   state.showPassages = on; persist();
   if (!on) { arcadeLayer.clearLayers(); drawLayerNote(); return; }
-  if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
+  if (!(await loadArcades())) { toast('Les passages couverts n\'ont pas pu être lus. Essaie Réglages → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
   drawArcadeLayer(); drawLayerNote();
 }
 map.on('zoomend', drawArcadeLayer);
@@ -8214,7 +8214,7 @@ async function setJardinLayer(on) {
   state.showJardins = on; persist();
   if (!on) { jardinLayer.clearLayers(); drawLayerNote(); return; }
   const [list] = await Promise.all([loadJardins(), loadPratique('fraisParcs')]);
-  if (!list) { toast('Les jardins n\'ont pas pu être lus. Essaie Réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
+  if (!list) { toast('Les jardins n\'ont pas pu être lus. Essaie Réglages → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.', true); return; }
   if (!list.length) { toast('Les jardins arrivent avec le prochain passage du robot des données (le 1er du mois).'); return; }
   drawJardinLayer(); drawLayerNote();
 }
@@ -8312,7 +8312,7 @@ function drawVeloLayer() {
 async function setVeloLayer(on) {
   state.showVelo = on; persist();
   if (!on) { veloLayer.clearLayers(); map.attributionControl.removeAttribution(VELO_ATTR); drawLayerNote(); return; }
-  if (!(await loadVelo())) { state.showVelo = false; persist(); drawLayerNote(); toast('Les pistes à vélo ne sont pas encore dans l\'appli, ou pas lisibles sans réseau. Réglages → Mise à jour et confidentialité → Données de l\'appli.', true); return; }
+  if (!(await loadVelo())) { state.showVelo = false; persist(); drawLayerNote(); toast('Les pistes à vélo ne sont pas encore dans l\'appli, ou pas lisibles sans réseau. Réglages → Autres réglages → Mise à jour et confidentialité → Données de l\'appli.', true); return; }
   drawVeloLayer(); drawLayerNote();
 }
 function veloNote() {
@@ -8670,6 +8670,9 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * Réglages : un sommaire court (tout tient sur un écran), chaque rubrique s'ouvre à part.
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
+/** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli'];
+const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 function openSettings(section = null) {
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
   const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
@@ -8687,8 +8690,10 @@ function openSettings(section = null) {
   const canShareFile = (() => {
     try { return Boolean(navigator.canShare?.({ files: [new File(['{}'], 'x.json', { type: 'application/json' })] })); } catch { return false; }
   })();
-  const back = () => openSettings();
-  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages'));
+  // v322 : les pages rangées dans « Autres réglages » y ramènent
+  const inOthers = OTHER_SECTIONS.includes(section);
+  const back = inOthers ? () => openSettings('autres') : () => openSettings();
+  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, inOthers ? '← Autres réglages' : '← Réglages'));
   const unsaved = state.backup?.n ?? 0;
   const saveSummary = backupSummary();
 
@@ -9434,12 +9439,64 @@ function openSettings(section = null) {
 
   // Numéros des arrondissements sur la carte vue de loin (v193), allumés au départ
   const arrNumsSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.showArrNums !== false), onclick: () => {
-    state.showArrNums = state.showArrNums === false; persist(); drawArrNums(); openSettings();
+    state.showArrNums = state.showArrNums === false; persist(); drawArrNums(); openSettings('autres');
     toast(state.showArrNums ? 'Numéros des arrondissements affichés de loin' : 'Numéros des arrondissements masqués');
   } },
   el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map')),
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Numéros des arrondissements'), el('span', { class: 'menu-sub' }, 'Sur la carte vue de loin, avec leurs limites')),
   el('span', { class: `switch${state.showArrNums !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+
+  // v322 (mon choix 1a du 20 nov.) : les réglages qu'on fait une fois, dans leurs groupes d'avant ; Réglages tient en deux écrans
+  if (section === 'autres') {
+    openSheet([ico('settings'), ' Autres réglages'], el('div', { class: 'menu' },
+    el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
+    row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
+    row('message-square-text', 'Mots tout prêts', `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`, () => openWordSeries(), false, 'c-add'), // v239 : sorti de Catégories et listes
+    row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
+    row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
+    el('h3', { class: 'ring-title menu-group' }, 'La carte'),
+    // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
+    el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.startOnMe !== false), onclick: () => {
+      state.startOnMe = state.startOnMe === false; persist(); openSettings('autres');
+      toast(state.startOnMe ? 'La carte s\'ouvrira sur ta position, dans Paris' : 'La carte s\'ouvrira sur tous tes lieux');
+    } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
+    el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
+    row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
+    row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
+    row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
+    row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
+    arrNumsSwitch,
+    el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
+    row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Autres réglages', () => openSettings('autres'))), false, 'c-guide'),
+    row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
+    // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
+    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Avantages Navigo : Sorties, fiches, loupe' : 'Avantages Navigo masqués partout', state.navigo !== false, () => {
+      state.navigo = state.navigo === false;
+      toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
+    }),
+    // v286 (mon choix 3A) : tout en bas, éteint au départ ; l'appli s'adresse à moi au féminin (v223)
+    onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? », « Déjà passée ici »' /* affichés au masculin par accord() */ : 'L\'appli écrit au féminin : « Tu y es allée ? »', state.masculin === true, () => {
+      state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
+      toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
+    }),
+    el('h3', { class: 'ring-title menu-group' }, 'Appli'),
+    row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
+    row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
+    onOff('test', 'megaphone', 'Période de test', testState.on ? 'Le porte-voix, en haut à droite' : 'Éteinte : pas de porte-voix', testState.on, () => {
+      testState = { ...testState, on: !testState.on }; saveTest(); showRemarkBtn();
+      const n = testState.remarks.filter((r) => !r.sent).length;
+      toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
+    }),
+    testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
+    ESSAI ? null : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
+    // v321 (autre conversation) : sous l'essai ; v322 : dans Autres réglages → Appli
+    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+    ), { name: 'settings:autres', again: () => openSettings('autres'), tall: true });
+    return;
+  }
 
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages', VERSION_NUM ? el('span', { class: 'title-ver' }, ` v${VERSION_NUM}`) : null], el('div', { class: 'menu' },
@@ -9454,27 +9511,15 @@ function openSettings(section = null) {
       el('span', { class: unsaved ? 'tag due' : 'tag open' }, unsaved ? 'À faire' : 'À jour'),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
     row('upload', 'Restaurer ou importer', 'Ta sauvegarde, les lieux d\'un proche, Google Maps', () => openSettings('importer'), false, 'c-add'),
+    // v322 : ligne d'alerte (seulement quand une donnée est à mettre à jour), avec la sauvegarde
+    dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
     row('map', 'Mon Paris', 'Planning, arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
-    row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
-    row('message-square-text', 'Mots tout prêts', `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`, () => openWordSeries(), false, 'c-add'), // v239 : sorti de Catégories et listes
-    row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
-    // Ouvrir sur ma position (v176) : au démarrage, la carte se centre sur moi quand je suis dans Paris
-    el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.startOnMe !== false), onclick: () => {
-      state.startOnMe = state.startOnMe === false; persist(); openSettings();
-      toast(state.startOnMe ? 'La carte s\'ouvrira sur ta position, dans Paris' : 'La carte s\'ouvrira sur tous tes lieux');
-    } },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('locate')),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ouvrir sur ma position'), el('span', { class: 'menu-sub' }, state.startOnMe !== false ? 'Dans Paris, si la position est déjà autorisée ; sinon tous tes lieux' : 'La carte s\'ouvre sur tous tes lieux')),
-    el('span', { class: `switch${state.startOnMe !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
     row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Les distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
-    row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
-    row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
-    row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
       state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
       toast(isDark() ? 'Mode sombre activé' : 'Mode clair activé');
@@ -9488,44 +9533,16 @@ function openSettings(section = null) {
       toast('Mode sombre : comme le téléphone');
     } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('rotate-ccw')), /* une action, pas une page : pas de › */
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Comme le téléphone'), el('span', { class: 'menu-sub' }, 'Clair ou sombre selon son réglage'))) : null,
-    row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
-    arrNumsSwitch,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
     row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
-    row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
-    el('h3', { class: 'ring-title menu-group' }, 'Appli'),
-    dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
-    row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
-    row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
-    // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
-    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Avantages Navigo : Sorties, fiches, loupe' : 'Avantages Navigo masqués partout', state.navigo !== false, () => {
-      state.navigo = state.navigo === false;
-      toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
-    }),
-    // v286 (mon choix 3A) : tout en bas, éteint au départ ; l'appli s'adresse à moi au féminin (v223)
-    onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? », « Déjà passée ici »' /* affichés au masculin par accord() */ : 'L\'appli écrit au féminin : « Tu y es allée ? »', state.masculin === true, () => {
-      state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
-      toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
-    }),
-    // v308 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
-    row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
-    // v313 (mes choix du 20 nov.) : tout en bas, éteinte au départ ; le lien …/?test l'allume aussi
-    onOff('test', 'megaphone', 'Période de test', testState.on ? 'Le porte-voix, en haut à droite' : 'Éteinte : pas de porte-voix', testState.on, () => {
-      testState = { ...testState, on: !testState.on }; saveTest(); showRemarkBtn();
-      const n = testState.remarks.filter((r) => !r.sent).length;
-      toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
-    }),
-    testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Réglages', () => openSettings())), false, 'c-info') : null,
-    // v315 (mon choix du 20 nov.) : tout en bas, au-dessus de « Enregistrer mes réglages par défaut »
-    ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › */
+    // v322 (mon choix 1a) : les 18 réglages qu'on fait une fois ; en dernier de « Ce qui s'affiche », il ne pousse rien d'autre
+    row('settings', 'Autres réglages', 'Distances, Mon pas, style, alertes, fiche, Navigo…', () => openSettings('autres'), false, 'c-guide'),
+    ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › ; reste ici pendant l'essai */
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
-      : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
-    // v321 (mes choix du 20 nov.) : tout en bas, sous l'essai
-    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
+      : null,
     mySettingsBlock(),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
@@ -9601,11 +9618,11 @@ function openUsage() {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Les plus touchés'), el('span', {}, '')),
     r.top.length ? r.top.map((x) => el('p', {}, el('b', {}, x.label), ` · ${x.screen} · ${x.used}`))
       : el('p', { class: 'help' }, 'Aucun appui compté pour l\'instant.'),
-    el('p', { class: 'help tip' }, 'Pour masquer ce qui ne sert pas : un bouton de la fiche dans Réglages → Fiche d\'un lieu ; un bouton du haut dans Barre du haut ; un bouton de la carte dans Boutons de la carte ; une ligne de Filtres dans Filtres affichés. Pour le reste, montre cette page à Claude.'),
+    el('p', { class: 'help tip' }, 'Pour masquer ce qui ne sert pas : un bouton de la fiche dans Réglages → Autres réglages → Fiche d\'un lieu ; un bouton du haut dans Barre du haut ; un bouton de la carte dans Boutons de la carte ; une ligne de Filtres dans Filtres affichés. Pour le reste, montre cette page à Claude.'),
     foot(el('button', { type: 'button', class: 'btn danger', onclick: () => {
       if (!confirm('Remettre les comptes à zéro ? Ils repartiront d\'aujourd\'hui.')) return;
       usage = emptyUsage(); saveUsage(true); openUsage(); toast('Comptes remis à zéro');
-    } }, 'Remettre à zéro'), backBtn(named('Réglages', () => openSettings()))),
+    } }, 'Remettre à zéro'), backBtn(toOthers())),
   ), { tall: true, name: 'settings:usage', again: openUsage });
 }
 
@@ -9627,10 +9644,10 @@ function openFavStyle() {
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), picker(FAV_ICONS, icon, (v) => { icon = v; drawPreview(); })),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur du contour'), picker(FAV_COLORS, color, (v) => { color = v; drawPreview(); }, { colors: true, names: FAV_COLOR_NAMES })),
     foot(el('div', { class: 'row' },
-      backBtn(named('Réglages', () => openSettings())),
+      backBtn(toOthers()),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
         state = setFavStyle(state, { icon, color });
-        persist(); refresh(); openSettings();
+        persist(); refresh(); openSettings('autres');
         toast('Favoris modifiés');
       } }, 'Enregistrer'))),
   ), { tall: true, name: 'favstyle', again: () => openFavStyle() });
@@ -9712,7 +9729,7 @@ function openCategory(id, ret = null) {
 
   // v305 (mon choix du 20 nov.) : les sous-catégories de mes photos prises en passant, tout en bas ; renommer et supprimer agissent tout de suite
   // v311 (mon choix 4A) : les sous-catégories se gèrent dans Réglages → Vu en passant ; ici, seulement où les trouver
-  const subsBlock = c?.subs?.length ? el('p', { class: 'help' }, `Ses ${plural(c.subs.length, 'sous-catégorie', 'sous-catégories')} (photos prises en passant) : Réglages → Vu en passant → ${c.name}.`) : null;
+  const subsBlock = c?.subs?.length ? el('p', { class: 'help' }, `Ses ${plural(c.subs.length, 'sous-catégorie', 'sous-catégories')} (photos prises en passant) : Réglages → Autres réglages → Vu en passant → ${c.name}.`) : null;
 
   const presets = id ? [] : suggestedPresets(state.categories);
   const presetBox = presets.length ? el('div', {},
@@ -9739,7 +9756,7 @@ function openCategory(id, ret = null) {
     el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
     el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
     el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
-    el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Mots tout prêts.'),
+    el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Autres réglages → Mots tout prêts.'),
     subsBlock,
     err, zone,
     foot(el('div', { class: 'row' }, /* v284 : « Annuler | Enregistrer », comme toute page qui enregistre (charte § 8) ; Annuler ramène au même endroit qu'avant */
@@ -9749,7 +9766,7 @@ function openCategory(id, ret = null) {
 }
 
 /* ---------- Mots tout prêts (v226) : des séries de mots à toucher sous « Ce que j'ai vu » ; chaque catégorie en prend une ---------- */
-function openWordSeries(back = named('Réglages', () => openSettings())) {
+function openWordSeries(back = toOthers()) {
   const words = wordsOf(state);
   const again = () => openWordSeries(back);
   const usedBy = (id) => state.categories.filter((c) => seriesIdOf(c, words) === id).map((c) => c.name);
@@ -10684,10 +10701,10 @@ const HELP = [
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre vers le bas ou vers le haut.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
-    '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → La carte → Ouvrir sur ma position.',
+    '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour tous tes lieux à l\'ouverture : {settings} → Autres réglages → Ouvrir sur ma position.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
-    '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Alertes et bandeau.',
-    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
+    '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
+    '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
@@ -10698,12 +10715,12 @@ const HELP = [
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
-    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
+    '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué, et l\'ordre par ↑ ↓, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
-    '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → La carte → Numéros des arrondissements.',
+    '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
     '**La colonne de boutons** : Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, et Fontaine et WC s\'il n\'est pas masqué.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
@@ -10720,13 +10737,13 @@ const HELP = [
     '**Choisir l\'essentiel** : même page. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant » annule.',
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
-    '{palette} **Allure de la carte** : {settings} → Style de la carte. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
+    '{palette} **Allure de la carte** : {settings} → Autres réglages → Style de la carte. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
     '{moon} **Fond sombre** : {settings} → Mode sombre ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages par défaut », en bas des Réglages, permet d\'y revenir d\'un appui.',
   ]],
   ['calendar-days', 'Trouver une sortie', [
     '{calendar-days} **Sorties**, dans la colonne de droite : ce qui se passe aujourd\'hui autour du centre de la carte. La carte ne bouge pas.',
-    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Sans passe Navigo : {settings} → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
+    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Sans passe Navigo : {settings} → Autres réglages → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
@@ -10771,7 +10788,7 @@ const HELP = [
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
-    '**Les minutes à pied** suivent ton pas : {settings} → {footprints} Mon pas. Les cercles : {settings} → Distances et durées → Cercles.',
+    '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
@@ -10792,7 +10809,7 @@ const HELP = [
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
-    '{landmark} **Monuments** : en haut, les immeubles **protégés par la Ville** tout près (150 m au départ, réglable dans {settings} → Distances et durées), avec le texte de la Ville qui dit quoi regarder sur la façade ; « Lire la suite » le donne en entier. Ces textes datent du plan d\'urbanisme de juin 2026 : une façade a pu changer depuis. Dessous, les monuments à moins de 1 km : les monuments historiques, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date ; et les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Orgues de Flandre…). « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
+    '{landmark} **Monuments** : en haut, les immeubles **protégés par la Ville** tout près (150 m au départ, réglable dans {settings} → Autres réglages → Distances et durées), avec le texte de la Ville qui dit quoi regarder sur la façade ; « Lire la suite » le donne en entier. Ces textes datent du plan d\'urbanisme de juin 2026 : une façade a pu changer depuis. Dessous, les monuments à moins de 1 km : les monuments historiques, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date ; et les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Orgues de Flandre…). « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
@@ -10808,10 +10825,10 @@ const HELP = [
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
-    '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
+    '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Autres réglages → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
     '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant → Rangement) : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
     '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
-    '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Vu en passant → « Après la photo ».',
+    '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Autres réglages → Vu en passant → « Après la photo ».',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
@@ -10831,31 +10848,31 @@ const HELP = [
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
-    '{footprints} **Impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
+    '{footprints} **Impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Autres réglages → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
-    '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
+    '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Autres réglages → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
-    '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer. Masquées ({settings} → Fiche d\'un lieu), elles se changent encore dans Modifier.',
+    '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer. Masquées ({settings} → Autres réglages → Fiche d\'un lieu), elles se changent encore dans Modifier.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Fiche d\'un lieu.',
+    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici. Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
-    '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Favoris.',
+    '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Autres réglages → Favoris.',
     '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, Vu en passant, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
-    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
+    '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Autres réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
-    '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
+    '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Autres réglages → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
     '**TTB** : les adresses d\'un guide de bonnes tables, en ronds terre cuite sur la carte. La source est citée dans {settings} → TTB.',
@@ -10893,25 +10910,25 @@ const HELP = [
     '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, tes circuits, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour, tes parcours, tes mots tout prêts et ton adresse Chez moi restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à Mon planning », ou Retirer.',
-    '**Partager l\'appli** : {settings} → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
+    '**Partager l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
     '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
-    '{chart-no-axes-column} **Ce que j\'utilise** : {settings}, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
-    '{megaphone} **Période de test** : {settings}, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
+    '{chart-no-axes-column} **Ce que j\'utilise** : {settings} → Autres réglages, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
+    '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
-    '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Alertes et bandeau → Voix pour l\'éteindre.',
-    '{ruler} **Distances et durées** : {settings} → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
-    '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
-    '{trees} **Signaler un grand jardin ouvert** : éteint au départ ; {settings} → Alertes et bandeau, tout en bas. Le bandeau « Maintenant » te dit quand un jardin de 4 hectares ou plus (Monceau, Montsouris, Buttes-Chaumont…) est ouvert à 200 m. Rien s\'il ferme dans moins de 20 min, rien quand tu y es déjà, rien par grand vent. Appli ouverte seulement.',
+    '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
+    '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
+    '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
+    '{trees} **Signaler un grand jardin ouvert** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau, tout en bas. Le bandeau « Maintenant » te dit quand un jardin de 4 hectares ou plus (Monceau, Montsouris, Buttes-Chaumont…) est ouvert à 200 m. Rien s\'il ferme dans moins de 20 min, rien quand tu y es déjà, rien par grand vent. Appli ouverte seulement.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
     '**Raccourcis absents ?** Sauvegarde, supprime l\'icône et réinstalle-la depuis Chrome (⋮ → Ajouter à l\'écran d\'accueil).',
-    '{database} **Données de l\'appli** : {settings} → Mise à jour et confidentialité. Chaque donnée a sa date.',
+    '{database} **Données de l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité. Chaque donnée a sa date.',
     '**En direct** : fontaines, toilettes, agenda, marchés, Vélib\' et météo se rechargent seuls.',
     '**Un robot** refait le 1er de chaque mois les listes rangées dans l\'appli : lignes et gares, Navigo, toilettes RATP, arrondissements, arrêts et chemin des bus, plaques, œuvres dans la rue, galeries, rues sans voitures, noms des rues, auteurs des monuments, immeubles protégés par la Ville, architecture contemporaine, sorties du métro, RER et tram. Le plan des rues de Mes parcours, le 2 du mois. Quand une source manque ou a trop changé, la liste d\'avant reste.',
-    '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
+    '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Monuments, marchés couverts et listes d\'expos** se refont avec Claude. Touche la ligne pour savoir quoi faire.',
     '**Un rappel** s\'affiche, une fois par semaine au plus, quand une donnée est en retard.',
     '{info} **Sorties → « Aide »**, tout en bas : d\'où viennent les sorties. L\'agenda se recharge chaque jour, les marchés chaque semaine, les galeries chaque mois.',
@@ -10922,14 +10939,14 @@ const HELP = [
   ]],
   ['wrench', 'Ça ne marche pas ?', [
     '**Position refusée** : Chrome ⋮ → Paramètres → Paramètres des sites → Position. Autorise limopo74.github.io et allume la Position du téléphone.',
-    '**Carte grise** : vérifie internet, puis {settings} → Mise à jour et confidentialité → Recharger la carte.',
-    '**Une nouveauté n\'apparaît pas** : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
+    '**Carte grise** : vérifie internet, puis {settings} → Autres réglages → Mise à jour et confidentialité → Recharger la carte.',
+    '**Une nouveauté n\'apparaît pas** : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Un lien reçu ouvre une carte vide** : il s\'est ouvert dans le navigateur de Messages ou de WhatsApp. Touche « Ouvrir dans Chrome ».',
     '**Pour que ça n\'arrive plus** : Paramètres du téléphone → Applis → Applis par défaut → Navigateur : Chrome.',
     '**Puis** Paramètres → Applis → Ma carte de Paris → Ouvrir par défaut : active « Ouvrir les liens compatibles ».',
     '**Dans Messages ou WhatsApp**, désactive « Ouvrir les liens dans l\'appli » s\'il existe. Les noms varient selon les téléphones.',
-    '**Style Épuré, Très épuré ou Nuit épurée vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Style de la carte → Clé CARTO.',
-    '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Alertes et bandeau → Voix.',
+    '**Style Épuré, Très épuré ou Nuit épurée vide ou avec un filigrane** : la clé CARTO manque ou est fausse. {settings} → Autres réglages → Style de la carte → Clé CARTO.',
+    '**La voix ne parle pas** : monte le volume, et vérifie {settings} → Autres réglages → Alertes et bandeau → Voix.',
     '**Vélib\', Curiosités ou météo muets** : le service en ligne ne répond pas. Réessaie plus tard. Les plaques de Curiosités, les galeries et Art dans la rue, eux, sont dans l\'appli.',
     '{bike} **Une station Vélib\' sans nombre** (vélo gris) : les données ont plus de 10 min, ou la station n\'a rien envoyé depuis plus d\'une heure. Touche l\'heure en haut à gauche pour mettre à jour.',
     '{zoom-in} **Vélib\' ou fontaines allumés mais rien sur la carte** : rapproche-toi. Touche « Zoome pour voir… » en haut à gauche.',
@@ -10937,21 +10954,21 @@ const HELP = [
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
-    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Mise à jour et confidentialité → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
-    '**Puis, quelques minutes après** : {settings} → Mise à jour et confidentialité → Mettre à jour l\'appli.',
+    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Autres réglages → Mise à jour et confidentialité → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
+    '**Puis, quelques minutes après** : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{users} **Préparer le démarrage d\'un proche** : {settings} → tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
-    '{footprints} **Mesurer ton pas** : {settings} → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
+    '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
+    '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
+    '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
     '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
-    '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Style de la carte.',
-    '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Style de la carte. C\'est le fond d\'un téléphone neuf.',
-    '{hand} **Essayer le premier lancement** : {settings} → tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
+    '{palette} Deux fonds de carte de plus avec ta clé CARTO : **Très épuré** (gris très pâle) et **Nuit épurée** (sombre). {settings} → Autres réglages → Style de la carte.',
+    '{palette} Nouveau fond de carte **Éclairci** : la carte classique, plus pâle et plus calme, sans clé. {settings} → Autres réglages → Style de la carte. C\'est le fond d\'un téléphone neuf.',
+    '{hand} **Essayer le premier lancement** : {settings} → Autres réglages, tout en bas. L\'appli repart comme sur un téléphone neuf, avec une mémoire à part : tes lieux et tes réglages ne bougent pas. « Terminer l\'essai », sous la barre du haut ou au même endroit des Réglages, les rend intacts.',
     '{hand} **Premier lancement** : sur un téléphone neuf, l\'appli se règle en 6 étapes (taille du texte, féminin ou masculin, ton pas, côté des boutons, ta station Maison, ta position, l\'installation). Pour les refaire : {settings} → Aide de l\'appli → Prise en main → « Refaire les réglages du début ».',
-    '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings}, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
-    '{trash-2} Gérer Vu en passant depuis {settings} → Vu en passant : en haut, **Mes Vu en passant** (mosaïque, diaporama, export) ; dans la page d\'une catégorie, tout en bas, « **Supprimer ses photos prises en passant** » (la catégorie part aussi si elle ne contient rien d\'autre). Dans le diaporama, « **Supprimer** » une photo. Une question avant, c\'est définitif.',
+    '{megaphone} **Période de test** : pour faire essayer l\'appli, envoie le lien …/Carte-paris/?test, ou {settings} → Autres réglages, tout en bas. Un porte-voix apparaît en haut à droite : on choisit ce qui ne va pas, un mot si on veut, puis « Envoyer » (SMS, WhatsApp, courriel). Le texte est prêt à coller dans une conversation avec Claude.',
   ]],
 ];
 
@@ -11111,7 +11128,7 @@ function openPrepList() {
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))) : el('p', {}, 'Aucune préparation pour l\'instant.'),
     el('button', { type: 'button', class: 'btn c-add', disabled: list.length >= DEPART_MAX, onclick: () => { prepDraft = { id: null, name: '', p: defaultPreset(state.me ?? ''), step: 1 }; drawLayerNote(); openPrep(1); } }, ico('plus'), 'Nouvelle préparation'),
     list.length >= DEPART_MAX ? el('p', { class: 'help' }, `${DEPART_MAX} préparations au plus : supprime-en une d'abord.`) : null,
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('autres') }, '← Autres réglages')), // v322 : rangée dans Autres réglages
   ), { tall: true, name: 'preps', again: openPrepList });
 }
 
@@ -11358,7 +11375,7 @@ if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense �
 updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés : due même sans nouveau changement)
 
 /* ---------- Période de test (v313, mes choix 1A à 6A du 20 nov.) : le porte-voix, une remarque, le menu de partage ----------
-   Allumée par le lien …/?test ou par Réglages, tout en bas. Rangée à part (js/remarques.js), hors sauvegarde. */
+   Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js), hors sauvegarde. */
 let testState = readTest((() => { try { return storage.getItem(TEST_KEY); } catch { return null; } })());
 const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } };
 const btnRemark = document.getElementById('btnRemark');
@@ -11394,14 +11411,14 @@ function openRemark() {
     const r = cleanRemark({ id: `rq-${Date.now().toString(36)}`, k: pick, t: text.value, ...where, c: remarkContext(), at: Date.now() });
     testState = addRemark(testState, r); saveTest();
     prev();
-    sendRemarks([r]).then((ok) => toast(ok ? 'Remarque transmise à l\'appli choisie : vérifie l\'envoi.' : 'Remarque gardée, pas envoyée. Réglages → Mes remarques pour l\'envoyer.', !ok));
+    sendRemarks([r]).then((ok) => toast(ok ? 'Remarque transmise à l\'appli choisie : vérifie l\'envoi.' : 'Remarque gardée, pas envoyée. Réglages → Autres réglages → Mes remarques pour l\'envoyer.', !ok));
   } }, ico('send'), 'Envoyer');
   openSheet([ico('megaphone'), ' Une remarque'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `Sur : ${where.s}`),
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Ce qui ne va pas (un seul choix)' }, chips),
     el('label', { class: 'field' }, 'Un mot (facultatif)', text),
     el('p', { class: 'help' }, 'Part avec : la version, cet écran, la taille du texte, Android et Chrome. Jamais ta position.'),
-    el('p', { class: 'help tip' }, 'Envoyer ouvre le menu de partage du téléphone (SMS, WhatsApp, courriel). La remarque reste aussi dans Réglages → Mes remarques. Pour dicter : le micro du clavier.'),
+    el('p', { class: 'help tip' }, 'Envoyer ouvre le menu de partage du téléphone (SMS, WhatsApp, courriel). La remarque reste aussi dans Réglages → Autres réglages → Mes remarques. Pour dicter : le micro du clavier.'),
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: prev }, 'Annuler'), send)),
   ), { name: 'remarque', tall: true });
 }

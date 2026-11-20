@@ -20,7 +20,7 @@ Les lieux, les photos et la position restent sur le téléphone : aucun serveur,
 - Wikidata (monuments, sans la position) et Wikipédia (position arrondie à 100 m) ;
 - Open-Meteo (météo et air, position arrondie à 1 km) ; Vélib' Métropole (aucune position).
 
-Google Maps, Avis Google et Uber ne reçoivent quelque chose que sur un appui. Le texte complet et à jour est dans l'appli : Réglages → Mise à jour et confidentialité → Confidentialité.
+Google Maps, Avis Google et Uber ne reçoivent quelque chose que sur un appui. Le texte complet et à jour est dans l'appli : Réglages → Autres réglages → Mise à jour et confidentialité → Confidentialité.
 
 ## Données
 Les listes rangées dans l'appli (dossier `data/`) portent chacune leur source et leur date : Île-de-France Mobilités (lignes, gares, sorties du métro, arrêts de bus, avantages Navigo), RATP (toilettes), Paris Data (arrondissements, plaques commémoratives, noms des voies, secteurs Paris Respire), ministère de la Culture (monuments historiques, base Mérimée), OpenStreetMap (œuvres dans la rue, galeries ; © les contributeurs d'OpenStreetMap, ODbL). Stations de métro : jeu de données « metro » de great_tables (d'après Wikipédia, 2024), positions vérifiées avec « Emplacement des gares IDF » (IDFM). Circuits et passages couverts : établis et vérifiés à la main.
