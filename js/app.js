@@ -37,6 +37,7 @@ import { cleanPvp, cleanAcr, acrLabel, excerpt as pvpExcerpt, within as nearWith
 import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, respireNextDay, respirePlanned } from './respire.js';
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
+import { openIdOf, needsCenter } from './lieu-ouvert.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
@@ -66,7 +67,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (330)';
+const VERSION = '20 novembre 2026 (331)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -532,6 +533,7 @@ const initialOf = (name) => (String(name).match(/\p{L}|\p{N}/u)?.[0] ?? '?').toL
 let drawnZoom = null;
 function renderMarkers() {
   pointsLayer.clearLayers();
+  markerEls = new Map();
   drawnZoom = map.getZoom();
   // De loin, les lieux proches deviennent une goutte encre chiffrée ; les favoris restent seuls (js/groupes.js, v178).
   // Le lieu qu'on déplace n'est pas dessiné : le viseur le remplace.
@@ -556,7 +558,7 @@ function renderMarkers() {
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
       : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
-    L.marker([p.lat, p.lng], {
+    const marker = L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
@@ -565,7 +567,9 @@ function renderMarkers() {
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (view === 'trace') { traceTap(p.lat, p.lng, p); return; } if (!moving) openDetail(p.id, arrBack()); })
       .addTo(pointsLayer);
+    markerEls.set(String(p.id), { m: marker, z: p.fav ? 500 : 0 });
   }
+  markOpen(false); // la goutte du lieu ouvert reste marquée après un nouveau dessin, sans palpiter de nouveau
   // Une adresse TTB gardée dans mes lieux : seule ma goutte reste (v155). Au démarrage, le calque TTB n'existe pas encore.
   try { if (state.showTtb) drawTtb(); } catch { /* calque TTB pas encore créé : il sera dessiné au démarrage */ }
 }
@@ -874,6 +878,39 @@ function centerOn(lat, lng, zoom = map.getZoom()) {
   if (h) map.panBy([0, h / 2], { animate: false });
 }
 
+/** v331 : la goutte du lieu dont la fiche est ouverte grossit, passe devant et prend un anneau encre ;
+ *  elle palpite deux fois à l'ouverture (`pulse`), sauf si le téléphone supprime les animations (CSS). */
+function markOpen(pulse) {
+  const id = openIdOf(view);
+  for (const [k, r] of markerEls) {
+    const n = r.m.getElement();
+    if (k === id) continue;
+    if (n?.classList.contains('is-open')) { n.classList.remove('is-open', 'pulse'); r.m.setZIndexOffset(r.z); }
+  }
+  const r = id ? markerEls.get(id) : null;
+  const n = r?.m.getElement();
+  if (n && !n.classList.contains('is-open')) {
+    n.classList.add('is-open');
+    r.m.setZIndexOffset(3000);
+    if (pulse && openMarked !== id) {
+      n.classList.add('pulse');
+      n.addEventListener('animationend', () => n.classList.remove('pulse'), { once: true });
+    }
+  }
+  openMarked = id;
+}
+
+/** v331 : depuis la carte, la fiche se place au-dessus du lieu (comme avant) ; depuis une liste, la loupe ou Autour de moi,
+ *  la carte ne bouge que si sa goutte ne se voit pas (hors écran, sous la fiche, cachée dans un groupe). Lieu caché par un filtre : rien. */
+function showOpened(p, back) {
+  if (!back) { centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16)); return; }
+  if (!onMap().some((x) => x.id === p.id)) return;
+  const r = markerEls.get(String(p.id));
+  const pt = r ? map.latLngToContainerPoint([p.lat, p.lng]) : null;
+  const top = document.querySelector('header.top')?.getBoundingClientRect().bottom ?? 0;
+  if (needsCenter(pt, map.getSize(), sheet.hidden ? 0 : sheet.offsetHeight, top)) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+}
+
 function showDraft(lat, lng) {
   draftLayer.clearLayers();
   L.circleMarker([lat, lng], { radius: 11, color: ink(), weight: 3, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(draftLayer);
@@ -1151,6 +1188,9 @@ const sheetBody = document.getElementById('sheetBody');
 let onSheetClose = null;
 let historyPushed = false;
 let view = null; // nom de l'écran affiché ('near' pour « Autour de moi »…)
+// v331 : gouttes seules dessinées (id -> { m, z }) et lieu dont la goutte est marquée « fiche ouverte »
+let markerEls = new Map();
+let openMarked = null;
 let quietId = null; // suivi discret de la position, seulement sur Autour de moi
 // Pile des écrans ouverts, pour que le retour d'Android revienne à l'écran précédent.
 // Chaque écran a un nom et, s'il peut être rouvert, une fonction « again ».
@@ -1210,6 +1250,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   if (filt.arr && name !== 'arrlist' && !String(name).startsWith('detail:')) { filt.arr = 0; renderChips(); renderMarkers(); drawArrOutline(); updateNow(true); }
   const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
+  markOpen(true); // v331 : la goutte du lieu de cette fiche se distingue (ou plus aucune)
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   fill(sheetBody, ...[body].flat().filter(Boolean));
   gatherTips(); // avant de remettre la hauteur de lecture : la page a déjà sa longueur finale
@@ -1238,6 +1279,7 @@ function closeSheet(fromHistory = false) {
   sheet.hidden = true;
   stopQuietNear();
   view = null;
+  markOpen(false);
   navStack = [];
   tipsOpen = null;
   fill(sheetBody, );
@@ -2795,7 +2837,7 @@ function openDetail(id, back = null) {
       back ? backBtn(back) : null,
     ), { name: `detail:${id}`, again: () => openDetail(id, back) });
     fitKick();
-    if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+    showOpened(p, back);
     return;
   }
   openSheet(title, el('div', { class: 'stack detail' },
@@ -2832,7 +2874,7 @@ function openDetail(id, back = null) {
   // v288 : le genre ne tient pas sur la ligne (grand texte, nom de catégorie long, « a pu fermer ») : on le retire de la ligne
   // plutôt que de la couper en deux, ce qui ferait descendre Y aller. Il reste dans Modifier et pour le lecteur d'écran.
   fitKick();
-  if (!back) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+  showOpened(p, back);
 }
 
 /** Arrondissement lu dans le code postal de l'adresse (« 75003 » → « 3e », « 75116 » → « 16e »), sinon null. Rien n'est envoyé. */
@@ -11217,6 +11259,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
     '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
     '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
@@ -11226,7 +11269,6 @@ const HELP = [
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
     '{footprints} **Mesurer ton pas** : {settings} → Autres réglages → Mon pas → « Mesurer Normal » ou « Mesurer Rapide ». Marche bien droit : l\'appli s\'arrête seule au bout de 1 km et te propose la vitesse à enregistrer.',
     '{hand} Premier lancement plus fluide : le bouton qui avance est **vert**, toujours en bas ; après le choix de ta station Maison, l\'étape suivante vient seule.',
-    '{settings} **Mes réglages sur un autre téléphone** : {settings} → Sauvegarde → « Envoyer mes réglages » (boutons, filtres, cercles, style, catégories et listes, sans aucun lieu). Sur l\'autre : Restaurer ou importer → « Importer des réglages ». Les siens restent dans « Revenir aux miens ».',
   ]],
 ];
 

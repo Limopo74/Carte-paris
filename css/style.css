@@ -928,6 +928,15 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .pin.pin-group .pin-in { color: var(--bg); font: 800 15px/1 var(--display); }
 .pin.pin-group.big .pin-in { font-size: 13px; }
 .z-far .pin.pin-group { transform: rotate(-45deg); }
+/* v331 : la goutte du lieu dont la fiche est ouverte : plus grosse (pointe au même endroit), anneau encre, devant les autres ; deux palpitations à l'ouverture */
+.pin-wrap.is-open .pin { transform: translateY(-9px) rotate(-45deg) scale(1.4); box-shadow: 0 0 0 2.5px #fff, 0 0 0 6px var(--ink), 0 3px 6px rgba(0, 0, 0, .35) !important; }
+.pin-wrap.is-open .seen-pin { transform: scale(1.35); border-radius: 50%; box-shadow: 0 0 0 6px var(--ink); }
+@media (prefers-reduced-motion: no-preference) {
+  .pin-wrap.is-open.pulse .pin { animation: open-pulse .7s ease-in-out 2; }
+  .pin-wrap.is-open.pulse .seen-pin { animation: open-pulse-seen .7s ease-in-out 2; }
+  @keyframes open-pulse { 50% { transform: translateY(-16px) rotate(-45deg) scale(1.7); } }
+  @keyframes open-pulse-seen { 50% { transform: scale(1.65); } }
+}
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
 /* Bandeaux */
