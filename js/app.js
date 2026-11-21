@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (363)';
+const VERSION = '21 novembre 2026 (364)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -556,10 +556,10 @@ let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 // Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
-const filt = { open: false, top: false, covered: false, seen: false, lists: new Set(), arr: 0 }; // arr : numéro de l'arrondissement choisi (0 = tous), le temps de la session
-const activeFilters = () => [filt.open, filt.top, filt.covered, filt.seen, filt.lists.size > 0, personFilter !== 'all', filt.arr > 0].filter(Boolean).length;
+const filt = { open: false, top: false, covered: false, lists: new Set(), arr: 0 }; // arr : numéro de l'arrondissement choisi (0 = tous), le temps de la session
+const activeFilters = () => [filt.open, filt.top, filt.covered, filt.lists.size > 0, personFilter !== 'all', filt.arr > 0].filter(Boolean).length;
 const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) && (!filt.top || (p.stars ?? 0) >= 4)
-  && (!filt.covered || p.covered) && (!filt.seen || isPass(p)) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
+  && (!filt.covered || p.covered) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
   && (personFilter === 'all' || p.owner === personFilter);
 /** v267 : l'arrondissement choisi ne trie que la carte et sa liste ; Autour de moi, la recherche, Surprise ou le bandeau n'en tiennent pas compte. */
 const onMap = () => visible().filter((p) => !filt.arr || arrOfPoint(p) === filt.arr);
@@ -1099,28 +1099,31 @@ function openFilters() {
       !keep('open', filt.open) ? null : sw(filt.open, 'clock', 'Ouvert maintenant', withHours ? `${plural(count((p) => openState(hoursOf(p))?.open === true), 'ouvert', 'ouverts')} sur ${withHours} avec horaires` : 'Aucun lieu n\'a encore d\'horaires', () => { filt.open = !filt.open; }),
       !keep('top', filt.top) ? null : sw(filt.top, 'star', 'Mes mieux notés', `4 étoiles et plus · ${plural(count((p) => (p.stars ?? 0) >= 4), 'lieu', 'lieux')}`, () => { filt.top = !filt.top; }),
       !keep('covered', filt.covered) ? null : sw(filt.covered, 'umbrella', 'Abrités (pluie)', plural(count((p) => p.covered), 'lieu coché « abrité »', 'lieux cochés « abrité »'), () => { filt.covered = !filt.covered; }),
-      !keep('seen', filt.seen) ? null : sw(filt.seen, 'camera', 'Vu en passant', `Tes photos prises en marchant · ${plural(count(isPass), 'lieu', 'lieux')}`, () => { filt.seen = !filt.seen; }),
+      // v364 (mon choix A du 21 nov.) : plus d'interrupteur Vu en passant ici : une photo n'est pas un lieu ; ses catégories (Vu en passant, Moments…) et Mes Vu en passant suffisent
       !keep('lists', filt.lists.size > 0) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Mes listes'), el('span', {}, '')),
       !keep('lists', filt.lists.size > 0) ? null : (state.lists ?? []).length
         ? el('div', { class: 'list-chips' }, state.lists.map((l) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(filt.lists.has(l.id)), onclick: () => {
           if (filt.lists.has(l.id)) filt.lists.delete(l.id); else filt.lists.add(l.id); refresh(); openFilters();
         } }, ico('list'), ` ${l.name} `, el('span', { class: 'cat-count' }, String(count((p) => p.lists?.includes(l.id)))))))
-        : el('p', { class: 'help' }, 'Aucune liste. Crée-en une en modifiant un lieu (« Mes listes »).'),
+        : el('p', { class: 'help' }, 'Des lieux de toutes catégories, par exemple « Pour fêter » ou « Avec des enfants ». Touche une liste ici pour ne voir qu\'elle.'),
+      // v364 (mon choix A du 21 nov.) : un bouton direct plutôt que le chemin ; après le choix des lieux, retour à Filtres
+      !keep('lists', filt.lists.size > 0) ? null : el('button', { type: 'button', class: 'btn c-add', style: 'margin-top:8px', onclick: () => {
+        const n = prompt('Nom de la nouvelle liste (ex. « Pour fêter »)', '');
+        if (n == null) return;
+        try { const r = addList(state, n); state = r.state; persist(); refresh(); openListPlaces(r.id, '', null, named('Filtres', openFilters)); } catch (e) { toast(e.message, true); }
+      } }, ico('plus'), 'Nouvelle liste'),
       people.length && keep('people', personFilter !== 'all') ? el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Lieux de mes proches'), el('span', {}, '')) : null,
       people.length && keep('people', personFilter !== 'all') ? el('div', { class: 'list-chips' },
         [['all', 'Tout le monde', state.points.length], ['', state.me ? `Moi (${state.me})` : 'Moi', count((p) => !p.owner)], ...people.map((o) => [o.name, o.name, o.n])]
           .map(([who, label, n]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(personFilter === who), onclick: () => { personFilter = who; refresh(); openFilters(); } },
             ico(who === 'all' ? 'users' : 'map-pin'), ` ${label} `, el('span', { class: 'cat-count' }, String(n))))) : null,
-      !keep('arr', false) ? null : el('h3', { class: 'ring-title', style: 'margin-top:10px' }, el('span', {}, 'Arrondissement'), el('span', {}, '')),
-      !keep('arr', false) ? null : arrPicker(),
-      !keep('arr', false) || !arrData ? null : el('p', { class: 'help tip' }, 'Le chiffre : tes lieux dans cet arrondissement. Touche une case pour voir leur liste.'),
       activeFilters() ? el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', onclick: () => {
-        filt.open = false; filt.top = false; filt.covered = false; filt.seen = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
+        filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
     keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Choisis d\'abord tes lignes (Réglages → Autres réglages → Mes lignes de bus)', () => {
+    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Touche pour choisir tes lignes', () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
       state.showBusLines = !state.showBusLines; persist(); drawBusLines(); if (state.showBusLines) refreshBusTraces();
     }),
@@ -1131,12 +1134,18 @@ function openFilters() {
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
     !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', 'Trait plein : sans voitures. Pointillé : rue calme', async () => { await setVeloLayer(!state.showVelo); }),
     !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', 'Squares, jardins, parcs et bois de la Ville, en zoomant ; vert clair : ouverts maintenant', () => { setJardinLayer(!state.showJardins); }),
+    // v364 (mon choix B du 21 nov.) : l'arrondissement en dernier : le plus gros, le moins utile en marchant ; les calques remontent
+    ...withTitle('Arrondissement', [
+      !keep('arr', false) ? null : arrPicker(),
+      !keep('arr', false) || !arrData ? null : el('p', { class: 'help tip' }, 'Le chiffre : tes lieux dans cet arrondissement. Touche une case pour voir leur liste.'),
+    ]),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openFilterChoice() }, ico('sliders-horizontal'), hid.size ? `Choisir les filtres affichés (${hid.size} masqué${hid.size > 1 ? 's' : ''})` : 'Choisir les filtres affichés'),
   ), { name: 'filters', again: openFilters, tall: true });
 }
 
 /** Choisir d'un coup les lieux d'une liste : cases à cocher, recherche par nom, enregistrement en un appui. */
-function openListPlaces(listId, query = '', picked = null) {
+/** v364 : `back` (facultatif) : d'où l'on vient (Filtres → Nouvelle liste) ; sinon Réglages → Catégories et listes. */
+function openListPlaces(listId, query = '', picked = null, back = null) {
   const list = (state.lists ?? []).find((l) => l.id === listId);
   if (!list) { openSettings('categories'); return; }
   const sel = picked ?? new Set(state.points.filter((p) => p.lists?.includes(listId)).map((p) => p.id));
@@ -1148,14 +1157,14 @@ function openListPlaces(listId, query = '', picked = null) {
     .map((p) => ({ p, d: from ? distanceM(from, p) : null }))
     .sort((a, b) => (sel.has(b.p.id) - sel.has(a.p.id)) || (a.d != null && b.d != null ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
   const save = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
-    state = setListMembers(state, listId, [...sel]); persist(); refresh(); openSettings('categories');
+    state = setListMembers(state, listId, [...sel]); persist(); refresh(); if (back) back(); else openSettings('categories');
     toast(`« ${list.name} » : ${plural(sel.size, 'lieu', 'lieux')}`);
   } });
   const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux').replace(' ', '\u00a0')})`; };
   count();
   const search = el('input', { type: 'search', value: query, placeholder: 'Chercher un lieu', 'aria-label': 'Chercher un lieu', enterkeyhint: 'search' });
   let t = null;
-  search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { openListPlaces(listId, search.value, sel); const s2 = document.querySelector('#sheet input[type=search]'); s2?.focus(); s2?.setSelectionRange(s2.value.length, s2.value.length); }, 250); });
+  search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { openListPlaces(listId, search.value, sel, back); const s2 = document.querySelector('#sheet input[type=search]'); s2?.focus(); s2?.setSelectionRange(s2.value.length, s2.value.length); }, 250); });
   const rows = pts.slice(0, 200).map(({ p, d }) => {
     const box = el('input', { type: 'checkbox', class: 'check', checked: sel.has(p.id), 'aria-label': p.name });
     box.addEventListener('change', () => { if (box.checked) sel.add(p.id); else sel.delete(p.id); count(); });
@@ -1169,15 +1178,15 @@ function openListPlaces(listId, query = '', picked = null) {
     rows.length ? el('ul', { class: 'items' }, rows) : el('p', { class: 'empty' }, query ? 'Aucun lieu ne correspond.' : 'Aucun lieu sur ta carte.'),
     pts.length > 200 ? el('p', { class: 'help' }, `${pts.length - 200} lieux de plus : cherche par nom pour les trouver.`) : null,
     foot(el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories et listes'),
+      back ? backBtn(back) : el('button', { type: 'button', class: 'btn', onclick: () => openSettings('categories') }, '← Catégories et listes'),
       save)),
-  ), { tall: true, name: `list:${listId}`, again: () => openListPlaces(listId, '', sel) });
+  ), { tall: true, name: `list:${listId}`, again: () => openListPlaces(listId, '', sel, back) });
 }
 
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['seen', 'camera', 'Vu en passant'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['arr', 'map', 'Arrondissement'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics']];
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
   openSheet([ico('sliders-horizontal'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -2191,7 +2200,7 @@ function openSeenForm(blob, where, back = null) {
     const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
     np.photos = [id];
     if (at.fromPhoto) np.shot = at.shot ?? 0; // v310 : la date de la photo de la galerie (0 : inconnue)
-    np.pass = true; // v305 : pris en passant, même rangé dans Culture : le diaporama, Filtres → Vu en passant et la photo sur la carte le suivent
+    np.pass = true; // v305 : pris en passant, même rangé dans Culture : le diaporama, Mes Vu en passant et la photo sur la carte le suivent
     if (!isStreet && sub) np.sub = sub;
     if (isStreet && cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
     state.points.push(np);
@@ -11263,12 +11272,12 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Range-la dans Vu en passant, Street art, Moments, Plats, Vues, Architecture ou Insolite ; tes lieux de la carte ne reçoivent une photo que par « Rattacher », sur la fiche de la photo.',
     '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
-    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant, ou son bouton dans la barre du haut. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, + Ajouter → Vu en passant.',
+    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : le bouton de leur catégorie (barre du haut ou Filtres), ou + Ajouter → Mes Vu en passant pour toutes tes photos. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, + Ajouter → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
     '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Autres réglages → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
     '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant, sous « Cette photo ») : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
     '{download} **Exporter**, en bas de Mes Vu en passant : les photos affichées en .zip, avec leur position, leur date et ta ligne dedans, et un tableau. « Télécharger » les met dans tes Téléchargements ; « Envoyer » ouvre le partage du téléphone. Qui les reçoit voit où tu les as prises.',
-    '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Filtres → Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Autres réglages → Vu en passant → « Après la photo ».',
+    '{tags} **Ranger une photo** : après la photo, choisis sa catégorie (toutes les tiennes, « Nouvelle » en crée une) puis sa sous-catégorie (« Créer » en tape une). Elle reste « prise en passant » : Mes Vu en passant la montre, quelle que soit sa catégorie. Les catégories proposées, leur ordre et leurs sous-catégories se préparent dans {settings} → Autres réglages → Vu en passant → « Après la photo ».',
     '{palette} **Street art** : dans Vu en passant, la catégorie « Street art » (créée la première fois) demande l\'artiste à la place de la sous-catégorie. Comme Vu en passant, elle n\'a pas de bouton en haut au départ : {settings} → Barre du haut pour l\'y mettre.',
     '{search} **En écrivant l\'artiste**, « Tu voulais dire » propose les noms connus proches (tes lieux, Mes artistes, Art dans la rue) : un appui remplit le champ. « Chercher … sur Google » ouvre une recherche, seulement si tu la touches.',
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
@@ -11400,6 +11409,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
     '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
@@ -11409,7 +11419,6 @@ const HELP = [
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
     '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
-    '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

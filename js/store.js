@@ -241,7 +241,7 @@ export function moveChip(state, key, delta, catIds = []) {
 }
 
 /** Lignes masquées de la feuille Filtres. */
-export const FILTER_KEYS = ['open', 'top', 'lines', 'buslines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'velo', 'jardins', 'covered', 'seen', 'lists', 'people', 'arr'];
+export const FILTER_KEYS = ['open', 'top', 'lines', 'buslines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'velo', 'jardins', 'covered', 'lists', 'people', 'arr'];
 export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray(list) && list.includes(k));
 
 /** v314 (mes choix du 20 nov., d'après ma capture) : le départ d'un nouveau venu, seulement quand la mémoire est vide.

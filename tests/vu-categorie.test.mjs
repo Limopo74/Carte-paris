@@ -46,7 +46,7 @@ test('Pris en passant : la marque, ou la catégorie Vu en passant d\'avant la v3
   assert.equal(isPass({ cat: 'culture', pass: true }), true);
   assert.equal(isPass({ cat: SEEN_CAT.id }), true);
   assert.equal(isPass({ cat: 'culture' }), false);
-  assert.match(app, /\(!filt\.seen \|\| isPass\(p\)\)/, 'Filtres → Vu en passant');
+  // v362 : plus de filtre Vu en passant dans Filtres (tests/filtres-sans-vu.test.mjs)
   assert.match(app, /const seen = isPass\(p\) && p\.photos\?\.length && !p\.gone(?: && state\.seenPhotoMap !== false)?;/, 'la photo sur la carte');
 });
 

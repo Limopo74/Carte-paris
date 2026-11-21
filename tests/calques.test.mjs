@@ -88,7 +88,7 @@ test('feuille Filtres : chaque ligne qu\'on peut masquer est une clé gardée (v
   for (const k of rows) assert.ok(FILTER_KEYS.includes(k), `ligne « ${k} » proposée mais pas gardée`);
   const kept = [...app.matchAll(/keep\('([a-z]+)'/g)].map((m) => m[1]);
   for (const k of kept) assert.ok(FILTER_KEYS.includes(k), `ligne « ${k} » de Filtres pas gardée`);
-  assert.deepEqual(cleanFilterKeys(['seen', 'x']), ['seen']);
+  assert.deepEqual(cleanFilterKeys(['covered', 'seen', 'x']), ['covered']); // v362 : « seen » parti
 });
 
 test('Filtres affichés : chaque ligne de Filtres peut s\'y masquer (v267 : Pistes à vélo manquait)', () => {
