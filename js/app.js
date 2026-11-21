@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (353)';
+const VERSION = '21 novembre 2026 (354)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1856,7 +1856,9 @@ function openSeenPhotos(from = null) {
     el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, plural(g.items.length, 'photo', 'photos'))),
     el('div', { class: 'seen-grid' }, g.items.map(({ x, i }) => cell(x, i))),
   ]);
-  openSheet([ico('images'), ' Mes Vu en passant'], el('div', { class: 'stack' }, // le nombre est sous « Tout » : le titre tient sur une ligne
+  openSheet([ico('images'), ' Mes Vu', ' ', el('span', { class: 'title-tail' }, 'en passant', // le nombre est sous « Tout » : le titre tient sur une ligne
+    /* v354 (ma demande du 21 nov.) : Réglages → Vu en passant en 1 appui, comme la flèche de mise à jour à côté de « Réglages » (v342) */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Réglages de Vu en passant', title: 'Réglages de Vu en passant', onclick: () => openSettings('vu') }, ico('settings', { size: 18 })))], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant. + Ajouter → Vu en passant : une photo, une ligne, et elle arrive ici.'),
     tiles, subChips, une, ...grid,
     foot(el('div', { class: 'row' }, backBtn(back), // v307 : exporter ce qui est affiché (tout, une catégorie, une sous-catégorie, un artiste)
@@ -11375,6 +11377,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
     '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
@@ -11384,7 +11387,6 @@ const HELP = [
     '{images} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
-    '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
