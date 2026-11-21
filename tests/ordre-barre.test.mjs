@@ -27,10 +27,10 @@ test('Ordre du haut : rien de changé = null ; un ordre faux ou vide = null', ()
 
 test('Ordre du haut : chaque bouton une fois ; un bouton absent reprend sa place de départ', () => {
   const twice = ['ttb', 'fav', 'ttb', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins'];
-  assert.deepEqual(cleanChipOrder(twice), ['ttb', 'fav', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins']);
+  assert.deepEqual(cleanChipOrder(twice), ['ttb', 'fav', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes']);
   // Un bouton ajouté dans une version suivante n'est pas dans l'ordre enregistré : il vient après celui qui le précède au départ
   const old = ['ttb', 'fav', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo'];
-  assert.deepEqual(cleanChipOrder(old), ['ttb', 'fav', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins']);
+  assert.deepEqual(cleanChipOrder(old), ['ttb', 'fav', 'street', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes']);
   const first = MOVABLE_CHIPS.slice(1).reverse();
   assert.equal(cleanChipOrder(first).indexOf('fav'), 0, 'le premier de départ absent revient en tête');
 });
@@ -42,7 +42,7 @@ test('Ordre du haut : ↑ ↓ échangent deux voisins ; rien au bout ; revenir �
   s = moveChip(s, 'ttb', -1);
   assert.deepEqual(s.chipOrder.slice(0, 2), ['ttb', 'fav']);
   assert.equal(moveChip(s, 'ttb', -1), s, 'déjà le premier');
-  assert.equal(moveChip({ chipOrder: null }, 'jardins', 1).chipOrder, null, 'déjà le dernier');
+  assert.equal(moveChip({ chipOrder: null }, 'artistes', 1).chipOrder, null, 'déjà le dernier');
   assert.equal(moveChip({ chipOrder: null }, 'cat:resto', 1).chipOrder, null, 'une catégorie ne se range pas ici');
   s = moveChip(moveChip(s, 'ttb', 1), 'ttb', 1);
   assert.equal(s.chipOrder, null);
@@ -50,9 +50,9 @@ test('Ordre du haut : ↑ ↓ échangent deux voisins ; rien au bout ; revenir �
 
 test('Ordre du haut : gardé d\'un jour à l\'autre et dans les réglages de la sauvegarde', () => {
   const st = memStorage();
-  const s = moveChip(loadState(st), 'jardins', -1);
+  const s = moveChip(loadState(st), 'artistes', -1);
   saveState(st, s);
-  assert.equal(JSON.parse(st.getItem(KEY)).chipOrder.at(-1), 'velo');
+  assert.equal(JSON.parse(st.getItem(KEY)).chipOrder.at(-1), 'jardins');
   assert.deepEqual(loadState(st).chipOrder, s.chipOrder);
   const file = JSON.parse(exportJSON(s));
   assert.deepEqual(readSettings(file).chipOrder, s.chipOrder);

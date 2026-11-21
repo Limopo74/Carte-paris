@@ -189,14 +189,14 @@ export const seenSettings = (o) => ({ seenKeep: o?.seenKeep !== false, seenStart
 export const cleanSeenLast = (x) => (x && typeof x.cat === 'string' && /^[\w-]{1,64}$/.test(x.cat) ? { cat: x.cat, sub: typeof x.sub === 'string' && /^[\w-]{1,64}$/.test(x.sub) ? x.sub : '' } : null);
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
-export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|buslines|velib|pratique|passages|velo|jardins|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
+export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|buslines|velib|pratique|passages|velo|jardins|artistes|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
 /** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib', Mes lignes de bus (v228), Fontaines et toilettes, Passages couverts. Un bouton masqué n'est pas aussi dans Plus. */
-export const DEFAULT_MORE_CHIPS = ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins'];
+export const DEFAULT_MORE_CHIPS = ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes'];
 export const cleanMoreChips = (list, hidden = []) => (list === undefined ? [...DEFAULT_MORE_CHIPS] : cleanChips(list)).filter((k) => !hidden.includes(k));
 /** Un bouton du haut ajouté après coup arrive sous ⋯ Plus, pas dans la barre, une seule fois : par version de la barre
- * (chipsV 2, v168 : Passages couverts ; chipsV 3, v228 : Mes lignes de bus ; chipsV 4 : Pistes à vélo ; chipsV 5, v261 : Jardins publics). Un bouton déjà rangé ailleurs ne bouge pas. */
-export const NEW_MORE_CHIPS = { 2: ['passages'], 3: ['buslines'], 4: ['velo'], 5: ['jardins'] };
-export const CHIPS_V = 5;
+ * (chipsV 2, v168 : Passages couverts ; chipsV 3, v228 : Mes lignes de bus ; chipsV 4 : Pistes à vélo ; chipsV 5, v261 : Jardins publics ; chipsV 6, v372 : Mes artistes). Un bouton déjà rangé ailleurs ne bouge pas. */
+export const NEW_MORE_CHIPS = { 2: ['passages'], 3: ['buslines'], 4: ['velo'], 5: ['jardins'], 6: ['artistes'] };
+export const CHIPS_V = 6;
 export function withNewChips(list, v) {
   if (list === undefined || v >= CHIPS_V) return list;
   const have = cleanChips(list);
@@ -208,7 +208,7 @@ export function withNewChips(list, v) {
  * restent toujours en tête (3A). v304 (mon choix « une seule file » du 20 nov.) : une catégorie (`cat:<id>`) peut aussi s'y
  * ranger, parmi les boutons de l'appli ; une catégorie absente de la liste va au bout, dans l'ordre de mes catégories.
  * null = l'ordre de départ, qu'un bouton ajouté plus tard suit tout seul. */
-export const MOVABLE_CHIPS = ['fav', 'street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins'];
+export const MOVABLE_CHIPS = ['fav', 'street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes'];
 const isCatKey = (k) => typeof k === 'string' && /^cat:[\w-]{1,40}$/.test(k);
 export function cleanChipOrder(list) {
   if (!Array.isArray(list)) return null;

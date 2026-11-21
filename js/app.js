@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (371)';
+const VERSION = '21 novembre 2026 (372)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1016,6 +1016,9 @@ function chipItems(chip = null, catChip = null) {
     // v261 (mon choix 1A) : rangé sous ⋯ Plus comme Passages couverts (dans la barre, il aurait poussé les catégories) ; déplaçable dans Réglages
     { key: 'jardins', name: 'Jardins publics', icon: ico('trees'), active: Boolean(state.showJardins), act: toggleJardins,
       make: () => chip(ico('trees'), Boolean(state.showJardins), toggleJardins, { class: 'pratique', aria: 'Jardins publics sur la carte' }) },
+    // v372 (mon choix A du 21 nov.) : Mes artistes à un ou deux appuis ; ouvre sa page (jamais « allumé ») ; rangé sous ⋯ Plus au départ
+    { key: 'artistes', name: 'Mes artistes', icon: ico('user'), active: false, act: () => openArtists(),
+      make: () => chip(ico('user'), false, () => openArtists(), { class: 'artistes icon-only', aria: 'Mes artistes' }) },
   ];
   // v268 (mes choix 2A, 3A, 4A) : les boutons dans mon ordre ; Tout et Filtres toujours en tête.
   // v304 (une seule file) : une catégorie peut se ranger parmi les boutons de l'appli ; sinon au bout, dans l'ordre de mes catégories.
@@ -1030,11 +1033,11 @@ function openChipsMore() {
   const where = chipPlace();
   const list = chipItems().filter((x) => where(x.key) === 'more');
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant' }[x.key] ?? '');
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
-      const opens = x.key === 'filters' || x.key === 'all';
+      const opens = x.key === 'filters' || x.key === 'all' || x.key === 'artistes'; // v372 : Mes artistes ouvre sa page
       return el('button', { type: 'button', class: 'menu-row c-guide', ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
         x.act();
         if (!opens && view === 'chips-more') openChipsMore(); /* v228 : un bouton qui ouvre un autre écran (Mes lignes de bus sans ligne) le laisse ouvert */
@@ -11234,7 +11237,7 @@ const HELP = [
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
-    '{user} **Mes artistes** : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
+    '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations, salles de concert et théâtres, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -11431,6 +11434,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
@@ -11440,7 +11444,6 @@ const HELP = [
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
     '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
     '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
-    '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -11585,7 +11588,7 @@ const savePreps = (list) => { try { storage.setItem(DEPART_KEY, JSON.stringify(c
 const PREP_STEPS = 10;
 const prepId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Sa carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
-const PREP_CHIPS = { street: ['tent', 'Dans la rue'], lines: ['lines', 'Lignes de métro et RER'], fav: ['star', 'Favoris'], ttb: ['circle', 'TTB (avec sa liste)'], velib: ['bike', 'Vélib\' sur la carte'], buslines: ['bus', 'Mes lignes de bus'], pratique: ['droplets', 'Fontaines et WC sur la carte'], passages: ['door-open', 'Passages couverts'], velo: ['spline', 'Pistes à vélo'], jardins: ['trees', 'Jardins publics'] };
+const PREP_CHIPS = { street: ['tent', 'Dans la rue'], lines: ['lines', 'Lignes de métro et RER'], fav: ['star', 'Favoris'], ttb: ['circle', 'TTB (avec sa liste)'], velib: ['bike', 'Vélib\' sur la carte'], buslines: ['bus', 'Mes lignes de bus'], pratique: ['droplets', 'Fontaines et WC sur la carte'], passages: ['door-open', 'Passages couverts'], velo: ['spline', 'Pistes à vélo'], jardins: ['trees', 'Jardins publics'], artistes: ['user', 'Mes artistes'] };
 /** v349 (défaut) : le même logo que son vrai bouton du haut : l'étoile de favori pleine (celle de départ), la pastille TTB. */
 const chipIcon = (k, icon) => (k === 'fav' ? (() => { const g = glyph(DEFAULT_FAV.icon, { filled: true }); g.style.color = DEFAULT_FAV.color; return g; })() : k === 'ttb' ? ttbDotFor('') : ico(icon));
 // v349 (mon choix 4A) : comme Réglages → À l'ouverture, écrit pour lui ; pas « Chez moi » (il n'en a pas encore)
