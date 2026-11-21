@@ -21,7 +21,7 @@ export const ICONS = [
   '🍽️', '☕', '🍷', '🍺', '🍸', '🥐', '🍰', '🍦', '🍕', '🍜', '🍣', '🥗',
   '🛍️', '👗', '👟', '📚', '🎁', '💄', '🧀', '🍫', '🏛️', '🖼️', '🎭', '🎬',
   '🎵', '⛪', '🌳', '🌸', '🏊', '🧘', '💈', '💊', '📍', '⭐', '❤️', '🏠',
-  '📷', // Vu en passant (v157)
+  '🎞️', // Vu en passant : photos empilées (v344 ; l'appareil photo, v157, veut dire « prendre une photo »)
   '🎨', // Street art (v161)
   '🌅', '🚪', '✨', // Vues, Architecture, Insolite (v344)
 ];
@@ -118,7 +118,7 @@ function validCategory(c) {
 const defaultIcon = (id) => DEFAULT_CATEGORIES.find((d) => d.id === id)?.icon ?? DEFAULT_ICON;
 const cleanCategory = (c) => ({
   id: c.id, name: c.name.trim().slice(0, NAME_MAX), color: c.color.toLowerCase(),
-  icon: ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id),
+  icon: c.icon === '📷' ? '🎞️' : ICONS.includes(c.icon) ? c.icon : defaultIcon(c.id), // v344 : l'ancien appareil photo devient les photos empilées
   ...(cleanLog(c.log) ? { log: cleanLog(c.log) } : {}), // nom de l'historique (« Mes repas »…), v157
   ...(cleanLog(c.did) ? { did: cleanLog(c.did) } : {}), // nom de « Déjà visité » (« Déjà goûté »…), v162
   ...(typeof c.words === 'string' && /^[\w-]{0,64}$/.test(c.words) ? { words: c.words } : {}), // série de Mots tout prêts ('' : aucune), v226

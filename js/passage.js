@@ -3,7 +3,7 @@
 import { distanceM, isRestoCat } from './geo.js';
 
 /** La catégorie des notes prises en passant : créée au premier usage, cachée de la barre du haut (le filtre est dans Filtres). */
-export const SEEN_CAT = { id: 'vu', name: 'Vu en passant', color: '#0c8599', icon: '📷' };
+export const SEEN_CAT = { id: 'vu', name: 'Vu en passant', color: '#0c8599', icon: '🎞️' }; // v344 : photos empilées (comme Mes Vu en passant) ; l'appareil photo = prendre une photo
 
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 

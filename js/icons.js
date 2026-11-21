@@ -187,6 +187,7 @@ export const EMOJI_ICON = {
 "❤️": "heart",
 "🏠": "house",
 "📷": "camera",
+"🎞️": "images",
 "🎨": "palette",
 "🌅": "sunset",
 "🚪": "door-open",

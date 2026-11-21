@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (345)';
+const VERSION = '21 novembre 2026 (346)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9128,7 +9128,7 @@ function openSettings(section = null) {
       };
       // v304 : Vu en passant est toujours dans la page ; « Barre » ou « Plus » crée sa catégorie avant la première photo
       const seenRow = catIds.includes(SEEN_CAT.id) ? null : el('div', { class: 'cat-row tool-row off' },
-        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('camera')),
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('images')),
         el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, SEEN_CAT.name), el('span', { class: 'menu-sub' }, 'Catégorie · encore aucune photo'), topSeg(`cat:${SEEN_CAT.id}`, SEEN_CAT.name, 'hidden')));
       openSheet([ico('panel-top'), ' Barre du haut'], el('div', { class: 'stack' },
         el('p', { class: 'help tip' }, 'La barre du haut, de gauche à droite. « Barre » garde un bouton en haut, « Plus » le range sous ⋯ (à un appui), « Masqué » l\'enlève : les lieux restent sur la carte. ↑ ↓ règlent l\'ordre, catégories comprises ; Tout et Filtres restent en tête.'),
@@ -11343,8 +11343,9 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
     '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
-    '{camera} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
+    '{images} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
@@ -11352,7 +11353,6 @@ const HELP = [
     '{lock} **Confidentialité dans l\'Aide** : tout en bas de l\'Aide, ce qui reste sur ton téléphone et ce que reçoit chaque service. Le même texte que dans {settings} → Autres réglages → Mise à jour et confidentialité.',
     '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
     '{arrow-right} **« Y aller en transports »** : au-delà de ta limite à pied, la plaque d\'un lieu le dit, avec la distance dessous. Google Maps s\'y ouvre en transports, comme avant. La limite : {settings} → Autres réglages → Distances et durées.',
-    '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
