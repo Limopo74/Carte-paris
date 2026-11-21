@@ -46,7 +46,7 @@ import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, t
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
-import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
+import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (367)';
+const VERSION = '21 novembre 2026 (368)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7125,7 +7125,7 @@ async function openHomePlan(home) {
   const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
   const walk = walkMinutes(distanceM(from, dest));
   const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
-  const best = opts.reduce((a, o) => (o.plan.noMetro ? a : !a || o.plan.minutes < a.plan.minutes ? o : a), null);
+  const best = fastestHomeOption(opts, home.st, walk); // v368 : jamais ma station Maison elle-même
   const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
   // Bus (v148) : les lignes qui vont jusqu'à mon arrêt maison, depuis un arrêt à moins de 8 min à pied
   // v263 : jusqu'à 3 arrêts par station ; chaque ligne dit à lequel elle mène quand il y en a plusieurs
@@ -7158,15 +7158,15 @@ async function openHomePlan(home) {
     el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
     railLine,
     opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => renderMetroPlan(dest, from, back, o.st) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => (o.st === home.st ? openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }) : renderMetroPlan(dest, from, back, o.st)) },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, lineBadges(o.st), o === best && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
-          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
+          el('span', { class: 'item-sub' }, o.st === home.st ? `${walkMinutes(o.d)} min à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
-    best && walk <= best.plan.minutes ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
+    (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     ...busBlock,
     el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
     el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour la boussole.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),

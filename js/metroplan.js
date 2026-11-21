@@ -71,6 +71,19 @@ export function metroPlan(stations, from, to, k = 3, start = null) {
   return best;
 }
 
+/**
+ * Rentrer (v368) : la station la plus rapide parmi celles proches de moi, sans ma station Maison elle-même
+ * (y aller à pied, c'est déjà être arrivé : son « temps en métro » faisait un aller-retour absurde,
+ * 28 min au lieu de 15 le 21 nov. 2026). Et seulement si le métro bat la marche quand Maison est dans la liste.
+ * `opts` : [{ st, plan }] ; `homeSt` : la station Maison ; `walk` : minutes à pied jusqu'à elle.
+ */
+export function fastestHomeOption(opts, homeSt, walk) {
+  const hasHome = opts.some((o) => o.st === homeSt);
+  const best = opts.reduce((a, o) => (o.st === homeSt || o.plan.noMetro || o.plan.type === 'walk' ? a : !a || o.plan.minutes < a.plan.minutes ? o : a), null);
+  if (best && hasHome && best.plan.minutes >= walk) return null;
+  return best;
+}
+
 /** Phrase de la page Métro quand aucun métro n'a été trouvé (`plan.noMetro`) ; '' sinon. `start` : station de départ imposée. */
 export function noMetroText(plan, start = null) {
   if (plan?.noMetro === 'from') return 'Aucune station de métro à moins de 1,2 km de toi.';
