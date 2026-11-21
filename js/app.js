@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (370)';
+const VERSION = '21 novembre 2026 (371)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -291,6 +291,9 @@ const goText = (d, pos) => {
   if (!walkGo(d)) return [el('span', { class: 'go-two' }, el('span', {}, 'Y aller en transports'), el('span', {}, `${nb(distText(d))}${from}`))];
   return [`Y aller · ${nb(from ? fmtWalk(d).replace(/ à pied$/, '') : fmtWalk(d))}${from}`, el('small', { class: 'go-dist' }, fmtDist(d))];
 };
+/** Ligne du haut d'une page (sortie, expo, marché, Navigo, TTB, passage) : v371 (mon choix A du 21 nov.), même règle que la plaque
+ *  « Y aller » : au-delà de « À pied jusqu'à », la distance seule (« à 9,2 km de chez toi ») au lieu de « ≈ 132 min à pied ». */
+const topWalk = (d) => (walkGo(d) ? fmtWalk(d) : `à ${distText(d)}${atHome() ? ' de chez toi' : ''}`);
 /** Ligne « Uber jusqu'ici » (v277 ; v334, mon choix 2A du 20 nov. : aussi en bas de la page d'une sortie, d'un musée, d'une galerie,
  *  d'une salle). Masquée partout par Réglages → Autres réglages → Fiche d'un lieu (un nouveau venu l'a masquée, v323). */
 const uberRow = (p) => (!ficheShows('uber') || !Number.isFinite(p?.lat) || !Number.isFinite(p?.lng) ? null
@@ -5918,7 +5921,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     // l'autre, Y aller et les boutons restent à la même place. La fiche de mes lieux ne change pas.
     mine ? spotPhoto(mine) : null,
     !(mine?.photos?.length) && snap ? el('button', { type: 'button', class: 'photo-snap', onclick: snap }, ico('camera', { size: 28 }), el('span', {}, 'Prendre une photo')) : null,
-    el('p', { class: 'summary' }, [kicker, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('p', { class: 'summary' }, [kicker, d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
@@ -5988,7 +5991,7 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
   const again = () => openEventPage(e, back, { label, icon });
   openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
     evPhoto(e),
-    el('p', { class: 'summary' }, [label || GENRE_NAME[genre], eventWhen(e), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('p', { class: 'summary' }, [label || GENRE_NAME[genre], eventWhen(e), d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
     e.dates?.length ? el('div', { class: 'ev-dates' }, el('p', { class: 'legend' }, 'Dates de l\'agenda'), ...e.dates.map((t) => el('p', {}, t))) : null,
     e.place || e.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), [e.place, e.address].filter(Boolean).join(' · ')), copyBtn(() => e.address || e.place, 'l\'adresse', 'Adresse copiée')) : null,
     e.lead ? el('p', { class: 'help' }, e.lead) : null,
@@ -7750,7 +7753,7 @@ function openMarket(m, back = null, date = new Date()) {
   const hol = holidayOn(date); // v213 : un jour férié, ni heure ni certitude
   const hrs = hol ? '' : hoursToday(m, date);
   openSheet([ico('store'), ` ${m.name}`], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${today ? 'Aujourd\'hui' : dayTitle(date).replace(/^./, (c) => c.toUpperCase())}${hrs ? ` : ${hrs}` : ''}${d != null ? ` · ${fmtWalk(d)}` : ''}`),
+    el('p', { class: 'summary' }, `${today ? 'Aujourd\'hui' : dayTitle(date).replace(/^./, (c) => c.toUpperCase())}${hrs ? ` : ${hrs}` : ''}${d != null ? ` · ${topWalk(d)}` : ''}`),
     hol ? el('p', { class: 'warn' }, `${hol} : ${HOLIDAY_NOTE.replace(/^Jour férié : /, '')}.`) : null,
     m.place ? el('p', { class: 'where' }, m.place) : null,
     m.products ? el('p', { class: 'help' }, m.products) : null,
@@ -7785,7 +7788,7 @@ function openNavigo(x, back = null) {
   const d = startPos() ? distanceM(startPos(), x) : null;
   const again = () => openNavigo(x, back);
   openSheet([ico('badge-percent'), ` ${x.name}`], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, [x.kind, d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('p', { class: 'summary' }, [x.kind, d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
     x.address ? el('p', { class: 'where' }, x.address) : null,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Avantage Navigo'), el('span', {}, '')),
     el('p', {}, x.offer),
@@ -7961,7 +7964,7 @@ function openTtbPlace(x, back = null) {
   const st = ttbState(ttbMarksNow(), x); /* v218 : l'étiquette à la hauteur du titre (mots courts : la ligne ne se coupe dans aucune taille de texte) */
   const seenAt = ttbCheckedAt(ttbMarksNow(), x);
   openSheet([el('span', { class: 'fiche-kick', 'aria-hidden': 'true' }, kick, st ? el('span', { class: TTB_STATE[st][0] }, TTB_STATE[st][1]) : null), el('span', { class: 'fiche-name' }, x.name), el('span', { class: 'sr-only' }, `, ${kick}${st ? `, ${TTB_STATE[st][1]}` : ''}`)], el('div', { class: 'stack detail' },
-    el('p', { class: 'summary' }, [ttbKicker(x), d != null ? fmtWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('p', { class: 'summary' }, [ttbKicker(x), d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
     el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), x.address), copyBtn(() => x.address, 'l\'adresse', 'Adresse copiée')),
     el('div', { class: 'fiche-cols' },
       el('div', {},
@@ -11428,6 +11431,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
@@ -11437,7 +11441,6 @@ const HELP = [
     '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
     '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
     '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
-    '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
