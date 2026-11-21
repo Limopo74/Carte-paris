@@ -1,4 +1,4 @@
-// v333 (mon choix 2A du 20 nov.) : « Uber jusqu'ici » aussi en bas de la page d'une sortie et d'un musée, d'une galerie, d'une salle.
+// v334 (mon choix 2A du 20 nov.) : « Uber jusqu'ici » aussi en bas de la page d'une sortie et d'un musée, d'une galerie, d'une salle.
 // Une seule ligne pour tous (uberRow), masquée partout par Réglages → Autres réglages → Fiche d'un lieu.
 import test from 'node:test';
 import assert from 'node:assert/strict';

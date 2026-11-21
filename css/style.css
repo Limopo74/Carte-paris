@@ -536,6 +536,7 @@ ol.items { padding: 0; }
 
 /* Fiche : grande barre « Y aller » + 3 boutons nommés (proposition E) */
 .btn.go-bar { min-height: var(--h-l); font-size: var(--t18); font-weight: 700; gap: 10px; border-radius: var(--r); }
+.go-two { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; text-align: left; } /* v335 : « Y aller en transports » / distance */
 .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 /* Rangées de 3 et barre du bas : largeur fixe, libellés courts sur une ligne → taille fixe, même en « Très grand » (v144) */
 .row3 .btn { padding-inline: 4px; white-space: nowrap; font-size: 16px; gap: 5px; }

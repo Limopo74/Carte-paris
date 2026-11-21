@@ -32,5 +32,16 @@ test('les deux plaques « Y aller » à durée passent par goText (fiche, procha
   assert.equal((src.match(/\.\.\.goText\(/g) ?? []).length, 2);
   assert.doesNotMatch(src, /Y aller · \$\{fmtWalk\(/); // plus de minutes écrites à part sur une plaque
   const fn = src.slice(src.indexOf('const goText'), src.indexOf('};', src.indexOf('const goText')));
-  assert.match(fn, /if \(!walkGo\(d\)\) return \[`Y aller · \$\{nb\(distText\(d\)\)\}\$\{from\}`\];/); // au-delà : la distance seule, « de chez toi » gardé
+  // v335 : au-delà, « Y aller en transports » puis la distance seule, « de chez toi » gardé, sans minutes
+  assert.match(fn, /if \(!walkGo\(d\)\) return \[el\('span', \{ class: 'go-two' \}, el\('span', \{\}, 'Y aller en transports'\), el\('span', \{\}, `\$\{nb\(distText\(d\)\)\}\$\{from\}`\)\)\];/);
+});
+
+test('v335 : « en transports » seulement quand Google Maps s\'ouvre en transports (walkGo faux), jamais à pied', async () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('const goText'), src.indexOf('};', src.indexOf('const goText')));
+  const far = fn.indexOf('if (!walkGo(d))');
+  assert.equal((fn.match(/'Y aller en transports'/g) ?? []).length, 1);
+  assert.ok(far > 0 && fn.indexOf("'Y aller en transports'") > far, 'le mot n\'apparaît que dans la branche au-delà de la limite');
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.go-two \{ display: flex; flex-direction: column;/, 'deux lignes voulues, même coupure dans les trois tailles');
 });

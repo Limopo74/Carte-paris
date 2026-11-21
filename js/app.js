@@ -68,7 +68,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '20 novembre 2026 (334)';
+const VERSION = '21 novembre 2026 (335)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 const NET_TIMEOUT_MS = 10000;
 const PARIS = [48.8566, 2.3522];
@@ -264,10 +264,12 @@ const goText = (d, pos) => {
   if (d == null) return ['Y aller'];
   const nb = (t) => t.replace(/ /g, '\u00a0');
   const from = pos?.kind === 'home' ? ' de\u00a0chez\u00a0toi' : '';
-  if (!walkGo(d)) return [`Y aller · ${nb(distText(d))}${from}`];
+  /* v335 (mes choix 1A 2A du 21 nov.) : au-delà, la plaque dit qu'elle ouvre Google Maps en transports, sur deux lignes voulues
+   *  (« Y aller en transports » / « 7,6 km de chez toi ») : même coupure dans les trois tailles, même hauteur de plaque. */
+  if (!walkGo(d)) return [el('span', { class: 'go-two' }, el('span', {}, 'Y aller en transports'), el('span', {}, `${nb(distText(d))}${from}`))];
   return [`Y aller · ${nb(from ? fmtWalk(d).replace(/ à pied$/, '') : fmtWalk(d))}${from}`, el('small', { class: 'go-dist' }, fmtDist(d))];
 };
-/** Ligne « Uber jusqu'ici » (v277 ; v333, mon choix 2A du 20 nov. : aussi en bas de la page d'une sortie, d'un musée, d'une galerie,
+/** Ligne « Uber jusqu'ici » (v277 ; v334, mon choix 2A du 20 nov. : aussi en bas de la page d'une sortie, d'un musée, d'une galerie,
  *  d'une salle). Masquée partout par Réglages → Autres réglages → Fiche d'un lieu (un nouveau venu l'a masquée, v323). */
 const uberRow = (p) => (!ficheShows('uber') || !Number.isFinite(p?.lat) || !Number.isFinite(p?.lng) ? null
   : el('a', { class: 'fiche-row', href: uberUrl(p), target: '_blank', rel: 'noopener' },
@@ -11258,7 +11260,7 @@ const HELP = [
     '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
-    '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque donne la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
+    '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
     '{trees} **Signaler un grand jardin ouvert** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau, tout en bas. Le bandeau « Maintenant » te dit quand un jardin de 4 hectares ou plus (Monceau, Montsouris, Buttes-Chaumont…) est ouvert à 200 m. Rien s\'il ferme dans moins de 20 min, rien quand tu y es déjà, rien par grand vent. Appli ouverte seulement.',
     '{zap} **Raccourcis** : appui long sur l\'icône de l\'appli. Métro, Autour de moi, Ajouter ici, Fontaine et WC.',
@@ -11297,6 +11299,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-right} **« Y aller en transports »** : au-delà de ta limite à pied, la plaque d\'un lieu le dit, avec la distance dessous. Google Maps s\'y ouvre en transports, comme avant. La limite : {settings} → Autres réglages → Distances et durées.',
     '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
@@ -11306,7 +11309,6 @@ const HELP = [
     '{camera} **Photos dans Sorties** : {settings} → Autres réglages → Ce qui s\'affiche, éteint au départ. La photo de l\'agenda s\'affiche à gauche de chaque sortie ; sans photo, la grande lettre du genre. Juste dessous, **Photos des salles** : ta photo d\'une salle, montrée seulement quand l\'agenda n\'a pas de photo pour une de ses sorties.',
     '{camera} **La fiche d\'une photo prise en passant** : Y aller, puis ta photo en grand, sa date et ta ligne ; dessous, Modifier, Rattacher, Partager, Rangement. Dans Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo ».',
     '{settings} **Réglages plus court** : les réglages qu\'on fait une fois (Distances et durées, Mon pas, Style de la carte, Alertes et bandeau, Fiche d\'un lieu, Navigo, masculin…) sont dans {settings} → **Autres réglages**, en bas de « Ce qui s\'affiche ».',
-    '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages, tout en bas. Tu choisis pour lui ses boutons, sa carte, ses catégories, ses réponses et un mot d\'accueil, sous un nom pour toi seule, puis tu lui envoies un lien ou un QR code. Tes lieux ne partent jamais.',
   ]],
 ];
 
