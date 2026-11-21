@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (342)';
+const VERSION = '21 novembre 2026 (343)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11219,7 +11219,7 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
     '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
-    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant.',
+    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant, ou son bouton dans la barre du haut. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, + Ajouter → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
     '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Autres réglages → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
     '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant, sous « Cette photo ») : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
