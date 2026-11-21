@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (358)';
+const VERSION = '21 novembre 2026 (359)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9832,6 +9832,12 @@ function openSettings(section = null) {
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Autres réglages', () => openSettings('autres'))), false, 'c-guide'),
     row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
+    // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
+    row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
+    // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
+    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+      state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
+    }),
     // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
     onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Avantages Navigo : Sorties, fiches, loupe' : 'Avantages Navigo masqués partout', state.navigo !== false, () => {
       state.navigo = state.navigo === false;
@@ -9842,24 +9848,19 @@ function openSettings(section = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
-    // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche », éteint au départ ; la photo de l'agenda dans chaque liste de sorties
-    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
-      state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
-    }),
-    // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
-    row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
+    ESSAI ? null : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
+    // v321 (autre conversation) : sous l'essai ; v322 : dans Autres réglages → Appli
+    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
+    // v359 (mon choix A du 21 nov.) : l'interrupteur en bas du groupe, Mes remarques juste dessous
     onOff('test', 'megaphone', 'Période de test', testState.on ? 'Le porte-voix, en haut à droite' : 'Éteinte : pas de porte-voix', testState.on, () => {
       testState = { ...testState, on: !testState.on }; saveTest(); showRemarkBtn();
       const n = testState.remarks.filter((r) => !r.sent).length;
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
     testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
-    ESSAI ? null : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
-    // v321 (autre conversation) : sous l'essai ; v322 : dans Autres réglages → Appli
-    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
     ), { name: 'settings:autres', again: () => openSettings('autres'), tall: true });
     return;
@@ -11394,6 +11395,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
     '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
@@ -11403,7 +11405,6 @@ const HELP = [
     '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
     '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
     '{images} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
-    '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

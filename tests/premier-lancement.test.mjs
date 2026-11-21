@@ -83,7 +83,9 @@ test('v315 : Essayer le premier lancement (Réglages) : une mémoire à part, me
   // v322 : tout en bas d'Autres réglages, au-dessus du retour ; « Terminer l'essai » reste sur Réglages pendant l'essai
   const end = app.indexOf("), { name: 'settings:autres'");
   const row = app.lastIndexOf("'Essayer le premier lancement'", end);
-  assert.ok(row > 0 && end - row < 900, 'tout en bas d\'Autres réglages (« Préparer le démarrage d\'un proche » juste dessous)');
+  const prep = app.indexOf("'Préparer le démarrage d\\'un proche'", row);
+  const test = app.indexOf("onOff('test', 'megaphone', 'Période de test'", row);
+  assert.ok(row > 0 && prep > row && prep - row < 900 && test > prep && test < end, 'en bas d\'Autres réglages → Appli, « Préparer le démarrage d\'un proche » juste dessous, puis l\'interrupteur Période de test (v359)');
   const main = app.indexOf('mySettingsBlock(),\n  ), { name: \'settings\'');
   assert.ok(main - app.lastIndexOf("'Terminer l\\'essai'", main) < 400, 'Terminer l\'essai sur Réglages, en bas');
   assert.match(app, /'Terminer l\\'essai'/);

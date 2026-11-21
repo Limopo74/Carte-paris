@@ -114,12 +114,15 @@ test('Mes photos des salles : dans la sauvegarde générale (mon choix 1B), jama
   assert.match(app, /compressImage\(f, VENUE_PHOTO_SIDE\)/, 'réduite sur le téléphone, position effacée');
 });
 
-test('Autres réglages → Ce qui s\'affiche : l\'interrupteur et « Photos des salles » en bas du groupe, sous Écrire au masculin', () => {
+test('Autres réglages → Ce qui s\'affiche : « Photos des salles » sous Fiche d\'un lieu, puis les interrupteurs, Photos dans Sorties en premier (v359)', () => {
   const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
-  const a = page.indexOf("onOff('masculin'");
-  const b = page.indexOf("onOff('evThumbs', 'camera', 'Photos dans Sorties'");
+  const f = page.indexOf("'Fiche d\\'un lieu'");
   const c = page.indexOf("row('camera', 'Photos des salles'");
+  const b = page.indexOf("onOff('evThumbs', 'camera', 'Photos dans Sorties'");
+  const a = page.indexOf("onOff('masculin'");
   const d = page.indexOf("'ring-title menu-group' }, 'Appli')");
-  assert.ok(a > 0 && b > a && c > b && d > c);
+  assert.ok(f > 0 && c > f && b > c && a > b && d > a);
+  assert.ok(!page.slice(c + 10, b).includes('row('), 'les deux lignes Photos côte à côte');
+  assert.ok(!page.slice(b, d).includes('row('), 'les interrupteurs ensemble, en bas du groupe');
   assert.match(app, /'Dans Sorties, la photo de l\\'agenda passe toujours avant la tienne\.'/);
 });
