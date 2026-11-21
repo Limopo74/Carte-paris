@@ -1,4 +1,4 @@
-// v369 : en haut de Sorties, une petite image à droite du titre allume ou éteint « Photos dans Sorties » ;
+// v370 : en haut de Sorties, une petite image à droite du titre allume ou éteint « Photos dans Sorties » ;
 // image pleine = photos affichées, image vide = icône du genre. Pas dans l'onglet Navigo (ses lignes n'ont pas de photo).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

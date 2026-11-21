@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (369)';
+const VERSION = '21 novembre 2026 (370)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6767,7 +6767,7 @@ async function openEvents(start = null) {
       ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
     el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek({ kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
       open: (x, b) => x.go(b), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
-  // v369 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
+  // v370 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
   // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
   const photosOn = state.evThumbs === true;
   const photoBtn = mode === 'navigo' ? null : el('button', { type: 'button', class: 'title-maj title-photo', 'aria-pressed': String(photosOn),
