@@ -51,7 +51,7 @@ import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHer
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
-import { searchPoints, fold } from './search.js';
+import { searchPoints, searchArtists, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (372)';
+const VERSION = '21 novembre 2026 (373)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3624,9 +3624,22 @@ function openSearch(initial = '') {
           el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
+  /* v373 (mon choix A du 21 nov.) : en tête, les noms de Mes artistes qui correspondent ; un appui ouvre la page de l'artiste */
+  const artistBox = el('div', { class: 'stack' });
+  const updateArtists = () => {
+    const found = searchArtists(cleanArtists(state.artists), input.value);
+    const backHere = named('Recherche', () => openSearch(input.value));
+    fill(artistBox, ...(found.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Mes artistes'), el('span', {}, String(found.length))),
+      el('ul', { class: 'items' }, found.slice(0, 8).map((n) => el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => openArtist(n, backHere) },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('user', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n), el('span', { class: 'item-sub' }, 'Ses œuvres, ses musées, l\'agenda')))))),
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtists() }, ico('user'), 'Toute la liste Mes artistes')] : []));
+  };
   const bigBox = el('div', { class: 'stack' }); // grands lieux (liste de l'appli, rien n'est envoyé)
   const updateDir = () => {
     const q = input.value.trim();
+    updateArtists();
     const big = findArtPlaces(q);
     fill(bigBox, ...(big.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Grands lieux'), el('span', {}, String(big.length))),
       el('ul', { class: 'items' }, big.map((p) => el('li', { class: 'item' },
@@ -3682,8 +3695,8 @@ function openSearch(initial = '') {
   }
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, info, list, bigBox, busBox, moreBox, toAgenda, agendaBox, toDirectory,
-    el('p', { class: 'help tip' }, 'Cherche dans tes lieux, les Grands lieux, les lignes de bus (tape un numéro), TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
+  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, artistBox, info, list, bigBox, busBox, moreBox, toAgenda, agendaBox, toDirectory,
+    el('p', { class: 'help tip' }, 'Cherche dans Mes artistes, tes lieux, les Grands lieux, les lignes de bus (tape un numéro), TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
   { tall: true, name: 'search', again: () => openSearch(input.value) });
   input.focus();
   // Listes pas encore lues : chargées une fois (Navigo dans l'appli ; galeries et œuvres une fois par mois), puis la recherche se refait
@@ -11237,7 +11250,7 @@ const HELP = [
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
-    '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
+    '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut, et dans la loupe) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations, salles de concert et théâtres, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -11434,6 +11447,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
@@ -11443,7 +11457,6 @@ const HELP = [
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
     '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
-    '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

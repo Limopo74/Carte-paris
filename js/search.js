@@ -22,3 +22,13 @@ export function searchPoints(points, categories, query, here = null) {
   else out.sort((a, b) => a.point.name.localeCompare(b.point.name, 'fr', { sensitivity: 'base' }));
   return out;
 }
+
+/**
+ * v372+ (mon choix A du 21 nov.) : les noms de Mes artistes qui contiennent tous les mots tapés dans la loupe
+ * (sans accents ni majuscules), dans l'ordre de ma liste. Rien sous 2 lettres : « a » trouverait presque tout.
+ */
+export function searchArtists(names, query) {
+  const words = fold(query).split(' ').filter(Boolean);
+  if (words.join('').length < 2) return [];
+  return (Array.isArray(names) ? names : []).filter((n) => { const hay = fold(n); return words.every((w) => hay.includes(w)); });
+}
