@@ -1265,6 +1265,8 @@ a.menu-row .menu-chev { font-size: 20px; }
 /* Réglages → Boutons de la carte : Carte / Plus / Caché sous le nom */
 .tool-row { align-items: flex-start; padding: 10px 0; }
 .tool-row .tool-prev { margin-top: 2px; }
+/* v376 : une ligne sans ↑ ↓ (masquée, seule dans son groupe) garde Carte / Plus / Masqué à la même largeur que les autres */
+:root:not([data-text="tresgrand"]) .tool-group .tool-row:not(:has(> .btn.move)) > .tool-main { margin-right: 108px; }
 .tool-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .seg.tool-where { gap: 4px; flex-wrap: nowrap; }
 /* v148 : lignes de bus (contour bleu transport) et choix de l'arrêt sous une de mes stations */

@@ -853,6 +853,20 @@ export function moveTool(list, id, delta) {
   return l;
 }
 
+/** Déplace un bouton de la carte d'une place dans son groupe (Carte, Plus ou Masqué) : il échange sa place avec
+ * le voisin du même groupe, les autres ne bougent pas. `groupOf(t)` dit le groupe d'un bouton. Renvoie la nouvelle liste. */
+export function moveToolIn(list, id, delta, groupOf) {
+  const l = normalizeTools(list);
+  const i = l.indexOf(id);
+  if (i < 0) return l;
+  const g = groupOf(id);
+  let j = i + delta;
+  while (j >= 0 && j < l.length && groupOf(l[j]) !== g) j += delta;
+  if (j < 0 || j >= l.length) return l;
+  [l[i], l[j]] = [l[j], l[i]];
+  return l;
+}
+
 /** Déplace une catégorie d'une place (delta = -1 vers le haut, +1 vers le bas). Renvoie un nouvel état. */
 export function moveCategory(state, id, delta) {
   const list = [...state.categories];

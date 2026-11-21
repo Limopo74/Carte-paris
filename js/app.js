@@ -11,7 +11,7 @@ import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (375)';
+const VERSION = '21 novembre 2026 (376)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9275,56 +9275,60 @@ function openSettings(section = null) {
 
   if (section === 'outils') {
     const list = normalizeTools(state.mapTools);
+    // v376 (mes choix 1A 2A 3A 4A du 21 nov.) : la liste suit l'écran, en trois groupes ; ↑ ↓ n'agissent que dans le groupe
+    const whereOf = (t) => cleanHidden(state.hiddenTools).includes(t) ? 'hidden' : moreList().includes(t) ? 'more' : 'map';
+    const row = (t, i, group) => {
+      const info = TOOL_INFO[t];
+      const move = (delta) => { state.mapTools = moveToolIn(list, t, delta, whereOf); persist(); applyToolOrder(); openSettings('outils');
+        requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
+      const where = whereOf(t);
+      const put = (to) => {
+        const was = following; // v270 : masquer « Ma position » arrête le suivi, le message le dit
+        const h = new Set(cleanHidden(state.hiddenTools));
+        const m = new Set(moreList());
+        h.delete(t); m.delete(t);
+        if (to === 'hidden') h.add(t);
+        if (to === 'more') m.add(t);
+        state.hiddenTools = [...h]; state.moreTools = [...m]; persist(); applyToolOrder(); openSettings('outils');
+        requestAnimationFrame(() => document.querySelector(`[data-put="${t}:${to}"]`)?.focus());
+        toast(`${toolName(t)} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'masqué'}${was && !following ? '. Le suivi de ta position est arrêté.' : ''}`);
+      };
+      return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
+        el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
+        el('div', { class: 'tool-main' },
+          el('button', { type: 'button', class: 'tool-rename', onclick: () => openSettings(`nom:${t}`), 'aria-label': `Renommer ${toolName(t)}` },
+            el('span', { class: 'cat-name' }, toolName(t)), ico('pencil'),
+            state.toolNames?.[t] ? el('span', { class: 'menu-sub' }, `nom d'origine : ${info.short}`) : null), // 3A : la petite ligne seulement pour un bouton renommé
+          el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place du bouton ${toolName(t)}` },
+            [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']].map(([k, label]) =>
+              el('button', { type: 'button', 'aria-pressed': String(where === k), 'data-put': `${t}:${k}`, onclick: () => { if (where !== k) put(k); } }, label)))),
+        group.length > 1 && where !== 'hidden' ? [ // l'ordre des masqués ne se voit nulle part : pas de flèches
+          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${toolName(t)}` }, '↑'),
+          el('button', { type: 'button', class: 'btn move', disabled: i === group.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${toolName(t)}` }, '↓')] : null);
+    };
+    const groups = [['map', 'Sur la carte, de haut en bas'], ['more', 'Dans ⋯ Plus'], ['hidden', 'Masqués']].map(([k, title]) => {
+      const g = list.filter((t) => whereOf(t) === k);
+      return g.length ? el('div', { class: 'tool-group', 'data-group': k }, el('p', { class: 'legend' }, `${title} (${g.length})`), g.map((t, i) => row(t, i, g))) : null;
+    });
     openSheet([ico('arrow-up-down'), ' Boutons de la carte'], el('div', { class: 'stack' },
       el('div', {}, el('div', { class: 'legend' }, 'Côté de l\'écran'), el('div', { class: 'seg', role: 'group', 'aria-label': 'Côté des boutons' },
         ['right', 'left'].map((side) => el('button', { type: 'button', 'aria-pressed': String((state.toolsSide ?? 'right') === side), onclick: () => {
           state.toolsSide = side; persist(); applyToolOrder(); openSettings('outils'); toast(side === 'left' ? 'Boutons à gauche' : 'Boutons à droite');
         } }, side === 'left' ? '← À gauche' : 'À droite →')))),
-      el('p', { class: 'help tip' }, 'Touche le nom d\'un bouton pour le changer. Pour chaque bouton : « Carte » le met dans la colonne, « Plus » le range sous le bouton ⋯ (avec son nom, à un appui), « Masqué » l\'enlève. ↑ ↓ règlent l\'ordre, de haut en bas, dans la colonne comme dans Plus. Le dernier de la colonne est le plus près de ton pouce.'),
+      el('p', { class: 'help tip' }, 'Les boutons sont rangés comme sur l\'écran : la colonne de haut en bas, puis ceux de ⋯ Plus. « Carte », « Plus » ou « Masqué » change le groupe d\'un bouton ; ↑ ↓ changent sa place dans son groupe. Le dernier de la colonne est le plus près de ton pouce. Touche un nom pour le changer.'),
       el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.toolLabels === true), onclick: () => {
         state.toolLabels = state.toolLabels !== true; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils');
         toast(state.toolLabels ? 'Noms affichés à côté des boutons' : 'Noms masqués : icônes seules');
       } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('tags')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Noms à côté des boutons'), el('span', { class: 'menu-sub' }, 'Écrits sur la carte, à côté de chaque bouton de la colonne')),
         el('span', { class: `switch${state.toolLabels === true ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-      el('p', { class: 'legend' }, 'L\'essentiel'),
-      el('p', { class: 'help tip' }, `Un appui garde sur la carte : ${cleanEssentials(state.essentials).map(toolName).join(', ')}. Les autres passent dans ⋯ Plus ; rien n'est masqué.`),
-      el('button', { type: 'button', class: 'btn c-guide', onclick: applyEssential }, ico('check'), 'Ne garder que l\'essentiel'),
-      state.layoutBefore ? el('button', { type: 'button', class: 'btn', onclick: restoreLayout }, ico('rotate-ccw'), 'Remettre mes boutons d\'avant') : null,
+      groups,
+      el('p', { class: 'legend' }, 'Raccourcis'), // 2A : l'essentiel en bas, sur une ligne ›
       el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('essentiel') },
-        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('pencil')),
-        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Choisir l\'essentiel'), el('span', { class: 'menu-sub' }, 'Les boutons à garder sur la carte')),
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('check')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'L\'essentiel'), el('span', { class: 'menu-sub' }, 'Les boutons à garder sur la carte')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
-      el('p', { class: 'legend' }, 'Chaque bouton'),
-      el('p', { class: 'summary' }, (() => { const h = cleanHidden(state.hiddenTools); const m = moreList(); const n = list.filter((t) => !h.includes(t) && !m.includes(t)).length; return `Sur la carte : ${plural(n, 'bouton', 'boutons')}${m.length ? ` + ⋯ (${m.length} dans Plus)` : ''}`; })()),
-      el('div', {}, list.map((t, i) => {
-        const info = TOOL_INFO[t];
-        const move = (delta) => { state.mapTools = moveTool(list, t, delta); persist(); applyToolOrder(); openSettings('outils');
-          requestAnimationFrame(() => document.querySelector(`[data-move="${t}:${delta}"]`)?.focus()); };
-        const where = cleanHidden(state.hiddenTools).includes(t) ? 'hidden' : moreList().includes(t) ? 'more' : 'map';
-        const put = (to) => {
-          const was = following; // v270 : masquer « Ma position » arrête le suivi, le message le dit
-          const h = new Set(cleanHidden(state.hiddenTools));
-          const m = new Set(moreList());
-          h.delete(t); m.delete(t);
-          if (to === 'hidden') h.add(t);
-          if (to === 'more') m.add(t);
-          state.hiddenTools = [...h]; state.moreTools = [...m]; persist(); applyToolOrder(); openSettings('outils');
-          requestAnimationFrame(() => document.querySelector(`[data-put="${t}:${to}"]`)?.focus());
-          toast(`${toolName(t)} : ${to === 'map' ? 'sur la carte' : to === 'more' ? 'dans Plus' : 'masqué'}${was && !following ? '. Le suivi de ta position est arrêté.' : ''}`);
-        };
-        return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
-          el('span', { class: `tool-prev${t === 'paris' ? ' txt' : ''}`, 'aria-hidden': 'true' }, ICON_NAMES.has(info.icon) ? ico(info.icon, { size: 20 }) : info.icon),
-          el('div', { class: 'tool-main' },
-            el('button', { type: 'button', class: 'tool-rename', onclick: () => openSettings(`nom:${t}`), 'aria-label': `Renommer ${toolName(t)}` },
-              el('span', { class: 'cat-name' }, toolName(t)), ico('pencil'),
-              el('span', { class: 'menu-sub' }, state.toolNames?.[t] ? `${info.name} · nom d'origine : ${info.short}` : info.name)),
-            el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place du bouton ${toolName(t)}` },
-              [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']].map(([k, label]) =>
-                el('button', { type: 'button', 'aria-pressed': String(where === k), 'data-put': `${t}:${k}`, onclick: () => { if (where !== k) put(k); } }, label)))),
-          el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${t}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${toolName(t)}` }, '↑'),
-          el('button', { type: 'button', class: 'btn move', disabled: i === list.length - 1, 'data-move': `${t}:1`, onclick: () => move(1), 'aria-label': `Descendre ${toolName(t)}` }, '↓'));
-      })),
+      state.layoutBefore ? el('button', { type: 'button', class: 'btn', onclick: restoreLayout }, ico('rotate-ccw'), 'Remettre mes boutons d\'avant') : null,
       el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris ; le côté de l\'écran ne change pas'); } }, 'Boutons comme au début'), /* v283 (comme « Barre du haut comme au début ») : « Tout » était faux, le côté et l'essentiel restent */
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
@@ -9339,8 +9343,8 @@ function openSettings(section = null) {
       state.essentials = on ? ess.filter((x) => x !== t) : [...ess, t]; persist(); openSettings('essentiel');
       requestAnimationFrame(() => document.querySelector(`[data-ess="${t}"]`)?.focus());
     };
-    openSheet([ico('pencil'), ' Choisir l\'essentiel'], el('div', { class: 'stack' },
-      el('p', { class: 'help tip' }, 'Coche les boutons à garder sur la carte. « Ne garder que l\'essentiel » range les autres dans ⋯ Plus.'),
+    openSheet([ico('check'), ' L\'essentiel'], el('div', { class: 'stack' }, // v376 : le titre de la ligne qui l'ouvre
+      el('p', { class: 'help tip' }, 'Coche les boutons à garder sur la carte. « Ne garder que l\'essentiel » range les autres dans ⋯ Plus ; rien n\'est masqué. « Remettre mes boutons d\'avant », dans Boutons de la carte, annule.'),
       el('ul', { class: 'items' }, normalizeTools(state.mapTools).map((t) => {
         const info = TOOL_INFO[t];
         const box = el('input', { type: 'checkbox', class: 'check', checked: ess.includes(t), 'data-ess': t });
@@ -11220,10 +11224,10 @@ const HELP = [
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris).',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
-    '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. Pour chacun : Carte, Plus ou Masqué, et l\'ordre.',
+    '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. La page suit l\'écran : « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Carte, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe.',
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
-    '{check} **L\'essentiel** : même page, « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
-    '**Choisir l\'essentiel** : même page. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant » annule.',
+    '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
+    '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
     '{palette} **Allure de la carte** : {settings} → Autres réglages → Style de la carte. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
@@ -11449,6 +11453,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
@@ -11458,7 +11463,6 @@ const HELP = [
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
-    '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

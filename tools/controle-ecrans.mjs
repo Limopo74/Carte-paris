@@ -241,7 +241,7 @@ const ECRANS = {
   favstyle: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Favoris' }).first().click(); await p.waitForTimeout(300); },
   distances: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await p.waitForTimeout(300); },
   cercles: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Cercles' }).click(); await p.waitForTimeout(300); },
-  essentiel: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.menu-row', { hasText: 'Choisir l\'essentiel' }).click(); await p.waitForTimeout(300); },
+  essentiel: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.menu-row', { hasText: 'L\'essentiel' }).click(); await p.waitForTimeout(300); },
   nombouton: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.tool-rename').nth(1).click(); await p.waitForTimeout(300); },
   nomscarte: async (p) => { // v139 : « Noms à côté des boutons » allumé, avec un nom choisi
     await p.evaluate(() => { const k = 'carte-paris.v1'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.toolLabels = true; o.toolNames = { home: 'Chez moi', pratique: 'Eau et toilettes' }; o.moreTools = ['velib']; localStorage.setItem(k, JSON.stringify(o)); });
