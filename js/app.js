@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (356)';
+const VERSION = '21 novembre 2026 (357)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10244,7 +10244,9 @@ function backupFile(text) { return new File([text], exportFileName(new Date(), s
 function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(withMarks(state)); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
 async function saveBackup(withPhotos = true, withTtb = true) {
-  const f = backupFile(await backupText(withPhotos, withTtb));
+  downloadBackup(backupFile(await backupText(withPhotos, withTtb)));
+}
+function downloadBackup(f) {
   const url = URL.createObjectURL(f);
   const a = el('a', { href: url, download: f.name });
   document.body.append(a); a.click(); a.remove();
@@ -10260,7 +10262,9 @@ async function sendBackup(withPhotos = true, withTtb = true) {
     markSaved();
     // Le téléphone dit seulement que le fichier a été passé à une appli, pas qu'il est parti.
     toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
-  } catch { /* annulé */ }
+  } catch (e) {
+    if (e?.name !== 'AbortError') downloadBackup(f); // v357 : partage refusé par le téléphone (pas mon annulation) : Téléchargements, avec le message
+  }
 }
 
 /* ---------- Mes réglages pour un autre téléphone (v318, mes choix 1a 2b 3a 4a du 20 nov.) ---------- */
@@ -10270,8 +10274,9 @@ async function sendSettings() {
   let shared = false;
   try { shared = Boolean(navigator.canShare?.({ files: [f] })); } catch { shared = false; }
   if (shared) {
-    try { await navigator.share({ files: [f], title: 'Mes réglages de Ma carte de Paris' }); toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.'); } catch { /* annulé */ }
-    return;
+    try { await navigator.share({ files: [f], title: 'Mes réglages de Ma carte de Paris' }); toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.'); return; } catch (e) {
+      if (e?.name === 'AbortError') return; // annulé par moi ; v357 : un autre refus passe par Téléchargements
+    }
   }
   const url = URL.createObjectURL(f);
   const a = el('a', { href: url, download: f.name });
