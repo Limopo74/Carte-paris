@@ -11,7 +11,7 @@ import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -11510,6 +11510,8 @@ const PREP_STEPS = 10;
 const prepId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Son fond de carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
 const PREP_CHIPS = { street: ['tent', 'Dans la rue'], lines: ['lines', 'Lignes de métro et RER'], fav: ['star', 'Favoris'], ttb: ['circle', 'TTB (avec sa liste)'], velib: ['bike', 'Vélib\' sur la carte'], buslines: ['bus', 'Mes lignes de bus'], pratique: ['droplets', 'Fontaines et WC sur la carte'], passages: ['door-open', 'Passages couverts'], velo: ['spline', 'Pistes à vélo'], jardins: ['trees', 'Jardins publics'] };
+/** v349 (défaut) : le même logo que son vrai bouton du haut : l'étoile de favori pleine (celle de départ), la pastille TTB. */
+const chipIcon = (k, icon) => (k === 'fav' ? glyph(DEFAULT_FAV.icon, { filled: true }) : k === 'ttb' ? ttbDotFor('') : ico(icon));
 const deOf = (name) => (/^[aeiouyhâéèêîôûAEIOUYHÂÉÈÊÎÔÛ]/.test(name) ? `d'${name}` : `de ${name}`);
 const dayOf = (at) => (at ? new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '');
 const styleNames = () => Object.fromEntries(Object.entries(STYLE_INFO).map(([id, st]) => [id, st.name]));
@@ -11599,8 +11601,8 @@ function openPrep(step = 1) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
-  const check = (label, sub, on, flip) => el('label', { class: 'item-main check-row' }, el('input', { type: 'checkbox', class: 'check', checked: on, onchange: () => { flip(); again(); } }),
-    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, label), sub ? el('span', { class: 'item-sub' }, sub) : null));
+  const check = (label, sub, on, flip, dot = null) => el('label', { class: 'item-main check-row' }, el('input', { type: 'checkbox', class: 'check', checked: on, onchange: () => { flip(); again(); } }),
+    dot, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, label), sub ? el('span', { class: 'item-sub' }, sub) : null));
   const placeRow = (icon, name, place, opts, set) => el('div', { class: 'cat-row tool-row' },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, typeof icon === 'string' ? ico(icon) : icon),
     el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, name),
@@ -11641,8 +11643,8 @@ function openPrep(step = 1) {
     ],
     5: [
       el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête.'),
-      el('div', {}, [...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => placeRow(icon, name, chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to))),
-        ...[...p.categories, SEEN_CAT].map((c) => placeRow(catDot(c.id) ?? ico('tags'), c.name, chipPlace(`cat:${c.id}`), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(`cat:${c.id}`, to)))]),
+      el('div', {}, [...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => placeRow(chipIcon(k, icon), name, chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to))),
+        ...[...p.categories, SEEN_CAT].map((c) => placeRow(dotOf(c), c.name, chipPlace(`cat:${c.id}`), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(`cat:${c.id}`, to)))]), // v349 : la pastille de SA catégorie (couleur, icône), pas la mienne
     ],
     6: [
       el('div', {}, normalizeTools(p.mapTools).map((t) => placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to)))),
@@ -11660,7 +11662,7 @@ function openPrep(step = 1) {
           if (p.categories.length === 1) { toast('Au moins une catégorie.', true); return; }
           p.categories = p.categories.filter((x) => x.id !== c.id); setChip(`cat:${c.id}`, 'none');
         } else { p.categories = [...p.categories, { id: c.id, name: c.name, color: c.color, icon: c.icon }]; setChip(`cat:${c.id}`, 'more'); }
-      }))),
+      }, dotOf(c)))), // v349 : sa pastille, comme dans Réglages → Catégories
       el('p', { class: 'help' }, 'Vu en passant est toujours là.'),
       (state.lists ?? []).length ? el('p', { class: 'legend' }, 'Ses listes (vides)') : null,
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => check(l.name, '', p.lists.some((x) => x.id === l.id), () => {
