@@ -65,7 +65,8 @@ test('Écran après la photo : catégorie, sous-catégorie ou artiste, plus de l
 
 test('Modifier : la sous-catégorie seulement pour un lieu pris en passant, tout en bas', () => {
   assert.match(app, /const passPlace = Boolean\(existing && isPass\(existing\)\);/);
-  assert.match(app, /rubBox, \/\* v288[^\n]*\n\s*subBox,/);
+  assert.match(app, /rubBox, \/\* v288[^\n]*\n\s*passPlace \? null : subBox,/); // v348 : sous le commentaire pour une photo prise en passant
+  assert.match(app, /existing \? noteField : null,\n\s*passPlace \? subBox : null,/);
   assert.match(app, /if \(passPlace && sub && !isStreetCat\(catOf\(cat\)\)\) existing\.sub = sub; else delete existing\.sub;/);
   assert.match(app, /function listChooser\(lists\)/);
 });

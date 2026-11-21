@@ -41,6 +41,9 @@ export const PHOTO_CATS = [
   { id: 'archi', name: 'Architecture', color: '#7b2cbf', icon: '🚪', ex: ['Portes', 'Façades', 'Céramiques', 'Cours et passages'] },
   { id: 'insolite', name: 'Insolite', color: '#2b8a3e', icon: '✨', ex: ['Animaux', 'Vitrines', 'Scènes de rue', 'Objets bizarres'] },
 ];
+/** v348 (mon choix 1A du 21 nov.) : une catégorie de photos (Vu en passant, Street art, Moments, Plats, Vues, Architecture,
+ *  Insolite, ou créée depuis Vu en passant), par opposition aux catégories de la carte (Restos, Culture…). */
+export const isPhotoCat = (c) => Boolean(c) && (c.id === SEEN_CAT.id || c.photo === true || isStreetCat(c) || PHOTO_CATS.some((x) => x.id === c.id));
 /** Les exemples de sous-catégories d'une catégorie de photos (les deux premiers par défaut), ou ''. */
 export const photoExamples = (id, n = 2) => (PHOTO_CATS.find((p) => p.id === id)?.ex ?? []).slice(0, n).join(', ');
 /** Ajoute une catégorie de photos de l'appli si elle manque (en dernier), masquée dans la barre du haut comme Street art. */

@@ -28,7 +28,7 @@ test('Date de prise de vue lue dans la photo de la galerie ; absente : null', ()
 });
 
 test('Rattacher : la ligne sur la fiche d\'une note prise en passant, mes lieux les plus proches, « Annuler »', () => {
-  assert.match(app, /isPass\(p\) && !p\.owner && p\.photos\?\.length \? row\('link', 'Rattacher à un de mes lieux'/);
+  assert.match(app, /!p\.owner \? row\('link', 'Rattacher à un de mes lieux'/); // v348 : sous « Cette photo » seulement
   assert.match(attach, /state\.points\.filter\(\(x\) => !x\.owner && !isPass\(x\) && x\.id !== note\.id\)/);
   assert.match(attach, /\.sort\(\(a, b\) => a\.d - b\.d\)/);
   assert.match(attach, /pass: true \}\); \}\);/);

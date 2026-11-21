@@ -54,7 +54,7 @@ test('Genre dans l\'appli : surtitre de la fiche, Modifier tout en bas, adresse 
   assert.match(app, /const rubName = placeRub\(p\)(?: \|\| subNameOf\(state\.categories, p\))?;[^\n]*\n\s*const kick = \[catOf\(p\.cat\)\.name, rubName, arrLabel\(p\)\]/);
   assert.match(app, /if \(h <= kickEl\.offsetHeight\) kickEl\.firstChild\.textContent = kick;/); // retiré de la ligne s'il la coupe en deux
   assert.match(app, /const placeRub = \(p\) => \(!p \|\| !isRestoCat\(catOf\(p\.cat\)\)/); // jamais pour un lieu qui n'est pas un resto
-  assert.match(app, /momentBox,\n\s*rubBox,/); // en bas du formulaire : il ne pousse rien
+  assert.match(app, /keepPhoto\(moments\.size > 0\) \? momentBox : null,\n\s*rubBox,/); // en bas du formulaire : il ne pousse rien
   assert.match(app, /'Genre \(facultatif\)'/);
   assert.match(app, /cat: ttbCategory\(x\.rub, state\.categories\) \?\? '', rub: x\.rub \}\)/);
 });
