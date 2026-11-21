@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (354)';
+const VERSION = '21 novembre 2026 (355)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2592,9 +2592,15 @@ function openForm(draft, existing = null) {
   const catSeg = el('div', { class: existing ? 'seg' : 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   // v348 (mes choix 1A 2A du 21 nov.) : une photo prise en passant ne propose que les catégories de photos ; un lieu, que celles de la carte
   // (Street art sert aux deux). La catégorie actuelle reste toujours proposée (une ancienne photo rangée dans Culture).
-  const catChoices = () => state.categories.filter((c) => c.id === cat || (passPlace ? isPhotoCat(c) : (!isPhotoCat(c) || isStreetCat(c))));
+  // v355 (mon choix 1A du 21 nov.) : pour une photo, la même liste qu'après la photo (seenCats : ordre et cases de Réglages → Vu en passant,
+  // Moments, Plats… même encore vides, créées à l'enregistrement), plus sa catégorie actuelle.
+  const catChoices = () => {
+    if (!passPlace) return state.categories.filter((c) => c.id === cat || !isPhotoCat(c) || isStreetCat(c));
+    const list = seenCats();
+    return list.some((c) => c.id === cat) ? list : [...list, catOf(cat)];
+  };
   const drawCats = () => fill(catSeg, ...catChoices().map((c) =>
-    segBtn([catDot(c.id), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); syncSub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
+    segBtn([dotOf(c), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); syncSub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
@@ -2655,6 +2661,7 @@ function openForm(draft, existing = null) {
   const save = () => {
     const n = name.value.trim();
     if (!n) { err.textContent = 'Donne un nom à ce lieu.'; name.focus(); return; }
+    if (passPlace && !state.categories.some((c) => c.id === cat) && seenCatsAll().some((c) => c.id === cat)) cat = ensureSeenCat(cat); // v355 : Moments, Plats… naissent ici
     if (!state.categories.some((c) => c.id === cat)) { err.textContent = 'Choisis une catégorie.'; catSeg.scrollIntoView({ block: 'center' }); return; }
     if (!existing && !dupOk) {
       const dup = findDuplicate(state.points, { name: n, lat: draft.lat, lng: draft.lng });

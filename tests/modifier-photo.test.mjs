@@ -20,7 +20,10 @@ test('isPhotoCat : Vu en passant, Street art, les catégories de photos ; jamais
 });
 
 test('Catégories proposées (1A 2A) : photos pour une photo, carte (et Street art) pour un lieu, la catégorie actuelle toujours', () => {
-  assert.match(form, /state\.categories\.filter\(\(c\) => c\.id === cat \|\| \(passPlace \? isPhotoCat\(c\) : \(!isPhotoCat\(c\) \|\| isStreetCat\(c\)\)\)\)/);
+  // v355 (mon choix 1A) : pour une photo, la liste d'après la photo (seenCats), plus la catégorie actuelle ; vides créées à l'enregistrement
+  assert.match(form, /if \(!passPlace\) return state\.categories\.filter\(\(c\) => c\.id === cat \|\| !isPhotoCat\(c\) \|\| isStreetCat\(c\)\);/);
+  assert.match(form, /const list = seenCats\(\);\n\s*return list\.some\(\(c\) => c\.id === cat\) \? list : \[\.\.\.list, catOf\(cat\)\];/);
+  assert.match(form, /if \(passPlace && !state\.categories\.some\(\(c\) => c\.id === cat\) && seenCatsAll\(\)\.some\(\(c\) => c\.id === cat\)\) cat = ensureSeenCat\(cat\);/);
   assert.match(form, /if \(passPlace\) newPhotoCat\(reopen, pick\);/);
 });
 
