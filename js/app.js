@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (340)';
+const VERSION = '21 novembre 2026 (341)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -411,7 +411,7 @@ const STYLE_INFO = {
   classic: { name: 'Classique', sub: 'La carte OpenStreetMap habituelle', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   clean: { name: 'Épuré', sub: 'Sans icônes de commerces (CARTO, clé gratuite)', url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
   fr: { name: 'Française', sub: 'Noms en français, couleurs plus vives (OSM France). Pas de carte sans réseau', url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — rendu <a href="https://www.openstreetmap.fr/">OSM France</a>`, maxZoom: 19 },
-  hot: { name: 'Douce', sub: 'Couleurs pastel du rendu humanitaire (OSM France). Pas de carte sans réseau', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — tuiles <a href="https://www.hotosm.org/">HOT</a>, OSM France`, maxZoom: 19 },
+  hot: { name: 'Douce', sub: 'Couleurs pastel du rendu humanitaire (OSM France). Pas de carte sans réseau', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: `${OSM_ATTR} — tuiles <a href="https://www.hotosm.org/">HOT</a>, OSM France`, maxZoom: 19, native: 18 }, // v341 : le serveur n'a rien au-delà du zoom 18 (404 au 19, vérifié le 21 nov.) : au 19, les images du 18 agrandies
   pastel: { name: 'Pastel', sub: 'La carte classique en tons doux et lumineux', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   // v316 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
@@ -441,6 +441,11 @@ let noCorsTiles = false;
 const CARTO_KEY = 'carte-paris.carto';
 const cartoKey = () => { try { return localStorage.getItem(CARTO_KEY) ?? ''; } catch { return ''; } };
 const validCartoKey = (k) => /^[A-Za-z0-9_.-]{8,200}$/.test(k);
+/* v341 (ma demande du 21 nov.) : au plus près, un serveur peut ne pas avoir d'images (Douce s'arrête au 18 ; Très épuré
+ * de CARTO restait vide au dernier cran, sur mon téléphone). Si les images d'un cran ≥ 19 échouent alors que le réseau répond
+ * et qu'aucune de ce cran n'est arrivée, la carte agrandit celles du cran du dessous, jusqu'à la fermeture de l'appli. */
+const HIGH_ZOOM = 19;
+const zoomCap = {};
 function applyMapStyle() {
   // Épuré sans clé : on garde le style Classique (le choix reste enregistré pour quand la clé sera là)
   const id = needsKey(state.mapStyle) && !cartoKey() ? 'classic' : state.mapStyle;
@@ -449,11 +454,18 @@ function applyMapStyle() {
   // Tuiles demandées en CORS : le service worker peut les garder pour le métro sans réseau.
   // Filet de sécurité : si elles échouent toutes alors qu'on est en ligne, on revient au mode normal.
   const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com/.test(st.url);
-  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
+  const native = Math.min(st.native ?? st.maxZoom, zoomCap[id] ?? st.maxZoom);
+  tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, maxNativeZoom: native, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
+  const okZ = new Set(); const badZ = {};
+  tiles.on('tileload', (e) => { okZ.add(e.coords?.z); });
+  tiles.on('tileerror', (e) => {
+    const z = e.coords?.z;
+    if (!(z >= HIGH_ZOOM) || okZ.has(z) || !navigator.onLine) return;
+    if ((badZ[z] = (badZ[z] ?? 0) + 1) >= 3) { zoomCap[id] = z - 1; applyMapStyle(); }
+  });
   if (cors) {
-    let ok = 0; let bad = 0;
-    tiles.on('tileload', () => { ok++; });
-    tiles.on('tileerror', () => { if (++bad >= 6 && !ok && navigator.onLine) { noCorsTiles = true; applyMapStyle(); } });
+    let bad = 0;
+    tiles.on('tileerror', (e) => { if (e.coords?.z >= HIGH_ZOOM) return; if (++bad >= 6 && !okZ.size && navigator.onLine) { noCorsTiles = true; applyMapStyle(); } });
   }
   document.getElementById('map').dataset.style = id ?? 'classic';
 }
@@ -11342,6 +11354,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
     '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
     '{lock} **Confidentialité dans l\'Aide** : tout en bas de l\'Aide, ce qui reste sur ton téléphone et ce que reçoit chaque service. Le même texte que dans {settings} → Autres réglages → Mise à jour et confidentialité.',
@@ -11351,7 +11364,6 @@ const HELP = [
     '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
-    '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
