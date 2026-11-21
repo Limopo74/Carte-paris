@@ -27,7 +27,7 @@ test('envoyer : par défaut, mes lieux avec leurs notes, sans billets ni photos 
   assert.deepEqual(f.sent, ['lieux', 'notes']);
   assert.equal(f.plans, undefined); assert.equal(f.artists, undefined); assert.equal(f.venues, undefined);
   for (const k of ['settings', 'mySettings', 'myStations', 'outings', 'circuitNotes', 'hiddenCircuits', 'artistLinks']) assert.equal(f[k], undefined, k);
-  assert.deepEqual(SEND_DEFAULT, { lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false, circuits: false }); // v247 : Mes circuits, décoché d'office
+  assert.deepEqual(SEND_DEFAULT, { lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false, circuits: false, words: false }); // v247 : Mes circuits, décoché d'office ; v357 : Mots tout prêts aussi
 });
 
 test('envoyer : notes décochées, passages sans photos, sorties, artistes et salles cochés', () => {

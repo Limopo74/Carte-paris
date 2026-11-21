@@ -33,7 +33,7 @@ test('v353 : un partage refusé par le téléphone passe par Téléchargements ;
   assert.match(s, /try \{ await sendTtbOkFileNow\(me\); \} catch \{ toast\(/);
 });
 
-test('v357 : la sauvegarde et Mes réglages ne restent muets que pour mon annulation', () => {
+test('v358 : la sauvegarde et Mes réglages ne restent muets que pour mon annulation', () => {
   const b = app.slice(app.indexOf('async function sendBackup('), app.indexOf('async function sendSettings('));
   assert.match(b, /if \(e\?\.name !== 'AbortError'\) downloadBackup\(f\)/);
   const r = app.slice(app.indexOf('async function sendSettings('), app.indexOf('async function sendSettings(') + 1500);

@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (357)';
+const VERSION = '21 novembre 2026 (358)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10263,7 +10263,7 @@ async function sendBackup(withPhotos = true, withTtb = true) {
     // Le téléphone dit seulement que le fichier a été passé à une appli, pas qu'il est parti.
     toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
   } catch (e) {
-    if (e?.name !== 'AbortError') downloadBackup(f); // v357 : partage refusé par le téléphone (pas mon annulation) : Téléchargements, avec le message
+    if (e?.name !== 'AbortError') downloadBackup(f); // v358 : partage refusé par le téléphone (pas mon annulation) : Téléchargements, avec le message
   }
 }
 
@@ -10275,7 +10275,7 @@ async function sendSettings() {
   try { shared = Boolean(navigator.canShare?.({ files: [f] })); } catch { shared = false; }
   if (shared) {
     try { await navigator.share({ files: [f], title: 'Mes réglages de Ma carte de Paris' }); toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.'); return; } catch (e) {
-      if (e?.name === 'AbortError') return; // annulé par moi ; v357 : un autre refus passe par Téléchargements
+      if (e?.name === 'AbortError') return; // annulé par moi ; v358 : un autre refus passe par Téléchargements
     }
   }
   const url = URL.createObjectURL(f);
@@ -10355,12 +10355,14 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
   const nbMarks = Object.keys(ttbMarksNow()).filter((k) => ttbMarksNow()[k].k !== 'hidden').length; /* v330 (mon choix 4A) : mes « masquées » restent à moi */
   const nbOk = ttbCounts(ttbList(), ttbMarksNow()).ok;
   const ttbOnly = nbOk > 0 && !sendSel.ttbAll; /* v330 (mon choix 1A) : seulement mes vérifiées au départ */
+  const nbWords = wordsOf(state).length; /* v357 (ma demande du 21 nov.) : mes Mots tout prêts, décochés au départ */
   const summary = el('p', { class: 'ok-line', role: 'status' });
   const sumText = () => {
     const parts = [sendSel.lieux && pts.length ? `${plural(pts.length, 'lieu', 'lieux')}${sendSel.notes ? ' avec leurs commentaires' : ''}` : '',
       sendSel.lieux && pts.length && sendSel.passages && nbPassages ? 'leurs impressions' : '', sendSel.lieux && pts.length && sendSel.photos && nbPhotos ? plural(nbPhotos, 'photo', 'photos') : '',
       sendSel.plans && nbPlans ? plural(nbPlans, 'sortie prévue', 'sorties prévues') : '', sendSel.artists && nbArtists ? plural(nbArtists, 'artiste', 'artistes') : '',
-      sendSel.venues && nbVenues ? plural(nbVenues, 'salle', 'salles') : '', sendSel.ttb && (nbTtb || nbMarks) ? (ttbOnly ? `${plural(nbOk, 'adresse TTB vérifiée', 'adresses TTB vérifiées')}` : 'la liste TTB') : ''].filter(Boolean);
+      sendSel.venues && nbVenues ? plural(nbVenues, 'salle', 'salles') : '', sendSel.ttb && (nbTtb || nbMarks) ? (ttbOnly ? `${plural(nbOk, 'adresse TTB vérifiée', 'adresses TTB vérifiées')}` : 'la liste TTB') : '',
+      sendSel.words && nbWords ? `tes Mots tout prêts (${plural(nbWords, 'série', 'séries')})` : ''].filter(Boolean);
     fill(summary, parts.length ? [ico('check'), ` Partiront : ${parts.join(', ')}.`] : 'Rien de coché : coche au moins une ligne.');
     return parts.length;
   };
@@ -10406,6 +10408,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     nbOk && nbTtb ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Quelles adresses TTB' }, /* v330 (mon choix 1A) : sous les lignes, rien ne bouge au-dessus */
       chip(`Mes vérifiées ${nbOk}`, ttbOnly, () => { sendSel = { ...sendSel, ttb: true, ttbAll: false }; }),
       chip('Toute la liste', !ttbOnly, () => { sendSel = { ...sendSel, ttb: true, ttbAll: true }; })) : null,
+    nbWords ? el('ul', { class: 'items' }, row('words', 'Mots tout prêts', `${plural(nbWords, 'série', 'séries')} : ${wordsOf(state).slice(0, 3).map((x) => x.name).join(', ')}${nbWords > 3 ? '…' : ''}`)) : null, // v357 : sous les lignes d'avant
     el('h3', { class: 'fiche-sec' }, 'Quelles catégories'),
     el('div', { class: 'list-chips', style: 'margin-top: 8px' },
       chip('Toutes', sendCats === null, () => { sendCats = null; sendLists = new Set(); }),
@@ -10414,7 +10417,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
     summary,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: send }, ico('send'), 'Envoyer le fichier'),
     el('p', { class: 'help' }, 'Seul ce que tu coches part, et rien ne passe par un serveur.'),
-    el('p', { class: 'help tip' }, 'Le menu de partage du téléphone s\'ouvre (SMS, courriel, WhatsApp…). Ne partent jamais : tes billets, tes réglages et ton adresse Chez moi, ton journal, tes notes du jour, tes parcours, tes mots tout prêts et les lieux de tes proches.'),
+    el('p', { class: 'help tip' }, 'Le menu de partage du téléphone s\'ouvre (SMS, courriel, WhatsApp…). Ne partent jamais : tes billets, tes réglages et ton adresse Chez moi, ton journal, tes notes du jour, tes parcours et les lieux de tes proches.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Sauvegarde')),
   ), { name: 'envoyer-proche', again });
   sumText();
@@ -10475,8 +10478,9 @@ function openFriendImport(text, owner, fresh = true) {
   const hasPassages = pts.some((p) => Array.isArray(p?.passages) && p.passages.length);
   const hasPhotos = Boolean(obj.photos && typeof obj.photos === 'object' && Object.keys(obj.photos).length);
   const hasTtb = Boolean(obj.ttb && ((Array.isArray(obj.ttb.items) && obj.ttb.items.length) || Object.keys(obj.ttb.marks ?? {}).length));
+  const hasWords = Array.isArray(obj.words) && obj.words.length > 0; /* v357 : ses Mots tout prêts */
   if (fresh) {
-    impSel = { lieux: pts.length > 0, notes: hasNotes, passages: hasPassages, photos: hasPhotos, ttb: hasTtb };
+    impSel = { lieux: pts.length > 0, notes: hasNotes, passages: hasPassages, photos: hasPhotos, ttb: hasTtb, words: hasWords };
     impCats = null; impArtists = new Set(fileArtists); impVenues = new Set(fileVenues); impPlans = new Set(filePlans.map((x) => x.id));
   }
   const again = () => openFriendImport(text, owner, false);
@@ -10520,7 +10524,7 @@ function openFriendImport(text, owner, fresh = true) {
     persist(); refresh(); updatePlanningCount();
     openSettings('importer');
     toast([`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')} (lieux de ${owner})`, r.dups ? `${r.dups} déjà chez toi` : '', r.updated ? `${plural(r.updated, 'mis à jour', 'mis à jour')}` : '',
-      r.artists ? plural(r.artists, 'artiste', 'artistes') : '', r.venues ? plural(r.venues, 'salle', 'salles') : '', r.plans ? `${plural(r.plans, 'sortie', 'sorties')} dans Mon planning` : '', ttbNote].filter(Boolean).join(', ') + '.',
+      r.artists ? plural(r.artists, 'artiste', 'artistes') : '', r.venues ? plural(r.venues, 'salle', 'salles') : '', r.plans ? `${plural(r.plans, 'sortie', 'sorties')} dans Mon planning` : '', r.words ? plural(r.words, 'série de Mots tout prêts', 'séries de Mots tout prêts') : '', ttbNote].filter(Boolean).join(', ') + '.',
       false, okNew ? { label: 'Seulement les vérifiées', fn: () => { state.ttbOk = true; persist(); drawTtb(); toast('TTB : seulement les adresses vérifiées. Pour tout revoir : Réglages → TTB.'); } } : null);
   };
   openSheet([ico('user'), ` Lieux de ${owner}`], el('div', { class: 'stack' },
@@ -10531,7 +10535,8 @@ function openFriendImport(text, owner, fresh = true) {
       hasNotes ? row(impSel.notes, 'Commentaires', `Son commentaire sur chaque lieu`, (v) => set('notes', v)) : null,
       hasPassages ? row(impSel.passages, 'Impressions', 'Ses impressions datées', (v) => set('passages', v)) : null,
       hasPhotos ? row(impSel.photos, 'Photos', plural(Object.keys(obj.photos).length, 'photo', 'photos'), (v) => set('photos', v)) : null,
-      hasTtb ? row(impSel.ttb, 'TTB', ttbLine, (v) => set('ttb', v)) : null),
+      hasTtb ? row(impSel.ttb, 'TTB', ttbLine, (v) => set('ttb', v)) : null,
+      hasWords ? row(impSel.words, 'Mots tout prêts', (() => { const w = mergeFriend(state, obj, owner, { ...choice(), words: true }).words; return w ? `${plural(w, 'série s\'ajoute', 'séries s\'ajoutent')} aux tiennes, rien n'est remplacé.` : 'Tu as déjà ces séries : rien ne change.'; })(), (v) => set('words', v)) : null),
     catChips.length > 1 && impSel.lieux ? el('h3', { class: 'fiche-sec' }, 'Catégories') : null,
     catChips.length > 1 && impSel.lieux ? el('div', { class: 'list-chips', style: 'margin-top: 8px' },
       el('button', { type: 'button', class: 'chip', 'aria-pressed': String(impCats === null), onclick: () => { impCats = null; again(); } }, 'Toutes'),
@@ -11336,7 +11341,7 @@ const HELP = [
     '{copy} **Partager une sortie** : Mon planning → la sortie → « Prévu » → Copier le lien d\'invitation. Ton ami la reçoit dans son planning.',
     '**Partager une balade** : « Partager » dans J\'ai du temps, sur un de tes parcours (Mes parcours) ou en bas d\'un de tes circuits (« Partager ce circuit »).',
     '{locate} **Te faire retrouver** : Où suis-je ? → Envoyer ma position. Ton ami a une boussole vers toi.',
-    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, tes circuits, liste TTB) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour, tes parcours, tes mots tout prêts et ton adresse Chez moi restent à toi. Ta sauvegarde, elle, reste complète.',
+    '{users} **Partager tes lieux** : {settings} → Sauvegarde → Envoyer à un proche. Tu coches ce qui part (lieux, ton commentaire sur chacun, impressions, photos, sorties prévues, artistes, salles, tes circuits, liste TTB, tes mots tout prêts) et les catégories ; tes favoris, tes « Déjà visité », tes billets, tes notes du jour, tes parcours et ton adresse Chez moi restent à toi. Ta sauvegarde, elle, reste complète.',
     '**Ton proche** fait Restaurer ou importer → Importer les lieux d\'un proche. Tout est coché : il décoche ce qu\'il ne veut pas (contenu, catégories, chaque artiste, salle ou sortie prévue). Un lieu qu\'il a déjà n\'est pas ajouté deux fois ; un nouvel envoi met à jour sans rien retirer. Puis Filtres → « Lieux de mes proches ».',
     '**Une sortie prévue par un proche** apparaît dans Mon planning avec « Prévu par » et son prénom. Sur sa page : « L\'ajouter à Mon planning », ou Retirer.',
     '**Partager l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
@@ -11389,6 +11394,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
@@ -11398,7 +11404,6 @@ const HELP = [
     '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
     '{images} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
-    '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

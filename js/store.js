@@ -398,7 +398,7 @@ export function exportJSON(state) {
     categories: state.categories, fav: state.fav, rings: state.rings, lists: state.lists ?? [],
     mySettings: cleanMySettings(state.mySettings),
     myStations: cleanMyStations(state.myStations),
-    ...(Array.isArray(state.words) ? { words: cleanWords(state.words) } : {}), // Mots tout prêts (v226) : jamais dans le fichier pour un proche
+    ...(Array.isArray(state.words) ? { words: cleanWords(state.words) } : {}), // Mots tout prêts (v226) ; dans le fichier pour un proche seulement si je les coche (v357)
     ...(cleanHome(state.home) ? { home: cleanHome(state.home) } : {}), // Chez moi (v222) : jamais dans le fichier pour un proche
     ...(cleanBusLines(state.busLines).length ? { busLines: cleanBusLines(state.busLines) } : {}), // Mes lignes de bus (v228), sans leurs tracés : jamais pour un proche
     // Mes réglages du moment (affichage, cercles, favori…), remis tels quels quand je restaure sur une appli vide
@@ -424,7 +424,7 @@ export function exportJSON(state) {
    Un fichier séparé de ma sauvegarde : seulement ce que je coche, seulement mes lieux (pas ceux de mes proches),
    jamais mes billets, mes réglages, mes stations, mon journal ni mes problèmes notés. */
 /** En arrivant sur la page : les lieux et les notes sont cochés, le reste non (la liste TTB aussi). */
-export const SEND_DEFAULT = Object.freeze({ lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false, circuits: false });
+export const SEND_DEFAULT = Object.freeze({ lieux: true, notes: true, passages: false, photos: false, plans: false, artists: false, venues: false, ttb: false, circuits: false, words: false }); // v357 : mes Mots tout prêts, seulement si je les coche
 /** Mes lieux qui partent : `cats` = catégories choisies (null = toutes), `lists` = listes choisies (elles s'ajoutent). */
 export function sendPoints(state, cats = null, lists = new Set()) {
   return (state.points ?? []).filter((p) => !p.owner && (cats === null || cats.has(p.cat) || (p.lists ?? []).some((l) => lists.has(l))));
@@ -456,16 +456,17 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
   const myCircuits = sel.circuits ? cleanMyCircuits(state.myCircuits).filter((c) => !c.by).map(({ by: _b, from: _f, base: _x, baseFp: _y, moved: _z, ...c }) => // ma version d'un circuit de Claude part comme un circuit à moi
  (sel.notes ? c : { ...c, etapes: c.etapes.map(({ t: _t, ...e }) => e) })) : [];
   const sent = [points.length ? 'lieux' : '', points.length && sel.notes ? 'notes' : '', points.length && sel.passages ? 'passages' : '',
-    plans.length ? 'plans' : '', artists.length ? 'artists' : '', venues.length ? 'venues' : '', myCircuits.length ? 'circuits' : ''].filter(Boolean);
+    plans.length ? 'plans' : '', artists.length ? 'artists' : '', venues.length ? 'venues' : '', myCircuits.length ? 'circuits' : '', sel.words ? 'words' : ''].filter(Boolean);
   return {
     app: 'carte-paris', version: 2, kind: 'proche', exported: new Date().toISOString(), owner: state.me ?? '', sent,
-    categories: (state.categories ?? []).filter((c) => used.has(c.id)).map(({ words: _w, ...c }) => c), // mes Mots tout prêts restent à moi (v226)
+    categories: (state.categories ?? []).filter((c) => used.has(c.id)).map(({ words: w, ...c }) => (sel.words && typeof w === 'string' ? { ...c, words: w } : c)), // mes Mots tout prêts : seulement si je les coche (v357 ; avant, jamais, v226)
     lists: (state.lists ?? []).filter((l) => pts.some((p) => (p.lists ?? []).includes(l.id))),
     points,
     ...(plans.length ? { plans } : {}),
     ...(artists.length ? { artists } : {}),
     ...(venues.length ? { venues } : {}),
     ...(myCircuits.length ? { myCircuits } : {}),
+    ...(sel.words ? { words: wordsOf(state) } : {}),
   };
 }
 /** Nom du fichier pour un proche. */
@@ -536,9 +537,22 @@ export function mergeFriend(state, obj, owner, choice) {
   const venues = cleanVenues([...(state.venues ?? []), ...cleanVenues(obj.venues).filter((v) => choice.venues?.has(v))]);
   const theirPlans = cleanPlans(obj.plans).filter((x) => choice.plans?.has(x.id)).map((x) => ({ ...x, by: who || x.by || '' }));
   const plans = cleanPlans([...(state.plans ?? []), ...theirPlans.filter((x) => !(state.plans ?? []).some((y) => y.id === x.id || (y.name === x.name && Math.abs(y.ticket.at - x.ticket.at) < 864e5)))], Date.now(), keepDays(state));
+  // v357 : ses Mots tout prêts, seulement si je les coche ; ses séries s'ajoutent aux miennes, une série du même nom ou du même identifiant reste la mienne
+  let words = state.words, wordsAdded = 0;
+  const theirWords = choice.words && Array.isArray(obj.words) ? cleanWords(obj.words) : [];
+  if (theirWords.length) {
+    const mineW = wordsOf(state);
+    const merged = cleanWords([...mineW, ...theirWords]);
+    wordsAdded = merged.length - mineW.length;
+    if (wordsAdded) words = merged;
+    const fold = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const same = Object.fromEntries(theirWords.map((t) => [t.id, (merged.find((m) => m.id === t.id) ?? merged.find((m) => fold(m.name) === fold(t.name)))?.id ?? '']));
+    for (const c of categories) if (!(state.categories ?? []).some((x) => x.id === c.id) && typeof c.words === 'string' && c.words in same) c.words = same[c.words]; // une de ses catégories nouvelle chez moi garde sa série
+  }
+  for (const c of categories) if (!(state.categories ?? []).some((x) => x.id === c.id) && !choice.words) delete c.words;
   return {
-    state: { ...state, points, categories, lists, artists, venues, plans },
-    added, updated, dups, skipped,
+    state: { ...state, points, categories, lists, artists, venues, plans, ...(words !== state.words ? { words } : {}) },
+    added, updated, dups, skipped, words: wordsAdded,
     artists: artists.length - cleanArtists(state.artists).length, venues: venues.length - cleanVenues(state.venues).length,
     plans: plans.length - cleanPlans(state.plans, Date.now(), keepDays(state)).length,
   };
