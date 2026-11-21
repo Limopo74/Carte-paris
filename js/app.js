@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (344)';
+const VERSION = '21 novembre 2026 (345)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9891,7 +9891,9 @@ function openSettings(section = null) {
     row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
     // v322 (mon choix 1a) : les 18 réglages qu'on fait une fois ; en dernier de « Ce qui s'affiche », il ne pousse rien d'autre
-    row('settings', 'Autres réglages', 'Distances, Mon pas, style, alertes, fiche, Navigo…', () => openSettings('autres'), false, 'c-guide'),
+    // v344 (ma demande du 21 nov.) : mise en valeur par son propre intertitre (filet encre), à la même place ; titre plus grand
+    el('h3', { class: 'ring-title menu-group' }, 'Plus de réglages'),
+    Object.assign(row('settings', 'Autres réglages', 'Distances, Mon pas, style, alertes, fiche, Navigo…', () => openSettings('autres'), false, 'c-guide'), { className: 'menu-row c-guide others-row' }),
     ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › ; reste ici pendant l'essai */
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
@@ -11341,6 +11343,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
     '{camera} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
@@ -11350,7 +11353,6 @@ const HELP = [
     '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
     '{arrow-right} **« Y aller en transports »** : au-delà de ta limite à pied, la plaque d\'un lieu le dit, avec la distance dessous. Google Maps s\'y ouvre en transports, comme avant. La limite : {settings} → Autres réglages → Distances et durées.',
     '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
-    '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

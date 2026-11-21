@@ -467,6 +467,9 @@ ol.items { padding: 0; }
 }
 .menu-row:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r); background: var(--warn-bg); }
+/* v344 : « Autres réglages » sous son propre intertitre « Plus de réglages » (js/app.js), nom plus grand */
+.menu > .menu-row.others-row { border-bottom: 0; } /* le bloc « mes réglages par défaut » dessous a déjà son filet : pas de double trait */
+.others-row .menu-title { font-size: var(--t18); }
 .menu-ico { flex: none; width: 32px; font-size: 22px; text-align: center; }
 .menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .menu-title { font-size: var(--t16); }
