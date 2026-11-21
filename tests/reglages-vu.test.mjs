@@ -33,6 +33,6 @@ test('Dans l\'appli : la ligne tout en bas, et chaque réglage agit', () => {
   assert.ok(fav > 0 && vu > fav && !page.slice(fav, vu).includes("row("), 'sous Favoris');
   assert.match(app, /if \(state\.seenKeep !== false && seenCats\(\)\.some\(\(c\) => c\.id === seenCat\)\) return \{ cat: seenCat, sub: seenSub \};/);
   assert.match(app, /if \(state\.seenStart === 'last' && state\.seenLast/);
-  assert.match(app, /const near = !r\?\.error && state\.seenNear !== false \? placeNear/);
+  assert.ok(!app.includes('placeNear(state.points, r, 30)') && !app.includes('Proposer une adresse proche'), 'v344 (mon choix 13A) : plus d\'adresse proche proposée');
   assert.match(app, /const seen = isPass\(p\) && p\.photos\?\.length && !p\.gone && state\.seenPhotoMap !== false;/);
 });

@@ -35,8 +35,8 @@ test('Rattacher : la ligne sur la fiche d\'une note prise en passant, mes lieux 
   assert.match(attach, /label: 'Annuler', fn: \(\) => \{\s*target\.passages = before\.passages; state\.points\.push\(before\.note\);/);
 });
 
-test('Diaporama : date complète, plus de date en double ; « Ajouter à » marque l\'impression', () => {
+test('Diaporama : date complète, plus de date en double', () => {
   assert.match(app, /at \? fullDate\(at\) : 'Date de la photo inconnue'/);
   assert.ok(!app.slice(app.indexOf('function openSeenSlides('), app.indexOf('function openSeenSlides(') + 900).includes('shortDate('));
-  assert.match(app, /photo: id, stars: stars \|\| undefined, pass: true \}\);/);
+  // v344 (mon choix 13A) : « Ajouter à » n'existe plus après la photo ; « Rattacher » marque l'impression (pass: true, ci-dessus)
 });

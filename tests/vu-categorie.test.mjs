@@ -53,12 +53,12 @@ test('Pris en passant : la marque, ou la catégorie Vu en passant d\'avant la v3
 test('Écran après la photo : catégorie, sous-catégorie ou artiste, plus de listes ; gardés pour la photo suivante', () => {
   assert.ok(!seenForm.includes('listChooser('), 'les listes restent dans Modifier');
   assert.match(seenForm, /    catBox,\n    subBox,\n    artistBox,\n    foot\(/);
-  assert.match(app, /const all = \[vu, street, \.\.\.state\.categories\.filter/, 'Vu en passant puis Street art au départ (v311 : puis l\'ordre réglé)');
+  assert.match(app, /const all = \[vu, street, \.\.\.presets, \.\.\.state\.categories\.filter\(\(c\) => c\.photo === true/, 'v344 : Vu en passant, Street art, les catégories de photos, puis les miennes créées depuis Vu en passant');
   assert.match(seenForm, /class: 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie'/);
   assert.match(seenForm, /seenCat = cat; seenSub = isStreet \? '' : sub;/);
   assert.match(seenForm, /np\.pass = true;/);
-  assert.match(seenForm, /subBox\.hidden = target !== 'new' \|\| street\(\);/);
-  assert.match(seenForm, /artistBox\.hidden = target !== 'new' \|\| !street\(\);/);
+  assert.match(seenForm, /subBox\.hidden = street\(\);/);
+  assert.match(seenForm, /artistBox\.hidden = !street\(\);/);
   assert.match(seenForm, /foot\(el\('div', \{ class: 'row' \},[\s\S]*?'Annuler'\),\s*keep\)\)/);
   assert.match(seenForm, /\{ name: 'seen', tall: true \}/);
 });

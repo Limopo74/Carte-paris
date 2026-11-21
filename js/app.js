@@ -47,7 +47,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, las
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText } from './metroplan.js';
-import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, placeNear, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
+import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (343)';
+const VERSION = '21 novembre 2026 (344)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1977,11 +1977,11 @@ function openSeenSubs(catId) {
   }
   const c = state.categories.find((x) => x.id === catId) ?? c0;
   const subs = c.subs ?? [];
-  const input = el('input', { type: 'text', maxlength: String(SUB_MAX), autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : Portes', 'aria-label': 'Nom de la nouvelle sous-catégorie' });
+  const input = el('input', { type: 'text', maxlength: String(SUB_MAX), autocomplete: 'off', enterkeyhint: 'done', placeholder: subHint(catId), 'aria-label': 'Nom de la nouvelle sous-catégorie' });
   const create = () => {
     const n = input.value.trim();
     if (!n) { input.focus(); return; }
-    try { if (catId === SEEN_CAT.id) state = withSeenCat(state); const r = addSub(state, catId, n); state = r.state; persist(); again(); toast(`« ${n} » ajoutée`); requestAnimationFrame(() => document.querySelector('#sheet input[aria-label="Nom de la nouvelle sous-catégorie"]')?.focus()); } catch (e) { toast(e.message, true); }
+    try { ensureSeenCat(catId); const r = addSub(state, catId, n); state = r.state; persist(); again(); toast(`« ${n} » ajoutée`); requestAnimationFrame(() => document.querySelector('#sheet input[aria-label="Nom de la nouvelle sous-catégorie"]')?.focus()); } catch (e) { toast(e.message, true); }
   };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
   const count = (sid) => state.points.filter((p) => p.cat === catId && p.sub === sid).length;
@@ -2084,24 +2084,36 @@ let seenCat = null; // v305 : dernière catégorie choisie dans Vu en passant (l
 let seenSub = ''; // v305 : sa dernière sous-catégorie (id), '' = aucune
 /** Petit rond d'une catégorie, même pas encore créée (Vu en passant, Street art). */
 const dotOf = (c) => { const d = el('span', { class: 'cat-ico', 'aria-hidden': 'true' }, glyph(c.icon, { filled: true })); d.style.background = c.color; return d; };
-/** v305 : les catégories proposées après une photo : Vu en passant, Street art (créées au premier usage), puis les miennes. */
+/** Les catégories proposées après une photo : Vu en passant, Street art, Moments, Plats, Vues, Architecture, Insolite
+ *  (créées à leur première photo), puis celles créées depuis Vu en passant.
+ *  v344 (mon choix 9A du 21 nov.) : plus les catégories de la carte (Restos, Culture…) : une photo prise en passant n'alimente pas mes lieux. */
 function seenCatsAll() {
   const vu = state.categories.find((c) => c.id === SEEN_CAT.id) ?? SEEN_CAT;
   const street = state.categories.find(isStreetCat) ?? STREET_CAT;
-  const all = [vu, street, ...state.categories.filter((c) => c.id !== vu.id && c.id !== street.id)];
+  const presets = PHOTO_CATS.map(({ ex: _, ...p }) => state.categories.find((c) => c.id === p.id) ?? p);
+  const known = new Set([vu.id, street.id, ...presets.map((c) => c.id)]);
+  const all = [vu, street, ...presets, ...state.categories.filter((c) => c.photo === true && !known.has(c.id))];
   // v311 (mon choix 2B) : l'ordre réglé dans Réglages → Vu en passant ; Vu en passant toujours en tête
   return [vu, ...seenOrderOf(state.seenOrder, all.slice(1).map((c) => c.id)).map((id) => all.find((c) => c.id === id))];
 }
 /** v311 (mon choix 1A) : celles proposées après la photo : les cochées (Vu en passant toujours). */
 const seenCats = () => seenCatsAll().filter((c, i) => i === 0 || !(state.seenOff ?? []).includes(c.id));
+/** v344 : crée au besoin une catégorie de photos de l'appli (Vu en passant, Street art, Moments…), et rend son id. */
+function ensureSeenCat(id) {
+  if (id === SEEN_CAT.id) { state = withSeenCat(state); return id; }
+  if (id === STREET_CAT.id && !state.categories.some((x) => x.id === id)) { state = withStreetCat(state); return streetCatId(state.categories); }
+  state = withPhotoCat(state, id);
+  return id;
+}
+/** v344 (mon choix 14A) : une catégorie créée depuis Vu en passant est une catégorie de photos. */
+const newPhotoCat = (back, done) => openCategory(null, { back, done: (id) => { state.categories = state.categories.map((c) => (c.id === id ? { ...c, photo: true } : c)); persist(); done(id); } });
+/** v344 (mon choix 10A) : la case « Créer » montre des exemples, rien n'est créé d'avance. */
+const subHint = (id) => (photoExamples(id) ? `Ex. : ${photoExamples(id)}` : 'Un nom court');
 function openSeenForm(blob, where, back = null) {
   const url = URL.createObjectURL(blob);
   const line = el('input', { type: 'text', maxlength: '120', autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : cour avec glycine', value: back?.line ?? '' });
   const posLine = el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche de ta position…');
-  const choice = el('div', { class: 'field', hidden: true });
-  let stars = back?.stars ?? 0;
-  const starBox = el('div', { class: 'field', hidden: true }, 'Mes étoiles (facultatif)', starPicker(stars, (n) => { stars = n; }));
-  let target = back?.target ?? 'new'; // id d'une de mes adresses proches, ou une nouvelle note
+  // v344 (mon choix 13A du 21 nov.) : la photo ne va plus dans un de mes lieux proches ; « Rattacher » sur la fiche de la photo reste
   let fix = null;
   // v305 (mes choix du 20 nov.) : la catégorie, toutes sur une ligne qui défile ; puis sa sous-catégorie, ou l'artiste pour Street art.
   // La catégorie et la sous-catégorie restent choisies pour la photo suivante, le temps de la session.
@@ -2122,15 +2134,15 @@ function openSeenForm(blob, where, back = null) {
   const catSeg = el('div', { class: 'seg seg-scroll', role: 'group', 'aria-label': 'Catégorie' });
   const catBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Catégorie'), catSeg);
   const subBox = el('div', { class: 'stack', style: 'gap:8px' });
-  const subInput = el('input', { type: 'text', maxlength: String(SUB_MAX), autocomplete: 'off', enterkeyhint: 'done', placeholder: 'Ex. : Portes', 'aria-label': 'Nom de la nouvelle sous-catégorie' });
-  const keepNow = () => ({ line: line.value, stars, target, cat, sub, artist: artist.value });
+  const subInput = el('input', { type: 'text', maxlength: String(SUB_MAX), autocomplete: 'off', enterkeyhint: 'done', placeholder: subHint(cat), 'aria-label': 'Nom de la nouvelle sous-catégorie' });
+  const keepNow = () => ({ line: line.value, cat, sub, artist: artist.value });
   const reopen = (over = {}) => { URL.revokeObjectURL(url); openSeenForm(blob, where, { ...keepNow(), ...over }); };
-  const newCat = () => openCategory(null, { back: () => reopen(), done: (id) => reopen({ cat: id, sub: '' }) });
+  const newCat = () => newPhotoCat(() => reopen(), (id) => reopen({ cat: id, sub: '' }));
   const createSub = () => {
     const n = subInput.value.trim();
     if (!n) { subInput.focus(); return; }
     try {
-      if (cat === SEEN_CAT.id) state = withSeenCat(state); // la catégorie Vu en passant naît avec sa première sous-catégorie
+      cat = ensureSeenCat(cat); // la catégorie naît avec sa première sous-catégorie
       const r = addSub(state, cat, n); state = r.state; sub = r.id; persist(); subInput.value = ''; drawCats();
     } catch (e) { toast(e.message, true); }
   };
@@ -2144,25 +2156,14 @@ function openSeenForm(blob, where, back = null) {
       subs.length ? el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Sous-catégorie' }, subs.map((x) =>
         el('button', { type: 'button', class: 'chip', 'aria-pressed': String(sub === x.id), onclick: () => { sub = sub === x.id ? '' : x.id; drawCats(); } }, x.name))) : null, // un second appui la retire
       el('div', { class: 'row' }, subInput, el('button', { type: 'button', class: 'btn c-add', style: 'flex:none', onclick: createSub }, ico('plus'), 'Créer')));
-    catBox.hidden = target !== 'new';
-    subBox.hidden = target !== 'new' || street();
-    artistBox.hidden = target !== 'new' || !street();
+    subInput.placeholder = subHint(cat);
+    subBox.hidden = street();
+    artistBox.hidden = !street();
     requestAnimationFrame(() => catSeg.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
   };
   drawCats();
   where.then((r) => {
     fix = r;
-    const near = !r?.error && state.seenNear !== false ? placeNear(state.points, r, 30) : null; // v308 : réglable
-    if (near) {
-      if (!back) target = near.p.id;
-      let draw = () => fill(choice, 'Où la garder ?', el('div', { class: 'seg', role: 'group', 'aria-label': 'Où la garder' },
-        el('button', { type: 'button', 'aria-pressed': String(target === near.p.id), onclick: () => { target = near.p.id; draw(); } }, `Ajouter à : ${near.p.name}`),
-        el('button', { type: 'button', 'aria-pressed': String(target === 'new'), onclick: () => { target = 'new'; draw(); } }, 'Nouveau lieu')));
-      const drawAll = draw;
-      draw = () => { drawAll(); starBox.hidden = target === 'new'; drawCats(); };
-      draw();
-      choice.hidden = false;
-    }
     if (r?.error) { posLine.textContent = typo(`${r.error} Le point sera posé au centre de la carte : tu pourras le déplacer.`); posLine.className = 'warn'; return; }
     if (r.fromPhoto) { posLine.textContent = 'Position lue dans la photo : tu pourras déplacer le point.'; return; } // v309 : sa précision n'est pas connue
     const m = Math.round(r.acc ?? 0);
@@ -2181,20 +2182,8 @@ function openSeenForm(blob, where, back = null) {
     const rough = !at.fromPhoto && (!at.acc || at.acc > 50);
     const id = newPhotoId();
     try { await putPhoto(id, blob); } catch { busy = false; toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
-    const place = target !== 'new' ? state.points.find((x) => x.id === target) : null;
-    if (place) { // un passage de cette adresse, avec la photo et la ligne
-      place.passages = addPassage(place.passages, { at: at.shot > 0 ? at.shot : Date.now(), text: line.value, photo: id, stars: stars || undefined, pass: true }); // v310 : prise en passant, elle reste dans Mes Vu en passant
-      if (!place.done) setDone(place, true);
-      persist(); renderMarkers();
-      URL.revokeObjectURL(url);
-      closeSheet();
-      if (stars && stars !== (place.stars ?? 0)) offerStars(place, stars, `Ajouté à « ${place.name} »`);
-      else toast(`Ajouté à « ${place.name} »`, false, { label: 'Voir', fn: () => openDetail(place.id) });
-      return;
-    }
     const isStreet = street();
-    if (cat === SEEN_CAT.id) state = withSeenCat(state);
-    else if (isStreet && !state.categories.some((x) => x.id === cat)) { state = withStreetCat(state); cat = streetCatId(state.categories); }
+    cat = ensureSeenCat(cat); // v344 : Vu en passant, Street art, Moments… naissent à leur première photo
     seenCat = cat; seenSub = isStreet ? '' : sub;
     state.seenLast = { cat, sub: seenSub }; // v308 : pour « La dernière »
     const np = newPoint({ name: seenName(line.value), cat, note: line.value.trim().slice(0, 120), lat: at.lat, lng: at.lng });
@@ -2216,8 +2205,6 @@ function openSeenForm(blob, where, back = null) {
     el('img', { class: 'seen-preview', src: url, alt: 'Ta photo' }),
     el('label', { class: 'field' }, 'Une ligne (facultatif)', line),
     posLine,
-    choice,
-    starBox,
     catBox,
     subBox,
     artistBox,
@@ -9693,18 +9680,16 @@ function openSettings(section = null) {
       el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Au départ, ranger dans'), startSeg,
         el('p', { class: 'help' }, '« La dernière » : celle de ta dernière photo, même un autre jour.')),
       el('div', { class: 'menu' },
-        onOff('seenNear', 'map-pin', 'Proposer une adresse proche', 'Quand tu es à moins de 30 m d\'un de tes lieux', state.seenNear !== false, () => { state.seenNear = state.seenNear === false; }),
         onOff('seenPhotoMap', 'image', 'Photo sur la carte', 'Sur le rond de chaque photo, en zoomant', state.seenPhotoMap !== false, () => { state.seenPhotoMap = state.seenPhotoMap === false; refresh(); })),
       // v311 (mes choix 1A 2B 3A 4A du 20 nov.) : les catégories proposées après la photo, leur ordre, leurs sous-catégories
       el('h3', { class: 'ring-title', style: 'margin-top:14px' }, el('span', {}, 'Après la photo')),
-      el('p', { class: 'help tip' }, 'Coche les catégories proposées après la photo ; ↑ ↓ règlent leur ordre. Touche une catégorie pour préparer ses sous-catégories.'),
+      el('p', { class: 'help tip' }, 'Tes catégories de photos : celles de la carte n\'y sont plus. Coche celles proposées après la photo ; ↑ ↓ règlent leur ordre. Touche une catégorie pour préparer ses sous-catégories.'),
       el('div', {}, seenCatsAll().map((c, i, all) => {
         const first = i === 0;
         const on = first || !(state.seenOff ?? []).includes(c.id);
-        const real = state.categories.some((x) => x.id === c.id);
         const street = isStreetCat(c);
         const n = c.subs?.length ?? 0;
-        const subTxt = n ? plural(n, 'sous-catégorie', 'sous-catégories') : 'aucune sous-catégorie';
+        const subTxt = n ? plural(n, 'sous-catégorie', 'sous-catégories') : photoExamples(c.id) ? `Ex. : ${photoExamples(c.id)}` : ''; // v344 : sans sous-catégorie, rien (ou les exemples)
         const toggle = () => { const off = new Set(state.seenOff ?? []); if (on) off.add(c.id); else off.delete(c.id); state.seenOff = [...off]; persist(); openSettings('vu'); requestAnimationFrame(() => document.querySelector(`[data-seen-on="${c.id}"]`)?.focus()); };
         const move = (delta) => { const ids = all.slice(1).map((x) => x.id); const k = i - 1 + delta; if (k < 0 || k >= ids.length) return; [ids[i - 1], ids[k]] = [ids[k], ids[i - 1]]; state.seenOrder = ids; persist(); openSettings('vu'); requestAnimationFrame(() => document.querySelector(`[data-seen-move="${c.id}:${delta}"]`)?.focus()); };
         return el('div', { class: `cat-row tool-row seen-cat-row${on ? '' : ' off'}` },
@@ -9712,11 +9697,11 @@ function openSettings(section = null) {
           el('div', { class: 'tool-main' },
             el('button', { type: 'button', class: 'tool-rename', onclick: () => openSeenSubs(c.id), 'aria-label': `${c.name} : ${street ? 'l\'artiste' : subTxt}` },
               dotOf(c), el('span', { class: 'cat-name' }, c.name),
-              el('span', { class: 'menu-sub' }, first ? `Toujours proposée · ${subTxt}` : street ? 'L\'artiste à la place' : !real ? 'Créée à la première photo' : subTxt))),
+              first || street || subTxt ? el('span', { class: 'menu-sub' }, first ? ['Toujours proposée', n ? subTxt : ''].filter(Boolean).join(' · ') : street ? 'L\'artiste à la place' : subTxt) : null)),
           first ? null : el('button', { type: 'button', class: 'btn move', disabled: i === 1, 'data-seen-move': `${c.id}:-1`, onclick: () => move(-1), 'aria-label': `Monter ${c.name}` }, '↑'),
           first ? null : el('button', { type: 'button', class: 'btn move', disabled: i === all.length - 1, 'data-seen-move': `${c.id}:1`, onclick: () => move(1), 'aria-label': `Descendre ${c.name}` }, '↓'));
       })),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openCategory(null, { back: () => openSettings('vu'), done: () => openSettings('vu') }) }, ico('plus'), 'Nouvelle catégorie'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => newPhotoCat(() => openSettings('vu'), () => openSettings('vu')) }, ico('plus'), 'Nouvelle catégorie'),
       backBtn,
     ), { tall: true, name: 'settings:vu', again: () => openSettings('vu') });
     return;
@@ -11216,7 +11201,7 @@ const HELP = [
   ]],
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Une balade », « **Un parcours** » et « **Un circuit** » ouvrent directement la carte pour poser tes étapes.',
-    '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Près d\'une de tes adresses, l\'appli propose de l\'y ajouter.',
+    '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Range-la dans Vu en passant, Street art, Moments, Plats, Vues, Architecture ou Insolite ; tes lieux de la carte ne reçoivent une photo que par « Rattacher », sur la fiche de la photo.',
     '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : Filtres → Vu en passant, ou son bouton dans la barre du haut. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, + Ajouter → Vu en passant.',
@@ -11356,6 +11341,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
@@ -11364,8 +11350,7 @@ const HELP = [
     '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
     '{arrow-right} **« Y aller en transports »** : au-delà de ta limite à pied, la plaque d\'un lieu le dit, avec la distance dessous. Google Maps s\'y ouvre en transports, comme avant. La limite : {settings} → Autres réglages → Distances et durées.',
     '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
-    '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
-    '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
+    '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

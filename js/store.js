@@ -23,6 +23,7 @@ export const ICONS = [
   '🎵', '⛪', '🌳', '🌸', '🏊', '🧘', '💈', '💊', '📍', '⭐', '❤️', '🏠',
   '📷', // Vu en passant (v157)
   '🎨', // Street art (v161)
+  '🌅', '🚪', '✨', // Vues, Architecture, Insolite (v344)
 ];
 export const DEFAULT_ICON = '📍';
 export const FAV_COLORS = ['#f2a900', ...PALETTE];
@@ -122,6 +123,7 @@ const cleanCategory = (c) => ({
   ...(cleanLog(c.did) ? { did: cleanLog(c.did) } : {}), // nom de « Déjà visité » (« Déjà goûté »…), v162
   ...(typeof c.words === 'string' && /^[\w-]{0,64}$/.test(c.words) ? { words: c.words } : {}), // série de Mots tout prêts ('' : aucune), v226
   ...(cleanSubs(c.subs).length ? { subs: cleanSubs(c.subs) } : {}), // sous-catégories de mes photos prises en passant (v305)
+  ...(c.photo === true ? { photo: true } : {}), // v344 : une catégorie de photos (proposée après la photo), pas une catégorie de la carte
 });
 /** v305 : sous-catégories d'une catégorie, { id, name } ; un nom en double (majuscules et accents comptent pour rien) n'est gardé qu'une fois. */
 export const SUB_MAX = 30;
@@ -178,7 +180,7 @@ const clean = (p) => ({
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
-/** v308 : Réglages → Vu en passant (mes choix du 20 nov.). Au départ : catégorie gardée, « Vu en passant », adresse proche proposée, photo sur la carte. */
+/** v308 : Réglages → Vu en passant (mes choix du 20 nov.). Au départ : catégorie gardée, « Vu en passant », photo sur la carte. `seenNear` n'agit plus depuis la v344 (gardé pour les sauvegardes). */
 export const SEEN_STARTS = ['vu', 'street', 'last'];
 const idList = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)))].slice(0, 80) : []);
 // v311 : `seenOff` = catégories décochées (pas proposées après la photo ; au départ, aucune) ; `seenOrder` = leur ordre après la photo

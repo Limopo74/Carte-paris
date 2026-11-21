@@ -32,6 +32,24 @@ export const STREET_CAT = { id: 'streetart', name: 'Street art', color: '#c2255c
 const plainName = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 /** Une de mes catégories est-elle « street art » ? Celle de l'appli, ou une à moi qui en porte le nom (Street art, Art urbain, Graffitis…). */
 export const isStreetCat = (c) => Boolean(c) && (c.id === STREET_CAT.id || /street.?art|art urbain|graff/.test(plainName(c.name)));
+/** v344 (mes choix du 21 nov.) : les catégories de photos proposées après la photo, créées à leur première photo.
+ *  `ex` : des exemples de sous-catégories, montrés en gris (rien n'est créé d'avance). */
+export const PHOTO_CATS = [
+  { id: 'moments', name: 'Moments', color: '#d9480f', icon: '❤️', ex: ['Anniversaire', 'Sortie à deux', 'En famille', 'Fête'] },
+  { id: 'plats', name: 'Plats', color: '#9c6644', icon: '🍽️', ex: ['Desserts', 'Marché', 'Cuisine du monde', 'Café et terrasse'] },
+  { id: 'vues', name: 'Vues', color: '#1971c2', icon: '🌅', ex: ['Toits', 'Seine', 'Coucher de soleil', 'De nuit'] },
+  { id: 'archi', name: 'Architecture', color: '#7b2cbf', icon: '🚪', ex: ['Portes', 'Façades', 'Céramiques', 'Cours et passages'] },
+  { id: 'insolite', name: 'Insolite', color: '#2b8a3e', icon: '✨', ex: ['Animaux', 'Vitrines', 'Scènes de rue', 'Objets bizarres'] },
+];
+/** Les exemples de sous-catégories d'une catégorie de photos (les deux premiers par défaut), ou ''. */
+export const photoExamples = (id, n = 2) => (PHOTO_CATS.find((p) => p.id === id)?.ex ?? []).slice(0, n).join(', ');
+/** Ajoute une catégorie de photos de l'appli si elle manque (en dernier), masquée dans la barre du haut comme Street art. */
+export function withPhotoCat(state, id) {
+  const p = PHOTO_CATS.find((x) => x.id === id);
+  if (!p || state.categories.some((c) => c.id === id)) return state;
+  const { ex: _, ...cat } = p;
+  return { ...state, categories: [...state.categories, { ...cat, photo: true }], hiddenChips: [...new Set([...(state.hiddenChips ?? []), `cat:${id}`])] };
+}
 /** L'id de ma catégorie street art (la première dans mon ordre), ou null. */
 export const streetCatId = (categories) => (categories ?? []).find(isStreetCat)?.id ?? null;
 /** Ajoute la catégorie Street art si aucune des miennes ne l'est déjà (en dernier).
