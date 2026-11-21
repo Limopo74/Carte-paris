@@ -469,6 +469,11 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
   };
 }
 /** Nom du fichier pour un proche. */
+/** v352 : le fichier de mes seules adresses TTB vérifiées pour un proche. */
+export function ttbFileName(date, me, count) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `Ma carte de Paris - TTB vérifiées${me ? ` de ${String(me).replace(/[\\/:*?"<>|]/g, '').slice(0, 30)}` : ''} du ${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()} (${count} adresse${count > 1 ? 's' : ''}).json`;
+}
 export function friendFileName(date, me, count) {
   const z = (n) => String(n).padStart(2, '0');
   return `Ma carte de Paris - ${me ? `lieux de ${String(me).replace(/[\\/:*?"<>|]/g, '').slice(0, 30)}` : 'lieux'} du ${z(date.getDate())}-${z(date.getMonth() + 1)}-${date.getFullYear()} (${count} lieu${count > 1 ? 'x' : ''}).json`;

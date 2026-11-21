@@ -12,7 +12,7 @@ import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, re
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, SEND_DEFAULT, mergeFriend, startViewOf,
+  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (351)';
+const VERSION = '21 novembre 2026 (352)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10299,6 +10299,29 @@ function settingsQuestion() {
 let sendSel = { ...SEND_DEFAULT };
 let sendCats = null; // catégories choisies ; null = toutes
 let sendLists = new Set(); // listes choisies (leurs lieux s'ajoutent)
+/** Le fichier pour un proche part par le menu de partage du téléphone, sinon dans les Téléchargements (mis en commun en v352). */
+async function shareFriendFile(f) {
+  let shared = false;
+  try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch { return; /* annulé */ }
+  if (!shared) {
+    const url = URL.createObjectURL(f);
+    const a = el('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(`« ${f.name} » enregistré dans tes Téléchargements : envoie-le à ton proche.`);
+  } else toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
+}
+
+/** v352 (ma demande du 21 nov.) : depuis Mes proches, mes seules adresses TTB vérifiées, comme « Mes vérifiées » d'Envoyer à un proche (v330) :
+ * fichier partiel (il s'ajoute à sa liste, rien n'est remplacé), mes « fermées » avec, mes « masquées » jamais, envoyé à mon prénom (« Vérifiée par »). */
+async function sendTtbOkFile(me) {
+  ttbList();
+  const t = ttbExport(ttbData, ttbMarksNow(), { friend: true, onlyOk: true });
+  if (!t?.items.length) { toast('Aucune adresse TTB vérifiée à envoyer.', true); return; }
+  const obj = exportForFriend({ ...state, me }, { ...SEND_DEFAULT, lieux: false, plans: false, artists: false, venues: false, circuits: false, ttb: false });
+  obj.ttb = t; obj.sent = ['ttb'];
+  await shareFriendFile(new File([JSON.stringify(obj)], ttbFileName(new Date(), me, t.items.length), { type: 'application/json' }));
+}
+
 function openSendFriend(back = () => openSettings('sauvegarde')) {
   const again = () => openSendFriend(back);
   const mine = state.points.filter((p) => !p.owner);
@@ -10339,15 +10362,7 @@ function openSendFriend(back = () => openSettings('sauvegarde')) {
       if (Object.keys(obj.photos).length) obj.sent.push('photos'); else delete obj.photos;
     }
     if (sendSel.ttb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow(), { friend: true, onlyOk: ttbOnly }); if (t) { obj.ttb = t; obj.sent.push('ttb'); } }
-    const f = new File([JSON.stringify(obj)], friendFileName(new Date(), state.me, obj.points.length), { type: 'application/json' });
-    let shared = false;
-    try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch { return; /* annulé */ }
-    if (!shared) {
-      const url = URL.createObjectURL(f);
-      const a = el('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast(`« ${f.name} » enregistré dans tes Téléchargements : envoie-le à ton proche.`);
-    } else toast('Fichier passé à l\'appli choisie : vérifie qu\'il est bien parti.');
+    await shareFriendFile(new File([JSON.stringify(obj)], friendFileName(new Date(), state.me, obj.points.length), { type: 'application/json' }));
   };
   openSheet([ico('users'), ' Envoyer à un proche'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Tes favoris, tes « Déjà visité » et tes billets restent à toi ; tes étoiles partent.'),
@@ -11354,6 +11369,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
     '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
     '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
@@ -11363,7 +11379,6 @@ const HELP = [
     '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
-    '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -11521,7 +11536,7 @@ const styleNames = () => Object.fromEntries(Object.entries(STYLE_INFO).map(([id,
 function openPrepList() {
   const list = prepsNow();
   openSheet([ico('users'), ' Mes proches'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Tes préparations, rangées sous un nom pour toi seule : le proche ne le voit pas. Il reçoit un lien ou scanne un QR code ; son appli démarre avec tes choix. Tes lieux et ta liste TTB ne partent jamais ; ta clé CARTO seulement si tu la coches (étape Sa carte).'),
+    el('p', { class: 'help tip' }, 'Tes préparations, rangées sous un nom pour toi seule : le proche ne le voit pas. Il reçoit un lien ou scanne un QR code ; son appli démarre avec tes choix. Le lien ne porte jamais tes lieux ni ta liste TTB ; ta clé CARTO seulement si tu la coches (étape Sa carte).'),
     prepDraft ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openPrep(prepDraft.step || 1) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('pencil')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Reprendre la préparation en cours'), el('span', { class: 'menu-sub' }, prepDraft.name || 'Pas encore enregistrée')),
@@ -11554,13 +11569,19 @@ function openPrepOne(id) {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+  const nbOk = ttbCounts(ttbList(), ttbMarksNow()).ok;
+  const me = (state.me || x.p.de || '').trim().slice(0, 30); /* sans prénom, chez lui la fiche ne dirait pas « Vérifiée par » */
   openSheet([ico('users'), ` ${x.name}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [x.at ? `Préparée le ${dayOf(x.at)}` : '', presetSummary(x.p, styleNames())].filter(Boolean).join(' · ')),
     el('div', { class: 'menu' },
       row('pencil', 'Reprendre', 'Changer ses choix, étape par étape', () => { prepDraft = { id: x.id, name: x.name, p: cleanPreset(x.p), step: 1 }; drawLayerNote(); openPrep(1); }),
       row('send', 'Envoyer le lien', 'Avec son QR code', () => openPrepSend(x)),
       row('hand', 'Essayer ce démarrage', 'Comme sur son téléphone ; tes réglages ne bougent pas', () => startEssai(x.p)),
-      row('copy', 'Dupliquer', 'Pour un autre proche', dup)),
+      row('copy', 'Dupliquer', 'Pour un autre proche', dup),
+      nbOk ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => sendTtbOkFile(me) }, /* v352 : sous les anciennes lignes */
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ttbDotFor('')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Envoyer mes TTB vérifiées'), el('span', { class: 'menu-sub' }, `${plural(nbOk, 'adresse', 'adresses')} · un fichier qu'il importe`)),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')) : null),
     el('button', { type: 'button', class: 'btn danger', onclick: remove }, ico('trash-2'), 'Supprimer cette préparation'),
     foot(el('button', { type: 'button', class: 'btn', onclick: openPrepList }, '← Mes proches')),
   ), { tall: true, name: `prep-one:${id}`, again: () => openPrepOne(id) });
