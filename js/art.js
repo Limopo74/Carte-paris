@@ -13,8 +13,21 @@ const shortDate = (d) => d.toLocaleDateString('fr-FR', { weekday: 'long', day: '
 
 const EXPO = /\bexpo|exposition|vernissage|galerie|biennale|photograph|art contemporain|r[ée]trospective|accrochage/i;
 const NOT_EXPO = /brocante|vide[- ]?grenier|\bpuces\b|braderie|concert|spectacle|atelier enfant/i;
+// v367 : un atelier, une visite, une projection… d'un lieu d'expo n'est pas une expo (vrais titres de l'agenda du 21 nov. :
+// « Balade photographique », « Philo en famille », « Visite dansée en famille », tous marqués Expo ou Photo).
+// Sauf si le titre commence par « Expo… », « Vernissage » ou « Derniers jours ».
+const ACTIVITY = /\b(?:balades?|visites?|atelier|stages?|table ronde|conf[ée]rences?|rencontres?|philo|lectures?|projections?|d[ée]bats?|cours|masterclass|cin[ée]ma|films?|en famille)\b/i;
+const EXPO_FIRST = /^\W*(?:expo|vernissage|derniers jours)/i;
+// Mots-clés d'une activité ou d'une scène, sans le mot-clé « Expo » : ce n'est pas une expo (« Conférence;Histoire;Photo »).
+const NOT_EXPO_TAG = /(?:^|;)\s*(?:atelier|conf[ée]rence|concert|danse|th[ée][âa]tre|cirque|spectacle|ecrans)\s*(?:;|$)/i;
 /** Une sortie de l'agenda qui ressemble à une exposition (titre, mots-clés ou lieu). */
-export const isExpo = (e) => EXPO.test(`${e.title ?? ''} ${e.tags ?? ''}`) && !NOT_EXPO.test(e.title ?? '');
+export const isExpo = (e) => {
+  const title = e.title ?? '';
+  const tags = e.tags ?? '';
+  if (!EXPO.test(`${title} ${tags}`) || NOT_EXPO.test(title)) return false;
+  if (EXPO_FIRST.test(title)) return true;
+  return !ACTIVITY.test(title) && !(NOT_EXPO_TAG.test(tags) && !/(?:^|;)\s*expo\s*(?:;|$)/i.test(tags));
+};
 
 /** Les expos en cours qui ferment dans les `days` jours, de la plus pressée à la moins pressée. */
 export function lastChance(events, now = new Date(), days = 7) {

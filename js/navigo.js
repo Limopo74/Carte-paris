@@ -13,10 +13,17 @@ export const navigoGroup = (k) => (NAVIGO_GROUPS.includes(k) && k !== 'Autres' ?
 /** Garde les lieux des disciplines choisies (aucune choisie : tout). */
 export const navigoPass = (x, groups) => !groups?.size || groups.has(navigoGroup(x.kind));
 
+/**
+ * Lieux partenaires fermés pour longtemps, encore dans la liste d'Île-de-France Mobilités (v367) : jamais affichés.
+ * Centre Pompidou : fermé pour travaux jusqu'en 2030 (centrepompidou.fr ; voir aussi Grands lieux).
+ * Même liste dans tools/maj-navigo.py (CLOSED).
+ */
+export const NAVIGO_CLOSED = [/^centre pompidou$/i];
 /** Lit data/navigo.json ; ignore toute ligne incomplète. Le texte reste du texte brut (jamais du HTML). */
 export function parseNavigo(json) {
   const items = Array.isArray(json?.items) ? json.items : [];
   return items.filter((x) => typeof x?.n === 'string' && x.n && typeof x.o === 'string' && x.o && Number.isFinite(x.lat) && Number.isFinite(x.lng))
+    .filter((x) => !NAVIGO_CLOSED.some((r) => r.test(x.n.trim())))
     .map((x) => ({ name: x.n, kind: String(x.k ?? ''), offer: x.o, address: String(x.a ?? ''), lat: x.lat, lng: x.lng, url: /^https?:\/\//.test(x.url ?? '') ? x.url : '' }));
 }
 

@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (366)';
+const VERSION = '21 novembre 2026 (367)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6701,12 +6701,13 @@ async function openEvents(start = null) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
     body = [
-      el('h3', { class: 'ring-title' }, el('span', {}, 'Tout Paris'), el('span', {}, '')),
+      /* v367 : « Tout Paris » était faux pour Art dans la rue (à moins de 1 km) */
+      el('h3', { class: 'ring-title' }, el('span', {}, 'Tout Paris et tout près'), el('span', {}, '')),
       el('div', { class: 'menu' },
         entry('landmark', 'Grands lieux', `${ART_PLACES.length} musées, salles de concert, théâtres`, () => openArtPlaces()),
         entry('calendar-days', 'Expos de la semaine', 'Par arrondissement, celles qui ferment d\'abord', () => openWeekExpos()),
         entry('moon', 'Ouvert tard', (() => { const t = lateTonight(new Date(), ART_PLACES, holidayOn()); return t.length ? `Ce soir : ${t.slice(0, 3).map((p) => p.name.replace(/^Musée (du |de l'|d')?/, '')).join(', ')}${t.length > 3 ? '…' : ''}` : 'Les nocturnes des musées et fondations'; })(), () => openLate()),
-        entry('shapes', 'Art dans la rue', 'Statues et sculptures à moins de 1 km', () => openStreetArt()),
+        entry('shapes', 'Art dans la rue', 'Statues et sculptures à moins de 1\u00a0km', /* v367 : « 1 » et « km » sur la même ligne */ () => openStreetArt()),
         entry('user', 'Mes artistes', cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda', () => openArtists())),
       ...section('last', 'Dernière chance', last.map((e) => eventRow(e, back, { last: true })), 'expos'),
       ...section('expos', 'Expos en cours', expos.map((e) => eventRow(e, back)), 'expos'),

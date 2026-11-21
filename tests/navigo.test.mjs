@@ -51,3 +51,14 @@ test('filtres Navigo : petites disciplines dans Autres, aucun filtre = tout', ()
   assert.ok(navigoPass({ kind: 'Cirque' }, new Set(['Autres'])));
   assert.ok(!navigoPass({ kind: 'Musée' }, new Set(['Cinéma'])));
 });
+
+// v367 : le Centre Pompidou, fermé pour travaux jusqu'en 2030, ne doit plus être proposé (fichier et copie gardée)
+test('Navigo : un lieu fermé pour longtemps n\'est jamais affiché', async () => {
+  const { NAVIGO_CLOSED } = await import('../js/navigo.js');
+  assert.ok(!items.some((x) => /pompidou/i.test(x.name)), 'data/navigo.json sans le Centre Pompidou');
+  const old = parseNavigo({ items: [{ n: 'Centre Pompidou', k: 'Musée', o: 'Tarif réduit', lat: 48.8606, lng: 2.3522 }, { n: 'Musée Picasso', k: 'Musée', o: 'Tarif réduit', lat: 48.8598, lng: 2.3624 }] });
+  assert.deepEqual(old.map((x) => x.name), ['Musée Picasso'], 'une ancienne copie du fichier est filtrée aussi');
+  assert.ok(NAVIGO_CLOSED.length >= 1);
+  const py = (await import('node:fs')).readFileSync(new URL('../tools/maj-navigo.py', import.meta.url), 'utf8');
+  assert.match(py, /CLOSED = \{'centre pompidou'\}/, 'le robot l\'écarte aussi');
+});
