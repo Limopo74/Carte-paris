@@ -1113,9 +1113,10 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 /* Copier d'un appui : le texte à gauche, le bouton toujours à droite */
 .copy-row { display: flex; align-items: center; gap: 8px; }
 .copy-row > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-/* Petite icône sans cadre ; la zone à toucher reste de 44 px */
-.go-compass.copy-btn { flex: none; width: 44px; min-height: 44px; background: transparent; border: 0; box-shadow: none; color: var(--info); }
-.go-compass.copy-btn .ico svg { width: 18px; height: 18px; }
+/* v374 (mon choix 1B) : l'adresse à copier en encre, 18 px ; le bouton Copier, icône seule dans un cadre de 48 px (comme les boutons de la fiche) */
+.copy-row > .where { color: var(--ink); font-size: var(--t18); }
+.go-compass.copy-btn { flex: none; width: 48px; min-height: 48px; background: transparent; border: 2px solid var(--neutral-bd); border-radius: var(--r); box-shadow: none; color: var(--ink); }
+.go-compass.copy-btn .ico svg { width: 22px; height: 22px; }
 .item-sub > .tag:first-child { margin-left: 0; }
 
 /* Liste : le nom ouvre le choix des lieux */

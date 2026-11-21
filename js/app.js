@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (373)';
+const VERSION = '21 novembre 2026 (374)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2834,7 +2834,6 @@ function openDetail(id, back = null) {
   const vanish = canVanish(p, state.categories);
   const seenAt = vanish ? lastSeen(p) : null;
   const facts = el('div', { class: 'fiche-lines' },
-    p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
     // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
@@ -2940,6 +2939,8 @@ function openDetail(id, back = null) {
     goBox,
     // L'état d'abord (v176) : ouvert ou fermé, et quel métro, juste sous Y aller, avant les boutons à moi.
     facts2,
+    // v374 (mon choix 2A du 21 nov.) : l'adresse avec les faits, sous Aujourd'hui / Métro, avant le commentaire et mes boutons
+    p.address ? el('div', { class: 'copy-row' }, el('p', { class: 'where' }, ico('map-pin'), p.address), copyBtn(() => p.address, 'l\'adresse', 'Adresse copiée')) : null,
     p.note ? el('p', { class: 'fiche-lede' }, p.note) : null,
     toggles,
     el('div', { class: 'row row-big duo' },
@@ -11447,6 +11448,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
@@ -11456,7 +11458,6 @@ const HELP = [
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
-    '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
