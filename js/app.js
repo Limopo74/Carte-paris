@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (359)';
+const VERSION = '21 novembre 2026 (360)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9869,7 +9869,9 @@ function openSettings(section = null) {
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages', ' ', el('span', { class: 'title-tail' }, VERSION_NUM ? el('span', { class: 'title-ver' }, `v${VERSION_NUM}`) : null,
     /* v342 (ma demande du 21 nov.) : Mettre à jour l'appli en 1 appui, sans passer par Autres réglages. Icône discrète, zone d'appui 44 px (charte) */
-    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 18 })),
+    /* v360 (ma demande du 21 nov., mon choix B) : Autres réglages en 1 appui, sans descendre en bas de Réglages ; ⋯ comme « Plus » de la barre (la suite, cachée), après la flèche */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Autres réglages', title: 'Autres réglages', onclick: () => openSettings('autres') }, ico('ellipsis', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
     row('circle-help', 'Aide de l\'appli', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
@@ -11395,6 +11397,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
     '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
     '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
@@ -11404,7 +11407,6 @@ const HELP = [
     '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
     '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
     '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
-    '{images} **Vu en passant, des catégories de photos** : après la photo, plus tes catégories de la carte, mais Moments, Plats, Vues, Architecture et Insolite, à côté de Vu en passant et Street art. Chacune naît à sa première photo. Des exemples de sous-catégories s\'affichent en gris. La photo ne part plus dans un lieu proche : pour la relier à un de tes lieux, « Rattacher » sur sa fiche. Réglages : {settings} → Autres réglages → Vu en passant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
