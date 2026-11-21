@@ -492,8 +492,10 @@ ol.items { padding: 0; }
 .btn.c-add.solid { background: var(--add); color: var(--on-strong); border-color: var(--add); --pl: var(--add); }
 .btn.solid:disabled, .btn.primary:disabled { background: var(--surface); color: var(--muted); border-color: var(--muted); border-style: dashed; --pl: var(--surface); } /* inactif : tirets, même plein (charte § 5) */
 .tool.c-guide .tool-ico, .tool.c-metro .tool-ico { filter: none; }
-.legend-colors { display: flex; flex-wrap: wrap; gap: 6px; }
-.legend-colors span { font-size: var(--t13); font-weight: 600; padding: 4px 10px; } /* v297 : même forme que les vrais boutons (4 px, contour 2 px) */
+.legend-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+/* v297 : même forme que les vrais boutons (4 px, contour 2 px) ; v361 (mon choix C du 21 nov.) : bande de couleur de 10 px à gauche, texte encre gras, pour que la couleur se voie */
+.legend-colors span.btn { font-size: var(--t15); font-weight: 700; padding: 6px 12px; border-left-width: 10px; color: var(--ink); }
+.legend-colors span.btn.primary { color: var(--on-strong); }
 
 /* Aide */
 
