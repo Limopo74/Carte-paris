@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (365)';
+const VERSION = '21 novembre 2026 (366)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1508,7 +1508,7 @@ function departureFor(p, pos) {
   let travel = walkMinutes(distanceM(pos, p)); let how = 'à pied';
   if (!nearParis(pos)) return { leave: null, travel: null, how: '' }; // loin de Paris : pas d'heure de départ inventée (v217)
   if (travel > 25 && stations.length) { const plan = metroPlan(stations, pos, p, 3); if (plan.type !== 'walk') { travel = plan.minutes; how = 'en métro'; } }
-  return { leave: leaveAt(p.ticket.at, travel), travel, how };
+  return { leave: leaveAt(p.ticket.at, travel, tune('leaveMin')), travel, how }; // v365 : la marge se règle (20 min au départ)
 }
 
 /* Vibrer quand « Maintenant » a du nouveau (v189, réglage éteint au départ) : une courte vibration, une seule fois
@@ -3377,7 +3377,7 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
       if (p.plan) openPlanning(); else done();
       toast('Sortie retirée de Mon planning', false, { label: 'Annuler', fn: undo }); // v300 (mon choix 3A)
     } }, 'Retirer de Mon planning') : null,
-    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus 5 min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
+    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${tune('leaveMin')} min de marge, à régler dans Réglages → Autres réglages → Distances et durées). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
     /* v208 : Annuler | Enregistrer en bas, comme le formulaire d'un lieu (charte § 8) ; l'erreur juste au-dessus, toujours visible */
     foot(err, el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: p.plan && back ? back : done }, 'Annuler'),
@@ -9798,7 +9798,7 @@ function openSettings(section = null) {
   }
 
   if (section === 'distances') {
-    const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'villeM', 'traceMin', 'askDays']; /* les deux distances des alertes se règlent sur leur page */
+    const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'villeM', 'traceMin', 'askDays', 'leaveMin']; /* les deux distances des alertes se règlent sur leur page */
     openSheet([ico('ruler'), ' Distances et durées'], el('div', { class: 'stack' },
       el('div', { class: 'menu' }, row('target', 'Cercles', 'Tailles en mètres et en minutes', () => openSettings('cercles'), false, 'c-guide')),
       el('h3', { class: 'fiche-sec' }, 'Y aller'),
@@ -9813,6 +9813,7 @@ function openSettings(section = null) {
       tuneRow('traceMin', (v) => `Mes lieux à ${v} du tracé`, 'Sur la page d\'un circuit'),
       el('h3', { class: 'fiche-sec' }, 'Mon planning'),
       tuneRow('askDays', (v) => `« Tu y es allée ? » ${v}`, 'Après la sortie'),
+      tuneRow('leaveMin', (v) => `Marge de ${v}`, '« Pars à » : en plus du trajet'), // v365 (ma demande du 21 nov.) : sous la dernière ligne, il ne pousse rien
       el('button', { type: 'button', class: 'btn', onclick: () => {
         state.tuning = { ...cleanTuning(state.tuning), ...Object.fromEntries(PAGE_KEYS.map((k) => [k, TUNING[k].def])) };
         setWalkLimit(tune('walkM')); persist(); openSettings('distances'); toast('Distances et durées remises au départ');
@@ -11418,6 +11419,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
@@ -11427,7 +11429,6 @@ const HELP = [
     '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
-    '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

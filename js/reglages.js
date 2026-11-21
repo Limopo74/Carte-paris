@@ -12,6 +12,7 @@ export const TUNING = Object.freeze({
   villeM: Object.freeze({ def: 150, min: 50, max: 300, step: 50, unit: 'm' }), // v245 : immeubles protégés par la Ville, dans Monuments (mon choix M2B)
   traceMin: Object.freeze({ def: 2, min: 1, max: 5, step: 1, unit: 'min' }), // mes lieux près du tracé d'un circuit
   askDays: Object.freeze({ def: 30, min: 15, max: 90, step: 15, unit: 'jours' }), // « Tu y es allée ? »
+  leaveMin: Object.freeze({ def: 20, min: 15, max: 60, step: 5, unit: 'min' }), // v365 (ma demande du 21 nov., mon choix 15 min au plus bas) : marge de « Pars à », 20 min au départ (5 min fixes avant)
 });
 
 const valid = (t, v) => typeof v === 'number' && Number.isFinite(v) && v >= t.min && v <= t.max && (v - t.min) % t.step === 0;

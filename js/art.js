@@ -404,7 +404,7 @@ export function readExtract(json) {
 
 /* ---------- 6. Mon billet : l'heure de départ ---------- */
 
-/** Heure de départ conseillée (Date) : l'heure du billet moins le trajet et 5 min de marge. */
+/** Heure de départ conseillée (Date) : l'heure du billet moins le trajet et la marge (5 min sans réglage ; v365 : Réglages → Autres réglages → Distances et durées, 20 min au départ). */
 export const leaveAt = (at, travelMin, margin = 5) => new Date(at - (travelMin + margin) * 60000);
 
 /** Une sortie à afficher dans « Maintenant » : aujourd'hui, pas plus de 30 min après l'heure (ou avant la fin du moment choisi). */
