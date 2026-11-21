@@ -20,3 +20,11 @@ test('un seul texte : Réglages le montre d\'un bloc, depuis la même liste', ()
   assert.equal((app.match(/Tes lieux, tes photos et ta position restent sur ce téléphone/g) ?? []).length, 1);
   assert.match(app, /el\('p', \{ class: 'help' \}, USAGE_PRIVACY\)/);
 });
+
+test('v336 (mon choix 2A du 21 nov.) : dans l\'Aide, aucune ligne de Confidentialité de plus de 300 signes', () => {
+  const block = app.slice(app.indexOf('const PRIVACY_LINES = ['), app.indexOf('];', app.indexOf('const PRIVACY_LINES = [')));
+  const lines = [...block.matchAll(/^ {2}'(.*)',$/gm)].map((m) => m[1].replace(/\\'/g, "'"));
+  assert.ok(lines.length >= 12);
+  for (const l of lines) assert.ok(l.length <= 300, `${l.length} signes : ${l.slice(0, 60)}…`);
+  assert.match(lines.join(' '), /les fonds de carte \(OpenStreetMap, ou CARTO .* et Vélib' \(aucune position envoyée\)\./);
+});
