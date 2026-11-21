@@ -40,7 +40,7 @@ test('Après la photo : plus les catégories de la carte, plus « Ajouter à » 
   assert.ok(!seenForm.includes('placeNear') && !seenForm.includes('Ajouter à :') && !seenForm.includes('target'), 'la photo va toujours dans une catégorie de photos');
   assert.match(seenForm, /cat = ensureSeenCat\(cat\);/);
   assert.match(seenForm, /const newCat = \(\) => newPhotoCat\(/);
-  assert.match(app, /const newPhotoCat = \(back, done\) => openCategory\(null, \{ back, done: \(id\) => \{ state\.categories = state\.categories\.map\(\(c\) => \(c\.id === id \? \{ \.\.\.c, photo: true \} : c\)\)/);
+  assert.match(app, /const newPhotoCat = \(back, done\) => openCategory\(null, \{ (?:photo: true, )?back, done: \(id\) => \{ state\.categories = state\.categories\.map\(\(c\) => \(c\.id === id \? \{ \.\.\.c, photo: true \} : c\)\)/);
 });
 
 test('Réglages → Vu en passant : exemples en gris, plus « aucune sous-catégorie », plus « Proposer une adresse proche »', () => {

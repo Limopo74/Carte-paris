@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (348)';
+const VERSION = '21 novembre 2026 (349)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2106,7 +2106,7 @@ function ensureSeenCat(id) {
   return id;
 }
 /** v344 (mon choix 14A) : une catégorie créée depuis Vu en passant est une catégorie de photos. */
-const newPhotoCat = (back, done) => openCategory(null, { back, done: (id) => { state.categories = state.categories.map((c) => (c.id === id ? { ...c, photo: true } : c)); persist(); done(id); } });
+const newPhotoCat = (back, done) => openCategory(null, { photo: true, back, done: (id) => { state.categories = state.categories.map((c) => (c.id === id ? { ...c, photo: true } : c)); persist(); done(id); } });
 /** v344 (mon choix 10A) : la case « Créer » montre des exemples, rien n'est créé d'avance. */
 const subHint = (id) => (photoExamples(id) ? `Ex. : ${photoExamples(id)}` : 'Un nom court');
 function openSeenForm(blob, where, back = null) {
@@ -10047,6 +10047,9 @@ async function importPhotos(text, st, mine = true) {
 /** `ret` (facultatif) : { back, done(id) } quand on vient de la fiche d'un lieu au lieu des Réglages. */
 function openCategory(id, ret = null) {
   const c = id ? catOf(id) : null;
+  // v349 (mes choix 1A 2A 3A du 21 nov.) : une catégorie de photos n'a ni « Toutes prêtes » (catégories de la carte),
+  // ni historique, ni « Déjà visité », ni mots tout prêts. Street art garde tout : elle sert aussi aux œuvres de la carte.
+  const photoCat = Boolean(ret?.photo) || (Boolean(c) && isPhotoCat(c) && !isStreetCat(c));
   let color = c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
   let icon = c?.icon ?? '📍';
   const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
@@ -10107,7 +10110,7 @@ function openCategory(id, ret = null) {
   // v311 (mon choix 4A) : les sous-catégories se gèrent dans Réglages → Vu en passant ; ici, seulement où les trouver
   const subsBlock = c?.subs?.length ? el('p', { class: 'help' }, `Ses ${plural(c.subs.length, 'sous-catégorie', 'sous-catégories')} (photos prises en passant) : Réglages → Autres réglages → Vu en passant → ${c.name}.`) : null;
 
-  const presets = id ? [] : suggestedPresets(state.categories);
+  const presets = id || photoCat ? [] : suggestedPresets(state.categories);
   const presetBox = presets.length ? el('div', {},
     el('div', { class: 'legend' }, 'Toutes prêtes (un appui suffit)'),
     el('div', { class: 'presets' }, presets.map((pr) => {
@@ -10127,12 +10130,13 @@ function openCategory(id, ret = null) {
     el('label', { class: 'field' }, 'Nom', name),
     el('div', {}, el('div', { class: 'legend' }, 'Icône'), icons),
     el('div', {}, el('div', { class: 'legend' }, 'Couleur'), swatches),
-    el('label', { class: 'field' }, 'Nom de l\'historique dans la fiche', log),
-    el('p', { class: 'help' }, 'Ex. : « Mes repas » pour des restos, « Mes visites » pour des musées. Vide : « Mes impressions ».'),
-    el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
-    el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
-    el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
-    el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Autres réglages → Mots tout prêts.'),
+    ...(photoCat ? [] : [ // v349 : pas pour une catégorie de photos (les valeurs déjà enregistrées restent)
+      el('label', { class: 'field' }, 'Nom de l\'historique dans la fiche', log),
+      el('p', { class: 'help' }, 'Ex. : « Mes repas » pour des restos, « Mes visites » pour des musées. Vide : « Mes impressions ».'),
+      el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
+      el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
+      el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
+      el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Autres réglages → Mots tout prêts.')]),
     subsBlock,
     err, zone,
     foot(el('div', { class: 'row' }, /* v284 : « Annuler | Enregistrer », comme toute page qui enregistre (charte § 8) ; Annuler ramène au même endroit qu'avant */
@@ -11354,6 +11358,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
     '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
     '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
     '{settings} **« Autres réglages » se voit mieux** : dans {settings}, la ligne a son propre titre, « Plus de réglages », et un nom plus grand. Elle reste à la même place, sous « Ce qui s\'affiche ».',
@@ -11363,7 +11368,6 @@ const HELP = [
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
     '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
     '{lock} **Confidentialité dans l\'Aide** : tout en bas de l\'Aide, ce qui reste sur ton téléphone et ce que reçoit chaque service. Le même texte que dans {settings} → Autres réglages → Mise à jour et confidentialité.',
-    '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
