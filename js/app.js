@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (368)';
+const VERSION = '21 novembre 2026 (369)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7152,7 +7152,8 @@ async function openHomePlan(home) {
   await loadGares();
   const railNear = garesNear(gares, from, 1500, 1)[0];
   const metroD = near[0]?.d ?? Infinity;
-  const railLine = railNear && railNear.d + 200 < metroD ? el('p', { class: 'help' }, ico('train-front'), ` Plus près que le métro : ${railNear.station.n} (${gareLines(railNear.station)}), ${fmtWalk(railNear.d)}. Vérifie qu'il va vers chez toi.`) : null;
+  const homeNear = opts.some((o) => o.st === home.st); // v369 : ma station Maison est à deux pas, inutile de proposer un train
+  const railLine = !homeNear && railNear && railNear.d + 200 < metroD ? el('p', { class: 'help' }, ico('train-front'), ` Plus près que le métro : ${railNear.station.n} (${gareLines(railNear.station)}), ${fmtWalk(railNear.d)}. Vérifie qu'il va vers chez toi.`) : null;
   hideToast();
   openSheet([ico('house'), ` Rentrer · ${home.label}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `Vers ${home.st.n}. Les stations les plus proches de toi\u00a0:`),
@@ -7166,7 +7167,7 @@ async function openHomePlan(home) {
           el('span', { class: 'item-sub' }, o.st === home.st ? `${walkMinutes(o.d)} min à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
-    (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
+    (best ? walk <= best.plan.minutes : homeNear) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     ...busBlock,
     el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
     el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour la boussole.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),

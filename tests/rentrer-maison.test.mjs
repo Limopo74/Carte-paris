@@ -34,5 +34,8 @@ test('Rentrer : la ligne de ma station Maison dit « c\'est ta station », sans 
   const body = app.slice(i, app.indexOf('\n}\n', i));
   assert.match(body, /o\.st === home\.st \? `\$\{walkMinutes\(o\.d\)\} min à pied · c'est ta station \$\{home\.label\}`/);
   assert.match(body, /fastestHomeOption\(opts, home\.st, walk\)/);
-  assert.match(body, /opts\.some\(\(o\) => o\.st === home\.st\)\) \? el\('p', \{ class: 'summary' \}/);
+  assert.match(body, /const homeNear = opts\.some\(\(o\) => o\.st === home\.st\)/);
+  assert.match(body, /\(best \? walk <= best\.plan\.minutes : homeNear\) \? el\('p', \{ class: 'summary' \}/);
+  // v369 : pas de « Plus près que le métro : … (RER) » quand ma station Maison est parmi les proches
+  assert.match(body, /const railLine = !homeNear && railNear/);
 });
