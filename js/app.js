@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (352)';
+const VERSION = '21 novembre 2026 (353)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10302,7 +10302,10 @@ let sendLists = new Set(); // listes choisies (leurs lieux s'ajoutent)
 /** Le fichier pour un proche part par le menu de partage du téléphone, sinon dans les Téléchargements (mis en commun en v352). */
 async function shareFriendFile(f) {
   let shared = false;
-  try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch { return; /* annulé */ }
+  try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: 'Ma carte de Paris' }); shared = true; } } catch (e) {
+    if (e?.name === 'AbortError') return; /* annulé par moi */
+    /* v353 (défaut du 21 nov. : « rien du tout » sur mon téléphone) : le téléphone a refusé le partage ; le fichier va dans Téléchargements */
+  }
   if (!shared) {
     const url = URL.createObjectURL(f);
     const a = el('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove();
@@ -10314,6 +10317,9 @@ async function shareFriendFile(f) {
 /** v352 (ma demande du 21 nov.) : depuis Mes proches, mes seules adresses TTB vérifiées, comme « Mes vérifiées » d'Envoyer à un proche (v330) :
  * fichier partiel (il s'ajoute à sa liste, rien n'est remplacé), mes « fermées » avec, mes « masquées » jamais, envoyé à mon prénom (« Vérifiée par »). */
 async function sendTtbOkFile(me) {
+  try { await sendTtbOkFileNow(me); } catch { toast('Le fichier n\'a pas pu être préparé. Essaie Sauvegarde → Envoyer à un proche.', true); } // v353 : jamais rien du tout
+}
+async function sendTtbOkFileNow(me) {
   ttbList();
   const t = ttbExport(ttbData, ttbMarksNow(), { friend: true, onlyOk: true });
   if (!t?.items.length) { toast('Aucune adresse TTB vérifiée à envoyer.', true); return; }

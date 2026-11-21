@@ -24,3 +24,11 @@ test('le nom du fichier', () => {
   assert.equal(ttbFileName(new Date(2026, 10, 21), 'Marie', 3), 'Ma carte de Paris - TTB vérifiées de Marie du 21-11-2026 (3 adresses).json');
   assert.equal(ttbFileName(new Date(2026, 10, 21), '', 1), 'Ma carte de Paris - TTB vérifiées du 21-11-2026 (1 adresse).json');
 });
+
+test('v353 : un partage refusé par le téléphone passe par Téléchargements ; seule mon annulation reste muette ; jamais rien du tout', () => {
+  const f = app.slice(app.indexOf('async function shareFriendFile('), app.indexOf('async function sendTtbOkFile('));
+  assert.match(f, /e\?\.name === 'AbortError'\) return;/);
+  assert.doesNotMatch(f, /catch \{ return; \/\* annulé \*\/ \}/);
+  const s = app.slice(app.indexOf('async function sendTtbOkFile('), app.indexOf('async function sendTtbOkFileNow('));
+  assert.match(s, /try \{ await sendTtbOkFileNow\(me\); \} catch \{ toast\(/);
+});
