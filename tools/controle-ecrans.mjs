@@ -177,6 +177,7 @@ const ECRANS = {
   categorie: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
   // v166 : feuille réduite, Mes salles
   sortiescarte: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-mapbtn').click(); await p.waitForSelector('.peek-card.deck'); await p.waitForTimeout(400); }, // v219 : le bandeau dit « Sorties · 9e » et l'heure
+  sortiesphotos: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-photo').click(); await p.waitForTimeout(900); }, // v369 : l'image à droite du titre allume les photos
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },

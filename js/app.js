@@ -6767,7 +6767,14 @@ async function openEvents(start = null) {
       ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
     el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek({ kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
       open: (x, b) => x.go(b), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
-  openSheet(title, el('div', { class: 'stack ev-page' },
+  // v369 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
+  // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
+  const photosOn = state.evThumbs === true;
+  const photoBtn = mode === 'navigo' ? null : el('button', { type: 'button', class: 'title-maj title-photo', 'aria-pressed': String(photosOn),
+    'aria-label': photosOn ? 'Photos dans Sorties : allumé. Éteindre' : 'Photos dans Sorties : éteint. Allumer', title: photosOn ? 'Photos affichées' : 'Photos masquées',
+    onclick: () => { state.evThumbs = !photosOn; persist(); toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre'); openEvents(); } },
+  ico(photosOn ? 'image-full' : 'image', { size: 18 }));
+  openSheet(photoBtn ? [...title, photoBtn] : title, el('div', { class: 'stack ev-page' },
     seg, // les onglets restent toujours à la même place
     ctx,
     /* v212 : Chercher, sous le point de départ et Carte, seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) */
@@ -11421,6 +11428,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
@@ -11430,7 +11438,6 @@ const HELP = [
     '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
     '{users} **Mots tout prêts pour un proche** : {settings} → Sauvegarde → Envoyer à un proche, coche « Mots tout prêts » (décochée au départ). Chez lui, tes séries s\'ajoutent aux siennes ; une série du même nom reste la sienne.',
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
-    '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
