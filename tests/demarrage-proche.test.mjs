@@ -28,7 +28,9 @@ test('Un lien abîmé ou trafiqué ne casse rien', async () => {
   assert.equal(await decodePreset('<script>'), null);
   const p = cleanPreset({ msg: 'a'.repeat(500), mapStyle: 'clean', textSize: 'énorme', hiddenChips: ['<b>', 'ttb'], categories: [{ id: 'x', name: '', color: 'red' }] });
   assert.equal(p.msg.length, MSG_MAX);
-  assert.ok(FREE_STYLES.includes(p.mapStyle), 'jamais un fond à clé');
+  assert.equal(p.mapStyle, 'clean', 'v349 : un fond CARTO peut se préparer (sa clé, ou la mienne si je coche)');
+  assert.equal(cleanPreset({ mapStyle: 'inconnu' }).mapStyle, 'eclairci');
+  assert.ok(FREE_STYLES.includes(cleanPreset({ mapStyle: 'satellite' }).mapStyle));
   assert.equal(p.textSize, 'normal');
   assert.deepEqual(p.hiddenChips, ['ttb']);
   assert.ok(p.categories.length >= 1, 'au moins une catégorie');

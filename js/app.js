@@ -1,6 +1,6 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
-import { DEPART_KEY, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
+import { DEPART_KEY, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, KEY_STYLES, PREP_STARTS, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
 import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.js';
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (350)';
+const VERSION = '21 novembre 2026 (351)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -471,7 +471,7 @@ function applyMapStyle() {
 }
 
 /** Saisir, changer ou retirer la clé CARTO (style Épuré). */
-function openCartoKey(back = () => openSettings('style'), style = 'clean') {
+function openCartoKey(back = () => openSettings('style'), style = 'clean', backName = 'Style de la carte') {
   const has = cartoKey();
   const input = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Colle ta clé ici', 'aria-label': 'Clé CARTO' });
   const err = el('div', { class: 'error', role: 'alert' });
@@ -492,8 +492,8 @@ function openCartoKey(back = () => openSettings('style'), style = 'clean') {
     err,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (needsKey(state.mapStyle)) state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
-    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : elle n\'est ni dans ta sauvegarde, ni dans les liens partagés, ni sur GitHub. Ne la donne pas dans une conversation.'),
-    foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Style de la carte')),
+    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : ni dans ta sauvegarde, ni sur GitHub ; dans le lien d\'un proche seulement si tu coches « Avec ma clé CARTO » en préparant son démarrage. Ne la donne pas dans une conversation.'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: back }, `← ${backName}`)),
   ), { tall: true, name: 'carto-key' });
 }
 applyMapStyle();
@@ -9035,7 +9035,6 @@ function openSettings(section = null) {
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
   // La liste TTB et mes marques partent aussi, case cochée au départ (v179) : après une remise à zéro, plus besoin de réimporter la page du guide.
   const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
-  const withCarto = el('input', { type: 'checkbox', class: 'check' }); // v318 : la clé CARTO ne part que si je coche
   const nbTtb = ttbList().length;
   const nbTtbMarks = Object.keys(ttbMarksNow()).length;
   const canShareFile = (() => {
@@ -9074,10 +9073,7 @@ function openSettings(section = null) {
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
       // v318 (mes choix 1a 2b 3a 4a du 20 nov.) : mes réglages seuls, pour un autre téléphone qui garde ses lieux
-      el('button', { type: 'button', class: 'btn c-disc', onclick: () => sendSettings(withCarto.checked) }, ico('settings'), 'Envoyer mes réglages'),
-      cartoKey() ? el('label', { class: 'item-main check-row' }, withCarto,
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma clé CARTO'),
-          el('span', { class: 'item-sub' }, 'Elle sera lisible dans le fichier : envoie-le seulement à un proche'))) : null,
+      el('button', { type: 'button', class: 'btn c-disc', onclick: () => sendSettings() }, ico('settings'), 'Envoyer mes réglages'), // v349 (mon choix 3A) : plus « Avec ma clé CARTO »
       el('p', { class: 'help tip' }, 'Tes boutons, filtres, cercles, style de carte, catégories et listes, sans aucun lieu. Sur l\'autre téléphone : Restaurer ou importer → Importer des réglages.'),
       el('p', { class: 'help' }, 'Envoie-toi aussi ce fichier par courriel ou sur ton Drive : si tu perds ton téléphone, Téléchargements part avec lui.'),
       el('p', { class: 'help tip' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
@@ -10260,8 +10256,8 @@ async function sendBackup(withPhotos = true, withTtb = true) {
 
 /* ---------- Mes réglages pour un autre téléphone (v318, mes choix 1a 2b 3a 4a du 20 nov.) ---------- */
 /** Envoie le fichier de réglages par le menu de partage, sinon le met dans Téléchargements. */
-async function sendSettings(withCarto = false) {
-  const f = new File([exportSettingsJSON(state, withCarto ? cartoKey() : '')], settingsFileName(new Date(), state.me ?? ''), { type: 'application/json' });
+async function sendSettings() {
+  const f = new File([exportSettingsJSON(state)], settingsFileName(new Date(), state.me ?? ''), { type: 'application/json' });
   let shared = false;
   try { shared = Boolean(navigator.canShare?.({ files: [f] })); } catch { shared = false; }
   if (shared) {
@@ -11358,6 +11354,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
     '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
     '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
     '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
@@ -11367,7 +11364,6 @@ const HELP = [
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
     '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
-    '{lock} **Confidentialité dans l\'Aide** : tout en bas de l\'Aide, ce qui reste sur ton téléphone et ce que reçoit chaque service. Le même texte que dans {settings} → Autres réglages → Mise à jour et confidentialité.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -11491,6 +11487,9 @@ function openWelcome(step = 1) {
         : STANDALONE ? null : el('p', { class: 'help' }, 'Pour l\'installer sur l\'écran d\'accueil : menu ⋮ de Chrome → « Ajouter à l\'écran d\'accueil » (ou « Installer l\'application », selon le téléphone).'),
       el('p', { class: 'warn' }, 'Tes lieux restent sur ce téléphone seulement : sauvegarde-les de temps en temps (Réglages → Sauvegarde).'),
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'),
+      // v349 (mon choix 2A du 21 nov.) : un fond CARTO préparé pour lui, sans clé : sa carte est Classique ; sa propre clé en 2 minutes
+      needsKey(state.mapStyle) && !cartoKey() ? el('p', { class: 'help' }, `Le fond « ${STYLE_INFO[state.mapStyle].name} », choisi pour toi, demande une clé CARTO gratuite. En attendant : Classique.`) : null, // visible, pas replié dans Aide
+      needsKey(state.mapStyle) && !cartoKey() ? el('button', { type: 'button', class: 'btn c-info', onclick: () => openCartoKey(() => openWelcome(6), state.mapStyle, 'C\'est prêt') }, ico('palette'), 'Demander ma clé gratuite') : null,
     ], [back, el('button', { type: 'button', class: 'btn c-add solid', onclick: () => { forgetGot(); closeSheet(); } }, 'Voir ma carte')]],
   };
   const [title, body, feet] = pages[step];
@@ -11508,10 +11507,13 @@ const prepsNow = () => { try { return cleanPreps(JSON.parse(storage.getItem(DEPA
 const savePreps = (list) => { try { storage.setItem(DEPART_KEY, JSON.stringify(cleanPreps(list))); return true; } catch { toast('Le téléphone n\'a pas pu garder la préparation.', true); return false; } };
 const PREP_STEPS = 10;
 const prepId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
-const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Son fond de carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
+const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Sa carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
 const PREP_CHIPS = { street: ['tent', 'Dans la rue'], lines: ['lines', 'Lignes de métro et RER'], fav: ['star', 'Favoris'], ttb: ['circle', 'TTB (avec sa liste)'], velib: ['bike', 'Vélib\' sur la carte'], buslines: ['bus', 'Mes lignes de bus'], pratique: ['droplets', 'Fontaines et WC sur la carte'], passages: ['door-open', 'Passages couverts'], velo: ['spline', 'Pistes à vélo'], jardins: ['trees', 'Jardins publics'] };
 /** v349 (défaut) : le même logo que son vrai bouton du haut : l'étoile de favori pleine (celle de départ), la pastille TTB. */
-const chipIcon = (k, icon) => (k === 'fav' ? glyph(DEFAULT_FAV.icon, { filled: true }) : k === 'ttb' ? ttbDotFor('') : ico(icon));
+const chipIcon = (k, icon) => (k === 'fav' ? (() => { const g = glyph(DEFAULT_FAV.icon, { filled: true }); g.style.color = DEFAULT_FAV.color; return g; })() : k === 'ttb' ? ttbDotFor('') : ico(icon));
+// v349 (mon choix 4A) : comme Réglages → À l'ouverture, écrit pour lui ; pas « Chez moi » (il n'en a pas encore)
+const PREP_START_NAME = { me: 'Sa position', all: 'Tous ses lieux', paris: 'Le centre de Paris', last: 'Là où il l\'a laissée' };
+const PREP_START_SUB = { me: 'Dans Paris, si elle est déjà autorisée ; sinon ses lieux', all: 'Ses lieux d\'un coup d\'œil', paris: 'Châtelet, tout Paris autour', last: 'Le même endroit, le même zoom' };
 const deOf = (name) => (/^[aeiouyhâéèêîôûAEIOUYHÂÉÈÊÎÔÛ]/.test(name) ? `d'${name}` : `de ${name}`);
 const dayOf = (at) => (at ? new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '');
 const styleNames = () => Object.fromEntries(Object.entries(STYLE_INFO).map(([id, st]) => [id, st.name]));
@@ -11519,7 +11521,7 @@ const styleNames = () => Object.fromEntries(Object.entries(STYLE_INFO).map(([id,
 function openPrepList() {
   const list = prepsNow();
   openSheet([ico('users'), ' Mes proches'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Tes préparations, rangées sous un nom pour toi seule : le proche ne le voit pas. Il reçoit un lien ou scanne un QR code ; son appli démarre avec tes choix. Tes lieux, ta liste TTB et ta clé CARTO ne partent jamais.'),
+    el('p', { class: 'help tip' }, 'Tes préparations, rangées sous un nom pour toi seule : le proche ne le voit pas. Il reçoit un lien ou scanne un QR code ; son appli démarre avec tes choix. Tes lieux et ta liste TTB ne partent jamais ; ta clé CARTO seulement si tu la coches (étape Sa carte).'),
     prepDraft ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openPrep(prepDraft.step || 1) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('pencil')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Reprendre la préparation en cours'), el('span', { class: 'menu-sub' }, prepDraft.name || 'Pas encore enregistrée')),
@@ -11566,7 +11568,8 @@ function openPrepOne(id) {
 
 /** Le lien du proche et son QR code ; « Envoyer le lien » passe par le menu de partage du téléphone (sinon il est copié). */
 async function openPrepSend(x) {
-  const url = presetLink(APP_URL(), await encodePreset(x.p));
+  const sendKey = x.p.withKey && KEY_STYLES.includes(x.p.mapStyle) && cartoKey(); // v349 (mon choix 2B) : seulement si j'ai coché
+  const url = presetLink(APP_URL(), await encodePreset(x.p, sendKey ? cartoKey() : ''));
   const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': 'QR code du démarrage préparé' });
   const q = qrcode(0, 'M'); q.addData(url); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   const share = async () => {
@@ -11576,6 +11579,7 @@ async function openPrepSend(x) {
   };
   openSheet([ico('send'), ` ${x.name}`], el('div', { class: 'stack' }, box,
     el('p', { class: 'help' }, 'Il scanne ce code avec l\'appareil photo, ou tu lui envoies le lien. Le lien porte ton mot et tes choix, jamais tes lieux ni ce nom.'),
+    sendKey ? el('p', { class: 'warn' }, 'Ce lien porte aussi ta clé CARTO : envoie-le seulement à ce proche.') : null,
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openPrepOne(x.id) }, `← ${x.name}`), el('button', { type: 'button', class: 'btn c-add solid', onclick: share }, ico('send'), 'Envoyer le lien')),
   ), { tall: true, name: `prep-send:${x.id}`, again: () => openPrepSend(x) });
 }
@@ -11603,15 +11607,22 @@ function openPrep(step = 1) {
     el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   const check = (label, sub, on, flip, dot = null) => el('label', { class: 'item-main check-row' }, el('input', { type: 'checkbox', class: 'check', checked: on, onchange: () => { flip(); again(); } }),
     dot, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, label), sub ? el('span', { class: 'item-sub' }, sub) : null));
-  const placeRow = (icon, name, place, opts, set) => el('div', { class: 'cat-row tool-row' },
+  // v349 (mon choix 1A du 21 nov.) : ↑ ↓ comme Réglages → Barre du haut et Colonne de boutons ; le focus reste sur la flèche touchée
+  const moveBtns = (key, name, i, n, move) => [-1, 1].map((dd) => el('button', { type: 'button', class: 'btn move', disabled: dd < 0 ? i === 0 : i === n - 1, 'data-move': `${key}:${dd}`,
+    'aria-label': `${dd < 0 ? 'Monter' : 'Descendre'} ${name}`, onclick: () => { move(dd); again(); requestAnimationFrame(() => document.querySelector(`[data-move="${key}:${dd}"]`)?.focus()); } }, dd < 0 ? '↑' : '↓'));
+  const placeRow = (icon, name, place, opts, set, mv = null) => el('div', { class: 'cat-row tool-row' },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, typeof icon === 'string' ? ico(icon) : icon),
     el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, name),
       el('div', { class: 'seg tool-where', role: 'group', 'aria-label': `Place de ${name}` }, opts.map(([k, label]) =>
-        el('button', { type: 'button', 'aria-pressed': String(place === k), onclick: () => { if (place !== k) { set(k); again(); } } }, label)))));
+        el('button', { type: 'button', 'aria-pressed': String(place === k), onclick: () => { if (place !== k) { set(k); again(); } } }, label)))),
+    ...(mv ? moveBtns(mv.key, name, mv.i, mv.n, mv.move) : []));
   const chipPlace = (k) => (p.hiddenChips.includes(k) ? 'hidden' : p.moreChips.includes(k) ? 'more' : 'bar');
   const setChip = (k, to) => { p.hiddenChips = p.hiddenChips.filter((x) => x !== k); p.moreChips = p.moreChips.filter((x) => x !== k); if (to === 'hidden') p.hiddenChips.push(k); if (to === 'more') p.moreChips.push(k); };
   const toolPlace = (t) => (p.hiddenTools.includes(t) ? 'hidden' : p.moreTools.includes(t) ? 'more' : 'map');
   const setTool = (t, to) => { p.hiddenTools = p.hiddenTools.filter((x) => x !== t); p.moreTools = p.moreTools.filter((x) => x !== t); if (to === 'hidden') p.hiddenTools.push(t); if (to === 'more') p.moreTools.push(t); };
+  const catLine = (c, row) => { const i = p.categories.findIndex((x) => x.id === c.id);
+    return i < 0 ? row : el('div', { class: 'cat-row prep-cat' }, row, ...moveBtns(`pcat:${c.id}`, c.name, i, p.categories.length, (dd) => {
+      const j = i + dd; const l = [...p.categories]; [l[i], l[j]] = [l[j], l[i]]; p.categories = l; })); };
   const starts = defaultPreset().categories; // Restos, Boutiques, Culture
   const allCats = [...starts, ...state.categories.filter((c) => c.id !== SEEN_CAT.id && !starts.some((x) => x.id === c.id))];
   const nameInput = el('input', { type: 'text', maxlength: String(PREP_NAME_MAX), value: d.name, placeholder: 'Ex. : Pour Paul', oninput: (e) => { d.name = e.target.value; } });
@@ -11641,28 +11652,58 @@ function openPrep(step = 1) {
         sw('tags', 'Noms à côté des boutons', '', p.labels, () => { p.labels = !p.labels; }),
         sw('badge-percent', 'Passe Navigo', 'Sorties, fiches, loupe', p.navigo, () => { p.navigo = !p.navigo; })),
     ],
-    5: [
-      el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête.'),
-      el('div', {}, [...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => placeRow(chipIcon(k, icon), name, chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to))),
-        ...[...p.categories, SEEN_CAT].map((c) => placeRow(dotOf(c), c.name, chipPlace(`cat:${c.id}`), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(`cat:${c.id}`, to)))]), // v349 : la pastille de SA catégorie (couleur, icône), pas la mienne
-    ],
+    5: (() => {
+      // v349 : une seule file, catégories comprises, dans son ordre (comme Réglages → Barre du haut)
+      const cats = [...p.categories, SEEN_CAT];
+      const catIds = cats.map((c) => c.id);
+      const order = barOrderOf(p.chipOrder, catIds);
+      const info = Object.fromEntries([...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => [k, [chipIcon(k, icon), name]]),
+        ...cats.map((c) => [`cat:${c.id}`, [dotOf(c), c.name]])]); // v349 : la pastille de SA catégorie (couleur, icône), pas la mienne
+      const move = (k) => (dd) => { p.chipOrder = moveChip({ chipOrder: p.chipOrder }, k, dd, catIds).chipOrder; };
+      return [
+        el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête. ↑ ↓ règlent l\'ordre.'),
+        // v349 (mon choix 5A) : en tête, comme dans Réglages → Barre du haut
+        el('div', { class: 'menu' }, sw('panel-top', 'Icônes seules en haut', 'Plus de catégories visibles sans faire défiler', p.chipIcons, () => { p.chipIcons = !p.chipIcons; })),
+        el('div', {}, order.filter((k) => info[k]).map((k, i, all) => placeRow(info[k][0], info[k][1], chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to),
+          { key: k, i, n: all.length, move: move(k) }))),
+      ];
+    })(),
     6: [
-      el('div', {}, normalizeTools(p.mapTools).map((t) => placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to)))),
-      el('p', { class: 'help' }, 'Autour de moi, Ajouter et Réglages restent toujours en bas.'),
+      el('div', {}, normalizeTools(p.mapTools).map((t, i, all) => placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to),
+        { key: `tool:${t}`, i, n: all.length, move: (dd) => { p.mapTools = moveTool(p.mapTools, t, dd); } }))), // v349 : ↑ ↓ (mon choix 1A)
+      el('p', { class: 'help' }, 'Autour de moi, Ajouter et Réglages restent toujours en bas. ↑ ↓ règlent l\'ordre, du haut vers le bas.'),
     ],
-    7: [
-      el('p', { class: 'help' }, 'Seulement les fonds sans clé : ta clé CARTO ne part jamais.'),
-      el('div', { class: 'style-grid' }, FREE_STYLES.map((id) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(p.mapStyle === id), onclick: () => { p.mapStyle = id; again(); } },
-        el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, STYLE_INFO[id].name), el('span', { class: 'menu-sub' }, STYLE_INFO[id].sub)))),
-    ],
+    7: (() => {
+      const card = (id, sub) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(p.mapStyle === id), onclick: () => { p.mapStyle = id; if (!KEY_STYLES.includes(id)) p.withKey = false; again(); } },
+        el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, STYLE_INFO[id].name), el('span', { class: 'menu-sub' }, sub));
+      const keyed = KEY_STYLES.includes(p.mapStyle);
+      const withKey = el('input', { type: 'checkbox', class: 'check', checked: p.withKey === true, onchange: (e) => { p.withKey = e.target.checked; again(); } });
+      return [
+        el('p', { class: 'legend' }, 'Son fond de carte'),
+        el('div', { class: 'style-grid' }, FREE_STYLES.map((id) => card(id, STYLE_INFO[id].sub))),
+        // v349 (mes choix 2B et 2A du 21 nov.) : les fonds CARTO aussi, en deuxième groupe comme dans Réglages → Style de la carte
+        el('h3', { class: 'fiche-sec' }, 'Avec une clé CARTO'),
+        el('div', { class: 'style-grid' }, KEY_STYLES.map((id) => card(id, 'Clé CARTO gratuite'))),
+        keyed && cartoKey() ? el('label', { class: 'item-main check-row' }, withKey,
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma clé CARTO'),
+            el('span', { class: 'item-sub' }, 'Lisible par toute personne qui a le lien. CARTO demande de ne pas la partager'))) : null,
+        keyed ? el('p', { class: 'help' }, p.withKey && cartoKey() ? 'Sa carte s\'ouvre avec ce fond, grâce à ta clé.' : 'Sans clé, sa carte reste Classique ; à la fin du démarrage, l\'appli lui propose de demander la sienne.') : null,
+        // v349 (mon choix 4A) : où sa carte s'ouvre
+        el('p', { class: 'legend' }, 'À l\'ouverture, sa carte montre'),
+        el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'À l\'ouverture, sa carte montre' }, PREP_STARTS.map((k) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(p.startView === k), onclick: () => { p.startView = k; again(); } },
+          el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(p.startView === k ? 'check' : START_VIEW_ICON[k])),
+          el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, PREP_START_NAME[k]), el('span', { class: 'menu-sub' }, PREP_START_SUB[k]))))),
+      ];
+    })(),
     8: [
       el('p', { class: 'legend' }, 'Ses catégories (vides, sans tes lieux)'),
-      el('div', {}, allCats.map((c) => check(c.name, '', p.categories.some((x) => x.id === c.id), () => {
+      // v349 (mon choix 1A) : les siennes d'abord, dans son ordre, avec ↑ ↓ ; puis les autres des miennes
+      el('div', {}, [...p.categories.map((c) => allCats.find((x) => x.id === c.id) ?? c), ...allCats.filter((c) => !p.categories.some((x) => x.id === c.id))].map((c) => catLine(c, check(c.name, '', p.categories.some((x) => x.id === c.id), () => {
         if (p.categories.some((x) => x.id === c.id)) {
           if (p.categories.length === 1) { toast('Au moins une catégorie.', true); return; }
           p.categories = p.categories.filter((x) => x.id !== c.id); setChip(`cat:${c.id}`, 'none');
         } else { p.categories = [...p.categories, { id: c.id, name: c.name, color: c.color, icon: c.icon }]; setChip(`cat:${c.id}`, 'more'); }
-      }, dotOf(c)))), // v349 : sa pastille, comme dans Réglages → Catégories
+      }, dotOf(c))))), // v349 : sa pastille, comme dans Réglages → Catégories
       el('p', { class: 'help' }, 'Vu en passant est toujours là.'),
       (state.lists ?? []).length ? el('p', { class: 'legend' }, 'Ses listes (vides)') : null,
       (state.lists ?? []).length ? el('div', {}, state.lists.map((l) => check(l.name, '', p.lists.some((x) => x.id === l.id), () => {
@@ -11743,17 +11784,18 @@ async function receiveDepart(code) {
   const pp = await decodePreset(code);
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* rien */ }
   if (!pp) { toast('Ce lien de démarrage est abîmé : demande-le à nouveau.', true); if (state.fresh && !firstDone()) openWelcome(1); return; }
+  const gotKey = () => { if (pp.carto && !cartoKey()) { try { localStorage.setItem(CARTO_KEY, pp.carto); } catch { /* refusé : sa carte reste Classique */ } } }; // v349 : la sienne d'abord
   if (state.fresh || (!state.points.length && !firstDone())) {
-    state = applyPreset(state, pp); receiveGot(pp); persist(); applyAllSettings(); renderChips(); renderMarkers(); drawLayerNote();
+    gotKey(); state = applyPreset(state, pp); receiveGot(pp); persist(); applyAllSettings(); renderChips(); renderMarkers(); drawLayerNote();
     openWelcome(1); return;
   }
   const de = pp.de ? ` préparés par ${pp.de}` : ' de ce lien';
   openSheet([ico('users'), ' Réglages reçus'], el('div', { class: 'stack' },
     pp.msg ? el('p', { class: 'ok-line' }, `${pp.de ? `${pp.de} : ` : ''}« ${pp.msg} »`) : null,
-    el('p', { class: 'warn', role: 'alert' }, `Remplacer tes réglages par ceux${de} ? Tes lieux ne changent pas ; les tiens restent dans « Revenir aux miens », en bas des Réglages.`),
+    el('p', { class: 'warn', role: 'alert' }, `Remplacer tes réglages par ceux${de} ? Tes lieux ne changent pas ; les tiens restent dans « Revenir aux miens », en bas des Réglages.${pp.carto && !cartoKey() ? ' Sa clé CARTO s\'ajoute.' : ''}`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
-        state = replaceWithPreset(state, pp); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); renderChips(); renderMarkers(); closeSheet();
+        gotKey(); state = replaceWithPreset(state, pp); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); renderChips(); renderMarkers(); closeSheet();
         toast(`Réglages${pp.de ? ` ${deOf(pp.de)}` : ''} appliqués. Pour revenir aux tiens : « Revenir aux miens », en bas des Réglages.`);
       } }, 'Remplacer')),
   ), { name: 'depart-recu' });

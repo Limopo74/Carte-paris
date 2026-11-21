@@ -1,6 +1,6 @@
 // v321 (mes choix du 20 nov.) : préparer le démarrage d'un proche. Ce que je choisis pour lui voyage dans le lien
 // (…/Carte-paris/#depart=…), compressé ; jamais mes lieux, ma liste TTB, ma clé CARTO, ni le nom de la préparation.
-import { cleanSettings, cleanChips, cleanMoreChips, cleanMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, FRESH_HIDDEN_CHIPS, FRESH_TOOLS, DEFAULT_MORE_CHIPS, DEFAULT_CATEGORIES } from './store.js';
+import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, FRESH_HIDDEN_CHIPS, FRESH_TOOLS, DEFAULT_MORE_CHIPS, DEFAULT_CATEGORIES } from './store.js';
 import { cleanFicheHidden } from './reglages.js';
 import { SEEN_CAT } from './passage.js';
 
@@ -9,8 +9,14 @@ export const DEPART_MAX = 5;
 export const MSG_MAX = 120;
 export const NAME_MAX = 30;
 export const STEP_KEYS = ['taille', 'pourtoi', 'rentrer', 'position']; // les étapes 2 à 5 du circuit (Bienvenue et « C'est prêt » toujours)
-/** Fonds sans clé : les seuls qu'un lien peut donner (la clé CARTO ne part jamais). */
+/** Fonds sans clé. */
 export const FREE_STYLES = ['classic', 'eclairci', 'fr', 'hot', 'pastel', 'night'];
+/** v349 (mes choix 2B et 2A du 21 nov.) : les fonds CARTO aussi ; sans clé chez lui, sa carte reste Classique et « C'est prêt »
+ * lui propose de demander la sienne. Ma clé ne part dans le lien que si je coche « Avec ma clé CARTO » (`withKey`) ; elle n'est
+ * jamais gardée dans mes préparations, seulement ajoutée au moment de faire le lien. */
+export const KEY_STYLES = ['clean', 'positron', 'darkmatter'];
+/** v349 (mon choix 4A) : où sa carte s'ouvre (pas « Chez moi » : il n'en a pas encore). */
+export const PREP_STARTS = ['me', 'all', 'paris', 'last'];
 const str = (v, max) => (typeof v === 'string' ? [...v.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, max).join('') : '');
 const bool = (v, def) => (typeof v === 'boolean' ? v : def);
 
@@ -21,7 +27,7 @@ export function defaultPreset(me = '') {
     textSize: 'normal', masculin: false, pace: 'normal', side: 'right', labels: false, navigo: true,
     hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...DEFAULT_CATEGORIES.map((c) => `cat:${c.id}`), `cat:${SEEN_CAT.id}`],
     mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools],
-    mapStyle: 'eclairci', categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
+    mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: null, chipIcons: false, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
     ficheHidden: [], voice: true, vibrateNow: false, suggestNow: true, alertNear: true,
   };
 }
@@ -42,16 +48,20 @@ export function cleanPreset(o) {
     hiddenChips, moreChips: Array.isArray(o.moreChips) ? cleanMoreChips(o.moreChips, hiddenChips) : d.moreChips,
     mapTools: Array.isArray(o.mapTools) ? normalizeTools(o.mapTools) : d.mapTools, hiddenTools,
     moreTools: Array.isArray(o.moreTools) ? cleanMore(o.moreTools, hiddenTools) : d.moreTools,
-    mapStyle: FREE_STYLES.includes(o.mapStyle) && MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : d.mapStyle,
+    mapStyle: [...FREE_STYLES, ...KEY_STYLES].includes(o.mapStyle) && MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : d.mapStyle,
+    withKey: o.withKey === true && KEY_STYLES.includes(o.mapStyle), ...(cleanCartoKey(o.carto) && KEY_STYLES.includes(o.mapStyle) ? { carto: cleanCartoKey(o.carto) } : {}),
+    startView: PREP_STARTS.includes(o.startView) ? o.startView : d.startView, chipOrder: cleanChipOrder(o.chipOrder), chipIcons: o.chipIcons === true, // v349 (mes choix 1A, 4A, 5A)
     categories: categories.length ? categories : d.categories, lists,
     ficheHidden: cleanFicheHidden(o.ficheHidden), voice: o.voice !== false, vibrateNow: o.vibrateNow === true, suggestNow: o.suggestNow !== false, alertNear: o.alertNear !== false,
   };
 }
 
+/** Une préparation sans clé : ma clé n'est jamais gardée avec mes préparations. */
+export const noKey = ({ carto: _, ...p }) => p;
 /** Mes préparations nommées : [{ id, name, at, p }], 5 au plus. */
 export function cleanPreps(list) {
   return (Array.isArray(list) ? list : []).filter((x) => x && typeof x.id === 'string' && /^[\w-]{1,64}$/.test(x.id) && str(x.name, NAME_MAX))
-    .slice(0, DEPART_MAX).map((x) => ({ id: x.id, name: str(x.name, NAME_MAX), at: Number.isFinite(x.at) ? x.at : 0, p: cleanPreset(x.p) }));
+    .slice(0, DEPART_MAX).map((x) => ({ id: x.id, name: str(x.name, NAME_MAX), at: Number.isFinite(x.at) ? x.at : 0, p: noKey(cleanPreset(x.p)) }));
 }
 
 /** Le départ du proche, posé sur une appli (mémoire vide : son départ entier ; appli déjà là : ses lieux et ses réglages
@@ -73,7 +83,7 @@ export function applyPreset(state, preset, { fresh = true } = {}) {
     ...base, categories, lists,
     textSize: p.textSize, masculin: p.masculin, pace: { ...cleanPace(base.pace), mode: p.pace }, toolsSide: p.side, toolLabels: p.labels, navigo: p.navigo,
     hiddenChips: [...p.hiddenChips], moreChips: [...p.moreChips], mapTools: [...p.mapTools], hiddenTools: [...p.hiddenTools], moreTools: [...p.moreTools],
-    mapStyle: p.mapStyle, ficheHidden: [...p.ficheHidden], voice: p.voice, vibrateNow: p.vibrateNow, suggestNow: p.suggestNow, alertNear: p.alertNear,
+    mapStyle: p.mapStyle, startView: p.startView, startOnMe: p.startView === 'me', chipIcons: p.chipIcons, chipOrder: p.chipOrder, ficheHidden: [...p.ficheHidden], voice: p.voice, vibrateNow: p.vibrateNow, suggestNow: p.suggestNow, alertNear: p.alertNear,
   };
 }
 
@@ -92,8 +102,10 @@ export function presetSummary(p, names = {}) {
 const toB64 = (bytes) => { let s = ''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const fromB64 = (t) => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
 async function pipe(bytes, stream) { const w = stream.writable.getWriter(); w.write(bytes).catch(() => {}); w.close().catch(() => {}); return new Uint8Array(await new Response(stream.readable).arrayBuffer()); }
-export async function encodePreset(preset) {
-  const json = new TextEncoder().encode(JSON.stringify(cleanPreset(preset)));
+export async function encodePreset(preset, carto = '') {
+  const p = noKey(cleanPreset(preset));
+  const key = p.withKey ? cleanCartoKey(carto) : ''; // v349 : seulement si j'ai coché, et pour un fond CARTO
+  const json = new TextEncoder().encode(JSON.stringify(key ? { ...p, carto: key } : p));
   return toB64(await pipe(json, new CompressionStream('deflate-raw')));
 }
 export async function decodePreset(code) {
