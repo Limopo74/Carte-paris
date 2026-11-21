@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
-import { readPlan, snap, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (339)';
+const VERSION = '21 novembre 2026 (340)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4318,7 +4318,7 @@ function traceTap(lat, lng, lieu = null) {
   const near = lieu ?? state.points.filter((p) => !p.gone && !p.owner).map((p) => ({ p, d: distanceM({ lat, lng }, p) })).filter((x) => x.d <= LIEU_SNAP_M).sort((a, b) => a.d - b.d)[0]?.p;
   const at = near ? { lat: near.lat, lng: near.lng } : { lat, lng };
   const s = snap(streets, at);
-  if (!s) { toast(`Pas de rue à pied à moins de ${SNAP_MAX_M} m : touche plus près d'une rue.`); return; }
+  if (!s) { toast(onPlan(streets, at) ? `Pas de rue à pied à moins de ${SNAP_MAX_M} m : touche plus près d'une rue.` : 'Le plan des rues ne couvre que Paris : déplace la carte sur Paris.'); return; } // v339 : hors du plan, l'ancien message disait de toucher une rue alors qu'il y en avait une
   const step = near ? { lat: near.lat, lng: near.lng, name: near.name.slice(0, 80), pid: near.id, s } : { lat: s.lat, lng: s.lng, name: s.name || `Étape ${t.steps.length + 1}`, s };
   t.sel = null;
   if (t.circuit && t.steps.length >= 2) { // v3 : dans un circuit, l'étape va là où elle allonge le moins le chemin sans revenir sur ses pas ; départ et arrivée restent
@@ -4349,6 +4349,10 @@ map.on('click', (e) => {
   if (view !== 'trace' || moving || e.originalEvent?.target?.closest?.('.leaflet-interactive, .leaflet-marker-icon')) return;
   traceTap(e.latlng.lat, e.latlng.lng);
 });
+
+/** v339 (mon choix 3A du 21 nov.) : pendant le tracé, toucher l'épingle d'un calque (Vélib', Fontaine et WC, marché, Dans la rue, TTB, passage)
+ *  pose une étape là, comme tes lieux et les jardins ; sinon l'épingle ouvre sa page, comme avant. */
+function orTrace(fn) { return (e) => { if (view === 'trace') { if (e?.latlng) traceTap(e.latlng.lat, e.latlng.lng); return; } fn(e); }; }
 
 function openRoute(id) {
   const r = cleanRoutes(state.routes).find((x) => x.id === id);
@@ -4861,7 +4865,7 @@ function drawVelibLayer() {
     const label = n == null ? `Vélib' ${s.name} : nombre inconnu` : `Vélib' ${s.name} : ${dock ? plural(n, 'place libre', 'places libres') : plural(n, 'vélo', 'vélos')}`;
     L.marker([s.lat, s.lng], { keyboard: true, title: label, alt: label, zIndexOffset: -60,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="vb-pin${dock ? ' dock' : ''}${cls}">${n == null ? svgIcon('bike', { size: 14, stroke: 2.2 }) : n}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] }) }) // zone d'appui de 40 px autour d'un dessin de 30
-      .on('click', () => openVelibStation(s.id)).addTo(velibLayer);
+      .on('click', orTrace(() => openVelibStation(s.id))).addTo(velibLayer);
   }
 }
 
@@ -4905,7 +4909,7 @@ function drawPratLayer() {
     const label = `${x.kind === 'wc' ? 'Toilettes' : 'Fontaine'} : ${x.label}${shut ? ' (fermé en ce moment)' : ''}`;
     L.marker([x.lat, x.lng], { keyboard: true, title: label, alt: label, zIndexOffset: -70,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin lite${shut ? ' shut' : ''}">${svgIcon(icon, { size: 14 })}</span>`, iconSize: [40, 40], iconAnchor: [20, 20] }) })
-      .on('click', () => openPratSpot(x)).addTo(pratLayer);
+      .on('click', orTrace(() => openPratSpot(x))).addTo(pratLayer);
   }
 }
 
@@ -7609,7 +7613,7 @@ async function drawMarkets() {
   for (const m of list) {
     L.marker([m.lat, m.lng], { keyboard: true, title: m.name, alt: m.name, zIndexOffset: -100,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="market-pin">${svgIcon('store', { size: 15, stroke: 2.2 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .on('click', () => openMarket(m)).addTo(marketsLayer);
+      .on('click', orTrace(() => openMarket(m))).addTo(marketsLayer);
   }
   if (!(markets ?? []).some((x) => !x.covered)) toast('Les marchés découverts de la Ville de Paris ne répondent pas pour le moment.', true);
   // Dans la rue : brocantes, fêtes, expos en plein air, marchés éphémères de l'agenda du jour
@@ -7626,7 +7630,7 @@ async function drawMarkets() {
     seen.add(key);
     L.marker([e.lat, e.lng], { keyboard: true, title: e.title, alt: e.title, zIndexOffset: -90,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="market-pin street-pin">${svgIcon(STREET_ICON[kind], { size: 15, stroke: 2.2 })}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .on('click', () => openStreetEvent(e)).addTo(marketsLayer);
+      .on('click', orTrace(() => openStreetEvent(e))).addTo(marketsLayer);
   }
 }
 /* Dans la rue : parcourir (v216). Aujourd'hui ou demain, autour de moi (sinon du centre de la carte), à la distance de Sorties (v217). */
@@ -7843,7 +7847,7 @@ function drawTtb() {
     L.marker([x.lat, x.lng], { keyboard: true, title: x.name, alt: x.name, zIndexOffset: -80,
       icon: L.divIcon({ className: 'pin-wrap', html: `<span class="ttb-pin${ok ? ' ok' : ''}">${svgIcon(ttbIcon(x.rub), { size: 15, stroke: 2.4 })}${ok ? `<i class="ttb-ok">${svgIcon('check', { size: 11, stroke: 3.4 })}</i>` : ''}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
       .on('add', (e) => e.target.getElement()?.setAttribute('aria-label', `${x.name}, TTB${x.rub ? `, ${x.rub}` : ''}${ok ? ', vérifiée' : ''}`))
-      .on('click', () => { if (!moving) openTtbPlace(x, arrBack()); })
+      .on('click', orTrace(() => { if (!moving) openTtbPlace(x, arrBack()); }))
       .addTo(ttbLayer);
   }
   drawLayerNote(); // v287 : l'étiquette « Seulement … · Tout voir » suit les ronds
@@ -8502,9 +8506,9 @@ function drawArcadeLayer() {
   if (!state.showPassages || !arcadesData) return;
   const z = map.getZoom();
   for (const a of arcadesData) {
-    if (z >= ARCADE_LINE_ZOOM && a.trace) arcadeLine(a).on('click', () => openArcade(a)).addTo(arcadeLayer);
-    if (z < LAYER_ZOOM) arcadePin(a, -60, true).on('click', () => map.setView([a.lat, a.lng], ARCADE_LINE_ZOOM + 1)).addTo(arcadeLayer);
-    else arcadePin(a).on('click', () => openArcade(a)).addTo(arcadeLayer);
+    if (z >= ARCADE_LINE_ZOOM && a.trace) arcadeLine(a).on('click', orTrace(() => openArcade(a))).addTo(arcadeLayer);
+    if (z < LAYER_ZOOM) arcadePin(a, -60, true).on('click', orTrace(() => map.setView([a.lat, a.lng], ARCADE_LINE_ZOOM + 1))).addTo(arcadeLayer);
+    else arcadePin(a).on('click', orTrace(() => openArcade(a))).addTo(arcadeLayer);
   }
 }
 async function setArcadeLayer(on) {
@@ -11180,7 +11184,7 @@ const HELP = [
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet.',
-    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus) ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation.',
+    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
@@ -11338,6 +11342,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
     '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
     '{lock} **Confidentialité dans l\'Aide** : tout en bas de l\'Aide, ce qui reste sur ton téléphone et ce que reçoit chaque service. Le même texte que dans {settings} → Autres réglages → Mise à jour et confidentialité.',
     '{rotate-cw} **Nouvelle version annoncée** : quand une version plus récente est publiée, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, au retour sur l\'appli. Un appui suffit ; tes lieux ne bougent pas.',
@@ -11347,7 +11352,6 @@ const HELP = [
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
     '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
     '{images} **Mes Vu en passant, nouvelle mise en page** : la photo la plus récente à la une, les autres rangées par jour ; les catégories en onglets. **Toutes les photos en grand** ont une croix pour fermer, « 1 / 2 » et une pellicule : touche une vignette pour aller à sa photo.',
-    '{locate} **Où la carte s\'ouvre** : {settings} → Autres réglages → « À l\'ouverture, la carte montre ». Au choix : ta position (dans Paris, sinon tous tes lieux), tous tes lieux, Chez moi, le centre de Paris, ou là où tu l\'as laissée.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

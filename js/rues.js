@@ -81,6 +81,14 @@ export const edgeName = (P, i) => (P.ek[i] > 0 ? P.names[P.ek[i] - 1] ?? '' : ''
  * Pose un point sur la rue la plus proche : { edge, t (mètres depuis a le long du tronçon), lat, lng, d (mètres du doigt), name }
  * ou null si aucune rue à moins de maxM.
  */
+/** v339 : le doigt est-il sur le plan ? Faux quand aucune rue du plan n'est à environ 400 m (hors de Paris et ses abords) :
+ *  le message dit alors de déplacer la carte sur Paris, au lieu de « touche plus près d'une rue ». */
+export function onPlan(P, pt) {
+  if (!P || !Number.isFinite(pt?.lat) || !Number.isFinite(pt?.lng)) return false;
+  const ci = Math.floor(pt.lat / CELL); const cj = Math.floor(pt.lng / CELL);
+  for (let di = -2; di <= 2; di++) for (let dj = -2; dj <= 2; dj++) if (P.grid.get(`${ci + di},${cj + dj}`)?.length) return true;
+  return false;
+}
 export function snap(P, pt, maxM = SNAP_MAX_M) {
   if (!P || !Number.isFinite(pt?.lat) || !Number.isFinite(pt?.lng)) return null;
   const ci = Math.floor(pt.lat / CELL); const cj = Math.floor(pt.lng / CELL);
