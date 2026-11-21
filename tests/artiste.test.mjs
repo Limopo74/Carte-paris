@@ -114,3 +114,11 @@ test('la loupe trouve une œuvre par son artiste', () => {
   const pts = [{ id: 'a', name: 'Mosaïque jaune', artist: 'Invader', note: '', address: '', cat: 'sa', lat: 48.85, lng: 2.35 }];
   assert.equal(searchPoints(pts, [{ id: 'sa', name: 'Street art' }], 'invader').length, 1);
 });
+
+test('v339 : Street art créée par une photo naît masquée en haut, comme Vu en passant', () => {
+  const s1 = withStreetCat({ categories: [], hiddenChips: ['ttb'] });
+  assert.ok(s1.hiddenChips.includes(`cat:${STREET_CAT.id}`));
+  assert.ok(s1.hiddenChips.includes('ttb'), 'les autres boutons masqués restent');
+  const mine = { categories: [{ id: 'x', name: 'Art urbain' }], hiddenChips: [] };
+  assert.equal(withStreetCat(mine), mine, 'une catégorie à moi déjà street art : rien ne change');
+});

@@ -34,10 +34,11 @@ const plainName = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036
 export const isStreetCat = (c) => Boolean(c) && (c.id === STREET_CAT.id || /street.?art|art urbain|graff/.test(plainName(c.name)));
 /** L'id de ma catégorie street art (la première dans mon ordre), ou null. */
 export const streetCatId = (categories) => (categories ?? []).find(isStreetCat)?.id ?? null;
-/** Ajoute la catégorie Street art si aucune des miennes ne l'est déjà (en dernier). */
+/** Ajoute la catégorie Street art si aucune des miennes ne l'est déjà (en dernier).
+ * v339 (mon choix A du 21 nov.) : elle naît masquée dans la barre du haut, comme Vu en passant ; Réglages → Barre du haut la remet. */
 export function withStreetCat(state) {
   if (streetCatId(state.categories)) return state;
-  return { ...state, categories: [...state.categories, { ...STREET_CAT }] };
+  return { ...state, categories: [...state.categories, { ...STREET_CAT }], hiddenChips: [...new Set([...(state.hiddenChips ?? []), `cat:${STREET_CAT.id}`])] };
 }
 /**
  * « Encore là ? » : une note Vu en passant, une œuvre de ma catégorie street art ou un lieu dont l'artiste est noté
