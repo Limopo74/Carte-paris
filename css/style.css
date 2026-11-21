@@ -466,6 +466,8 @@ ol.items { padding: 0; }
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 0; text-align: left; font: inherit; color: var(--ink);
 }
 .menu-row:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* Un choix parmi plusieurs en lignes (À l'ouverture, sa carte d'un proche) : la ligne choisie en surbrillance, comme une puce choisie (§ 4) ; le texte ne bouge pas */
+.menu > .menu-row[role="radio"][aria-checked="true"] { margin-inline: -10px; padding: 6px 8px; width: calc(100% + 20px); border: 2px solid var(--ink); border-radius: var(--r); background: var(--info-bg); }
 .menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r); background: var(--warn-bg); }
 /* v344 : « Autres réglages » sous son propre intertitre « Plus de réglages » (js/app.js), nom plus grand */
 .menu > .menu-row.others-row { border-bottom: 0; } /* le bloc « mes réglages par défaut » dessous a déjà son filet : pas de double trait */
