@@ -136,3 +136,16 @@ test('Plus du haut (v372) : Mes artistes arrive sous ⋯ Plus une seule fois, ou
   assert.match(app, /key: 'artistes', name: 'Mes artistes', icon: ico\('user'\), active: false/, 'jamais « allumé » : il ne reste pas dans la barre');
   assert.match(app, /x\.key === 'artistes'; \/\/ v372/, 'dans Plus, une flèche (ouvre une page), pas un interrupteur');
 });
+
+test('Plus du haut (v375) : Mes artistes en tête de ⋯ Plus, filet fort dessous ; l\'aide dit comment le masquer', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  const more = app.slice(app.indexOf('function openChipsMore()'), app.indexOf('function renderChips()'));
+  assert.match(more, /\.sort\(\(a, b\) => \(b\.key === 'artistes'\) - \(a\.key === 'artistes'\)\)/, 'Mes artistes passe en tête, les autres gardent leur ordre');
+  assert.match(more, /x\.key === 'artistes' && list\.length > 1 \? ' lead-row'/, 'le filet seulement s\'il y a des lignes dessous');
+  assert.match(css, /\.menu > \.menu-row\.lead-row \{ border-bottom: 2px solid var\(--ink\); \}/);
+  assert.match(app, /Pour l\\'enlever de ⋯ Plus : « Choisir ce qui va dans Plus », puis « Masqué » sur sa ligne/, 'l\'aide de Mes artistes');
+  // le tri garde l'ordre des autres
+  const items = ['velib', 'pratique', 'artistes', 'cat:resto'].map((key) => ({ key }));
+  assert.deepEqual(items.sort((a, b) => (b.key === 'artistes') - (a.key === 'artistes')).map((x) => x.key), ['artistes', 'velib', 'pratique', 'cat:resto']);
+});

@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (374)';
+const VERSION = '21 novembre 2026 (375)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1031,14 +1031,15 @@ function chipItems(chip = null, catChip = null) {
 /** ⋯ Plus de la barre du haut (v151) : les boutons qu'on y a rangés, chacun s'allume ou s'éteint d'un appui. */
 function openChipsMore() {
   const where = chipPlace();
-  const list = chipItems().filter((x) => where(x.key) === 'more');
+  // v375 (mon choix 1A du 21 nov.) : Mes artistes ouvre une page ; il passe en tête de Plus, au-dessus des interrupteurs, séparé par un filet fort
+  const list = chipItems().filter((x) => where(x.key) === 'more').sort((a, b) => (b.key === 'artistes') - (a.key === 'artistes'));
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
     : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
       const opens = x.key === 'filters' || x.key === 'all' || x.key === 'artistes'; // v372 : Mes artistes ouvre sa page
-      return el('button', { type: 'button', class: 'menu-row c-guide', ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
+      return el('button', { type: 'button', class: `menu-row c-guide${x.key === 'artistes' && list.length > 1 ? ' lead-row' : ''}`, ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
         x.act();
         if (!opens && view === 'chips-more') openChipsMore(); /* v228 : un bouton qui ouvre un autre écran (Mes lignes de bus sans ligne) le laisse ouvert */
       } },
@@ -11251,7 +11252,7 @@ const HELP = [
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
-    '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut, et dans la loupe) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
+    '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut, et dans la loupe) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Pour l\'enlever de ⋯ Plus : « Choisir ce qui va dans Plus », puis « Masqué » sur sa ligne (rien n\'est supprimé, la loupe y mène toujours). Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations, salles de concert et théâtres, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -11448,6 +11449,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
@@ -11457,7 +11459,6 @@ const HELP = [
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
-    '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

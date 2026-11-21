@@ -470,6 +470,7 @@ ol.items { padding: 0; }
 .menu > .menu-row[role="radio"][aria-checked="true"] { margin-inline: -10px; padding: 6px 8px; width: calc(100% + 20px); border: 2px solid var(--ink); border-radius: var(--r); background: var(--info-bg); }
 .menu-row.warn-row { padding-inline: 12px; border: 1.5px solid var(--warn-bd); border-radius: var(--r); background: var(--warn-bg); }
 /* v344 : « Autres réglages » sous son propre intertitre « Plus de réglages » (js/app.js), nom plus grand */
+.menu > .menu-row.lead-row { border-bottom: 2px solid var(--ink); } /* v375 : Mes artistes en tête de ⋯ Plus, séparé des interrupteurs (filet fort, CHARTE § 4) */
 .menu > .menu-row.others-row { border-bottom: 0; } /* le bloc « mes réglages par défaut » dessous a déjà son filet : pas de double trait */
 .others-row .menu-title { font-size: var(--t18); }
 .menu-ico { flex: none; width: 32px; font-size: 22px; text-align: center; }
