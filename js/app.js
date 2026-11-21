@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (364)';
+const VERSION = '21 novembre 2026 (365)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -827,7 +827,8 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
   }
   openSheet([ico('book-open-text'), ' Mon journal'], el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucune impression écrite.'),
-    all.length ? null : el('p', { class: 'help tip' }, 'Dans la fiche d\'un lieu : « Impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu : ⋯ Plus → Note du jour.'),
+    all.length ? null : el('p', { class: 'help tip' }, 'Dans la fiche d\'un lieu : « Impression ». Cocher « Déjà visité » note aussi le jour. Une sortie de l\'agenda prévue arrive ici quand tu réponds Oui à « Tu y es allée ? ». Une note sans lieu :'),
+    all.length ? null : el('button', { type: 'button', class: 'btn c-add', onclick: () => openDayNote(named('Mon journal', again)) }, ico('notebook-pen'), 'Note du jour'), // v365 : un bouton plutôt que le chemin
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.n ? passageRow(x, () => openDayNote(named('Mon journal', again), x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
@@ -1868,7 +1869,8 @@ function openSeenPhotos(from = null) {
   openSheet([ico('images'), ' Mes Vu', ' ', el('span', { class: 'title-tail' }, 'en passant', // le nombre est sous « Tout » : le titre tient sur une ligne
     /* v354 (ma demande du 21 nov.) : Réglages → Vu en passant en 1 appui, comme la flèche de mise à jour à côté de « Réglages » (v342) */
     el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Réglages de Vu en passant', title: 'Réglages de Vu en passant', onclick: () => openSettings('vu') }, ico('settings', { size: 18 })))], el('div', { class: 'stack' },
-    all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant. + Ajouter → Vu en passant : une photo, une ligne, et elle arrive ici.'),
+    all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant : une photo, une ligne, et elle arrive ici.'),
+    all.length ? null : el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'), // v365
     tiles, subChips, une, ...grid,
     foot(el('div', { class: 'row' }, backBtn(back), // v307 : exporter ce qui est affiché (tout, une catégorie, une sous-catégorie, un artiste)
       el('button', { type: 'button', class: 'btn c-add', disabled: !photos.length, onclick: () => openSeenExport(photos, [seenPick.cat ? catOf(seenPick.cat).name : 'Tout', subsHere.find((x) => x.id === seenPick.sub)?.name].filter(Boolean).join(' · '), named('Mes Vu en passant', again)) }, ico('download'), `Exporter (${photos.length})`))),
@@ -5803,9 +5805,11 @@ async function readArtFile(read, parse) {
   const updated = /^\d{4}-\d{2}-\d{2}$/.test(json?.updated ?? '') ? json.updated : '';
   return { items, updated, time: Date.parse(updated) || 0 };
 }
+/** v365 : quand la liste manque, le bouton qui y mène (plus le chemin à lire). */
+const artFileBtn = (e) => (e?.message === 'vide' ? el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'), 'Données de l\'appli') : null);
 /** Le message quand une liste manque : pas encore remplie par le robot, ou illisible. */
 const artFileWarn = (what, e) => (e?.message === 'vide'
-  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois, ou Réglages → Autres réglages → Mise à jour et confidentialité → Données de l'appli).`
+  ? `La liste ${what} n'est pas encore dans l'appli : elle arrive avec la prochaine mise à jour des données (chaque 1er du mois).`
   : `La liste ${what} n'a pas pu être lue. Réessaie plus tard.`);
 let galleries = null;
 let galleriesTime = 0;
@@ -6476,7 +6480,8 @@ async function openVenuePhotos(back) {
   const part = (label, rows) => (rows.length ? [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(rows.length))), el('ul', { class: 'items' }, rows)] : []);
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'help' }, 'Ta photo d\'une salle remplace l\'icône dans Sorties quand l\'agenda n\'a pas de photo pour une de ses sorties. Elle va dans ta sauvegarde, avec tes autres photos.'),
-    state.evThumbs !== true ? el('p', { class: 'warn' }, '« Photos dans Sorties » est éteint (Réglages → Autres réglages → Photos dans Sorties) : tes photos ne s\'y voient pas.') : null,
+    state.evThumbs !== true ? el('p', { class: 'warn' }, '« Photos dans Sorties » est éteint : tes photos ne s\'y voient pas.') : null,
+    state.evThumbs !== true ? el('button', { type: 'button', class: 'btn c-info', onclick: () => { state.evThumbs = true; persist(); toast('Photos dans Sorties : allumé'); again(); } }, ico('image'), 'Allumer Photos dans Sorties') : null, // v365
     ...part('Mes salles', mine.map((n) => line(n))),
     failed ? el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas : les salles de la semaine viendront plus tard.') : null,
     ...part('Les plus présentes cette semaine', top.map((x) => line(x.name, plural(x.n, 'sortie', 'sorties')))),
@@ -6688,7 +6693,7 @@ async function openEvents(start = null) {
     };
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
-      .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e))));
+      .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e)), artFileBtn(e)));
     else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b), galleryInfo);
     onMap([...last, ...expos], (e, b) => openEventPage(e, b ?? back), eventInfo);
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
@@ -6944,7 +6949,7 @@ async function openStreetArt() {
   if (!streetArt) {
     openSheet(title, el('p', { class: 'help' }, 'Lecture de la liste des œuvres de Paris…'), { name: 'art-rue' });
     try { await loadStreetArt(); } catch (e) {
-      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, artFileWarn('des œuvres', e)), backExpos), { name: 'art-rue' });
+      openSheet(title, el('div', { class: 'stack' }, el('p', { class: 'warn' }, artFileWarn('des œuvres', e)), artFileBtn(e), backExpos), { name: 'art-rue' });
       return;
     }
   }
@@ -8280,7 +8285,8 @@ async function openRespire(back = openRoutes) {
   const n = respireOn(sectors, today).length;
   const next = n ? null : respireNextDay(sectors, today);
   openSheet(title, el('div', { class: 'stack' },
-    !sectors.length ? el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données (Réglages → Autres réglages → Mise à jour et confidentialité → Données de l\'appli).')
+    !sectors.length ? el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les contours des secteurs ne sont pas encore dans l\'appli. Ils arrivent avec la prochaine mise à jour des données.'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'), 'Données de l\'appli')) // v365
       : n ? el('p', { class: 'summary' }, `${cap(dayTitle(today))} : ${plural(n, 'secteur prévu', 'secteurs prévus')}. À gauche, l'heure de fin.`)
         : el('p', { class: 'summary' }, 'Rien de prévu aujourd\'hui.'),
     n ? rows(today) : null,
@@ -8312,7 +8318,7 @@ async function openCircuits(back = null) {
   if (!circuitsData) openSheet([ico('signpost'), ' Circuits'], el('p', { class: 'help' }, 'Chargement des circuits…'), { name: 'circuits' });
   const [list] = await Promise.all([loadCircuits(), loadArcades()]);
   if (!list?.length) {
-    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés. Essaie Réglages → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
+    openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' }, el('p', { class: 'warn' }, 'Les circuits n\'ont pas pu être chargés.'), el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'), back ? foot(backBtn(back)) : null), { name: 'circuits', again });
     return;
   }
   const from = circuitFrom();
@@ -9175,7 +9181,8 @@ function openSettings(section = null) {
       return;
     }
     openSheet([ico('tags'), ' Catégories et listes'], el('div', { class: 'stack' },
-      el('p', { class: 'help tip' }, 'Touche le nom d\'une catégorie pour la modifier. ↑ ↓ règlent leur ordre dans Nouveau lieu et Modifier. Leur place en haut : Réglages → Barre du haut.'),
+      el('p', { class: 'help tip' }, 'Touche le nom d\'une catégorie pour la modifier. ↑ ↓ règlent leur ordre dans Nouveau lieu et Modifier. Leur place en haut :'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openSettings('barre') }, ico('panel-top'), 'Barre du haut'), // v365
       el('div', {}, state.categories.map((c, i) => {
         const k = categoryCounts(state.points, c.id);
         const move = (delta) => { state = moveCategory(state, c.id, delta); persist(); refresh(); openSettings('categories');
@@ -9635,7 +9642,8 @@ function openSettings(section = null) {
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer'),
         el('button', { type: 'button', class: 'btn c-add', onclick: showAppQr }, ico('qr-code'), 'QR code')),
-      el('p', { class: 'help tip' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux : Réglages → Sauvegarde → Envoyer le fichier.'),
+      el('p', { class: 'help tip' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux :'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('sauvegarde') }, ico('save'), 'Sauvegarde, puis Envoyer le fichier'), // v365
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -10171,7 +10179,8 @@ function openWordSeries(back = toOthers()) {
   const again = () => openWordSeries(back);
   const usedBy = (id) => state.categories.filter((c) => seriesIdOf(c, words) === id).map((c) => c.name);
   openSheet([ico('message-square-text'), ' Mots tout prêts'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Des mots à toucher sous « Ce que j\'ai vu » quand tu écris une impression. Chaque catégorie prend une série : Réglages → Catégories et listes → la catégorie.'),
+    el('p', { class: 'help tip' }, 'Des mots à toucher sous « Ce que j\'ai vu » quand tu écris une impression. Chaque catégorie prend une série : touche la catégorie dans'),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: () => openSettings('categories') }, ico('tags'), 'Catégories et listes'), // v365
     words.length ? el('div', { class: 'menu' }, words.map((x) => el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openWordSerie(x.id, named('Mots tout prêts', again)) },
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name),
         el('span', { class: 'menu-sub' }, `${plural(x.words.length, 'mot', 'mots')} · ${usedBy(x.id).join(', ') || 'aucune catégorie'}`)),
@@ -11409,6 +11418,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
     '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
     '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
@@ -11418,7 +11428,6 @@ const HELP = [
     '{settings} **Réglages depuis Mes Vu en passant** : la petite roue à côté du titre ouvre Réglages → Autres réglages → Vu en passant en un appui.',
     '{users} **Mes TTB vérifiées pour un proche** : dans {settings} → Autres réglages → Préparer le démarrage d\'un proche, ouvre une préparation, puis « Envoyer mes TTB vérifiées ». Il ouvre le fichier comme des lieux d\'un proche : tes adresses s\'ajoutent à sa liste, rien n\'est remplacé.',
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
-    '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
