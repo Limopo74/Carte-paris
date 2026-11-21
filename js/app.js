@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (362)';
+const VERSION = '21 novembre 2026 (363)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6194,7 +6194,9 @@ async function openArtPlaces(focus = '', from = null) {
   const places = artPlacesWith(weekCache.items).map((p) => ({ ...p, d: o ? distanceM(o, p) : null }));
   const block = (p) => el('details', { class: 'help-item week-arr', open: p.name === focus },
     el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
-      el('span', { class: 'week-arr-sub' }, [p.address, p.events.length ? plural(p.events.length, 'rendez-vous dans l\'agenda', 'rendez-vous dans l\'agenda') : 'rien dans l\'agenda cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
+      // v361 (mes choix 1A 2A du 21 nov.) : l'adresse, puis « 5 rendez-vous · 3,0 km » sur sa propre ligne
+      p.address ? el('span', { class: 'week-arr-sub' }, p.address) : null,
+      el('span', { class: 'week-arr-sub' }, [p.events.length ? plural(p.events.length, 'rendez-vous', 'rendez-vous') : 'rien cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
     el('div', { class: 'stack' },
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
       el('div', { class: 'row' },
@@ -11398,6 +11400,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} **Grands lieux et Ouvert tard, des lignes de même hauteur** : la flèche › a sa propre colonne, elle ne tombe plus sous le texte. Dans Grands lieux, l\'adresse puis « 5 rendez-vous · 3,0 km », toujours au même endroit, « rien cette semaine » sinon. Dans toutes les listes de Sorties, l\'icône du genre se met en haut, sur la ligne du nom.',
     '{settings} **Une petite flèche de retour en haut d\'Autres réglages** : à droite du titre, elle ramène à Réglages, comme « ← Réglages » en bas.',
     '{ellipsis} **Autres réglages en un appui** : dans {settings}, les trois points ⋯ à côté de la flèche de mise à jour, en haut, ouvrent Autres réglages sans descendre en bas de la page.',
     '{settings} **Autres réglages, les interrupteurs regroupés** : dans chaque groupe, les interrupteurs sont maintenant ensemble, en bas. « Photos des salles » monte sous « Fiche d\'un lieu », juste au-dessus de « Photos dans Sorties » ; « Période de test » descend en bas d\'Appli, avec « Mes remarques » dessous.',
@@ -11407,7 +11410,6 @@ const HELP = [
     '{users} **Préparer le démarrage d\'un proche, mis à jour** : {settings} → Autres réglages → Préparer le démarrage d\'un proche. Les vrais logos des boutons et des catégories ; ↑ ↓ pour l\'ordre de ses boutons du haut, de sa colonne et de ses catégories ; « Icônes seules en haut » ; à l\'étape « Sa carte », où elle s\'ouvre, et les fonds CARTO. Ta clé ne part que si tu coches « Avec ma clé CARTO » ; sinon, il peut demander la sienne à la fin. « Envoyer mes réglages » n\'envoie plus ta clé.',
     '{tags} **Nouvelle catégorie de photos, sans les catégories de la carte** : « + Nouvelle » (après la photo, dans Modifier photo, dans Réglages → Autres réglages → Vu en passant) ne propose plus Boulangeries, Cafés, Musées… Il reste le nom, l\'icône et la couleur.',
     '{pencil} **Modifier une photo, plus simple** : sur une photo prise en passant, « Modifier photo » ne garde que le nom, la catégorie, la sous-catégorie (juste sous le commentaire), l\'artiste et l\'adresse. Les catégories proposées sont celles des photos ; celles de la carte restent pour tes lieux. Dans Rangement : « Supprimer cette photo », et « Rattacher » seulement sous « Cette photo ».',
-    '{images} **Nouvelle icône pour Vu en passant** : son bouton du haut, Filtres et tes listes montrent maintenant des photos empilées, comme Mes Vu en passant. L\'appareil photo ne veut plus dire qu\'une chose : prendre une photo (+ Ajouter → Vu en passant). Si tu avais choisi une autre icône, elle reste.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

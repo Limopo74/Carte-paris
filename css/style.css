@@ -1133,9 +1133,12 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 
 /* Sorties : d'où partent les distances (ma position ou le centre de la carte) */
 /* Expos de la semaine : un pli par arrondissement */
-.week-arr summary { flex-wrap: wrap; row-gap: 0; }
+/* v361 : la flèche dans sa propre colonne, centrée ; le nom puis ses petites lignes dessous, toujours dans le même ordre */
+.week-arr summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 2px; }
+.week-arr summary > * { grid-column: 1; }
+.week-arr summary::after { grid-column: 2; grid-row: 1 / span 3; margin-left: 0; }
 .week-arr-name { font-family: var(--display); font-weight: 800; min-width: 3.2em; }
-.week-arr-sub { color: var(--muted); font-weight: 500; font-size: 14px; }
+.week-arr-sub { color: var(--muted); font-weight: 500; font-size: var(--t14); } /* v361 (2A) : grandit avec la taille du texte */
 .week-items { padding: 0 8px 10px; }
 /* Liens « Pour aller plus loin » de Sorties : rangées comme les réglages, sans soulignement */
 a.menu-row { text-decoration: none; }
@@ -1150,6 +1153,8 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev { list-style: none; }
 .genre { width: 36px; height: 44px; display: grid; place-items: center; color: var(--disc); }
 .genre .ico svg { width: 22px; height: 22px; display: block; }
+/* v361 (ma demande du 21 nov.) : dans une ligne de sortie, l'icône du genre en haut, sur la première ligne du nom, jamais centrée */
+.ev-main > .genre { align-self: start; height: auto; }
 .ev-main {
   display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; min-height: 64px; box-sizing: border-box;
   padding: 10px 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer;
