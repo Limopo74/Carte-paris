@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (346)';
+const VERSION = '21 novembre 2026 (347)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2823,6 +2823,9 @@ function openDetail(id, back = null) {
     p.checked = Date.now(); persist(); openDetail(id, back);
     toast('Noté : vu ouvert aujourd\'hui', false, { label: 'Annuler', fn: () => { delete p.checked; persist(); openDetail(id, back); } });
   };
+  // v344 : une photo prise en passant n'est pas un « lieu » ; Supprimer efface le point et toutes ses photos
+  const nPh = photoFiche ? photoIds(p).length : 0;
+  const delLabel = !photoFiche ? 'Supprimer ce lieu' : nPh > 1 ? `Supprimer ces ${nPh} photos` : 'Supprimer cette photo';
   const showTidy = () => fill(tidy,
     stale && !vanish ? row('eye', 'Toujours ouvert', 'Vu sur place aujourd\'hui', stillOpen) : null,
     p.gone ? row('eye', vanish ? 'Elle est de nouveau là' : 'De nouveau ouvert', 'L\'appli le propose à nouveau', () => setGone(false))
@@ -2834,7 +2837,7 @@ function openDetail(id, back = null) {
     // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
     photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
     photoFiche ? row('camera', 'Ajouter une photo', `${MAX_PHOTOS} au plus`, () => quickPhoto(p, back)) : null,
-    row('trash-2', 'Supprimer ce lieu', 'Demande confirmation', askDelete, 'danger'));
+    row('trash-2', delLabel, 'Demande confirmation', askDelete, 'danger'));
   /** v326 (mon choix 5A) : revue sur place : un passage aujourd'hui, comme « Elle est de nouveau là », sans rien d'autre. */
   const seenAgain = () => {
     const at = Date.now();
@@ -2842,7 +2845,7 @@ function openDetail(id, back = null) {
     toast('Notée revue aujourd\'hui', false, { label: 'Annuler', fn: () => { p.passages = (p.passages ?? []).filter((x) => x.at !== at); persist(); openDetail(id, back); } });
   };
   const askDelete = () => fill(tidy,
-    el('p', { class: 'warn', role: 'alert' }, `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
+    el('p', { class: 'warn', role: 'alert' }, photoFiche ? `${delLabel} ? Ce n'est pas annulable.` : `Supprimer « ${p.name} » ? Ce n'est pas annulable.`),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: showTidy }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
@@ -2850,7 +2853,7 @@ function openDetail(id, back = null) {
         state.points = state.points.filter((x) => x.id !== id);
         persist(); renderMarkers();
         if (back) back(); else closeSheet();
-        toast('Lieu supprimé');
+        toast(!photoFiche ? 'Lieu supprimé' : nPh > 1 ? 'Photos supprimées' : 'Photo supprimée');
       } }, 'Oui, supprimer')));
   // Rangement replié en une ligne (v176) : la fiche reste courte, les trois actions rares sont à deux appuis.
   const openTidy = () => {

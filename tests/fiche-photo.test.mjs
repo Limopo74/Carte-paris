@@ -28,7 +28,12 @@ test('Photo en 4:3 sur toute la largeur (choix 2A), écrite dans la charte', () 
 });
 
 test('Rangement : « Je l\'ai revue aujourd\'hui » et « Ajouter une photo », juste au-dessus de Supprimer (choix 4A 5A, puis A)', () => {
-  const i = app.indexOf("row('trash-2', 'Supprimer ce lieu'");
+  const i = app.indexOf("row('trash-2', delLabel");
   const a = app.indexOf("'Je l\\'ai revue aujourd\\'hui'"); const b = app.indexOf("photoFiche ? row('camera', 'Ajouter une photo'");
   assert.ok(a > 0 && b > a && i > b);
+});
+
+test('v344 : pour une photo prise en passant, « Supprimer cette photo » (ou « ces N photos »), pas « ce lieu »', () => {
+  assert.match(app, /const delLabel = !photoFiche \? 'Supprimer ce lieu' : nPh > 1 \? `Supprimer ces \$\{nPh\} photos` : 'Supprimer cette photo';/);
+  assert.match(app, /toast\(!photoFiche \? 'Lieu supprimé' : nPh > 1 \? 'Photos supprimées' : 'Photo supprimée'\)/);
 });
