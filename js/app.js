@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (341)';
+const VERSION = '21 novembre 2026 (342)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9865,7 +9865,9 @@ function openSettings(section = null) {
   }
 
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
-  openSheet([ico('settings'), ' Réglages', VERSION_NUM ? el('span', { class: 'title-ver' }, ` v${VERSION_NUM}`) : null], el('div', { class: 'menu' },
+  openSheet([ico('settings'), ' Réglages', ' ', el('span', { class: 'title-tail' }, VERSION_NUM ? el('span', { class: 'title-ver' }, `v${VERSION_NUM}`) : null,
+    /* v342 (ma demande du 21 nov.) : Mettre à jour l'appli en 1 appui, sans passer par Autres réglages. Icône discrète, zone d'appui 44 px (charte) */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
     row('circle-help', 'Aide de l\'appli', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
@@ -11354,6 +11356,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{rotate-cw} **Mise à jour depuis Réglages** : la petite flèche ronde à côté de « Réglages v342 », en haut de l\'écran, met l\'appli à jour en un appui. Tes lieux ne bougent pas. Le bouton de Mise à jour et confidentialité reste là.',
     '{map} **Zoom au plus près** : sur Douce et Très épuré, la carte restait vide au dernier cran ; elle montre maintenant le plan, un peu agrandi. Vaut aussi pour les autres fonds, si leur serveur s\'arrête avant.',
     '{route} **Mes parcours, plus facile à tracer** : toucher une épingle (Vélib\', Fontaine et WC, marché, TTB, passage) pose une étape au lieu d\'ouvrir sa page. Hors de Paris, le message dit que le plan des rues ne couvre que Paris.',
     '{palette} **Street art sans bouton en haut au départ** : comme Vu en passant, la catégorie créée par ta première photo de street art n\'ajoute plus de bouton à la barre du haut. Tes œuvres restent sur la carte et dans Filtres. Pour le bouton : {settings} → Barre du haut.',
@@ -11363,7 +11366,6 @@ const HELP = [
     '{car-taxi-front} **Uber jusqu\'ici, aussi pour une sortie** : en bas de la page d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle, comme dans la fiche de tes lieux. Pour le masquer partout : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{chevron-up} **Quatre hauteurs de fenêtre** : fais glisser la barre du titre vers le haut ou vers le bas ; la fenêtre se cale sur la plus proche : réduite (la carte en entier), basse (un tiers de l\'écran : sur une fiche, le nom et Y aller), moitié, ou grande. Un court glissement passe à la hauteur voisine. Chaque écran s\'ouvre toujours à sa hauteur habituelle.',
     '{map-pin} **Le lieu ouvert se repère sur la carte** : quand sa fiche est ouverte, sa goutte est plus grosse, entourée de noir et passe devant les autres ; elle palpite deux fois à l\'ouverture. Ouverte depuis la loupe ou une liste, la carte se place sur le lieu s\'il était caché.',
-    '{users} **TTB pour un proche** : dans {settings} → Sauvegarde → Envoyer à un proche, coche TTB puis « Mes vérifiées » (au départ) ou « Toute la liste ». Tes adresses vérifiées s\'ajoutent à sa liste sans rien remplacer, et sa fiche dit « Vérifiée par » ton prénom. Tes adresses masquées restent à toi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
