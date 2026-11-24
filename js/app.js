@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (391)';
+const VERSION = '24 novembre 2026 (392)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -624,7 +624,7 @@ function renderMarkers() {
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
     const seen = isPass(p) && p.photos?.length && !p.gone && state.seenPhotoMap !== false; // Vu en passant (v157 ; v305 : quelle que soit sa catégorie) ; disparue : une goutte grise
     const html = seen
-      ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('camera', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
+      ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('images', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
       : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     const marker = L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
@@ -11780,6 +11780,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
     '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
     '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
@@ -11789,7 +11790,6 @@ const HELP = [
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
     '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
     '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
-    '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

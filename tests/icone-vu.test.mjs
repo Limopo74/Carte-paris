@@ -25,3 +25,12 @@ test('une catégorie enregistrée avec l\'appareil photo passe aux photos empil�
   const [changed] = cleanCategories([{ id: 'vu', name: 'Vu en passant', color: '#0c8599', icon: '📍' }]);
   assert.equal(changed.icon, '📍', 'une icône choisie à la main reste');
 });
+
+// v392 (mon choix A du 24 nov.) : le rond d'une photo prise en passant, sur la carte, montre aussi les photos empilées.
+test('le rond Vu en passant de la carte n\'a plus l\'appareil photo', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const dot = app.match(/class="seen-dot"[^`]*?svgIcon\('([a-z-]+)'/);
+  assert.ok(dot, 'rond seen-dot introuvable');
+  assert.equal(dot[1], 'images');
+});
