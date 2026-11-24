@@ -9,9 +9,9 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const charte = readFileSync(new URL('../CHARTE.md', import.meta.url), 'utf8');
 const page = app.slice(app.indexOf('function openSeenPhotos('), app.indexOf('/* ---------- Vu en passant (v157)'));
 
-test('Mes Vu en passant : dans + Ajouter, sous le bouton qui prend les photos, avec leur nombre', () => {
-  const add = app.slice(app.indexOf('function openAddChoice()'), app.indexOf("'À ma position'"));
-  assert.match(add, /onclick: captureSeen \}, ico\('camera'\), 'Vu en passant'\)[\s\S]*openSeenPhotos\(back\)[\s\S]*`Mes Vu en passant · \$\{seenPhotoCount\(\)\}`/);
+test('v415 : Mes Vu en passant dans + Ajouter, tout en bas sous « Mes photos », avec leur nombre (mon choix 1A du 24 nov.)', () => {
+  const add = app.slice(app.indexOf('function openAddChoice()'), app.indexOf("{ name: 'add', again: openAddChoice }"));
+  assert.match(add, /'Une rue d\\'intérêt'\)[\s\S]*'Mes photos'\)[\s\S]*openSeenPhotos\(back\)[\s\S]*`Mes Vu en passant · \$\{seenPhotoCount\(\)\}`/);
 });
 
 test('Seulement mes photos prises en passant (v310 : aussi celles rangées en impression), les plus récentes d\'abord ; jamais celles d\'un proche', () => {

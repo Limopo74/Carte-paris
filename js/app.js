@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (414)';
+const VERSION = '24 novembre 2026 (415)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1834,23 +1834,22 @@ function openAddChoice() {
   openSheet([ico('plus'), ' Ajouter'], el('div', { class: 'stack' },
     el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'),
     el('p', { class: 'help tip' }, 'Une photo et une ligne, posées là où tu es. Pour les trouvailles de la rue : une cour, une vitrine, une plaque.'),
-    // v306 (mon choix du 20 nov.) : la mosaïque de mes photos prises en passant, sous le bouton qui les prend, avec leur nombre
-    el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openSeenPhotos(back) }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('images')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Mes Vu en passant · ${seenPhotoCount()}`), el('span', { class: 'menu-sub' }, 'Toutes tes photos, par catégorie')), ico('chevron-right')),
+    el('h3', { class: 'fiche-sec' }, 'Un lieu'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, back) }, ico('search'), 'Avec un nom ou une adresse'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
     el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux, puis toucher « Ajouter ».'),
     // v257 : créer une balade en 2 appuis, depuis le bouton toujours visible ; sous les boutons des lieux, qui ne bougent pas
-    el('h3', { class: 'fiche-sec' }, 'Une balade'),
-    el('p', { class: 'help' }, circuitsOff() ? 'Un parcours mesure : la distance et la durée à pied entre tes étapes.' : 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant » ; v390 : circuits éteints, le parcours seul
+    el('h3', { class: 'fiche-sec' }, 'Un tracé sur la carte'),
+    el('p', { class: 'help tip' }, circuitsOff() ? 'Un parcours mesure : la distance et la durée à pied entre tes étapes.' : 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant » ; v390 : circuits éteints, le parcours seul
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewRoute(back) }, ico('route'), 'Un parcours'),
     circuitsOff() ? null : el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'), // v390 : circuits éteints dans Autres réglages
     el('p', { class: 'help tip' }, circuitsOff() ? 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours.' : 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
-    // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, tout en bas : rien ne bouge au-dessus
-    el('h3', { class: 'fiche-sec' }, 'Une rue'),
-    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewStreet(back) }, ico('route'), 'Une rue d\'intérêt'),
-    el('p', { class: 'help tip' }, 'Touche le début puis la fin du morceau de rue : il se dessine sur la carte, avec sa fiche comme un lieu (catégorie, note, photos).'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewStreet(back) }, ico('git-commit-horizontal'), 'Une rue d\'intérêt'),
+    el('p', { class: 'help tip' }, 'Une rue d\'intérêt : touche le début puis la fin du morceau de rue : il se dessine sur la carte, avec sa fiche comme un lieu (catégorie, note, photos).'),
+    el('h3', { class: 'fiche-sec' }, 'Mes photos'),
+    el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openSeenPhotos(back) }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('images')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Mes Vu en passant · ${seenPhotoCount()}`), el('span', { class: 'menu-sub' }, 'Toutes tes photos, par catégorie')), ico('chevron-right')),
   ), { name: 'add', again: openAddChoice });
 }
 
@@ -4487,7 +4486,7 @@ async function showWalkRoute(p, pos, back) {
    « Suivant » ouvre le formulaire d'un nouveau lieu : nom de la rue, catégorie, note ; le lieu garde son tracé (`line`). */
 let rueDraft = null; // { a, b, r, back } : début, fin (posés sur le plan), le chemin entre les deux
 function openNewStreet(back) {
-  if (!streets) { openMyRoutes({ title: ' Une rue d\'intérêt', icon: 'route', fn: () => openNewStreet(back), back }); return; }
+  if (!streets) { openMyRoutes({ title: ' Une rue d\'intérêt', icon: 'git-commit-horizontal', fn: () => openNewStreet(back), back }); return; }
   rueDraft = { a: null, b: null, r: null, back };
   showRue();
 }
@@ -4505,14 +4504,14 @@ function showRue() {
     rueDraft = null; nearLayer.clearLayers();
     openForm({ lat: mid[0], lng: mid[1], name: names[0] ?? '', address: names.join(', ').slice(0, 200), line });
   };
-  openSheet([ico('route'), ' Une rue d\'intérêt'], el('div', { class: 'stack' },
+  openSheet([ico('git-commit-horizontal'), ' Une rue d\'intérêt'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, t.r ? `${names.join(', ') || 'Rue sans nom'} · ${fmtDist(t.r.m)}` : t.a ? `Début : ${t.a.name || 'rue sans nom'}` : 'Aucun point'),
     el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), !t.a ? ' Touche la carte au début du morceau de rue.' : !t.b ? (t.whole ? ' Touche la fin, sur la même rue, ou « Toute la rue ».' : ' Touche maintenant la fin, sur la même rue.') : ' Le morceau suit les rues. Pas le bon ? « Recommencer ».'),
     t.r && names.length > 1 ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin passe par ${names.length} rues : touche plus près pour n'en garder qu'une.`) : null,
     el('button', { type: 'button', class: 'btn', disabled: !t.a, onclick: () => { rueDraft = { ...t, a: null, b: null, r: null, whole: null }; showRue(); } }, ico('rotate-ccw'), 'Recommencer'),
     // v401 (mes choix 1A 2A 3A du 24 nov.) : après le début, toute la rue en un appui, sous « Recommencer » (rien ne bouge au-dessus) ;
     // pas de bouton si la rue continue plus loin, dépasse 1,5 km ou n'a pas de nom (wholeStreet, js/rues.js)
-    t.whole ? el('button', { type: 'button', class: 'btn', onclick: () => { rueDraft = { ...t, ...t.whole, whole: null }; showRue(); } }, ico('route'), `Toute la rue · ${fmtDist(t.whole.r.m)}`) : null,
+    t.whole ? el('button', { type: 'button', class: 'btn', onclick: () => { rueDraft = { ...t, ...t.whole, whole: null }; showRue(); } }, ico('git-commit-horizontal'), `Toute la rue · ${fmtDist(t.whole.r.m)}`) : null,
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: next }, 'Suivant'))),
   ), { name: 'rue', again: showRue });
@@ -11890,7 +11889,7 @@ const HELP = [
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
   ]],
   ['map-pin', 'Mes lieux', [
-    '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Une balade », « **Un parcours** » et « **Un circuit** » ouvrent directement la carte pour poser tes étapes.',
+    '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Un tracé sur la carte », « **Un parcours** », « **Un circuit** » et « Une rue d\'intérêt » ouvrent directement la carte. En bas, « Mes Vu en passant » ouvre tes photos.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Range-la dans Vu en passant, Street art, Moments, Plats, Vues, Architecture ou Insolite ; tes lieux de la carte ne reçoivent une photo que par « Rattacher », sur la fiche de la photo.',
     '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
@@ -11912,7 +11911,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
+    '{git-commit-horizontal} **Une rue d\'intérêt** : + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -12034,16 +12033,16 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
     '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
-    '{route} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
-    '{route} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
+    '{git-commit-horizontal} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
+    '{git-commit-horizontal} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
     '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
-    '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
-    '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
+    '{git-commit-horizontal} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
+    '{git-commit-horizontal} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
     '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
     '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
-    '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
