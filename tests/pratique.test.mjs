@@ -56,6 +56,12 @@ test('toilettes RATP : zone payante dite clairement, lignes illisibles écartée
   assert.deepEqual(parseRatpToilets(null), []);
 });
 
+test('toilettes RATP : zone non renseignée par la RATP, rien de dit sur les tourniquets (Trocadéro)', () => {
+  const [t] = parseRatpToilets({ items: [{ n: 'Trocadero (LAVATORY)', l: '6', lat: 48.8642, lng: 2.28785, zone: null, passe: false, payant: true, pmr: true, ou: 'Sortie 1, avenue du Président Wilson.' }] });
+  assert.doesNotMatch(t.detail, /tourniquets|zone payante/);
+  assert.equal(t.short, 'Payant');
+});
+
 test('parcs : horaires de la saison (îlots de fraîcheur) au format OpenStreetMap', async () => {
   const { parkHours, parkFor, looksLikePark } = await import('../js/pratique.js');
   const { openState } = await import('../js/hours.js');

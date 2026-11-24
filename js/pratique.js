@@ -171,9 +171,9 @@ export function parseRatpToilets(json) {
   return (Array.isArray(json?.items) ? json.items : []).filter((t) => Number.isFinite(t.lat) && Number.isFinite(t.lng)).map((t) => ({
     lat: t.lat, lng: t.lng,
     label: `Toilettes RATP · ${t.n || 'station'}`,
-    detail: [t.ou, t.zone ? 'Dans la zone payante : il faut un ticket ou un passe pour y aller' : 'Sans passer les tourniquets',
+    detail: [t.ou, t.zone === true ? 'Dans la zone payante : il faut un ticket ou un passe pour y aller' : t.zone === false ? 'Sans passer les tourniquets' : '', // v415 : rien quand la RATP ne le dit pas
       t.passe ? 'Porte ouverte avec un passe Navigo ou un ticket' : '', t.payant ? 'Payant' : '', t.pmr ? 'Accès fauteuil' : ''].filter(Boolean).join(' · '),
-    short: [t.zone ? 'Zone payante : il faut un ticket' : '', t.payant ? 'Payant' : ''].filter(Boolean).join(' · '), // v398 : ce qui compte avant d'y aller (Sur mon chemin)
+    short: [t.zone === true ? 'Zone payante : il faut un ticket' : '', t.payant ? 'Payant' : ''].filter(Boolean).join(' · '), // v398 : ce qui compte avant d'y aller (Sur mon chemin)
     ok: true,
   }));
 }
