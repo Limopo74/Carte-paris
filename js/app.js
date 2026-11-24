@@ -6,7 +6,7 @@ import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passes
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (408)';
+const VERSION = '24 novembre 2026 (409)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2899,8 +2899,13 @@ function openDetail(id, back = null) {
   const metro = stationFacts(p);
   // v274 (mon choix A) : un resto ou un commerce sans nouvelles depuis un an « a pu fermer » ; dans Rangement, « Toujours ouvert »
   const stale = staleSince(p, catOf(p.cat));
-  const facts2 = st || metro ? el('div', { class: 'fiche-cols' },
-    el('div', {},
+  // v403 (mon choix 1 du 24 nov.) : une rue d'intérêt sans horaires dit sa longueur et la durée pour la parcourir, à la place de « Horaires inconnus »
+  const rueM = p.line && !st && !p.hours && !parkHoursById.has(p.id) ? lineLengthM(p.line) : 0;
+  const facts2 = st || metro || rueM ? el('div', { class: 'fiche-cols' },
+    rueM ? el('div', {},
+      el('div', { class: 'fiche-k' }, 'Longueur'),
+      el('div', { class: 'fiche-v' }, distText(rueM)),
+      el('div', { class: 'fiche-s' }, `≈ ${routeMin(rueM)}`)) : el('div', {},
       el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
       st ? el('div', { class: `fiche-v ${st.open ? 'ok' : 'ko'}` }, hoursLine(p)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
       closedDaysText(hoursOf(p)) ? el('div', { class: 'fiche-s' }, closedDaysText(hoursOf(p))) : null,
@@ -12019,6 +12024,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
     '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
@@ -12028,7 +12034,6 @@ const HELP = [
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
-    '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

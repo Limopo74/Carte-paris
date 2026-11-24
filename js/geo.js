@@ -137,3 +137,30 @@ export function normalizeMinuteRings(input) {
   const uniq = [...new Set(vals)].sort((a, b) => a - b);
   return uniq.length ? uniq : [...DEFAULT_MINUTE_RINGS];
 }
+
+/** v403 : la longueur d'un tracé [[lat, lng], …] (une rue d'intérêt), en mètres ; 0 sans tracé. */
+export function lineLengthM(line) {
+  if (!Array.isArray(line)) return 0;
+  let m = 0;
+  for (let i = 1; i < line.length; i++) m += distanceM({ lat: line[i - 1][0], lng: line[i - 1][1] }, { lat: line[i][0], lng: line[i][1] });
+  return m;
+}
+
+/** v404-v405 : le point d'un tracé le plus proche de `pt`, et sa distance ({ lat, lng, d }) ; null sans tracé.
+ *  Calcul à plat autour de `pt` (assez juste à l'échelle d'une rue de Paris). */
+export function nearestOnLine(line, pt) {
+  if (!Array.isArray(line) || line.length < 2 || !Number.isFinite(pt?.lat) || !Number.isFinite(pt?.lng)) return null;
+  const KY = 111_320; const KX = KY * Math.cos((pt.lat * Math.PI) / 180);
+  let best = null;
+  for (let i = 1; i < line.length; i++) {
+    const ax = (line[i - 1][1] - pt.lng) * KX; const ay = (line[i - 1][0] - pt.lat) * KY;
+    const bx = (line[i][1] - pt.lng) * KX; const by = (line[i][0] - pt.lat) * KY;
+    const dx = bx - ax; const dy = by - ay; const L2 = dx * dx + dy * dy;
+    const u = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0;
+    const x = ax + u * dx; const y = ay + u * dy;
+    const lat = pt.lat + y / KY; const lng = pt.lng + x / KX;
+    const d = distanceM(pt, { lat, lng });
+    if (!best || d < best.d) best = { lat, lng, d };
+  }
+  return best;
+}
