@@ -36,7 +36,10 @@ test('le tracé passe par la sauvegarde, la restauration et un proche', () => {
 test('appli : + Ajouter → Une rue d\'intérêt, tout en bas ; trait de la couleur de la catégorie, touchable', () => {
   const add = app.slice(app.indexOf('function openAddChoice('), app.indexOf('function openAddChoice(') + 6000);
   assert.ok(add.indexOf("'Une rue d\\'intérêt'") > add.indexOf("'Un circuit'"), 'sous les autres boutons');
-  assert.match(app, /L\.polyline\(p\.line, \{ color: catOf\(p\.cat\)\.color, weight: 8, opacity: p\.gone \? 0\.35 : 0\.7, lineCap: 'round', className: 'rue-line' \}\)/);
+  // v402 (mon choix A) : couleur de la catégorie pleine, 7 px, sur un liseré encre de 11 px ; tous deux touchables
+  assert.match(app, /L\.polyline\(p\.line, \{ color: ink\(\), weight: 11, opacity: op, lineCap: 'round', className: 'rue-casing' \}\)\.on\('click', tap\)/);
+  assert.match(app, /L\.polyline\(p\.line, \{ color: catOf\(p\.cat\)\.color, weight: 7, opacity: op, lineCap: 'round', className: 'rue-line' \}\)\.on\('click', tap\)/);
+  assert.match(app, /const op = p\.gone \? 0\.35 : 1;/);
   assert.ok(app.includes('if (cleanLine(draft.line)) np.line = cleanLine(draft.line);'));
   assert.ok(app.includes("if (moving || view === 'trace' || view === 'rue') return;"), 'l\'appui long ne crée pas de lieu pendant le tracé');
 });

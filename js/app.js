@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (407)';
+const VERSION = '24 novembre 2026 (408)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -625,12 +625,15 @@ function renderMarkers() {
   pointsLayer.clearLayers();
   markerEls = new Map();
   drawnZoom = map.getZoom();
-  // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche
+  // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche.
+  // v402 (mon choix A du 24 nov.) : couleur pleine bordée d'encre (de clair en sombre), pour ne plus se confondre avec la bande
+  // pâle terre cuite d'un passage couvert ; aucun autre trait de la carte n'a ce liseré.
   for (const p of onMap()) {
     if (!p.line || p.id === moving?.id) continue;
-    L.polyline(p.line, { color: catOf(p.cat).color, weight: 8, opacity: p.gone ? 0.35 : 0.7, lineCap: 'round', className: 'rue-line' })
-      .on('click', (e) => { L.DomEvent.stopPropagation(e); if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } if (view === 'rue') { rueTap(e.latlng.lat, e.latlng.lng); return; } if (!moving) openDetail(p.id, arrBack()); })
-      .addTo(pointsLayer);
+    const tap = (e) => { L.DomEvent.stopPropagation(e); if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } if (view === 'rue') { rueTap(e.latlng.lat, e.latlng.lng); return; } if (!moving) openDetail(p.id, arrBack()); };
+    const op = p.gone ? 0.35 : 1;
+    L.polyline(p.line, { color: ink(), weight: 11, opacity: op, lineCap: 'round', className: 'rue-casing' }).on('click', tap).addTo(pointsLayer);
+    L.polyline(p.line, { color: catOf(p.cat).color, weight: 7, opacity: op, lineCap: 'round', className: 'rue-line' }).on('click', tap).addTo(pointsLayer);
   }
   // De loin, les lieux proches deviennent une goutte encre chiffrée ; les favoris restent seuls (js/groupes.js, v178).
   // Le lieu qu'on déplace n'est pas dessiné : le viseur le remplace.
@@ -12016,6 +12019,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
     '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
     '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
@@ -12025,7 +12029,6 @@ const HELP = [
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
     '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
-    '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
