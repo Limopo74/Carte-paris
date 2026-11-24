@@ -6,7 +6,7 @@ import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passes
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (410)';
+const VERSION = '24 novembre 2026 (411)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1219,7 +1219,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
   const q = norm(query.trim());
   // Ceux de la liste d'abord, puis les plus proches (ou par nom sans position)
   const pts = state.points.filter((p) => !q || norm(`${p.name} ${p.address ?? ''} ${catOf(p.cat).name}`).includes(q))
-    .map((p) => ({ p, d: from ? distanceM(from, p) : null }))
+    .map((p) => ({ p, d: from ? placeDistM(from, p) : null })) // v405 : une rue, jusqu'au trait
     .sort((a, b) => (sel.has(b.p.id) - sel.has(a.p.id)) || (a.d != null && b.d != null ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
   const save = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
     state = setListMembers(state, listId, [...sel]); persist(); refresh(); if (back) back(); else openSettings('categories');
@@ -5754,7 +5754,7 @@ function openDayPicker(selected = null, query = '') {
   const start = startHere(); // jamais de GPS demandé pour une liste : sans position récente, ordre alphabétique
   // Un lieu déjà prévu à une heure ou un autre jour garde sa sortie : il ne se coche pas ici
   const busy = (p) => Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && !(isDayList(p.ticket) && daysUntil(p.ticket.at) === 0);
-  const all = offered().map((p) => ({ p, d: start ? distanceM(start, p) : 0, key: fold(p.name) }))
+  const all = offered().map((p) => ({ p, d: start ? placeDistM(start, p) : 0, key: fold(p.name) })) // v405
     .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Chercher un de mes lieux', 'aria-label': 'Chercher un de mes lieux', value: query });
   const list = el('ul', { class: 'items' });
@@ -12025,6 +12025,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
     '{arrow-right} **Y aller jusqu\'au bout de la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au bout de la rue le plus proche de toi, plus au milieu. Déjà dessus : au point le plus proche.',
     '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
@@ -12034,7 +12035,6 @@ const HELP = [
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
-    '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

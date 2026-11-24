@@ -79,7 +79,7 @@ export function normalizeRings(input) {
 export function groupByRings(points, here, rings, { favBonus = 0 } = {}) {
   const groups = rings.map((ring) => ({ ring, items: [] }));
   for (const point of points) {
-    const d = distanceM(here, point);
+    const d = placeDistM(here, point); // v405 : une rue d'intérêt, jusqu'au point de la rue le plus proche
     const g = groups.find((x) => d <= x.ring);
     if (g) g.items.push({ point, d });
   }
@@ -174,4 +174,11 @@ export function goTarget(p, pos) {
   const [a, b] = [p.line[0], p.line.at(-1)].map(([lat, lng]) => ({ lat, lng }));
   const e = distanceM(pos, a) <= distanceM(pos, b) ? a : b;
   return { ...p, lat: e.lat, lng: e.lng };
+}
+
+/** v405 (mon choix 3 du 24 nov.) : la distance d'un de mes lieux pour les listes. Une rue d'intérêt : jusqu'au point de la rue
+ *  le plus proche (sur la rue : « à côté »), plus jusqu'à sa goutte au milieu ; un autre lieu : jusqu'à sa goutte. */
+export function placeDistM(from, p) {
+  if (p?.line) { const n = nearestOnLine(p.line, from); if (n) return n.d; }
+  return distanceM(from, p);
 }

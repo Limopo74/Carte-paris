@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lineLengthM, nearestOnLine, distanceM, goTarget } from '../js/geo.js';
+import { lineLengthM, nearestOnLine, distanceM, goTarget, placeDistM, groupByRings } from '../js/geo.js';
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 // Un morceau de la rue Mouffetard (nord-sud, environ 330 m)
@@ -56,4 +56,18 @@ test('v404 : la fiche, Chemin à pied, Autour de moi, Sur mon chemin et la bouss
   assert.match(app, /href: mapsUrl\(goTarget\(p, origin\), d\)/);
   assert.match(app, /href: mapsUrl\(goTarget\(p, from\), distanceM\(from, goTarget\(p, from\)\)\)/);
   assert.match(app, /compass-go'\)\.href = mapsUrl\(goTarget\(p, pos\)/);
+});
+
+test('v405 : dans les listes, une rue se mesure jusqu\'au trait, pas jusqu\'à sa goutte au milieu', () => {
+  const rue = { id: 'r', name: 'Rue Mouffetard', lat: 48.8430, lng: 2.3496, line: LINE };
+  const surLeBout = { lat: 48.8445, lng: 2.3497 }; // au bout nord : 0 m de la rue, ≈ 170 m de la goutte
+  assert.ok(placeDistM(surLeBout, rue) < 2);
+  assert.ok(distanceM(surLeBout, rue) > 150);
+  const lieu = { id: 'l', lat: 48.8445, lng: 2.3510 };
+  assert.equal(placeDistM(surLeBout, lieu), distanceM(surLeBout, lieu));
+  const [g100] = groupByRings([rue, lieu], surLeBout, [100, 300]);
+  assert.equal(g100.items[0].point.id, 'r'); // la rue passe dans le premier cercle, avant le lieu à 100 m
+  const app2 = app;
+  assert.match(app2, /d: from \? placeDistM\(from, p\) : null/); // lieux d'une liste
+  assert.match(app2, /d: start \? placeDistM\(start, p\) : 0/); // liste du jour
 });
