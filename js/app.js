@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (401)';
+const VERSION = '24 novembre 2026 (402)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7748,6 +7748,8 @@ function openHomeSettings() {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, 'Distances, durées, « Pars à »')),
         el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))))
       : el('button', { type: 'button', class: 'btn c-guide', onclick: openHomeSearch }, ico('search'), 'Chercher mon adresse'),
+    // v402 : ce qui se passe interrupteur éteint, visible sans ouvrir l'Aide (pas « tip »)
+    home ? el('p', { class: 'help' }, 'Éteint : tout part de là où tu es.') : null,
     home ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
     home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille : l'interrupteur est en haut de la page Météo, pour l'allumer ou l'éteindre.`) : null,
     el('p', { class: 'help tip' }, 'Ne changent pas : Rentrer, M, la boussole, Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.'),
