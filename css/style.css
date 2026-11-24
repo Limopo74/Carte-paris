@@ -730,6 +730,10 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
   text-shadow: 0 0 6px var(--bg), 0 0 10px var(--bg), 0 0 14px var(--bg); }
 .arr-num small { font-size: .5em; vertical-align: super; }
 #map.z-11 .arr-num { display: none; }
+/* Repères (v386) : dessins des grands monuments, vue de loin ; liseré papier pour se détacher du fond ; cachés quand ils touchent un bouton ou un lieu */
+.rep-mk.rep-off { visibility: hidden; }
+.rep-svg { display: block; overflow: visible; filter: drop-shadow(0 0 1.5px var(--bg)) drop-shadow(0 0 1px var(--bg)); }
+.arr-num.rep-under { visibility: hidden; } /* un numéro sous un dessin se cache (mon choix 3A du 24 nov.) */
 /* Calques Vélib' et Fontaines et WC (v150) : sous la météo, « Zoome pour voir… » ou l'heure des Vélib' (un appui : mettre à jour) */
 .layer-note { position: fixed; z-index: 499; left: 10px; top: 66px; max-width: calc(100vw - 90px); min-height: var(--h-s); padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;
   color: var(--ink); background: var(--bg); border: 2px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);

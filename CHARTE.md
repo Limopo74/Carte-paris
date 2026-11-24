@@ -66,6 +66,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 7. Icônes
 - **Dessins Lucide uniquement** dans l'interface (`ico('nom')`, fichier `js/icons.js` ; pour en ajouter : copier depuis lucide-static).
+- **Exception voulue : les dessins des monuments** (v386, mes choix du 24 nov. 2026, claude/idee-reperes.md). 19 grands monuments dessinés pour l'appli (`js/reperes.js`, pas copiés d'un autre service), seulement sur la carte vue de loin (zooms 12 et 13), 48 px, pied du monument sur sa position Wikidata. Trait encre, intérieur kraft ou papier, un seul détail terre cuite, **pas de bleu** (le bleu veut dire métro), sans pastille (le rond veut dire métro, le carré arrondi passage couvert), liseré papier. Pas touchables. Un dessin qui touche un bouton, une goutte ou un dessin plus important se cache ; un numéro d'arrondissement qu'il touche se cache à sa place. Réglages → Autres réglages → La carte → Dessins des monuments (allumé au départ). Nulle part ailleurs que sur la carte.
 - Les **emoji** ne servent qu'aux icônes de catégories, choisies par la personne. Aucun emoji écrit dans un bouton ou un lien (vérifié).
 - Le métro s'écrit avec la pastille « M » (`.m-badge`) ; « Ⓜ » reste permis dans un texte qui nomme une station.
 - Seul symbole permis dans un libellé : la flèche de retour « ← Nom de l'écran ».

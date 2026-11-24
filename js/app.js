@@ -60,6 +60,7 @@ import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
 import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, readTest, addRemark, markSent, mergeRemarks, platformInfo, contextLine, remarksText } from './remarques.js';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
+import { REPERES, REPERE_SVG, REPERE_SIZE, placeReperes } from './reperes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -69,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (385)';
+const VERSION = '24 novembre 2026 (386)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1254,6 +1255,7 @@ function refresh() {
   updateNow(true);
   if (view === 'near' && origin) renderNear();
   if (view === 'arrlist' && filt.arr) { const mini = sheet.classList.contains('mini'); openArrList(filt.arr); if (mini) setSheetMini(true); } /* v202 : réduite, elle le reste */
+  placeReperesNow(); // v386 : mes gouttes ont pu changer, un dessin qui les touche se cache
 }
 
 /* ---------- Feuille du bas (avec retour Android) ---------- */
@@ -5255,7 +5257,46 @@ function drawArrNums() {
     if (at) L.marker(at, { pane: 'arrNums', interactive: false, keyboard: false,
       icon: L.divIcon({ className: 'arr-num-wrap', html: `<span class="arr-num">${a.n}<small>${a.n === 1 ? 'er' : 'e'}</small></span>`, iconSize: [0, 0] }) }).addTo(arrNumsLayer);
   }
+  if (typeof placeReperesNow === 'function') placeReperesNow(); // v386 : un numéro sous un dessin se cache
 }
+
+/* ---------- Repères (v386, mes choix 1A à 5A du 24 nov.) : 19 grands monuments dessinés, sur la carte vue de loin (zooms 12 et 13).
+   Allumés au départ ; Réglages → Autres réglages → La carte → Dessins des monuments. Pas touchables. Un dessin qui touche un bouton,
+   un de mes lieux ou un dessin plus important se cache ; un numéro d'arrondissement qu'il touche se cache à sa place (3A). ---------- */
+
+map.createPane('reperes').style.zIndex = 395; // au-dessus des numéros d'arrondissement, sous mes gouttes et les calques
+map.getPane('reperes').style.pointerEvents = 'none';
+const reperesLayer = L.layerGroup().addTo(map);
+var reperesDrawn = false; // var : placeReperesNow() peut être appelée par refresh() avant cette ligne
+function drawReperes() {
+  reperesLayer.clearLayers(); reperesDrawn = false;
+  if (state.showReperes === false) { placeReperesNow(); return; }
+  const h = REPERE_SIZE;
+  for (const r of REPERES) L.marker([r.lat, r.lng], { pane: 'reperes', interactive: false, keyboard: false,
+    icon: L.divIcon({ className: 'rep-mk rep-off', iconSize: [h, h], iconAnchor: [h / 2, h - 1],
+      html: `<svg class="rep-svg" viewBox="0 0 48 48" width="${h}" height="${h}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${REPERE_SVG[r.name]}</svg>` }) }).addTo(reperesLayer);
+  reperesDrawn = true;
+  placeReperesNow();
+}
+/** Montre ou cache chaque dessin d'après ce qui est à l'écran (mesuré sur le téléphone, rien n'est envoyé). */
+function placeReperesNow() {
+  if (!map.getPane('reperes')) return;
+  const marks = reperesDrawn ? [...map.getPane('reperes').querySelectorAll('.rep-mk')] : [];
+  const nums = [...document.querySelectorAll('.arr-num')];
+  const box = (n) => n.getBoundingClientRect();
+  let kept = [];
+  if (marks.length) {
+    const visible = (n) => n.offsetParent !== null || getComputedStyle(n).position === 'fixed';
+    const obstacles = [...document.querySelectorAll('button, .leaflet-marker-pane .leaflet-marker-icon')]
+      .filter((n) => !n.closest('#sheet') && visible(n)).map(box).filter((r) => r.width > 0 && r.height > 0);
+    kept = placeReperes(marks.map((m) => box(m.querySelector('svg'))), obstacles, Math.round(map.getZoom()));
+    marks.forEach((m, i) => m.classList.toggle('rep-off', !kept.includes(i)));
+  }
+  const shown = kept.map((i) => box(marks[i].querySelector('svg')));
+  for (const n of nums) { const r = box(n); n.classList.toggle('rep-under', shown.some((s) => !(s.right <= r.left || s.left >= r.right || s.bottom <= r.top || s.top >= r.bottom))); }
+}
+map.on('moveend zoomend resize', placeReperesNow);
+drawReperes();
 
 /* ---------- Filtres → Arrondissement (v182) : un appui sur une case ne garde que mes lieux de cet arrondissement ;
    v202 : leur liste s'ouvre sous la carte, et l'arrondissement ne dure que le temps de cette liste ---------- */
@@ -10078,6 +10119,11 @@ function openSettings(section = null, from = null) {
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
     arrNumsSwitch,
+    // v386 (mes choix 1A 2A du 24 nov.) : tout en bas de « La carte », allumé au départ
+    onOff('reperes', 'landmark', 'Dessins des monuments', state.showReperes !== false ? '19 grands monuments, sur la carte vue de loin' : 'Éteint : pas de dessins sur la carte', state.showReperes !== false, () => {
+      state.showReperes = state.showReperes === false; drawReperes();
+      toast(state.showReperes ? 'Dessins des monuments sur la carte vue de loin' : 'Dessins des monuments retirés de la carte');
+    }),
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Autres réglages', () => openSettings('autres'))), false, 'c-guide'),
     row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
@@ -11687,6 +11733,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
     '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
     '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
@@ -11696,7 +11743,6 @@ const HELP = [
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
     '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
     '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
-    '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
