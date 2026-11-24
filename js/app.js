@@ -11,7 +11,7 @@ import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (383)';
+const VERSION = '24 novembre 2026 (384)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -590,6 +590,13 @@ function renderMarkers() {
   pointsLayer.clearLayers();
   markerEls = new Map();
   drawnZoom = map.getZoom();
+  // v383 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche
+  for (const p of onMap()) {
+    if (!p.line || p.id === moving?.id) continue;
+    L.polyline(p.line, { color: catOf(p.cat).color, weight: 8, opacity: p.gone ? 0.35 : 0.7, lineCap: 'round', className: 'rue-line' })
+      .on('click', (e) => { L.DomEvent.stopPropagation(e); if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } if (view === 'rue') { rueTap(e.latlng.lat, e.latlng.lng); return; } if (!moving) openDetail(p.id, arrBack()); })
+      .addTo(pointsLayer);
+  }
   // De loin, les lieux proches deviennent une goutte encre chiffrée ; les favoris restent seuls (js/groupes.js, v178).
   // Le lieu qu'on déplace n'est pas dessiné : le viseur le remplace.
   const { single, groups } = groupPoints(onMap(), (p) => map.project([p.lat, p.lng], drawnZoom), drawnZoom, moving?.id ?? null);
@@ -1798,6 +1805,10 @@ function openAddChoice() {
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewRoute(back) }, ico('route'), 'Un parcours'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'),
     el('p', { class: 'help tip' }, 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
+    // v383 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, tout en bas : rien ne bouge au-dessus
+    el('h3', { class: 'fiche-sec' }, 'Une rue'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewStreet(back) }, ico('route'), 'Une rue d\'intérêt'),
+    el('p', { class: 'help tip' }, 'Touche le début puis la fin du morceau de rue : il se dessine sur la carte, avec sa fiche comme un lieu (catégorie, note, photos).'),
   ), { name: 'add', again: openAddChoice });
 }
 
@@ -2267,7 +2278,7 @@ async function addAtPosition() {
 
 // Appui long sur la carte (ou clic droit sur ordinateur).
 map.on('contextmenu', (e) => {
-  if (moving || view === 'trace') return; // pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
+  if (moving || view === 'trace' || view === 'rue') return; // v383 : ni pendant une rue d'intérêt ; pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
   addAt(e.latlng.lat, e.latlng.lng);
 });
 
@@ -2731,6 +2742,7 @@ function openForm(draft, existing = null) {
       state.points.push(np);
       created = np;
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
+      if (cleanLine(draft.line)) np.line = cleanLine(draft.line); // v383 : une rue d'intérêt garde son tracé
     }
     const ok = persist();
     renderMarkers();
@@ -4349,6 +4361,54 @@ async function showWalkRoute(p, pos, back) {
   showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '));
   map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
 }
+
+/* ---------- v383 (mes choix 1A et 2A du 24 nov.) : une rue d'intérêt ----------
+   Deux appuis sur la carte, le début et la fin ; le morceau entre les deux suit les rues (plan des rues, sur le téléphone).
+   « Suivant » ouvre le formulaire d'un nouveau lieu : nom de la rue, catégorie, note ; le lieu garde son tracé (`line`). */
+let rueDraft = null; // { a, b, r, back } : début, fin (posés sur le plan), le chemin entre les deux
+function openNewStreet(back) {
+  if (!streets) { openMyRoutes({ title: ' Une rue d\'intérêt', icon: 'route', fn: () => openNewStreet(back), back }); return; }
+  rueDraft = { a: null, b: null, r: null, back };
+  showRue();
+}
+function showRue() {
+  const t = rueDraft; if (!t) return;
+  nearLayer.clearLayers();
+  if (t.r) L.polyline(t.r.line, { color: ink(), weight: 8, opacity: 0.7, lineCap: 'round', interactive: false }).addTo(nearLayer);
+  for (const s of [t.a, t.b].filter(Boolean)) L.circleMarker([s.lat, s.lng], { radius: 7, color: ink(), weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  const names = [...new Set([t.a?.name, ...(t.r?.names ?? []), t.b?.name].filter(Boolean))]; // les rues du morceau, début et fin compris
+  const leave = () => { rueDraft = null; nearLayer.clearLayers(); t.back(); };
+  const next = () => {
+    if (!t.r) { toast('Touche le début puis la fin du morceau de rue.'); return; }
+    const line = t.r.line.map(([la, ln]) => [la, ln]);
+    const mid = line[Math.floor(line.length / 2)];
+    rueDraft = null; nearLayer.clearLayers();
+    openForm({ lat: mid[0], lng: mid[1], name: names[0] ?? '', address: names.join(', ').slice(0, 200), line });
+  };
+  openSheet([ico('route'), ' Une rue d\'intérêt'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, t.r ? `${names.join(', ') || 'Rue sans nom'} · ${fmtDist(t.r.m)}` : t.a ? `Début : ${t.a.name || 'rue sans nom'}` : 'Aucun point'),
+    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), !t.a ? ' Touche la carte au début du morceau de rue.' : !t.b ? ' Touche maintenant la fin, sur la même rue.' : ' Le morceau suit les rues. Pas le bon ? « Recommencer ».'),
+    t.r && names.length > 1 ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin passe par ${names.length} rues : touche plus près pour n'en garder qu'une.`) : null,
+    el('button', { type: 'button', class: 'btn', disabled: !t.a, onclick: () => { rueDraft = { ...t, a: null, b: null, r: null }; showRue(); } }, ico('rotate-ccw'), 'Recommencer'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: next }, 'Suivant'))),
+  ), { name: 'rue', again: showRue });
+  if (t.r) map.fitBounds(L.polyline(t.r.line).getBounds(), { padding: [40, 40], paddingBottomRight: [70, sheet.offsetHeight + 20], maxZoom: 18, animate: false });
+}
+function rueTap(lat, lng) {
+  const t = rueDraft; if (!t) return;
+  const s = snap(streets, { lat, lng });
+  if (!s) { toast('Pas de rue à moins de 60 m : touche plus près d\'une rue.'); return; }
+  if (!t.a || t.b) { rueDraft = { ...t, a: s, b: null, r: null }; showRue(); return; }
+  const r = route(streets, t.a, s);
+  if (!r || r.m < 10) { toast(r ? 'Trop court : touche plus loin sur la rue.' : 'Pas de chemin à pied jusque-là d\'après le plan des rues.'); return; }
+  if (r.line.length > 400) { toast('Morceau trop long : choisis une partie plus courte.'); return; }
+  rueDraft = { ...t, b: s, r }; showRue();
+}
+map.on('click', (e) => {
+  if (view !== 'rue' || moving || e.originalEvent?.target?.closest?.('.leaflet-marker-icon')) return;
+  rueTap(e.latlng.lat, e.latlng.lng);
+});
 
 /** `after` (v253) : { title, fn, back } quand on vient de « Nouveau circuit » : après le téléchargement, le tracé du circuit s'ouvre. */
 function openMyRoutes(after = null) {
@@ -11506,6 +11566,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
+    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin : le morceau suit les rues (plan des rues, sur le téléphone). « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -11626,6 +11687,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
     '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
     '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
@@ -11636,7 +11698,6 @@ const HELP = [
     '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
-    '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

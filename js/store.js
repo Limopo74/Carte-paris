@@ -152,6 +152,21 @@ export function cleanCategories(list) {
 /** Genres d'un resto, repris des rubriques TTB qui sont des restos (v288 ; même liste que RESTO_RUBS de js/ttb.js). */
 export const PLACE_RUBS = ['La Table', 'Boui-boui', 'Street-food'];
 
+/** v383 (mes choix 1A et 2A du 24 nov.) : le tracé d'une rue d'intérêt, [[lat, lng], …] le long des rues, de 2 à 400 points,
+ *  arrondis à 1 m ; autour de Paris seulement. null sinon (un lieu ordinaire n'en a pas). */
+export const LINE_MAX = 400;
+export function cleanLine(line) {
+  if (!Array.isArray(line) || line.length < 2 || line.length > LINE_MAX) return null;
+  const out = [];
+  for (const q of line) {
+    if (!Array.isArray(q) || q.length !== 2) return null;
+    const [la, ln] = q.map(Number);
+    if (!(la > 48 && la < 49.5 && ln > 1.5 && ln < 3.5)) return null;
+    out.push([Math.round(la * 1e5) / 1e5, Math.round(ln * 1e5) / 1e5]);
+  }
+  return out;
+}
+
 // Ne garde que les champs connus, avec les bons types.
 const clean = (p) => ({
   id: p.id, name: p.name.trim(), cat: p.cat,
@@ -177,6 +192,7 @@ const clean = (p) => ({
   ...(p.pass === true ? { pass: true } : {}), // pris par + Ajouter → Vu en passant, quelle que soit sa catégorie (v305)
   ...(Number.isFinite(p.shot) && p.shot >= 0 ? { shot: p.shot } : {}), // v310 : photo de la galerie, date de la prise de vue (0 : inconnue)
   ...(typeof p.sub === 'string' && /^[\w-]{1,64}$/.test(p.sub) ? { sub: p.sub } : {}), // sa sous-catégorie, dans sa catégorie (v305)
+  ...(cleanLine(p.line) ? { line: cleanLine(p.line) } : {}), // v383 : rue d'intérêt, son tracé (sauvegarde et proche le gardent)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -526,6 +542,7 @@ export function mergeFriend(state, obj, owner, choice) {
       if (Number.isFinite(c.checked) && !(old.checked >= c.checked)) next.checked = c.checked;
       // v292 (mon choix A du 20 nov.) : ses étoiles, « Abrité » et « Le bon moment » suivent aussi, comme son commentaire
       next.stars = c.stars; next.covered = c.covered;
+      if (c.line) next.line = c.line; else delete next.line; // v383 : le tracé de sa rue d'intérêt suit
       if (c.moments) next.moments = c.moments; else delete next.moments;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
       continue;

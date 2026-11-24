@@ -166,7 +166,7 @@ test('appli : Mes parcours à la place de Relier des lieux, plan des rues gardé
   assert.ok(/keys\.filter\(\(k\) => k !== CACHE && k !== TILES && k !== RUES\)/.test(sw), 'le plan des rues survit aux mises à jour de l\'appli');
   assert.ok(!sw.includes("'data/rues.json'"), 'pas téléchargé d\'office à l\'installation');
   assert.ok(sw.includes("'js/rues.js'"));
-  assert.ok(app.includes("if (moving || view === 'trace') return;"), 'pas de nouveau lieu par appui long pendant le tracé');
+  assert.ok(app.includes("if (moving || view === 'trace' || view === 'rue') return;"), 'pas de nouveau lieu par appui long pendant le tracé (v383 : ni pendant une rue d\'intérêt)');
 });
 
 test('étape sur un trottoir sans nom : elle prend le nom de la rue voisine', () => {
