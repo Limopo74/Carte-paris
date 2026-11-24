@@ -28,7 +28,7 @@ import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
 import { voieOrigin } from './voies.js';
-import { cleanAcces, exitFor } from './acces.js';
+import { cleanAcces, exitFor, entryFor } from './acces.js';
 import { typo, accord, setMasculin } from './typo.js';
 import { wordsOf, seriesOf, seriesIdOf, hasWord, toggleWord, saveSeries, deleteSeries, WORDS_MAX, WORD_MAX, SERIES_NAME_MAX, SERIES_MAX } from './mots.js';
 import { cleanGares, gareLines, garesNear } from './gares.js';
@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (394)';
+const VERSION = '24 novembre 2026 (395)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11172,14 +11172,21 @@ function showNearestMetro(from, note = null) {
   const list = nearestStations(stations, from, 3);
   const [first, ...others] = list;
   const st = first.station;
-  const target = { name: `Ⓜ ${st.n}`, lat: st.lat, lng: st.lng };
+  /* v395 (mon choix 1 du 24 nov.) : l'entrée de la station la plus proche de moi (fichier IDFM « Accès », seulement les accès marqués entrée) ;
+     la distance, la boussole, Y aller et le trait vont jusqu'à elle. Sans entrée sûre : la station, comme avant. */
+  if (!accesData) loadAcces().then(() => { if (acces.length && view === 'metro') showNearestMetro(from, note); });
+  const entry = entryFor(acces, st, from, stations);
+  const goal = entry ? { lat: entry.lat, lng: entry.lng } : st;
+  const dGoal = entry ? entry.d : first.d;
+  const target = { name: entry ? `Ⓜ ${st.n} · ${entry.label}` : `Ⓜ ${st.n}`, lat: goal.lat, lng: goal.lng };
   openSheet(`Ⓜ ${st.n}`, el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, [fmtDist(first.d), walkPart(first.d)].filter(Boolean).join(' · ')),
-    el('p', { class: 'help' }, stationLabel(st)),
+    // avec une entrée : son nom en tête, la distance et les lignes réunies dessous ; même nombre de lignes qu'avant, les boutons ne bougent pas
+    el('p', { class: 'summary' }, entry ? entry.label : [fmtDist(dGoal), walkPart(dGoal)].filter(Boolean).join(' · ')),
+    el('p', { class: 'help' }, entry ? [fmtDist(dGoal), walkPart(dGoal), stationLabel(st)].filter(Boolean).join(' · ') : stationLabel(st)),
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
-      el('a', { class: 'btn primary', href: mapsUrl(st, 0), target: '_blank', rel: 'noopener' }, 'Y aller')),
+      el('a', { class: 'btn primary', href: mapsUrl(goal, 0), target: '_blank', rel: 'noopener', 'aria-label': entry ? `Y aller : ${st.n}, ${entry.label}` : `Y aller : ${st.n}` }, 'Y aller')),
     el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     trafficLink(),
     others.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations proches'), el('span', {}, '')) : null,
@@ -11196,13 +11203,13 @@ function showNearestMetro(from, note = null) {
       el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}, ${gareLines(o)}` }, 'Y aller')))) : null,
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
-  L.polyline([[from.lat, from.lng], [st.lat, st.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
+  L.polyline([[from.lat, from.lng], [goal.lat, goal.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
   for (const { station: o } of others) {
     L.marker([o.lat, o.lng], { interactive: false, keyboard: false, zIndexOffset: 1500, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin small">M</span>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(nearLayer);
   }
-  L.marker([st.lat, st.lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
-  map.fitBounds(L.latLngBounds([[from.lat, from.lng], [st.lat, st.lng]]).pad(0.6), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+  L.marker([goal.lat, goal.lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin">M</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer); // v395 : le M sur l'entrée quand elle est connue
+  map.fitBounds(L.latLngBounds([[from.lat, from.lng], [goal.lat, goal.lng]]).pad(0.6), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
 /* ---------- Fontaine ou toilettes les plus proches, en un appui ---------- */
@@ -11605,7 +11612,7 @@ const HELP = [
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
-    '**M** : la station de métro la plus proche.',
+    '**M** : la station de métro la plus proche, avec son entrée la plus proche de toi (« Entrée 5, r. de la Roquette ») quand le fichier d\'Île-de-France Mobilités dit que c\'est une entrée : la distance, Y aller et la boussole vont jusqu\'à elle. Une entrée fermée pour travaux n\'est pas connue.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
     '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire. Une adresse (« 12 rue de Rivoli ») fait apparaître « Chercher cette adresse » : un appui sur la réponse ouvre sa page, avec Y aller.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
@@ -11863,6 +11870,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
     '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
@@ -11871,8 +11879,7 @@ const HELP = [
     '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
     '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
     '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
-    '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
-    '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
+    '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

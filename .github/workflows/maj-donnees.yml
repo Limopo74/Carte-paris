@@ -54,7 +54,7 @@ jobs:
           get /tmp/src/respire.json "$PARIS/secteurs-paris-respire/exports/geojson" || rm -f /tmp/src/respire.json
           # Sorties du métro (v199) : accès RATP du référentiel IDFM ; jamais bloquant
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/acces.json "$IDFM/acces/exports/json" \
-            --data-urlencode 'where=fournisseurname="RATP"' --data-urlencode 'select=accname,accshortname,accgeopoint' || rm -f /tmp/src/acces.json
+            --data-urlencode 'where=fournisseurname="RATP"' --data-urlencode 'select=accname,accshortname,accgeopoint,accisentry,accisexit' || rm -f /tmp/src/acces.json
           # Auteurs des monuments de Paris (v198) : API tabulaire de data.gouv.fr, 50 lignes par page ; jamais bloquant
           mkdir -p /tmp/src/arch
           ARCH="https://tabular-api.data.gouv.fr/api/resources/3a52af4a-f9da-4dcc-8110-b07774dfb3bc/data/?Departement_format_numerique__exact=75&Auteur_de_l_edifice__isnotnull&columns=Reference,Titre_editorial_de_la_notice,Auteur_de_l_edifice,Datation_de_l_edifice,coordonnees_au_format_WGS84&page_size=50"
