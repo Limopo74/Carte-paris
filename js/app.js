@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (378)';
+const VERSION = '24 novembre 2026 (379)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2875,6 +2875,8 @@ function openDetail(id, back = null) {
     // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
     photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
     photoFiche ? row('camera', 'Ajouter une photo', `${MAX_PHOTOS} au plus`, () => quickPhoto(p, back)) : null,
+    // v378 (mon choix 5A du 24 nov.) : en bas de Rangement, juste au-dessus de Supprimer
+    (p.photos?.length ?? 0) < MAX_PHOTOS ? row('image-plus', 'Depuis ma galerie', `Une photo de ton téléphone · ${MAX_PHOTOS} au plus`, () => galleryPhoto(p, back)) : null,
     row('trash-2', delLabel, 'Demande confirmation', askDelete, 'danger'));
   /** v326 (mon choix 5A) : revue sur place : un passage aujourd'hui, comme « Elle est de nouveau là », sans rien d'autre. */
   const seenAgain = () => {
@@ -3028,8 +3030,34 @@ function photoWide(p, back, open = null) {
   const img = el('img', { alt: '', class: 'fiche-photo-img' });
   photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
   return el('figure', { class: 'fiche-photo' },
-    el('button', { type: 'button', onclick: open ?? (() => openPhotos(p, back)), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos` : 'Voir la photo' }, img),
+    // v378 (ma demande du 24 nov.) : un appui montre la photo en grand (pellicule, Supprimer), il n'ouvre plus la page qui en ajoute
+    el('button', { type: 'button', onclick: open ?? (() => viewLieuPhotos(p, 0, back)), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos en grand` : 'Voir la photo en grand' }, img),
     el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
+}
+
+/** v378 : les photos d'un de mes lieux en grand ; « Supprimer » sous la photo (question sur place), retour à la fiche. */
+function viewLieuPhotos(p, i, back) {
+  const ids = [...(p.photos ?? [])];
+  if (!ids.length) return;
+  viewPhoto(ids, i, p.name, { del: async (k) => {
+    const id = ids[k];
+    p.photos = (p.photos ?? []).filter((x) => x !== id); persist();
+    await deletePhoto(id).catch(() => {}); photoUrls.delete(id);
+    renderMarkers(); openDetail(p.id, back); toast('Photo supprimée');
+  } });
+}
+
+/** v378 (mon choix 5A du 24 nov.) : ajouter des photos de ma galerie à un lieu, sans passer par l'appareil photo. */
+function galleryPhoto(p, back) {
+  if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
+  const gallery = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+  gallery.addEventListener('change', async () => {
+    const n = await savePhotos(p, gallery.files);
+    gallery.remove();
+    if (n) { renderMarkers(); openDetail(p.id, back); }
+  });
+  document.body.append(gallery);
+  gallery.click();
 }
 
 /** v326 (mon choix 2A) : la photo d'une note prise en passant, en 4:3 sur toute la largeur ; un appui l'ouvre en grand. */
@@ -11397,7 +11425,7 @@ const HELP = [
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
-    '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu.',
+    '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu ; une photo de ta galerie : Rangement → Depuis ma galerie.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
@@ -11411,7 +11439,7 @@ const HELP = [
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
     '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici (aussi en bas d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle). Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
-    '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir, en ajouter ou la supprimer. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
+    '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir en grand ; « Supprimer » est sous la photo. Pour en ajouter : {camera} Photo, ou Rangement → Depuis ma galerie. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
@@ -11514,6 +11542,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
     '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
     '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
     '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
