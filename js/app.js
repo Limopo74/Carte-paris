@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (418)';
+const VERSION = '24 novembre 2026 (419)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -569,6 +569,17 @@ function meMarker(lat, lng, grey = false) {
     interactive: false, keyboard: false, zIndexOffset: 3000,
     icon: L.divIcon({ className: 'pin-wrap me-wrap', html: `${cone}<span class="me-dot${grey ? ' grey' : ''}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
   });
+}
+
+/* v419 (mon choix A du 24 nov.) : une liste (Autour de moi, Sorties, Vélib', Rentrer…) pose son point bleu ; celui de la carte
+   (« Ouvrir sur ma position », Ma position) ne se dessine pas en double à moins de 100 m. Il revient quand la liste se ferme. */
+let listMe = null;
+function listMeMarker(lat, lng, grey = false) {
+  const m = meMarker(lat, lng, grey);
+  listMe = m;
+  m.on('remove', () => { if (listMe === m) { listMe = null; drawMe(); } });
+  m.addTo(nearLayer);
+  drawMe();
 }
 
 /* Orientation du téléphone pour le cône du point bleu (écoutée seulement quand un point bleu est affiché). */
@@ -4021,7 +4032,7 @@ function drawNear() {
   } else if (kind === 'home') { // v222 : le canapé, jamais le point bleu (ce n'est pas ma position)
     L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'pin-wrap', html: `<span class="metro-pin home-pin">${svgIcon('sofa', { size: 16 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
   } else if (!following) {
-    if (!following) meMarker(lat, lng, kind === 'last').addTo(nearLayer);
+    if (!following) listMeMarker(lat, lng, kind === 'last');
   }
 }
 
@@ -5205,7 +5216,7 @@ async function showVelib(at = null) {
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
   listRingsAt(from);
-  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) listMeMarker(from.lat, from.lng);
   // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau, la boussole (la ligne n'a pas de page)
   const vItems = list.map((s) => ({ name: s.name, lat: s.lat, lng: s.lng,
     sub: `${walkMinutes(s.d)}\u00a0min · ${velibNeed === 'bike' ? plural(s.bikes, 'vélo', 'vélos') : plural(s.docks, 'place libre', 'places libres')}` }));
@@ -7211,7 +7222,7 @@ async function openEvents(start = null) {
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
   if (!fromMap) listRingsAt(o); // v415 : pas de cercles autour du centre de la carte (ce n'est pas un point où l'on est)
-  if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
+  if (!following && !fromMap) listMeMarker(o.lat, o.lng);
   // v415 : les ronds sont ceux de « Carte » (un rond = une ligne de la liste) ; un appui ouvre le bandeau sur ce lieu
   tapRounds(nearLayer, mapList.map((x) => ({ lat: x.lat, lng: x.lng, style: x.round ?? EV_ROUND })), (k) => showPeek({ ...peekOpts, start: k, stay: true }));
 }
@@ -7444,7 +7455,7 @@ async function openGalleryWalk(from = null) {
     foot(el('button', { type: 'button', class: 'btn', onclick: () => (galBack ?? openRoutes)() }, galBack === openEvents ? '← Sorties' : '← Itinéraire')),
   ), { tall: true, name: 'galwalk', again: () => openGalleryWalk() });
   nearLayer.clearLayers();
-  if (!following && origin0.kind !== 'map') meMarker(origin0.lat, origin0.lng).addTo(nearLayer);
+  if (!following && origin0.kind !== 'map') listMeMarker(origin0.lat, origin0.lng);
   if (plan.route.length) {
     const line = [origin0, ...plan.route, origin0].map((p) => [p.lat, p.lng]);
     L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
@@ -7610,7 +7621,7 @@ async function openHomePlan(home) {
   ), { name: `home:${home.id ?? home.label}`, again: back });
   nearLayer.clearLayers();
   listRingsAt(from);
-  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) listMeMarker(from.lat, from.lng);
   // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau fait comme la ligne (trajet, ou boussole vers ta station)
   const hItems = opts.map((o) => ({ name: o.st.n, lat: o.st.lat, lng: o.st.lng, o }));
   tapRounds(nearLayer, opts.map((o) => ({ lat: o.st.lat, lng: o.st.lng, style: { radius: 9, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
@@ -8647,7 +8658,7 @@ function openFreeTime() {
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'freetime', again: openFreeTime });
   nearLayer.clearLayers();
-  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) listMeMarker(origin.lat, origin.lng);
   if (plan.route.length) {
     const line = [origin, ...plan.route, origin].map((p) => [p.lat, p.lng]);
     L.polyline(line, { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
@@ -8739,7 +8750,7 @@ async function openCuriosities() {
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
   listRingsAt(here);
-  if (!following) meMarker(here.lat, here.lng).addTo(nearLayer);
+  if (!following) listMeMarker(here.lat, here.lng);
   // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau fait comme la ligne (article, plaque, passage)
   const cur = [
     ...items.map((w) => ({ name: w.title, lat: w.lat, lng: w.lng, icon: 'book-open-text', style: { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1 },
@@ -9421,7 +9432,7 @@ async function openMonuments() {
   ), { tall: true, name: 'hist', again: openMonuments });
   nearLayer.clearLayers();
   listRingsAt(origin);
-  if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
+  if (!following) listMeMarker(origin.lat, origin.lng);
   // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau, la boussole (les lignes n'ont pas de page)
   const mon = [
     ...pvp.map((x) => ({ name: x.a, lat: x.lat, lng: x.lng, style: { radius: 4, color: '#A54A28', weight: 2, fillColor: '#fff', fillOpacity: 1 } })),
@@ -11236,6 +11247,7 @@ function drawMe() {
   meLayer.clearLayers();
   if (!meShown) return;
   const { lat, lng, acc } = meShown;
+  if (listMe && nearLayer.hasLayer(listMe) && distanceM(meShown, listMe.getLatLng()) < 100) return; // v419 : la liste montre déjà le point bleu
   if (acc > 30) L.circle([lat, lng], { radius: acc, stroke: false, fillColor: '#4c6ef5', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
   meMarker(lat, lng).addTo(meLayer); // point + cône seulement : les cercles de temps sont dans Autour de moi
 }
@@ -11355,7 +11367,7 @@ function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
     back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start, fromPlace) });
   nearLayer.clearLayers();
-  if (!following && !fromPlace) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following && !fromPlace) listMeMarker(from.lat, from.lng);
   const pts = [[from.lat, from.lng], [p.lat, p.lng]];
   if (plan.type !== 'walk') {
     const chain = [from, plan.start, ...(plan.type === 'transfer' ? [plan.via] : []), plan.end, p];
@@ -11440,7 +11452,7 @@ function showNearestMetro(from, note = null) {
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [goal.lat, goal.lng]], { color: '#003ca6', weight: 3, dashArray: '6 8', interactive: false }).addTo(nearLayer);
-  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) listMeMarker(from.lat, from.lng);
   for (const { station: o } of others) {
     L.marker([o.lat, o.lng], { interactive: false, keyboard: false, zIndexOffset: 1500, icon: L.divIcon({ className: 'pin-wrap', html: '<span class="metro-pin small">M</span>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(nearLayer);
   }
@@ -11547,7 +11559,7 @@ function showPratique(from, fs, ts, cs = [], last = 'cool') {
     el('p', { class: 'help tip' }, 'Données ouvertes de la Ville de Paris (ODbL), mises à jour chaque jour : fontaines, toilettes et îlots de fraîcheur. Les fontaines hors service sont écartées ; un lieu fermé en ce moment passe en dernier. « Jardin ouvert » : un square, un jardin ou un parc ouvert maintenant d\'après ses horaires de la saison ; à 28° et plus, ce bloc devient « Lieu frais ». Toilettes des gares et stations : open data RATP (liste gardée dans l\'appli).'),
   ), { name: 'pratique', again: () => showPratique(from, fs, ts, cs, last), tall: true });
   nearLayer.clearLayers();
-  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following) listMeMarker(from.lat, from.lng);
   const pts = [[from.lat, from.lng]];
   for (const [list, icon] of [[fs, 'glass-water'], [ts, 'toilet'], [cs, 'trees']]) {
     list.forEach(({ item }, i) => {
@@ -12112,6 +12124,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
     '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
     '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
@@ -12121,7 +12134,6 @@ const HELP = [
     '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
     '{git-commit-horizontal} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{git-commit-horizontal} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
-    '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

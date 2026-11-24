@@ -52,7 +52,7 @@ test('Stations proches part du lieu, jamais de ma position, et la marque passe p
 });
 
 test('un trajet qui part d\'un lieu : pas de rond « moi » à cet endroit, Google Maps part du lieu', () => {
-  assert.match(app, /if \(!following && !fromPlace\) meMarker\(from\.lat, from\.lng\)/);
+  assert.match(app, /if \(!following && !fromPlace\) listMeMarker\(from\.lat, from\.lng\)/); // v419 : listMeMarker (un seul point bleu)
   assert.match(app, /fromPlace \? `&origin=\$\{fromPlace\.lat\},\$\{fromPlace\.lng\}` : ''/);
 });
 
