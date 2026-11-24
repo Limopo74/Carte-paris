@@ -46,7 +46,7 @@ import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, t
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits } from './reglages.js';
-import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption } from './metroplan.js';
+import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (392)';
+const VERSION = '24 novembre 2026 (393)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2856,10 +2856,8 @@ function openDetail(id, back = null) {
       closedDaysText(hoursOf(p)) ? el('div', { class: 'fiche-s' }, closedDaysText(hoursOf(p))) : null,
       st && p.hours && hoursAge(p) ? el('div', { class: 'fiche-s' }, hoursAge(p)) : null,
       !p.hours && parkHoursById.has(p.id) ? el('div', { class: 'fiche-s' }, 'Horaires de la Ville, saison en cours') : null),
-    el('div', {},
-      el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
-      metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
-      metro ? el('div', { class: 'fiche-s' }, metro.exit ? `${metro.exit} · ≈ ${metro.min} min` : `≈ ${metro.min} min à pied`) : null)) : null;
+    metroCell(metro, metro ? `${metro.exit ? `${metro.exit} · ` : ''}≈ ${metro.min} min${metro.exit ? '' : ' à pied'}` : '',
+      () => openPlaceStations(p, named(p.name, () => openDetail(p.id, back))))) : null;
 
   // Lignes d'information, séparées par des filets.
   const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
@@ -3030,6 +3028,14 @@ function arrLabel(p) {
 /** v200 : « horaires notés en mars 2024 » quand les horaires d'un lieu ont été copiés dans l'appli il y a plus d'un an (rien sans date). */
 const hoursAge = (p) => (Number.isFinite(p.hoursAt) && Date.now() - p.hoursAt > 365 * 864e5
   ? `horaires notés en ${new Date(p.hoursAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` : '');
+
+/** La case Métro d'une fiche (v393, mon choix 1A) : avec une station, un bouton qui ouvre « Stations proches » (›). */
+function metroCell(metro, sub, onOpen) {
+  const k = el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro');
+  if (!metro) return el('div', {}, k, el('div', { class: 'fiche-v muted' }, 'Pas de station proche'));
+  return el('button', { type: 'button', class: 'fiche-metro', onclick: onOpen, 'aria-label': `Métro ${metro.lines} : ${metro.name}, ${sub}. Les stations proches` },
+    k, el('div', { class: 'fiche-v m' }, metro.name, el('span', { class: 'chev', 'aria-hidden': 'true' }, ' ›')), el('div', { class: 'fiche-s' }, sub));
+}
 
 function stationFacts(p) {
   const r = nearestStation(stations, p);
@@ -7390,6 +7396,7 @@ async function openHomePlan(home) {
   const walk = walkMinutes(distanceM(from, dest));
   const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, dest, 3, st) }));
   const best = fastestHomeOption(opts, home.st, walk); // v368 : jamais ma station Maison elle-même
+  const lead = clearFastest(opts, home.st, walk); // v393 (mon choix 1A) : « Le plus rapide » seulement avec 3 min d'avance
   const lineBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
   // Bus (v148) : les lignes qui vont jusqu'à mon arrêt maison, depuis un arrêt à moins de 8 min à pied
   // v263 : jusqu'à 3 arrêts par station ; chaque ligne dit à lequel elle mène quand il y en a plusieurs
@@ -7427,7 +7434,7 @@ async function openHomePlan(home) {
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
-          el('span', { class: 'lines' }, lineBadges(o.st), o === best && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
+          el('span', { class: 'lines' }, lineBadges(o.st), o === lead && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
           el('span', { class: 'item-sub' }, o.st === home.st ? `${walkMinutes(o.d)} min à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
@@ -7447,14 +7454,62 @@ async function openHomePlan(home) {
   if (opts.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...opts.map((o) => [o.st.lat, o.st.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
-function pickMyStation(thenGo = false) {
+/* Stations proches d'un lieu (v393, mes choix 1A 2A 3A 4A du 24 nov.) : un appui sur la case Métro d'une fiche.
+   Les 3 stations les plus proches du lieu (sortie et minutes à pied depuis le lieu), et, avec une station Maison, le temps
+   estimé pour rentrer depuis chacune. Tout part du lieu, pas de ma position : calcul sur le téléphone, rien n'est envoyé.
+   « Le plus rapide » seulement avec 3 min d'avance (clearFastest). Plusieurs stations à moi : seulement Maison (4A). */
+function homeStationForPlan() {
+  const mine = (state.myStations ?? []).map((s) => ({ ...s, st: stationByName(s.station) })).filter((s) => s.st);
+  return mine.find((s) => fold(s.label).trim() === 'maison') ?? mine[0] ?? null; // sans « Maison » nommée : la première, celle de Rentrer
+}
+async function openPlaceStations(p, back = null) {
+  await stationsReady;
+  if (!stations.length) { toast('La liste des stations n\'est pas encore chargée : réessaie dans un instant.', true); return; }
+  const place = { name: p.name, lat: p.lat, lng: p.lng, id: p.id ?? `pl:${p.lat},${p.lng}` };
+  const self = named('Stations proches', () => openPlaceStations(p, back));
+  const home = homeStationForPlan();
+  const dest = home ? { name: `${home.label} (${home.st.n})`, lat: home.st.lat, lng: home.st.lng, id: `home:${home.st.n}` } : null;
+  const opts = nearestStations(stations, place, 3).filter((x) => x.d <= 2000).map(({ station: st, d }) => {
+    const exit = exitFor(acces, st, place, stations); // la sortie la plus proche du lieu, comme dans la fiche
+    return { st, d, walkIn: walkMinutes(exit ? exit.d : d), exit: exit?.label ?? '', plan: dest ? metroPlan(stations, place, dest, 3, st) : null };
+  });
+  const walk = dest ? walkMinutes(distanceM(place, dest)) : 0;
+  const best = dest ? fastestHomeOption(opts, home.st, walk) : null;
+  const lead = dest ? clearFastest(opts, home.st, walk) : null;
+  const badges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
+  const homeText = (o) => (o.st === home.st ? `c'est ta station ${home.label}`
+    : o.plan.noMetro ? 'pas de trajet simple en métro d\'ici'
+      : o.plan.type === 'walk' ? `${home.label} à ≈ ${o.plan.minutes} min à pied`
+        : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`);
+  const open = (o) => (dest && o.st !== home.st ? renderMetroPlan(dest, place, self, o.st, place) : openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }));
+  openSheet(`Stations proches`, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, dest ? `Autour de ${p.name}. Pour rentrer vers ${home.st.n} (${home.label})\u00a0:` : `Autour de ${p.name}\u00a0:`),
+    opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => open(o),
+        'aria-label': `${o.st.n}, ${o.walkIn} min à pied${dest ? `, ${homeText(o)}` : ''}${o === lead && opts.length > 1 ? ', le plus rapide' : ''}. ${dest && o.st !== home.st ? 'Voir le trajet' : 'Boussole vers la station'}` },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, dest && o.st !== home.st ? ico('route', { size: 18 }) : ico('compass', { size: 18 })),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, o.st.n),
+          el('span', { class: 'lines' }, badges(o.st), o === lead && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
+          el('span', { class: 'item-sub' }, dest ? `${o.walkIn} min à pied · ${homeText(o)}` : `${o.walkIn} min à pied`), // comme Rentrer
+          o.exit ? el('span', { class: 'item-sub' }, o.exit) : null)))))
+      : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 2 km de ce lieu.'),
+    dest && (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min jusqu'à ${home.label}.`) : null,
+    dest ? null : el('p', { class: 'help' }, 'Avec ta station Maison, l\'appli te dit par laquelle rentrer le plus vite.'),
+    dest ? null : el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false, self) }, ico('house'), 'Choisir ma station Maison'),
+    el('p', { class: 'help' }, dest ? 'Estimation sans horaires, en partant du lieu.' : 'Un appui : la boussole vers la station.'),
+    back ? foot(backBtn(back)) : null,
+  ), { name: `stations:${place.id}`, tall: true, again: () => openPlaceStations(p, back) });
+}
+
+function pickMyStation(thenGo = false, after = null) {
   openStationPicker((st) => {
     const label = prompt(`Nom pour la station ${st.n} (ex. Maison, Travail)`, (state.myStations ?? []).length ? 'Travail' : 'Maison');
     if (label == null) return;
     state = addMyStation(state, st.n, label || 'Ma station'); persist();
     toast(`${label || 'Ma station'} : ${st.n}`);
-    if (thenGo) goHome(); else openMyStations();
-  }, thenGo ? null : { name: 'Mes stations', fn: openMyStations });
+    if (after) after(); else if (thenGo) goHome(); else openMyStations(); // v393 : `after` ramène à la page d'où l'on vient (Stations proches)
+  }, after ? { name: after.label ?? 'Retour', fn: after } : thenGo ? null : { name: 'Mes stations', fn: openMyStations });
   toast('Choisis ta station (Maison, Travail…)');
 }
 /** Choisir un arrêt de bus « maison » d'une de mes stations (v148) : d'abord les plus proches de la station, ou par son nom.
@@ -8225,10 +8280,7 @@ function openTtbPlace(x, back = null) {
         el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
         today ? el('div', { class: 'fiche-v' }, today.charAt(0).toUpperCase() + today.slice(1)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
         el('div', { class: 'fiche-s' }, 'selon TTB')),
-      el('div', {},
-        el('div', { class: 'fiche-k' }, metro?.lines ? `Métro ${metro.lines}` : 'Métro'),
-        metro ? el('div', { class: 'fiche-v m' }, metro.name) : el('div', { class: 'fiche-v muted' }, 'Pas de station proche'),
-        metro ? el('div', { class: 'fiche-s' }, `≈ ${metro.min} min à pied`) : null)),
+      metroCell(metro, metro ? `≈ ${metro.min} min à pied` : '', () => openPlaceStations({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)))),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
@@ -10171,7 +10223,7 @@ function openSettings(section = null, from = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
-    // v390 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
+    // v391 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
     onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints partout ; tes circuits sont gardés' : 'Bouton, Itinéraire, + Ajouter, Mes parcours', !circuitsOff(), () => {
       state.circuitsOn = circuitsOff(); applyToolOrder();
       toast(circuitsOff() ? 'Circuits éteints partout (rien n\'est supprimé)' : 'Circuits de retour : bouton, Itinéraire, + Ajouter');
@@ -11000,7 +11052,9 @@ async function showMetroPlan(p, back) {
   renderMetroPlan(p, from, back);
 }
 
-function renderMetroPlan(p, from, back, start = null) {
+/** `fromPlace` (v393) : le trajet part d'un lieu (page Stations proches d'une fiche), pas de ma position : pas de rond « moi »
+ *  à cet endroit, une ligne « Depuis … », et Google Maps part du lieu. */
+function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
   const plan = metroPlan(stations, from, p, 3, start);
   const ln = lineName;
   const step = (icon, text) => el('li', { class: 'plan-step' }, el('span', { class: 'plan-ico', 'aria-hidden': 'true' }, icon), el('span', {}, text));
@@ -11025,18 +11079,19 @@ function renderMetroPlan(p, from, back, start = null) {
   }
   openSheet(`Vers ${p.name}`, el('div', { class: 'stack' },
     el('p', { class: 'summary' }, none ? 'Pas de trajet simple en métro' : onFoot ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
+    fromPlace ? el('p', { class: 'help' }, `Depuis ${fromPlace.name}.`) : null,
     el('ol', { class: 'plan' }, steps),
     onFoot || none ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai.'),
     onFoot ? null : el('p', { class: 'help tip' }, 'Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
-      el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
+      el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1${fromPlace ? `&origin=${fromPlace.lat},${fromPlace.lng}` : ''}&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     onFoot ? null : trafficLink(),
     back ? backBtn(back) : null,
-  ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start) });
+  ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start, fromPlace) });
   nearLayer.clearLayers();
-  if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
+  if (!following && !fromPlace) meMarker(from.lat, from.lng).addTo(nearLayer);
   const pts = [[from.lat, from.lng], [p.lat, p.lng]];
   if (plan.type !== 'walk') {
     const chain = [from, plan.start, ...(plan.type === 'transfer' ? [plan.via] : []), plan.end, p];
@@ -11545,7 +11600,7 @@ const HELP = [
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
     '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
     '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche. « Y aller » ouvre toujours Google Maps.',
-    '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris).',
+    '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). « Le plus rapide » ne s\'affiche qu\'avec 3 min d\'avance : en dessous, l\'estimation ne départage pas.',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. La page suit l\'écran : « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Carte, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe.',
@@ -11663,7 +11718,7 @@ const HELP = [
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu ; une photo de ta galerie : Rangement → Depuis ma galerie.',
-    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue).',
+    '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue). Touche la station (›) : les 3 stations proches du lieu et, avec ta station Maison, par laquelle rentrer le plus vite.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
     '{footprints} **Impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Autres réglages → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
@@ -11780,6 +11835,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
     '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
@@ -11789,7 +11845,6 @@ const HELP = [
     '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
     '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
-    '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

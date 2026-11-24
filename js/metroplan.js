@@ -84,6 +84,20 @@ export function fastestHomeOption(opts, homeSt, walk) {
   return best;
 }
 
+/**
+ * v393 (mes choix 2A et 1A du 24 nov.) : « Le plus rapide » seulement avec une vraie avance. L'estimation (sans horaires,
+ * 2,6 min par km, 3 min d'attente) ne départage pas deux stations à 1 ou 2 min : une fois sur deux, l'étiquette était posée
+ * sur un écart de 2 min ou moins (3 000 cas simulés dans Paris). La plus rapide (`fastestHomeOption`) n'est rendue que si
+ * chaque autre station qui a un trajet en métro met au moins `margin` minutes de plus ; sinon null.
+ */
+export const CLEAR_LEAD_MIN = 3;
+export function clearFastest(opts, homeSt, walk, margin = CLEAR_LEAD_MIN) {
+  const best = fastestHomeOption(opts, homeSt, walk);
+  if (!best) return null;
+  const rivals = opts.filter((o) => o !== best && o.st !== homeSt && o.plan && !o.plan.noMetro && o.plan.type !== 'walk');
+  return rivals.every((o) => o.plan.minutes - best.plan.minutes >= margin) ? best : null;
+}
+
 /** Phrase de la page Métro quand aucun métro n'a été trouvé (`plan.noMetro`) ; '' sinon. `start` : station de départ imposée. */
 export function noMetroText(plan, start = null) {
   if (plan?.noMetro === 'from') return 'Aucune station de métro à moins de 1,2 km de toi.';
