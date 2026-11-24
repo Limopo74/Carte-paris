@@ -70,6 +70,7 @@ test('réglage : allumé au départ, gardé, dans la sauvegarde et les réglages
 test('Autres réglages → La carte : l\'interrupteur, sous les numéros des arrondissements ; Nouveautés ; fichier gardé hors ligne', () => {
   const i = app.indexOf('arrNumsSwitch,\n'); const j = app.indexOf('\'Dessins des monuments\''); const k = app.indexOf('\'Ce qui s\\\'affiche\'', i);
   assert.ok(i > 0 && j > i && j < k, 'entre les numéros et « Ce qui s\'affiche »');
-  assert.match(app, /\{landmark\} \*\*Les grands monuments dessinés sur la carte\*\*/);
+  // v396 : la ligne des Nouveautés est sortie (10 au plus) ; l'aide de la carte garde le réglage
+  assert.match(app, /Dessins des monuments/);
   assert.ok(sw.includes('\'js/reperes.js\''));
 });

@@ -61,6 +61,7 @@ import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, read
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { REPERES, REPERE_SVG, REPERE_SIZE, placeReperes } from './reperes.js';
+import { oneFingerZoom } from './zoom-doigt.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -70,7 +71,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (395)';
+const VERSION = '24 novembre 2026 (396)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -400,6 +401,7 @@ const foot = (...kids) => { const k = kids.flat().filter(Boolean); return k.leng
 /* ---------- Carte ---------- */
 
 const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(PARIS, 13);
+oneFingerZoom(map); // v396 : deux appuis, le second gardé, puis glisser vers le bas ou le haut
 // v328 : « À l'ouverture, la carte montre » : les noms, et la dernière vue gardée à part (hors sauvegarde, pas en essai)
 const START_VIEW_NAME = { me: 'Ma position', all: 'Tous mes lieux', home: 'Chez moi', paris: 'Le centre de Paris', last: 'Là où je l\'ai laissée' };
 const START_VIEW_SUB = { me: 'Dans Paris, si elle est déjà autorisée ; sinon tous tes lieux', all: 'Tous tes lieux d\'un coup d\'œil', home: 'Autour de Chez moi', paris: 'Châtelet, tout Paris autour', last: 'Le même endroit, le même zoom' };
@@ -11609,6 +11611,7 @@ const HELP = [
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
+    '**Zoomer d\'un seul doigt** : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner. Deux appuis sans glisser rapprochent d\'un cran. Pincer à deux doigts marche toujours.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
@@ -11870,6 +11873,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
     '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
     '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
@@ -11878,8 +11882,7 @@ const HELP = [
     '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
     '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
     '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
-    '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
-    '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.'
+    '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
