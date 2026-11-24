@@ -51,11 +51,35 @@ for line in open(os.path.join(HERE, 'traces.txt'), encoding='utf-8').read().spli
         pid, osrm, poly = line.split(' ', 2)
         traces[pid] = (float(osrm), poly.strip())
 
+def encode(pts):
+    out = ''; pa = pg = 0
+    for la, lg in pts:
+        a, g = round(la * 1e5), round(lg * 1e5)
+        for v in (a - pa, g - pg):
+            x = ~(v << 1) if v < 0 else v << 1
+            while x >= 0x20: out += chr((0x20 | (x & 0x1f)) + 63); x >>= 5
+            out += chr(x + 63)
+        pa, pg = a, g
+    return out
+
+# v385 (ma demande du 24 nov. : « Panoramas faux, Verdeau, Vivienne, Colbert, Prado non dessinés ») : l'axe lu dans OpenStreetMap passe avant
+# le chemin calculé par OSRM ; gardé s'il passe à moins de 60 m du repère et mesure de 20 à 400 m.
+OSM = json.load(open(os.path.join(HERE, 'traces-osm.json'), encoding='utf-8'))
+
 items = []
 for pid, nom, lat, lng, A, B in P:
     rues, t, s = TXT[pid]
     it = {'id': pid, 'nom': nom, 'lat': lat, 'lng': lng, 'rues': rues, 't': t, 's': s}
-    if A and pid in traces:
+    if pid in OSM:
+        pts = [tuple(x) for x in OSM[pid]['pts']]
+        L = length(pts); pin = min(dist((lat, lng), p) for p in pts)
+        ok = 20 <= L <= 400 and pin <= 60
+        print(f'{pid:12} trait OpenStreetMap {round(L):4} m, repère à {round(pin):3} m :', 'gardé' if ok else 'pictogramme seul')
+        if ok:
+            it['trace'] = encode(pts)
+            mid = pts[len(pts) // 2]
+            it['lat'], it['lng'] = round(mid[0], 5), round(mid[1], 5)
+    elif A and pid in traces:
         osrm, poly = traces[pid]
         pts = decode(poly)
         L = length(pts)
@@ -71,8 +95,8 @@ for pid, nom, lat, lng, A, B in P:
         print(f'{pid:12} pas de chemin calculé : pictogramme seul')
     items.append(it)
 
-out = {'source': 'Liste établie à la main ; textes : Ville de Paris (paris.fr) et offices de tourisme. Entrées géocodées par l\'IGN, chemins à pied calculés par OSRM (routing.openstreetmap.de, données OpenStreetMap).',
-       'updated': '2026-11-18', 'items': items}
+out = {'source': 'Liste établie à la main ; textes : Ville de Paris (paris.fr) et offices de tourisme. Entrées géocodées par l\'IGN ; tracé des passages lu dans OpenStreetMap (24 nov. 2026), sinon chemins à pied calculés par OSRM (routing.openstreetmap.de, données OpenStreetMap).',
+       'updated': '2026-11-24', 'items': items}
 with open(os.path.join(HERE, '..', '..', 'data', 'passages.json'), 'w', encoding='utf-8') as f:
     json.dump(out, f, ensure_ascii=False, indent=1)
     f.write('\n')

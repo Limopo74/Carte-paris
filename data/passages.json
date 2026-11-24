@@ -1,43 +1,46 @@
 {
- "source": "Liste établie à la main ; textes : Ville de Paris (paris.fr) et offices de tourisme. Entrées géocodées par l'IGN, chemins à pied calculés par OSRM (routing.openstreetmap.de, données OpenStreetMap).",
- "updated": "2026-11-18",
+ "source": "Liste établie à la main ; textes : Ville de Paris (paris.fr) et offices de tourisme. Entrées géocodées par l'IGN ; tracé des passages lu dans OpenStreetMap (24 nov. 2026), sinon chemins à pied calculés par OSRM (routing.openstreetmap.de, données OpenStreetMap).",
+ "updated": "2026-11-24",
  "items": [
   {
    "id": "vero-dodat",
    "nom": "Galerie Véro-Dodat",
-   "lat": 48.8629,
-   "lng": 2.34005,
+   "lat": 48.86266,
+   "lng": 2.34068,
    "rues": "rue Jean-Jacques-Rousseau et rue du Bouloi",
    "t": "Ouverte en 1826 par deux charcutiers, Véro et Dodat. Son sol en damier de marbre noir et blanc est posé en diagonale.",
-   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "spfiHg~gM~@_E"
   },
   {
    "id": "vivienne",
    "nom": "Galerie Vivienne",
-   "lat": 48.86667,
-   "lng": 2.33972,
+   "lat": 48.86703,
+   "lng": 2.3399,
    "rues": "rue des Petits-Champs, rue de la Banque et rue Vivienne",
    "t": "Inaugurée en 1826, dessinée par l'architecte Delannoy. Sol en mosaïque de l'atelier Facchina. Vidocq a habité au n° 13 en 1840.",
-   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "ydgiHw|gMsAk@oAg@_@hC"
   },
   {
    "id": "colbert",
    "nom": "Galerie Colbert",
-   "lat": 48.86683,
-   "lng": 2.33936,
+   "lat": 48.86691,
+   "lng": 2.33944,
    "rues": "rue des Petits-Champs et rue Vivienne",
    "t": "La rivale de la galerie Vivienne : une grande rotonde sous une coupole de verre. Elle abrite l'Institut national d'histoire de l'art.",
-   "s": "https://parisjetaime.com/culture/galerie-colbert-p1585"
+   "s": "https://parisjetaime.com/culture/galerie-colbert-p1585",
+   "trace": "gegiHizgM}BeASnA"
   },
   {
    "id": "panoramas",
    "nom": "Passage des Panoramas",
-   "lat": 48.87096,
-   "lng": 2.34128,
+   "lat": 48.87091,
+   "lng": 2.34164,
    "rues": "boulevard Montmartre et rue Saint-Marc",
    "t": "Ouvert en 1799 : le plus ancien passage couvert de Paris. Son nom vient des deux tours où l'on montrait des panoramas peints.",
    "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
-   "trace": "efhiHclhMCREh@~BdA@@FB"
+   "trace": "afhiHkkhM^FnAVJBx@NB?l@J"
   },
   {
    "id": "choiseul",
@@ -62,11 +65,12 @@
   {
    "id": "verdeau",
    "nom": "Passage Verdeau",
-   "lat": 48.87353,
-   "lng": 2.34232,
+   "lat": 48.87374,
+   "lng": 2.34237,
    "rues": "rue de la Grange-Batelière et rue du Faubourg-Montmartre",
    "t": "Construit en 1847 dans le prolongement du passage Jouffroy : livres anciens, cartes postales, objets de collection.",
-   "s": "https://www.visitparisregion.com/fr/parcours/parcours-tops/passage-couvert-paris"
+   "s": "https://www.visitparisregion.com/fr/parcours/parcours-tops/passage-couvert-paris",
+   "trace": "ethiHoohMHT|BV"
   },
   {
    "id": "grand-cerf",
@@ -110,11 +114,12 @@
   {
    "id": "prado",
    "nom": "Passage du Prado",
-   "lat": 48.87003,
-   "lng": 2.35383,
+   "lat": 48.87009,
+   "lng": 2.35386,
    "rues": "rue du Faubourg-Saint-Denis et boulevard Saint-Denis",
    "t": "Couvert en 1925 : le plus récent des passages de Paris.",
-   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889"
+   "s": "https://www.paris.fr/pages/decouvrez-la-magie-des-galeries-et-des-passages-18889",
+   "trace": "szgiHkujMmAg@]hC"
   }
  ]
 }

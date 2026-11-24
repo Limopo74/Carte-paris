@@ -1,0 +1,9 @@
+{
+ "_source": "OpenStreetMap (© contributeurs OpenStreetMap, ODbL), lu le 24 nov. 2026 par la recherche Nominatim : l'axe de chaque passage, d'une entrée à l'autre, [lat, lng]. Passe avant traces.txt (OSRM).",
+ "panoramas": {"osm": "way/152319685", "pts": [[48.8715311, 2.3418231], [48.8713713, 2.3417775], [48.8709719, 2.3416636], [48.870906, 2.3416448], [48.8706208, 2.3415635], [48.8705996, 2.3415574], [48.8703749, 2.3415039]]},
+ "verdeau": {"osm": "way/108264420", "pts": [[48.8737895, 2.3424766], [48.8737383, 2.3423724], [48.8731098, 2.3422484]]},
+ "colbert": {"osm": "way/220149427", "pts": [[48.8662775, 2.3390892], [48.8669143, 2.339436], [48.8670087, 2.3390353]]},
+ "prado": {"osm": "way/111656078", "pts": [[48.8696992, 2.3536565], [48.8700904, 2.3538594], [48.8702426, 2.3531701]]},
+ "vivienne": {"osm": "couloirs couverts du plan des rues (OpenStreetMap), dans le contour relation/546789 ; de la rue des Petits-Champs à la rue Vivienne (la branche vers la rue de la Banque n'est pas dessinée)", "pts": [[48.86621, 2.33948], [48.86663, 2.3397], [48.86703, 2.3399], [48.86719, 2.33921]]},
+ "vero-dodat": {"osm": "way/1378010583 (contour de la galerie) : l'axe, du milieu d'un bout à l'autre", "pts": [[48.86298, 2.33972], [48.86266, 2.34068]]}
+}

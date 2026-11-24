@@ -1,7 +1,7 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v384';
+const CACHE = 'carte-paris-v385';
 const TILES = 'carte-paris-tuiles';
 const RUES = 'carte-paris-rues'; // plan des rues de Mes parcours : rangé par l'appli elle-même, gardé d'une version à l'autre
 const MAX_TILES = 3000; // environ 50 Mo
@@ -49,7 +49,7 @@ async function tile(req) {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  if (url.hostname === 'tile.openstreetmap.org' || url.hostname === 'basemaps.cartocdn.com' || (url.hostname === 'data.geopf.fr' && url.pathname === '/wmts')) { e.respondWith(tile(e.request)); return; } // v381 : tuiles de l'IGN regardées, gardées comme les autres
+  if (url.hostname === 'tile.openstreetmap.org' || url.hostname === 'basemaps.cartocdn.com' || (url.hostname === 'data.geopf.fr' && url.pathname === '/wmts')) { e.respondWith(tile(e.request)); return; } // v382 : tuiles de l'IGN regardées, gardées comme les autres
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith('/data/rues.json')) return; // plan des rues : téléchargé une fois par l'appli, rangé à part (pas de copie en double ici)
   // Réseau d'abord (pour avoir la dernière version). Si le réseau ne répond pas en 3 s (métro, quai), la copie gardée ;

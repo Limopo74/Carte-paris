@@ -9,15 +9,15 @@ import { cleanCircuits } from '../js/circuits.js';
 const file = JSON.parse(readFileSync(new URL('../data/passages.json', import.meta.url), 'utf8'));
 const list = cleanArcades(file);
 
-test('Passages : les 12 du fichier sont lus, 6 avec un trait', () => {
+test('Passages : les 12 du fichier sont lus, 11 avec un trait (v385 : tracés OpenStreetMap ; seul le Caire, à plusieurs branches, n\'en a pas)', () => {
   assert.equal(list.length, 12);
-  assert.equal(list.filter((a) => a.trace).length, 6);
+  assert.equal(list.filter((a) => a.trace).length, 11);
   for (const a of list) {
     assert.ok(a.nom && a.rues && a.t, a.id);
     assert.match(a.s, /^https:\/\//, `${a.id} a sa source`);
     assert.doesNotMatch(a.t, /\d{1,2} ?h\b/, `${a.id} : aucun horaire précis`);
   }
-  assert.deepEqual(list.filter((a) => a.trace).map((a) => a.id).sort(), ['bourg-labbe', 'brady', 'choiseul', 'grand-cerf', 'jouffroy', 'panoramas']);
+  assert.deepEqual(list.filter((a) => a.trace).map((a) => a.id).sort(), ['bourg-labbe', 'brady', 'choiseul', 'colbert', 'grand-cerf', 'jouffroy', 'panoramas', 'prado', 'verdeau', 'vero-dodat', 'vivienne']);
 });
 
 test('Passages : un trait passe près de son repère et reste court', () => {
@@ -76,4 +76,12 @@ test('Passages : l\'aide des problèmes cite les arrondissements où ils sont to
   const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(src, /Passages couverts allumés mais aucun sur la carte\*\* : ils sont tous dans le 1er, le 2e, le 9e et le 10e\. Touche « Voir les 12 »/);
   assert.equal(list.length, 12, 'si le nombre change, l\'aide doit changer');
+});
+
+test('v385 (ma demande du 24 nov.) : les Panoramas vont du boulevard Montmartre à la rue Saint-Marc, tout droit (OpenStreetMap, way 152319685)', () => {
+  const t = list.find((a) => a.id === 'panoramas').trace;
+  const [n, s] = [t[0], t.at(-1)];
+  assert.ok(Math.abs(n[0] - 48.87153) < 0.0001 && Math.abs(n[1] - 2.34182) < 0.0001, 'au nord : boulevard Montmartre');
+  assert.ok(Math.abs(s[0] - 48.87037) < 0.0001 && Math.abs(s[1] - 2.3415) < 0.0001, 'au sud : rue Saint-Marc');
+  for (const p of t) assert.ok(p[1] > 2.3414 && p[1] < 2.3419, 'pas de détour par les rues voisines');
 });
