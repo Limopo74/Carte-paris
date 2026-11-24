@@ -158,3 +158,8 @@ test('appli : la montée dans Mes parcours et Chemin à pied (pas les circuits),
   assert.match(wf, /node tools\/maj-altitudes\.mjs data\/rues\.json \/tmp\/rues-avant\.json/);
   assert.match(wf, /cp data\/rues\.json \/tmp\/rues-avant\.json/);
 });
+
+test('v407 : le petit rond des fonds de carte se cache sous un bandeau de la carte (il recouvrait le titre en Très grand)', () => {
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.ok(css.includes('body:has(#sheet:not([hidden])) .map-btn.style-btn, body:has(.peek-card) .map-btn.style-btn { display: none; }'));
+});

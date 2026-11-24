@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (406)';
+const VERSION = '24 novembre 2026 (407)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -12016,6 +12016,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
     '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
     '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
@@ -12025,7 +12026,6 @@ const HELP = [
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
     '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
     '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
-    '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
