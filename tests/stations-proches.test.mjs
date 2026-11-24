@@ -55,3 +55,25 @@ test('un trajet qui part d\'un lieu : pas de rond « moi » à cet endroit, Goog
   assert.match(app, /if \(!following && !fromPlace\) meMarker\(from\.lat, from\.lng\)/);
   assert.match(app, /fromPlace \? `&origin=\$\{fromPlace\.lat\},\$\{fromPlace\.lng\}` : ''/);
 });
+
+// v394 (mes choix 1A 2A du 24 nov.) : la page Métro d'un lieu (l'aller, depuis ma position) montre aussi les 3 stations les plus
+// proches de moi, avec le temps jusqu'au lieu ; « Le plus rapide » avec la même règle des 3 min.
+test('page Métro : « Autres stations près de toi » sous les boutons, seulement pour l\'aller depuis ma position', () => {
+  const body = app.slice(app.indexOf('function otherStartsBlock'), app.indexOf('function renderMetroPlan('));
+  assert.match(body, /nearestStations\(stations, from, 3\)\.filter\(\(x\) => x\.d <= 1500\)/);
+  assert.match(body, /metroPlan\(stations, from, p, 3, st\)/);
+  assert.match(body, /clearFastest\(opts, null, Infinity\)/);
+  assert.match(body, /'Autres stations près de toi'/);
+  assert.match(body, /renderMetroPlan\(p, from, self, o\.st\)/);
+  // pas dans Rentrer ni Stations proches (station imposée ou départ d'un lieu), ni quand la marche ou aucun métro
+  assert.match(app, /\.\.\.\(start \|\| fromPlace \|\| onFoot \|\| none \? \[\] : otherStartsBlock\(p, from, back\)\),\n\s+back \? backBtn\(back\) : null,/);
+});
+
+test('clearFastest sans station Maison : la plus rapide des stations proches de moi, avec 3 min d\'avance', () => {
+  const from = { lat: 48.8707, lng: 2.3488 }; // près de Bonne Nouvelle
+  const to = st('Nation');
+  const opts = ['Bonne Nouvelle', 'Strasbourg—Saint-Denis', 'Sentier'].map((n) => ({ st: st(n), plan: metroPlan(stations, from, to, 3, st(n)) }));
+  const best = clearFastest(opts, null, Infinity);
+  const sorted = opts.map((o) => o.plan.minutes).sort((a, b) => a - b);
+  assert.equal(best === null, sorted[1] - sorted[0] < 3);
+});

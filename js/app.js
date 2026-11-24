@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (393)';
+const VERSION = '24 novembre 2026 (394)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7371,6 +7371,8 @@ function showQr(p, back, withNote = false) {
 /* ---------- Rentrer : mes stations (personnelles, comme mes lieux) ---------- */
 
 const stationByName = (n) => stations.find((s) => s.n === n);
+/** Les pastilles des lignes d'une station (métro rondes, RER), comme dans Rentrer. */
+const stationBadges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
 async function goHome() {
   track('Rentrer');
   await stationsReady;
@@ -7476,7 +7478,7 @@ async function openPlaceStations(p, back = null) {
   const walk = dest ? walkMinutes(distanceM(place, dest)) : 0;
   const best = dest ? fastestHomeOption(opts, home.st, walk) : null;
   const lead = dest ? clearFastest(opts, home.st, walk) : null;
-  const badges = (st) => linesOf(st).map((l) => el('span', { class: `line-badge${l.startsWith('RER') ? ' rer' : ''}` }, l.replace('RER ', 'RER\u00a0')));
+  const badges = stationBadges;
   const homeText = (o) => (o.st === home.st ? `c'est ta station ${home.label}`
     : o.plan.noMetro ? 'pas de trajet simple en métro d\'ici'
       : o.plan.type === 'walk' ? `${home.label} à ≈ ${o.plan.minutes} min à pied`
@@ -10223,7 +10225,7 @@ function openSettings(section = null, from = null) {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
-    // v391 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
+    // v390 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
     onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints partout ; tes circuits sont gardés' : 'Bouton, Itinéraire, + Ajouter, Mes parcours', !circuitsOff(), () => {
       state.circuitsOn = circuitsOff(); applyToolOrder();
       toast(circuitsOff() ? 'Circuits éteints partout (rien n\'est supprimé)' : 'Circuits de retour : bouton, Itinéraire, + Ajouter');
@@ -11052,6 +11054,31 @@ async function showMetroPlan(p, back) {
   renderMetroPlan(p, from, back);
 }
 
+/* v394 (mes choix 1A 2A du 24 nov.) : sous la page Métro d'un lieu, « Autres stations près de toi » : les 3 stations les plus
+   proches de ma position (1,5 km au plus), chacune avec le temps estimé jusqu'au lieu, comme Rentrer. « Le plus rapide »
+   seulement avec 3 min d'avance (clearFastest). Un appui : le trajet depuis cette station. Calcul sur le téléphone. */
+function otherStartsBlock(p, from, back) {
+  const near = nearestStations(stations, from, 3).filter((x) => x.d <= 1500);
+  if (near.length < 2) return [];
+  const opts = near.map(({ station: st, d }) => ({ st, d, plan: metroPlan(stations, from, p, 3, st) }));
+  const lead = clearFastest(opts, null, Infinity);
+  const self = named('Métro', () => renderMetroPlan(p, from, back));
+  const text = (o) => (o.plan.noMetro ? 'pas de trajet simple en métro d\'ici'
+    : o.plan.type === 'walk' ? `le lieu à ≈ ${o.plan.minutes} min à pied`
+      : `≈ ${o.plan.minutes} min jusqu'au lieu`);
+  return [
+    el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations près de toi'), el('span', {}, '')),
+    el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => renderMetroPlan(p, from, self, o.st),
+        'aria-label': `${o.st.n}, ${walkMinutes(o.d)} min à pied, ${text(o)}${o === lead ? ', le plus rapide' : ''}. Voir le trajet` },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, o.st.n),
+          el('span', { class: 'lines' }, stationBadges(o.st), o === lead ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
+          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${text(o)}`)))))),
+  ];
+}
+
 /** `fromPlace` (v393) : le trajet part d'un lieu (page Stations proches d'une fiche), pas de ma position : pas de rond « moi »
  *  à cet endroit, une ligne « Depuis … », et Google Maps part du lieu. */
 function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
@@ -11088,6 +11115,7 @@ function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1${fromPlace ? `&origin=${fromPlace.lat},${fromPlace.lng}` : ''}&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     onFoot ? null : trafficLink(),
+    ...(start || fromPlace || onFoot || none ? [] : otherStartsBlock(p, from, back)),
     back ? backBtn(back) : null,
   ), { name: `plan:${p.id}${start ? `:${start.n}` : ''}`, again: () => renderMetroPlan(p, from, back, start, fromPlace) });
   nearLayer.clearLayers();
@@ -11717,7 +11745,7 @@ const HELP = [
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
-    '**M Métro** : la ligne et la correspondance ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu ; une photo de ta galerie : Rangement → Depuis ma galerie.',
+    '**M Métro** : la ligne et la correspondance (en dessous, « Autres stations près de toi » : le temps depuis chacune des 3 stations les plus proches de toi) ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu ; une photo de ta galerie : Rangement → Depuis ma galerie.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue). Touche la station (›) : les 3 stations proches du lieu et, avec ta station Maison, par laquelle rentrer le plus vite.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
@@ -11835,6 +11863,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
@@ -11844,7 +11873,6 @@ const HELP = [
     '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
     '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
-    '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
