@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (387)';
+const VERSION = '24 novembre 2026 (388)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11734,6 +11734,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
     '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
     '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
@@ -11743,7 +11744,6 @@ const HELP = [
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
-    '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
