@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (420)';
+const VERSION = '25 novembre 2026 (421)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2339,13 +2339,16 @@ map.on('contextmenu', (e) => {
    Métro, Ajouter (le formulaire, adresse remplie). Un petit rond (celui des résultats « Voir sur la carte ») marque le point,
    jusqu'à ce que la page se ferme. Le point touché part à l'IGN pour trouver l'adresse, comme avant pour Nouveau lieu. */
 const pointLayer = L.layerGroup().addTo(map);
-function openPointAt(lat, lng) {
-  track('Ce point');
+/** Le petit rond de « Ce point » (v399) et de l'adresse cherchée (v420) : un seul à la fois, effacé quand sa page se ferme. */
+function showPointPin(lat, lng) {
   pointLayer.clearLayers();
   L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 400,
     icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('map-pin', { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(pointLayer);
+}
+function openPointAt(lat, lng) {
+  track('Ce point');
   const show = (label) => openSpot({ icon: 'map-pin', title: label || 'Ce point', kicker: 'Point de la carte', place: { lat, lng, address: label || '' },
-    key: 'point', add: { name: '' }, onClose: () => pointLayer.clearLayers() });
+    key: 'point', add: { name: '' }, pin: true });
   show('');
   reverseAddress(lat, lng).then((label) => { if (label && view === 'point' && pointLayer.getLayers().length) show(label); }).catch(() => {});
 }
@@ -6327,10 +6330,13 @@ function followButton(name, again) {
   } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin });
+  /* v420 : `pin` = le petit rond terre cuite marque l'endroit tant que la page est ouverte ; il revient avec elle
+     (retour depuis Métro ou Boussole) et part à sa fermeture */
+  const closing = pin ? () => { pointLayer.clearLayers(); onClose?.(); } : onClose;
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     // v238 (mes choix 1A 2A) : ma photo illustre la page d'un passage, en tête, en bandeau de 100 px (Boussole · Métro · Ma fiche
     // restent visibles à 360 × 740) ; sans photo, un cadre de la même hauteur « Prendre une photo » (`snap`) : d'un passage à
@@ -6354,12 +6360,16 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     /* v333 : musée, galerie, salle, théâtre (les pages qui ont un Favori) : Uber en bas de page, rien ne bouge au-dessus */
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
-  ), { tall: true, name: key, again, onClose });
+  ), { tall: true, name: key, again, onClose: closing });
+  if (pin) showPointPin(place.lat, place.lng); // après openSheet : la page quittée (« Ce point », Métro) efface le sien en se fermant
 }
-/** v378 : la page d'une adresse trouvée par la loupe : Y aller, Boussole, Métro, Ajouter (le geste des pages de passage). */
+/** v378 : la page d'une adresse trouvée par la loupe : Y aller, Boussole, Métro, Ajouter (le geste des pages de passage) ; v420 : sur la carte. */
 function openAddressSpot(r, back) {
   openSpot({ icon: 'map-pin', title: r.label, kicker: 'Adresse', lines: [ROUGH[r.type] ?? null], place: { lat: r.lat, lng: r.lng, address: r.label },
-    back, key: 'address', add: { name: '', rough: ROUGH[r.type] ?? null }, mine: myResult(r) });
+    back, key: 'address', add: { name: '', rough: ROUGH[r.type] ?? null }, mine: myResult(r), pin: !myResult(r) });
+  /* v420 (mon choix A du 24 nov.) : l'adresse cherchée se voit tout de suite : le rond de « Ce point » (ou ma goutte si elle
+     est déjà dans mes lieux), carte placée dessus au-dessus de la page ; une rue sans numéro un cran plus loin (rue entière) */
+  centerOn(r.lat, r.lng, Math.max(map.getZoom(), ROUGH[r.type] ? 16 : 17));
 }
 const addBtn = (name, label, onclick) => el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${label} ${name} à ma carte`, onclick }, ico('plus'));
 
@@ -11871,7 +11881,7 @@ const HELP = [
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche, avec son entrée la plus proche de toi (« Entrée 5, r. de la Roquette ») quand le fichier d\'Île-de-France Mobilités dit que c\'est une entrée : la distance, Y aller et la boussole vont jusqu\'à elle. Une entrée fermée pour travaux n\'est pas connue.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
-    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire. Une adresse (« 12 rue de Rivoli ») fait apparaître « Chercher cette adresse » : un appui sur la réponse ouvre sa page, avec Y aller.',
+    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire. Une adresse (« 12 rue de Rivoli ») fait apparaître « Chercher cette adresse » : un appui sur la réponse la montre sur la carte et ouvre sa page, avec Y aller.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, la liste de tes lieux d\'un arrondissement. La rubrique Filtres explique tout.',
@@ -12128,6 +12138,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
@@ -12137,7 +12148,6 @@ const HELP = [
     '{git-commit-horizontal} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
     '{git-commit-horizontal} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
     '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
-    '{git-commit-horizontal} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

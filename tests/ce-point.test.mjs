@@ -16,9 +16,12 @@ test('la page : la même que pour une adresse, un rond tant qu\'elle est ouverte
   const f = app.slice(app.indexOf('function openPointAt('), app.indexOf('// Résultats d\'adresse imprécis'));
   assert.match(f, /openSpot\(\{ icon: 'map-pin', title: label \|\| 'Ce point', kicker: 'Point de la carte'/);
   assert.match(f, /add: \{ name: '' \}/);
-  assert.match(f, /onClose: \(\) => pointLayer\.clearLayers\(\)/);
-  assert.match(f, /class="peek-pin"/);
-  assert.match(app, /\), \{ tall: true, name: key, again, onClose \}\);/);
+  // v420 : le rond passe par openSpot (`pin: true`), commun avec l'adresse de la loupe ; il part à la fermeture
+  assert.match(f, /pin: true/);
+  const pinFn = app.slice(app.indexOf('function showPointPin('), app.indexOf('function openPointAt('));
+  assert.match(pinFn, /class="peek-pin"/);
+  assert.match(app, /const closing = pin \? \(\) => \{ pointLayer\.clearLayers\(\); onClose\?\.\(\); \} : onClose;/);
+  assert.match(app, /\), \{ tall: true, name: key, again, onClose: closing \}\);/);
 });
 
 test('Confidentialité dit que le point touché part à l\'IGN', () => {
