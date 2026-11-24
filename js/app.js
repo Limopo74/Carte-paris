@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '21 novembre 2026 (376)';
+const VERSION = '23 novembre 2026 (377)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -384,6 +384,10 @@ const named = (label, fn) => Object.assign(fn, { label });
 const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine'], [openArtPlaces, 'Grands lieux'], [openCircuits, 'Circuits']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
+/** v365 (mes choix 1A 2A 3A du 21 nov.) : une roue dentée dans le titre ouvre les réglages de l'écran ; leur retour y ramène (`back`, nommé).
+ *  Le dernier mot du titre et la roue restent ensemble : la roue est toujours au bout du titre, jamais seule à la ligne. */
+const settingsGear = (section, label, back) => el('button', { type: 'button', class: 'title-maj', 'aria-label': label, title: label, onclick: () => openSettings(section, back) }, ico('settings', { size: 18 }));
+const withGear = (text, gear) => { const s = String(text).trimEnd(); const i = s.lastIndexOf(' '); return [s.slice(0, i + 1), el('span', { class: 'title-tail' }, s.slice(i + 1), gear)]; };
 /** Barre collée en bas de la feuille : le retour (et Enregistrer) reste sous le pouce même sur une page longue. */
 const foot = (...kids) => { const k = kids.flat().filter(Boolean); return k.length ? el('div', { class: 'sheet-foot' }, ...k) : null; };
 
@@ -1047,7 +1051,7 @@ function openChipsMore() {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, sub(x))),
       opens ? el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›') : el('span', { class: `switch${x.active ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     }),
-    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openSettings('barre') }, ico('panel-top'), 'Choisir ce qui va dans Plus'),
+    el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openSettings('barre', named('Plus', openChipsMore)) }, ico('panel-top'), 'Choisir ce qui va dans Plus'), // v365 : le retour ramène à Plus
   ), { name: 'chips-more', again: openChipsMore, tall: true });
 }
 
@@ -1875,7 +1879,7 @@ function openSeenPhotos(from = null) {
   ]);
   openSheet([ico('images'), ' Mes Vu', ' ', el('span', { class: 'title-tail' }, 'en passant', // le nombre est sous « Tout » : le titre tient sur une ligne
     /* v354 (ma demande du 21 nov.) : Réglages → Vu en passant en 1 appui, comme la flèche de mise à jour à côté de « Réglages » (v342) */
-    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Réglages de Vu en passant', title: 'Réglages de Vu en passant', onclick: () => openSettings('vu') }, ico('settings', { size: 18 })))], el('div', { class: 'stack' },
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Réglages de Vu en passant', title: 'Réglages de Vu en passant', onclick: () => openSettings('vu', named('Mes Vu en passant', again)) }, ico('settings', { size: 18 })))] /* v365 : le retour ramène ici */, el('div', { class: 'stack' },
     all.length ? null : el('p', { class: 'empty' }, 'Aucune photo prise en passant pour l\'instant : une photo, une ligne, et elle arrive ici.'),
     all.length ? null : el('button', { type: 'button', class: 'btn big c-add solid', onclick: captureSeen }, ico('camera'), 'Vu en passant'), // v365
     tiles, subChips, une, ...grid,
@@ -3935,7 +3939,8 @@ function renderNear(fit = false) {
         el('p', { class: 'help tip' }, `Listes tenues à la main d'après paris.fr et le site du Syndicat des boulangers du Grand Paris, vérifiées le ${BAGUETTES_CHECKED}. Les 10 premiers de chaque année, adresses de Paris seulement ; croissant 2026 : seulement la gagnante (le Syndicat n'a pas mis sa liste en ligne). Un prix vaut pour l'adresse primée, pas pour les autres boutiques de la même enseigne. Les heures d'ouverture ne sont pas connues ici.`));
     }
   }
-  openSheet([ico('map-pinned'), ` ${nearTitle()}`], body, { name: 'near', again: nearAgain });
+  // v365 (mes choix 1A 2A) : la roue ouvre Distances et durées (TTB, passages couverts, Y aller) ; son retour revient ici
+  openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle(), settingsGear('distances', 'Régler les distances', named('Autour de moi', nearAgain)))], body, { name: 'near', again: nearAgain });
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
   if (fit) {
     const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
@@ -6628,6 +6633,8 @@ async function openEvents(start = null) {
   const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties'];
+  // v377 (mes choix 1A 2A du 21 nov., puis A du 23 nov.) : la roue vient au bout du titre, après l'image « Photos dans Sorties » (v370) qui ne bouge pas
+  const gear = settingsGear('distances', 'Régler la distance des sorties', named('Sorties', () => openEvents()));
   if (eventsMode === 'navigo' && state.navigo === false) eventsMode = 'all'; // v282 : onglet masqué, on repart de Tout
   if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
   else if (!eventsCache || eventsCache.day !== day) {
@@ -6795,7 +6802,7 @@ async function openEvents(start = null) {
     'aria-label': photosOn ? 'Photos dans Sorties : allumé. Éteindre' : 'Photos dans Sorties : éteint. Allumer', title: photosOn ? 'Photos affichées' : 'Photos masquées',
     onclick: () => { state.evThumbs = !photosOn; persist(); toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre'); openEvents(); } },
   ico(photosOn ? 'image-full' : 'image', { size: 18 }));
-  openSheet(photoBtn ? [...title, photoBtn] : title, el('div', { class: 'stack ev-page' },
+  openSheet([...title, photoBtn, gear].filter(Boolean), el('div', { class: 'stack ev-page' },
     seg, // les onglets restent toujours à la même place
     ctx,
     /* v212 : Chercher, sous le point de départ et Carte, seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) */
@@ -8394,7 +8401,7 @@ function openCircuit(c, back) {
   const self = named(c.titre, again);
   const pbs = notesOf(state.circuitNotes, c.id);
   const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
-  openSheet([ico('signpost'), ` ${c.titre}`], el('div', { class: 'stack' },
+  openSheet([ico('signpost'), ' ', ...withGear(c.titre, settingsGear('distances', 'Régler la distance de mes lieux au tracé', self))], el('div', { class: 'stack' }, // v365 (mes choix 1A 2A)
     isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
     c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : c.base ? 'Ta version de ce circuit' : (myCircuitsList().find((x) => x.id === c.myId)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.myId).by}` : 'Mon circuit')) : null,
     revisedLine(c),
@@ -9080,7 +9087,13 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
 const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'];
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
-function openSettings(section = null) {
+/** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
+ *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
+let settingsFrom = null;
+function openSettings(section = null, from = null) {
+  if (from) settingsFrom = { section, back: from };
+  else if (!section || section === 'autres') settingsFrom = null;
+  const ret = settingsFrom?.section === section ? settingsFrom.back : null;
   const rings = el('input', { type: 'text', inputmode: 'numeric', value: state.rings.join(', '), 'aria-describedby': 'ringsHelp' });
   const minRings = el('input', { type: 'text', inputmode: 'numeric', value: state.minuteRings.join(', ') });
   const meInput = el('input', { type: 'text', maxlength: '30', value: state.me ?? '', autocomplete: 'given-name', placeholder: 'Ton prénom ou un pseudo' });
@@ -9098,8 +9111,8 @@ function openSettings(section = null) {
   })();
   // v322 : les pages rangées dans « Autres réglages » y ramènent
   const inOthers = OTHER_SECTIONS.includes(section);
-  const back = inOthers ? () => openSettings('autres') : () => openSettings();
-  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, inOthers ? '← Autres réglages' : '← Réglages'));
+  const back = ret ? () => { settingsFrom = null; ret(); } : inOthers ? () => openSettings('autres') : () => openSettings();
+  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, ret ? `← ${backLabel(ret)}` : inOthers ? '← Autres réglages' : '← Réglages'));
   const unsaved = state.backup?.n ?? 0;
   const saveSummary = backupSummary();
 
@@ -11406,6 +11419,7 @@ const HELP = [
     '**Partager l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
+    '{settings} **La petite roue à côté d\'un titre** : dans Sorties, Autour de moi, la page d\'un circuit et Mes Vu en passant, elle ouvre les réglages de cet écran (Distances et durées, ou Vu en passant). « ← » en bas te ramène à l\'écran d\'où tu viens.',
     '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
@@ -11453,6 +11467,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
     '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
@@ -11462,7 +11477,6 @@ const HELP = [
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
     '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
-    '{list-filter} **Filtres réorganisés** : Filtrer mes lieux (avec Mes listes et son bouton « Nouvelle liste »), puis Afficher aussi sur la carte, puis Arrondissement en dernier. L\'interrupteur « Vu en passant » est parti (une photo n\'est pas un lieu) : tes photos se trient par leur catégorie (Vu en passant, Moments, Vues…) ou se retrouvent toutes dans + Ajouter → Mes Vu en passant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

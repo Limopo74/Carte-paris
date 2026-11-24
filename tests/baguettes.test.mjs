@@ -50,6 +50,6 @@ test('l\'appli : le bloc n\'apparaît que s\'il y a une boulangerie à la distan
   const i = app.indexOf('const prized = prizedNear(origin, maxRing, distanceM);');
   assert.ok(i > 0);
   assert.ok(app.indexOf('if (state.showTtb && ttbList().length) {') < i, 'après le bloc TTB : ne le pousse pas');
-  assert.ok(i < app.indexOf("openSheet([ico('map-pinned'), ` ${nearTitle()}`], body"));
+  assert.ok(i < app.indexOf("openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle()"));
   assert.match(app.slice(i, i + 400), /if \(prized\.length\)/);
 });

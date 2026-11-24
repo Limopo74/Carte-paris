@@ -9,5 +9,5 @@ const mosaic = app.slice(app.indexOf('function openSeenPhotos('), app.indexOf('f
 
 test('La roue du titre de Mes Vu en passant ouvre Réglages → Vu en passant', () => {
   assert.match(mosaic, /el\('span', \{ class: 'title-tail' \}, 'en passant',/);
-  assert.match(mosaic, /class: 'title-maj', 'aria-label': 'Réglages de Vu en passant'[^\n]*onclick: \(\) => openSettings\('vu'\) \}, ico\('settings', \{ size: 18 \}\)/);
+  assert.match(mosaic, /class: 'title-maj', 'aria-label': 'Réglages de Vu en passant'[^\n]*onclick: \(\) => openSettings\('vu', named\('Mes Vu en passant', again\)\) \}, ico\('settings', \{ size: 18 \}\)/);
 });

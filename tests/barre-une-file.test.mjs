@@ -28,7 +28,7 @@ test('Barre du haut et Catégories et listes : deux pages', () => {
   assert.match(app, /openSheet\(\[ico\('panel-top'\), ' Barre du haut'\]/);
   const cat = app.slice(app.indexOf("openSheet([ico('tags'), ' Catégories et listes']"), app.indexOf("name: 'settings:categories'"));
   assert.ok(!cat.includes('topSeg('), 'plus de Barre / Plus / Masqué dans Catégories et listes');
-  assert.match(app, /openSettings\('barre'\) \}, ico\('panel-top'\), 'Choisir ce qui va dans Plus'\)/);
+  assert.match(app, /openSettings\('barre', named\('Plus', openChipsMore\)\) \}, ico\('panel-top'\), 'Choisir ce qui va dans Plus'\)/);
 });
 
 test('Vu en passant toujours dans Barre du haut, créée par « Barre » ou « Plus »', () => {
