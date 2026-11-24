@@ -629,6 +629,23 @@ ol.items { padding: 0; }
 .arr.l1 { background: #A9DDB6; color: #123d1b; border: 2px solid #3f9553; }
 .arr.l2 { background: #4FAE66; color: #06200c; border: 2px solid #2f7f43; }
 .arr.l3 { background: #1B6129; color: #fff; border: 2px solid #1B6129; }
+/* v426 : Mon journal en calendrier (en tête de Mon Paris). Un jour où il s'est passé quelque chose = un bouton avec un point encre dessous ;
+   les autres jours, du texte gris, pas touchables ; aujourd'hui souligné. Cases de 46 px de haut (45 de large à 360 px), 7 colonnes qui suivent la largeur. */
+.cal { display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--ink); padding-top: 8px; }
+.cal-nav { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 8px; }
+.cal-arrow { padding: 0; min-width: 48px; }
+.cal-title { display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.2; }
+.cal-name { font-size: var(--t15); font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.cal-name .lucide { width: 18px; height: 18px; }
+.cal-month { font-family: var(--display); font-size: var(--t18); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 46px; gap: 2px; }
+.cal-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-bottom: -4px; text-align: center; font-size: var(--t13); color: var(--muted); }
+.cal-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: var(--t15); color: var(--muted); border-radius: var(--r); }
+.cal-on { background: var(--bg); color: var(--ink); border: 2px solid var(--btn-bd); font: inherit; font-size: var(--t16); padding: 0; cursor: pointer; }
+.cal-on b { font-weight: 800; line-height: 1; }
+.cal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.cal-today { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; color: var(--ink); font-weight: 800; }
+.cal-today b { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .arr-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .arr-legend .arr { width: 18px; height: 18px; border-radius: var(--r); display: inline-block; }
 ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: var(--t16); line-height: 1.4; }

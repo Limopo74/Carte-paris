@@ -45,6 +45,7 @@ import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, clea
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
+import { byDay, monthCells, addMonth, monthRange, clampMonth, sameMonth, monthLabel, dayLabel } from './calendrier.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
@@ -72,7 +73,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (425)';
+const VERSION = '25 novembre 2026 (426)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -893,6 +894,55 @@ function openDayNote(back = null, day = dayKey()) {
 /** Mon journal : mes passages et mon carnet de sorties de l'agenda (v158), du plus récent au plus ancien. */
 const journalItems = () => [...allPassages(state.points), ...cleanOutings(state.outings).map((o) => ({ o, at: o.at, text: o.text || o.place || '', photo: o.photo, stars: o.stars })), ...cleanNotes(state.notes).map((n) => ({ n, at: n.at, text: n.text }))]
   .sort((a, b) => b.at - a.at);
+/** Une ligne de Mon journal : note du jour, sortie de l'agenda ou passage ; `back` y ramène (journal en liste ou jour du calendrier). */
+const journalRow = (x, back) => (x.n ? passageRow(x, () => openDayNote(back, x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, back), x.o.name)
+  : passageRow(x, () => openDetail(x.p.id, back), x.p.name));
+
+/* ---------- Mon journal en calendrier (v426, mes choix 0C 1A 2A 3A 4A du 25 nov.) : en tête de Mon Paris, un mois à la fois ;
+   un point sous chaque jour où Mon journal a quelque chose ; ‹ › changent de mois ; « Liste » ouvre le journal d'avant. ---------- */
+let calMonth = null; // gardé tant qu'on va et vient depuis Mon Paris ; remis au mois en cours quand on rouvre Mon Paris par un bouton
+function journalCalendar() {
+  const days = byDay(journalItems());
+  const range = monthRange(days.keys());
+  const now = { y: new Date().getFullYear(), m: new Date().getMonth() };
+  const cur = calMonth = clampMonth(calMonth ?? now, range);
+  const go = (delta) => { calMonth = addMonth(cur, delta); openMyParis(); requestAnimationFrame(() => document.querySelector(`.cal-nav [data-dir="${delta}"]`)?.focus()); };
+  const prevOff = sameMonth(cur, range.min), nextOff = sameMonth(cur, range.max);
+  const today = dayKey();
+  const back = named('Mon Paris', () => openMyParis());
+  let inMonth = 0;
+  const cells = monthCells(cur.y, cur.m).map((c) => {
+    if (!c) return el('span', { class: 'cal-day cal-out', 'aria-hidden': 'true' });
+    const list = days.get(c.day) ?? [];
+    inMonth += list.length;
+    const cls = `cal-day${c.day === today ? ' cal-today' : ''}`;
+    const label = `${dayLabel(c.day)}${c.day === today ? ' (aujourd\'hui)' : ''}`;
+    return list.length
+      ? el('button', { type: 'button', class: `${cls} cal-on`, 'aria-label': `${label} : ${plural(list.length, 'entrée', 'entrées')}`, onclick: () => openCalDay(c.day, back) }, el('b', {}, String(c.d)), el('span', { class: 'cal-dot', 'aria-hidden': 'true' }))
+      : el('span', { class: cls, 'aria-label': label }, String(c.d));
+  });
+  return el('section', { class: 'cal', 'aria-label': 'Mon journal, mois par mois' },
+    el('div', { class: 'cal-nav' },
+      el('button', { type: 'button', class: 'btn cal-arrow', 'data-dir': '-1', 'aria-label': 'Mois précédent', disabled: prevOff ? '' : null, onclick: () => go(-1) }, ico('chevron-left')),
+      el('span', { class: 'cal-title' }, el('span', { class: 'cal-name' }, ico('book-open-text'), ' Mon journal'), el('b', { class: 'cal-month', 'aria-live': 'polite' }, monthLabel(cur))), // v426 : le titre sur deux lignes entre les flèches, pour voir le mois entier à l'ouverture
+      el('button', { type: 'button', class: 'btn cal-arrow', 'data-dir': '1', 'aria-label': 'Mois suivant', disabled: nextOff ? '' : null, onclick: () => go(1) }, ico('chevron-right'))),
+    el('div', { class: 'cal-head', 'aria-hidden': 'true' }, ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d) => el('span', {}, d))),
+    el('div', { class: 'cal-grid' }, cells),
+    inMonth ? null : el('p', { class: 'help' }, days.size ? 'Rien dans ton journal ce mois-ci.' : 'Ton journal est vide pour l\'instant.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => openJournal() }, ico('list'), 'Liste'),
+  );
+}
+/** Un jour du calendrier : ce que Mon journal a ce jour-là. */
+function openCalDay(day, back) {
+  const again = () => openCalDay(day, back);
+  const list = byDay(journalItems()).get(day) ?? [];
+  if (!list.length) { back(); return; } // tout effacé depuis : retour au calendrier
+  openSheet([ico('book-open-text'), ` ${dayLabel(day)}`], el('div', { class: 'stack' },
+    el('ul', { class: 'items' }, list.map((x) => journalRow(x, named(dayLabel(day), again)))),
+    foot(backBtn(back)),
+  ), { tall: true, name: `jour:${day}`, again });
+}
+
 function openJournal(back = named('Mon Paris', () => openMyParis())) {
   const again = () => openJournal(back);
   const all = journalItems();
@@ -908,8 +958,7 @@ function openJournal(back = named('Mon Paris', () => openMyParis())) {
     all.length ? null : el('button', { type: 'button', class: 'btn c-add', onclick: () => openDayNote(named('Mon journal', again)) }, ico('notebook-pen'), 'Note du jour'), // v365 : un bouton plutôt que le chemin
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label.charAt(0).toUpperCase() + g.label.slice(1)), el('span', {}, String(g.items.length))),
-      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => (x.n ? passageRow(x, () => openDayNote(named('Mon journal', again), x.n.day), 'Note du jour') : x.o ? passageRow(x, () => openOuting(x.o.id, named('Mon journal', again)), x.o.name)
-        : passageRow(x, () => openDetail(x.p.id, named('Mon journal', again)), x.p.name)))),
+      el('ul', { class: 'items' }, g.items.slice(0, 60).map((x) => journalRow(x, named('Mon journal', again)))),
     ]),
     foot(backBtn(back)),
   ), { tall: true, name: 'journal', again });
@@ -5599,7 +5648,7 @@ map.on('click', (e) => {
 
 let myParisBack = 'settings';
 async function openMyParis(from = null) {
-  if (from) myParisBack = from;
+  if (from) { myParisBack = from; calMonth = null; } // v426 : rouvert par un bouton, le calendrier repart du mois en cours
   await loadArr();
   const by = new Map();
   const mine = state.points.filter((p) => !p.owner); // les lieux d'un proche ne colorent pas mon Paris
@@ -5626,10 +5675,7 @@ async function openMyParis(from = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('alarm-clock')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon planning'), el('span', { class: 'menu-sub' }, planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue')),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
-    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openJournal() },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('book-open-text')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon journal'), el('span', { class: 'menu-sub' }, (() => { const k = cleanNotes(state.notes).length; const n = journalItems().length - k; return [n ? plural(n, 'impression', 'impressions') : '', k ? plural(k, 'note', 'notes') : ''].filter(Boolean).join(' · ') || 'Tes impressions, tes sorties et tes notes'; })())),
-      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
+    journalCalendar(), // v426 (mon choix 3A) : à la place de la ligne « Mon journal », qui reste en « Liste »
     el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
     el('div', { class: 'arr-grid' }, tiles),
     el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
@@ -5639,6 +5685,7 @@ async function openMyParis(from = null) {
     ...myStats(),
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
+      : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
 }
@@ -10585,7 +10632,7 @@ function openSettings(section = null, from = null) {
     // v322 : ligne d'alerte (seulement quand une donnée est à mettre à jour), avec la sauvegarde
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
-    row('map', 'Mon Paris', 'Planning, arrondissements explorés, marche du jour', () => openMyParis('settings'), false, 'c-disc'),
+    row('map', 'Mon Paris', 'Planning, journal, arrondissements, marche', () => openMyParis('settings'), false, 'c-disc'),
     row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
@@ -11664,6 +11711,7 @@ document.getElementById('btnHome').addEventListener('click', goHome);
 document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
+document.getElementById('btnMyParis').addEventListener('click', () => openMyParis('map'));
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
 document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
 /** v382 (mon choix 7A du 24 nov.) : les fonds sans clé les plus utiles, en vignettes ; un appui change la carte et revient à la carte.
@@ -11700,6 +11748,7 @@ const TOOL_INFO = {
   circuits: { el: 'btnCircuits', icon: 'signpost', name: 'Circuits de visite', short: 'Circuits' },
   notes: { el: 'btnNotes', icon: 'notebook-pen', name: 'Note du jour (sans lieu)', short: 'Note du jour' },
   vu: { el: 'btnVu', icon: 'camera', name: 'Vu en passant : une photo tout de suite', short: 'Vu en passant' },
+  myparis: { el: 'btnMyParis', icon: 'map', name: 'Mon Paris (journal, planning, chiffres)', short: 'Mon Paris' }, // v426 (mon choix 0C) : arrive dans ⋯ Plus
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
 function applyEssential() {
@@ -12054,7 +12103,8 @@ const HELP = [
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
-    '{map} **Mon Paris** : chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés.',
+    '{map} **Mon Paris** (Autour de moi, ⋯ Plus de la colonne ou {settings}) : en haut, **Mon journal en calendrier**. Un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir. ‹ › changent de mois, « Liste » montre tout le journal.',
+    '**Sous le calendrier**, chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés.',
     '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mon Paris.',
     '**Marche et air** : touche une barre pour le détail du jour.',
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
@@ -12092,7 +12142,7 @@ const HELP = [
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
     '{footprints} **Impression** : le jour, quelques mots, une photo. Sous « En quelques mots », des mots tout prêts à toucher selon la catégorie ({settings} → Autres réglages → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
-    '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
+    '**Toutes tes impressions** : Mon Paris → Mon journal (le calendrier, ou « Liste »), avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Autres réglages → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',
     '{sun} **Le bon moment**, dans Modifier : Matin, Midi, Soir, Week-end, Printemps… Quand c\'est le moment, à moins de 10 min, « Maintenant » te le dit.',
@@ -12205,6 +12255,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
     '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
@@ -12214,7 +12265,6 @@ const HELP = [
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
     '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
-    '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -1,6 +1,6 @@
 // v321 (mes choix du 20 nov.) : préparer le démarrage d'un proche. Ce que je choisis pour lui voyage dans le lien
 // (…/Carte-paris/#depart=…), compressé ; jamais mes lieux, ma liste TTB, ma clé CARTO, ni le nom de la préparation.
-import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, FRESH_HIDDEN_CHIPS, FRESH_TOOLS, DEFAULT_MORE_CHIPS, DEFAULT_CATEGORIES } from './store.js';
+import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, withNewInMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, FRESH_HIDDEN_CHIPS, FRESH_TOOLS, DEFAULT_MORE_CHIPS, DEFAULT_CATEGORIES } from './store.js';
 import { cleanFicheHidden } from './reglages.js';
 import { SEEN_CAT } from './passage.js';
 
@@ -47,7 +47,7 @@ export function cleanPreset(o) {
     pace: cleanPace({ mode: o.pace }).mode, side: o.side === 'left' ? 'left' : 'right', labels: o.labels === true, navigo: o.navigo !== false,
     hiddenChips, moreChips: Array.isArray(o.moreChips) ? cleanMoreChips(o.moreChips, hiddenChips) : d.moreChips,
     mapTools: Array.isArray(o.mapTools) ? normalizeTools(o.mapTools) : d.mapTools, hiddenTools,
-    moreTools: Array.isArray(o.moreTools) ? cleanMore(o.moreTools, hiddenTools) : d.moreTools,
+    moreTools: Array.isArray(o.moreTools) ? cleanMore(withNewInMore(o.moreTools, o.mapTools), hiddenTools) : d.moreTools, // v426 : un bouton plus récent que la préparation (Mon Paris) arrive dans ⋯ Plus, jamais sur la carte
     mapStyle: [...FREE_STYLES, ...KEY_STYLES].includes(o.mapStyle) && MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : d.mapStyle,
     withKey: o.withKey === true && KEY_STYLES.includes(o.mapStyle), ...(cleanCartoKey(o.carto) && KEY_STYLES.includes(o.mapStyle) ? { carto: cleanCartoKey(o.carto) } : {}),
     startView: PREP_STARTS.includes(o.startView) ? o.startView : d.startView, chipOrder: cleanChipOrder(o.chipOrder), chipIcons: o.chipIcons === true, // v349 (mes choix 1A, 4A, 5A)

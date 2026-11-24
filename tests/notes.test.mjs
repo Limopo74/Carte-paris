@@ -91,7 +91,7 @@ test('les notes ne partent jamais chez un proche et ne viennent jamais d\'un pro
 });
 
 test('bouton « Note du jour » : avant Ma position, rangé dans Plus, arrive dans Plus chez qui avait déjà ses boutons', () => {
-  assert.deepEqual(MAP_TOOLS.slice(-2), ['notes', 'locate']);
+  assert.deepEqual(MAP_TOOLS.slice(-3), ['notes', 'myparis', 'locate']); // v426 : Mon Paris entre Note du jour et Ma position
   assert.ok(DEFAULT_MORE.includes('notes'));
   assert.ok(NEW_IN_MORE.includes('notes'));
   const s = memStorage();

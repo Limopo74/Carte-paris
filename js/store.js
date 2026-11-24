@@ -290,7 +290,7 @@ export const FRESH_HIDDEN_CHIPS = ['ttb', 'fav'];
 export const FRESH_FICHE_HIDDEN = ['uber'];
 /** Colonne de la carte d'un nouveau venu (3e capture, 18 h 53) : Ma position en tête, Paris, M, Sorties, Mon planning ;
  * sous ⋯ Plus, dans cet ordre : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué. */
-export const FRESH_TOOLS = { mapTools: ['vu', 'locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes'] };
+export const FRESH_TOOLS = { mapTools: ['vu', 'locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes', 'myparis'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes', 'myparis'] };
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
@@ -791,11 +791,12 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', '
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
 // v381 (mon choix 9A du 24 nov.) : « Vu en passant » (l'appareil photo en un appui), tout en haut de la colonne
-export const MAP_TOOLS = ['vu', 'paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'notes', 'locate'];
+// v426 (mon choix 0C du 25 nov.) : Mon Paris, rangé dans « Plus » (il reste aussi dans Autour de moi et Réglages)
+export const MAP_TOOLS = ['vu', 'paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'notes', 'myparis', 'locate'];
 /** Boutons rangés au départ dans « Plus » (un appui sur ⋯ les montre, avec leur nom). */
-export const DEFAULT_MORE = ['pratique', 'velib', 'home', 'circuits', 'notes'];
+export const DEFAULT_MORE = ['pratique', 'velib', 'home', 'circuits', 'notes', 'myparis'];
 /** Boutons arrivés après coup et rangés d'office dans « Plus » chez qui avait déjà ses boutons (v168 : Circuits ; v205 : Note du jour). */
-export const NEW_IN_MORE = ['circuits', 'notes'];
+export const NEW_IN_MORE = ['circuits', 'notes', 'myparis']; // v426 : Mon Paris
 /** Ajoute à « Plus » les boutons nouveaux que la disposition gardée ne connaissait pas encore (rien ne s'ajoute sur la carte tout seul). */
 export function withNewInMore(more, savedTools) {
   const list = Array.isArray(more) ? [...more] : [];

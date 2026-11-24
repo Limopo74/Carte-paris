@@ -13,9 +13,10 @@ test('chez qui a déjà ses boutons : Vu en passant arrive en haut de la colonne
   const before = ['paris', 'metro', 'sorties', 'planning', 'pratique', 'velib', 'home', 'circuits', 'notes', 'locate'];
   const after = normalizeTools(before);
   assert.equal(after[0], 'vu');
-  assert.deepEqual(after.slice(1), before);
+  assert.deepEqual(after.slice(1).filter((t) => t !== 'myparis'), before); // v426 : Mon Paris, nouveau, arrive juste avant Ma position
   const st = loadState(mem(JSON.stringify({ points: [], layoutV: 4, mapTools: before, moreTools: ['velib', 'home'], hiddenTools: [] })));
   assert.ok(!st.moreTools.includes('vu') && !st.hiddenTools.includes('vu'), 'sur la carte, pas dans ⋯ Plus');
+  assert.ok(st.moreTools.includes('myparis'), 'v426 : Mon Paris dans ⋯ Plus');
   assert.ok(!DEFAULT_MORE.includes('vu') && !NEW_IN_MORE.includes('vu'));
 });
 
