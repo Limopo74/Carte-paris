@@ -111,3 +111,18 @@ export function arrProgress(points, from) {
   for (const p of points) if (p.done && p.arr && !Number.isFinite(p.visited)) before.add(p.arr);
   return { now: now.size, gained: Math.max(0, now.size - before.size) };
 }
+
+/** v378 (mon choix 11A du 24 nov.) : Mes chiffres pour la sauvegarde : la marche et l'air de chaque jour, jamais les fonctions
+ *  utilisées (comme « Ce que j'utilise », elles ne quittent pas le téléphone). */
+export function journalForBackup(j) {
+  const c = cleanJournal(j);
+  const days = Object.fromEntries(Object.entries(c.days).filter(([, v]) => v.m > 0).map(([k, v]) => [k, { m: v.m, air: v.air }]));
+  return Object.keys(days).length ? { days } : null;
+}
+
+/** Restauration : un jour déjà sur le téléphone garde ses chiffres (rien n'est compté deux fois), un jour absent arrive. */
+export function mergeJournal(mine, theirs) {
+  const a = cleanJournal(mine); const b = cleanJournal(theirs);
+  for (const [k, v] of Object.entries(b.days)) if (!a.days[k]) a.days[k] = { m: v.m, air: v.air, use: {} };
+  return a;
+}

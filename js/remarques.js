@@ -93,3 +93,8 @@ export function remarksText(remarks) {
   ].filter(Boolean).join('\n'));
   return [head, ...blocks].join('\n');
 }
+
+/** v378 (mon choix 10A du 24 nov.) : les remarques d'une sauvegarde rejoignent les miennes (même id = une seule), rien n'est retiré. */
+export function mergeRemarks(mine, theirs) {
+  return cleanRemarks([...(Array.isArray(mine) ? mine : []), ...(Array.isArray(theirs) ? theirs : [])]);
+}

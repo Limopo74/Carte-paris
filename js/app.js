@@ -1,6 +1,6 @@
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
-import { DEPART_KEY, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, KEY_STYLES, PREP_STARTS, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
+import { DEPART_KEY, mergePreps, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, KEY_STYLES, PREP_STARTS, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
 import { busHome, searchBusStops, busPlace, busLines, findBusStop } from './bus.js';
 import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passesNear, busLineSub, refsText, labelSpots, stopMarks, dayText as busDayText, addBusLine, removeBusLine, BUS_LINES_MAX, linesNear, looksLikeLine } from './buslines.js';
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
@@ -43,7 +43,7 @@ import { remoteVersionOf, isNewer, shouldCheck, versionNote } from './nouvelle-v
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
-import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
+import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption } from './metroplan.js';
@@ -57,7 +57,7 @@ import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageRe
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
 import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
-import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, readTest, addRemark, markSent, platformInfo, contextLine, remarksText } from './remarques.js';
+import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, readTest, addRemark, markSent, mergeRemarks, platformInfo, contextLine, remarksText } from './remarques.js';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (379)';
+const VERSION = '24 novembre 2026 (380)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1444,7 +1444,7 @@ function setSheetMini(on) {
 
 let here = null; // dernière position GPS : { lat, lng, acc, time }
 let markets = null; // marchés de la Ville (liste gardée sur le téléphone)
-// Mes chiffres : totaux par jour, sur le téléphone seulement (pas dans la sauvegarde, jamais le tracé)
+// Mes chiffres : totaux par jour, sur le téléphone (v378 : marche et air dans ma sauvegarde, sans les fonctions utilisées ; jamais le tracé)
 const JOURNAL_KEY = 'carte-paris.journal';
 let journal = (() => { try { return pruneJournal(cleanJournal(JSON.parse(storage.getItem(JOURNAL_KEY) ?? 'null'))); } catch { return cleanJournal(null); } })();
 let journalSavedAt = 0;
@@ -10171,6 +10171,14 @@ function openFavStyle() {
 }
 
 
+/** v378 (mes choix 10A et 11A du 24 nov.) : ce qui vient d'une de mes sauvegardes en plus des lieux ; tout s'ajoute, rien ne remplace. */
+function restoreExtras(text) {
+  let f; try { f = JSON.parse(text); } catch { return; }
+  if (Array.isArray(f?.remarks) && f.remarks.length) { testState = { ...testState, remarks: mergeRemarks(testState.remarks, f.remarks) }; saveTest(); }
+  if (Array.isArray(f?.preps) && f.preps.length) savePreps(mergePreps(prepsNow(), f.preps));
+  if (f?.journal) { journal = mergeJournal(journal, f.journal); saveJournal(true); }
+}
+
 /** Range les photos contenues dans un fichier de sauvegarde (seulement celles des lieux présents). */
 async function importPhotos(text, st, mine = true) {
   let photos, file;
@@ -10374,6 +10382,11 @@ function backupSummary() {
 async function backupText(withPhotos, withTtb = false) {
   const obj = JSON.parse(exportJSON(state));
   if (withTtb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) obj.ttb = t; } /* v179 : la liste et mes marques */
+  // v378 (mes choix 10A et 11A du 24 nov.) : mes remarques, mes préparations pour un proche et Mes chiffres (marche et air, sans les fonctions utilisées) ;
+  // jamais dans le fichier pour un proche ; « Ce que j'utilise » et la clé CARTO restent sur le téléphone
+  if (testState.remarks.length) obj.remarks = testState.remarks;
+  const preps = prepsNow(); if (preps.length) obj.preps = preps;
+  const jb = journalForBackup(journal); if (jb) obj.journal = jb;
   if (withPhotos) {
     obj.photos = {};
     for (const id of [...state.points.flatMap((p) => photoIds(p)), ...cleanOutings(state.outings).map((o) => o.photo).filter(Boolean)]) {
@@ -10706,6 +10719,7 @@ function importText(text, owner) {
     state = { ...r.state, ok: state.ok };
     importPhotos(text, state, !owner);
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
+    if (!owner) restoreExtras(text); // v378 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
       let at = Date.now();
@@ -11499,7 +11513,7 @@ const HELP = [
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
     '{chart-no-axes-column} **Ce que j\'utilise** : {settings} → Autres réglages, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
-    '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles restent hors sauvegarde.',
+    '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles partent dans ta sauvegarde, jamais chez un proche.',
     '**Boutons, barre du haut, style, fond sombre** : la rubrique Se repérer explique tout.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -11542,6 +11556,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
     '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
     '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
@@ -11552,7 +11567,6 @@ const HELP = [
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
-    '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12019,7 +12033,7 @@ if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense �
 updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés : due même sans nouveau changement)
 
 /* ---------- Période de test (v313, mes choix 1A à 6A du 20 nov.) : le porte-voix, une remarque, le menu de partage ----------
-   Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js), hors sauvegarde. */
+   Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js) ; dans ma sauvegarde depuis la v378 (mon choix 10A), jamais chez un proche. */
 let testState = readTest((() => { try { return storage.getItem(TEST_KEY); } catch { return null; } })());
 const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } };
 const btnRemark = document.getElementById('btnRemark');
@@ -12082,7 +12096,7 @@ function openRemarks(back) {
       if (!confirm(list.length > 1 ? `Supprimer ces ${list.length} remarques ?` : 'Supprimer cette remarque ?')) return;
       testState = { ...testState, remarks: [] }; saveTest(); toast(list.length > 1 ? 'Remarques supprimées' : 'Remarque supprimée'); again();
     } }, ico('trash-2'), list.length > 1 ? 'Tout supprimer' : 'La supprimer') : null,
-    el('p', { class: 'help' }, 'Gardées sur ce téléphone seulement, hors sauvegarde.'),
+    el('p', { class: 'help' }, 'Gardées sur ce téléphone et dans ta sauvegarde, jamais envoyées seules.'),
     el('p', { class: 'help tip' }, 'Le texte envoyé est prêt à coller dans une conversation avec Claude. Une fois les remarques lues, supprime-les.'),
     foot(backBtn(back)),
   ), { name: 'remarques', again, tall: true });
