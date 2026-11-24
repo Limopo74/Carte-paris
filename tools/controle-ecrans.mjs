@@ -150,11 +150,12 @@ const ECRANS = {
   circuitpassages: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'passages couverts' }).click(); await p.waitForTimeout(400); await feuille(p).locator('h3', { hasText: 'Autres passages' }).scrollIntoViewIfNeeded(); },
   passagecouvert: async (p) => { await ECRANS.circuitpassages(p); await feuille(p).locator('.item-main', { hasText: 'Choiseul' }).click(); await p.waitForTimeout(300); },
   // v237 : le passage est dans mes lieux, avec une photo : « Ma fiche » à la place d'« Ajouter », ma photo sous « Source »
-  // v379 : un de mes lieux avec deux photos ; la fiche, puis la photo touchée (en grand), puis Rangement (« Depuis ma galerie »)
+  // v379 : un de mes lieux avec deux photos ; la fiche, puis la photo touchée (en grand), puis (v424) le choix de Photo
   fichephoto: async (p) => { await avecLieu(p, { id: 'fp', name: 'Cour de test', cat: 'culture', lat: 48.8818, lng: 2.3360, photos: ['ph-fp1', 'ph-fp2'] }); await p.locator('.leaflet-marker-icon[aria-label^="Cour de test"]').click(); await p.waitForTimeout(500); await feuille(p).locator('.fiche-photo button').scrollIntoViewIfNeeded(); },
   impression: async (p) => { await avecLieu(p, { id: 'imp', name: 'Bonito udon', cat: 'resto', lat: 48.8818, lng: 2.3360 }); await p.locator('.leaflet-marker-icon[aria-label^="Bonito udon"]').click(); await p.waitForTimeout(500); await feuille(p).locator('button', { hasText: 'Impression' }).first().click(); await p.waitForTimeout(400); }, // v404 : le titre du champ vaut pour toutes les catégories
   fichephotogrand: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(600); },
-  fichegalerie: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-row', { hasText: 'Rangement' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('.fiche-row', { hasText: 'Depuis ma galerie' }).scrollIntoViewIfNeeded(); },
+  // v424 : « Depuis ma galerie » a quitté Rangement ; le bouton Photo de la fiche ouvre « Ajouter une photo » (galerie ou appareil photo)
+  fichephotochoix: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.row3 button', { hasText: 'Photo' }).click(); await p.waitForTimeout(400); },
   fonds: async (p) => { await p.locator('#btnStyle').click(); await p.waitForTimeout(400); }, // v382 : le petit rond des fonds de carte
   passagemien: async (p) => { await avecLieu(p, { id: 'pc', name: 'Passage Choiseul', lat: 48.86807, lng: 2.33556, covered: true, photos: ['ph-pc'] }); await ECRANS.passagecouvert(p); await feuille(p).locator('.fiche-photo').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   passagemienphoto: async (p) => { await ECRANS.passagemien(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(500); },

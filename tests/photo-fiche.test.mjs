@@ -14,9 +14,8 @@ test('la photo de la fiche s\'ouvre en grand, pas dans la page des photos', () =
   assert.match(v, /viewPhoto\(ids, i, p\.name, \{ del:/, 'Supprimer sous la photo, avec sa question');
 });
 
-test('Rangement : « Depuis ma galerie » juste au-dessus de Supprimer, sans appareil photo', () => {
-  const g = app.indexOf("row('image-plus', 'Depuis ma galerie'");
-  assert.ok(g > 0 && g < app.indexOf("row('trash-2', delLabel"));
+test('v424 (mon choix 2A du 25 nov.) : plus de « Depuis ma galerie » dans Rangement ; la galerie reste sans appareil photo', () => {
+  assert.ok(!app.includes("row('image-plus', 'Depuis ma galerie'"));
   const f = app.slice(app.indexOf('function galleryPhoto('), app.indexOf('function galleryPhoto(') + 700);
   assert.ok(f.includes("accept: 'image/*', multiple: true") && !f.includes('capture'));
 });
