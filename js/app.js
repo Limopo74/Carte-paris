@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (390)';
+const VERSION = '24 novembre 2026 (391)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -335,6 +335,11 @@ const favMark = (p) => {
   m.style.color = state.fav.color;
   return m;
 };
+/** v391 : petite marque « avec photo » dans les listes de mes lieux (ma photo sur le lieu). Pas pour une note prise en passant
+ *  (elle a toujours sa photo) ni pour un lieu d'un proche (ses photos ne partent jamais). Début de la petite ligne grise. */
+const photoMark = (p) => (p.photos?.length && !isPass(p) && !p.owner
+  ? el('span', { class: 'photo-mark', role: 'img', 'aria-label': p.photos.length > 1 ? `${p.photos.length} photos` : 'Avec photo' }, ico('image', { size: 16 }))
+  : null);
 
 /** Grille de choix (icônes ou couleurs) à boutons pressés. */
 function picker(values, selected, onPick, { colors = false, names = [] } = {}) {
@@ -3683,7 +3688,7 @@ function openSearch(initial = '') {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
+          el('span', { class: 'item-sub' }, photoMark(p), [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
   /* v378 (mes choix 1A 2A 3A du 24 nov.) : un texte qui ressemble à une adresse (« 12 rue de Rivoli ») fait apparaître
@@ -3993,7 +3998,7 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
+          el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${walkMinutes(d)}\u00a0min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
@@ -4238,7 +4243,7 @@ function renderWay(from, dest) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
-          el('span', { class: 'item-sub' }, detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
+          el('span', { class: 'item-sub' }, photoMark(p), detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
       el('a', { class: 'go', href: mapsUrl(p, distanceM(from, p)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
     found.length
       ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
@@ -5360,7 +5365,7 @@ function openArrList(n) {
       catDot(p.cat),
       el('span', { class: 'item-text' },
         el('span', { class: 'item-name' }, favMark(p), p.name),
-        el('span', { class: 'item-sub' }, [p.address || null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))));
+        el('span', { class: 'item-sub' }, photoMark(p), [p.address || null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))));
   openSheet([ico('map'), ` Mes lieux du ${arrOrd(n)}`], el('div', { class: 'stack' },
     pts.length ? null : el('p', { class: 'empty' }, state.points.some(here) ? 'Aucun de tes lieux ici avec les filtres choisis.' : 'Aucun de tes lieux dans cet arrondissement.'),
     pts.length ? null : el('p', { class: 'help' }, 'Touche un autre arrondissement sur la carte.'),
@@ -5663,7 +5668,7 @@ function openDayPicker(selected = null, query = '') {
     });
     return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
-        el('span', { class: 'item-sub' }, busy(p) ? `Prévu ${planText(p.ticket)}` : [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
+        el('span', { class: 'item-sub' }, photoMark(p), busy(p) ? `Prévu ${planText(p.ticket)}` : [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
   };
   const draw = () => {
     const q = fold(input.value.trim());
@@ -8384,7 +8389,7 @@ function openFreeTime() {
     return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, openFreeTime) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
-        el('span', { class: 'item-sub' }, `${fmtWalk(leg)} `, starsText(p.stars), hoursTag(p)))));
+        el('span', { class: 'item-sub' }, photoMark(p), `${fmtWalk(leg)} `, starsText(p.stars), hoursTag(p)))));
   });
   openSheet([ico('hourglass'), ' Temps libre'], el('div', { class: 'stack' },
     el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice([30, 60, 90, 120, 180], freeMin, (v) => (v < 60 ? `${v} min` : `${v / 60} h`.replace('.5', ' h 30').replace(' h h', ' h')), (v) => { freeMin = v; })),
@@ -11672,6 +11677,7 @@ const HELP = [
     '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici (aussi en bas d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle). Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir en grand ; « Supprimer » est sous la photo. Pour en ajouter : {camera} Photo, ou Rangement → Depuis ma galerie. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
+    '{image} **La marque photo** : dans les listes de tes lieux (Autour de moi, la loupe, Sur mon chemin, un arrondissement, la liste du jour, Temps libre), elle dit que le lieu a au moins une de tes photos. Touche le lieu, puis sa photo.',
     '{tags} **Catégories** : {settings} → Catégories et listes. L\'ordre, le nom, l\'icône, la couleur, le nom de l\'historique, celui de « Déjà visité » et la série de mots tout prêts.',
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
@@ -11774,6 +11780,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
     '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
     '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
     '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
@@ -11783,7 +11790,6 @@ const HELP = [
     '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
     '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
     '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
-    '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

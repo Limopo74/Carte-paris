@@ -541,6 +541,7 @@ ol.items { padding: 0; }
 .stars-ro { letter-spacing: 1px; font-size: 13.5px; white-space: nowrap; }
 .stars-ro .off { color: var(--field); }
 .item-sub .stars-ro { margin-right: 4px; }
+.photo-mark { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--ink); } /* v391 : ma photo sur ce lieu */
 
 /* Fiche : grande barre « Y aller » + 3 boutons nommés (proposition E) */
 .btn.go-bar { min-height: var(--h-l); font-size: var(--t18); font-weight: 700; gap: 10px; border-radius: var(--r); }
