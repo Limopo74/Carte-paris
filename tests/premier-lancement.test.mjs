@@ -113,7 +113,7 @@ test('v317 : Très épuré (Positron) et Nuit épurée (Dark Matter) avec la mê
   assert.match(app, /const id = needsKey\(state\.mapStyle\) && !cartoKey\(\) \? 'classic'/, 'sans clé : Classique, jamais un filigrane');
   assert.match(app, /if \(needsKey\(id\) && !cartoKey\(\)\) \{ openCartoKey\(undefined, id\)/);
   const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
-  assert.match(css, /:root\[data-theme="dark"\] #map:not\(\[data-style="darkmatter"\]\) \.leaflet-tile-pane/, 'le mode sombre ne retourne pas une carte déjà sombre');
+  assert.match(css, /:root\[data-theme="dark"\] #map:not\(\[data-style="darkmatter"\]\):not\(\[data-style="photo"\]\) \.leaflet-tile-pane/, 'le mode sombre ne retourne pas une carte déjà sombre');
 });
 
 test('v317 : Style de la carte en deux groupes : « Sans clé » puis « Avec la clé CARTO »', () => {

@@ -154,6 +154,7 @@ const ECRANS = {
   fichephoto: async (p) => { await avecLieu(p, { id: 'fp', name: 'Cour de test', cat: 'culture', lat: 48.8818, lng: 2.3360, photos: ['ph-fp1', 'ph-fp2'] }); await p.locator('.leaflet-marker-icon[aria-label^="Cour de test"]').click(); await p.waitForTimeout(500); await feuille(p).locator('.fiche-photo button').scrollIntoViewIfNeeded(); },
   fichephotogrand: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(600); },
   fichegalerie: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-row', { hasText: 'Rangement' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('.fiche-row', { hasText: 'Depuis ma galerie' }).scrollIntoViewIfNeeded(); },
+  fonds: async (p) => { await p.locator('#btnStyle').click(); await p.waitForTimeout(400); }, // v381 : le petit rond des fonds de carte
   passagemien: async (p) => { await avecLieu(p, { id: 'pc', name: 'Passage Choiseul', lat: 48.86807, lng: 2.33556, covered: true, photos: ['ph-pc'] }); await ECRANS.passagecouvert(p); await feuille(p).locator('.fiche-photo').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   passagemienphoto: async (p) => { await ECRANS.passagemien(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(500); },
   // v237 : une photo prise sur un lieu déjà là sous un autre nom : « La photo ici » (« Y ajouter la photo » avant la v297) au lieu de la perdre

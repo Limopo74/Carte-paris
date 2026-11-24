@@ -10,7 +10,7 @@ export const MSG_MAX = 120;
 export const NAME_MAX = 30;
 export const STEP_KEYS = ['taille', 'pourtoi', 'rentrer', 'position']; // les étapes 2 à 5 du circuit (Bienvenue et « C'est prêt » toujours)
 /** Fonds sans clé. */
-export const FREE_STYLES = ['classic', 'eclairci', 'fr', 'hot', 'pastel', 'night'];
+export const FREE_STYLES = ['classic', 'eclairci', 'fr', 'hot', 'pastel', 'night', 'ign', 'photo'];
 /** v349 (mes choix 2B et 2A du 21 nov.) : les fonds CARTO aussi ; sans clé chez lui, sa carte reste Classique et « C'est prêt »
  * lui propose de demander la sienne. Ma clé ne part dans le lien que si je coche « Avec ma clé CARTO » (`withKey`) ; elle n'est
  * jamais gardée dans mes préparations, seulement ajoutée au moment de faire le lien. */

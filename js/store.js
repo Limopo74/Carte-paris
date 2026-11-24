@@ -744,7 +744,7 @@ export function deleteSub(state, catId, subId) {
 export const subNameOf = (categories, p) => (p?.sub ? (categories ?? []).find((c) => c.id === p.cat)?.subs?.find((x) => x.id === p.sub)?.name ?? '' : '');
 
 /** Styles de carte proposés dans les Réglages. */
-export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', 'eclairci', 'positron', 'darkmatter'];
+export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', 'eclairci', 'positron', 'darkmatter', 'ign', 'photo'];
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.

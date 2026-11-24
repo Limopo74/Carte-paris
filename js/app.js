@@ -69,13 +69,13 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (381)';
+const VERSION = '24 novembre 2026 (382)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
   'Tes lieux, tes photos et ta position restent sur ce téléphone. GitHub ne fait qu\'envoyer l\'appli : il ne reçoit ni ta position ni tes lieux. Quand tu reviens sur l\'appli, elle lui redemande son numéro de version, au plus tous les quarts d\'heure, sans rien envoyer de toi.',
   'Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde.',
-  'L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi),',
+  'L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, CARTO, OpenStreetMap France ou l\'IGN selon le style : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi),',
   'le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde),',
   'les adresses (IGN : la position exacte quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu touches « Chercher cette adresse » dans la loupe ou cherches ton adresse dans Chez moi, qui reste sur ce téléphone et dans ta sauvegarde, jamais chez un proche),',
   'l\'annuaire et les horaires (OpenStreetMap),',
@@ -412,6 +412,9 @@ map.on('moveend', () => {
   try { storage.setItem(VIEW_KEY, JSON.stringify({ lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom() })); } catch { /* stockage plein : tant pis */ }
 });
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+/** v381 : tuiles de la Géoplateforme de l'IGN (WMTS, projection du web), la couche en dernier. */
+const IGN_WMTS = 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=';
+const IGN_ATTR = '© <a href="https://www.ign.fr/">IGN</a>';
 // Fonds de carte sans clé : OpenStreetMap, et les rendus d'OpenStreetMap France (« FR » et humanitaire).
 // Pastel et Nuit sont des filtres de couleur appliqués sur le téléphone : aucun service de plus.
 const STYLE_INFO = {
@@ -423,6 +426,9 @@ const STYLE_INFO = {
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   // v316 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
   eclairci: { name: 'Éclairci', sub: 'La classique, plus pâle et plus calme', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
+  // v381 (mon choix 8AB du 24 nov.) : deux fonds de l'IGN, sans clé (Géoplateforme, accès ouvert, Licence Ouverte 2.0 : citer l'IGN)
+  ign: { name: 'Plan IGN', sub: 'Le plan de l\'IGN : noms de rues officiels, très lisible', url: `${IGN_WMTS}GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&FORMAT=image/png`, attr: IGN_ATTR, maxZoom: 19 },
+  photo: { name: 'Photo aérienne', sub: 'Vue du ciel de l\'IGN, sans noms de rues', url: `${IGN_WMTS}ORTHOIMAGERY.ORTHOPHOTOS&FORMAT=image/jpeg`, attr: IGN_ATTR, maxZoom: 19 },
   // v317 (ma demande du 20 nov.) : les deux autres fonds CARTO, avec la même clé qu'Épuré
   positron: { name: 'Très épuré', sub: 'Gris très pâle, presque rien d\'autre (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
   darkmatter: { name: 'Nuit épurée', sub: 'Fond sombre, très peu d\'éléments (CARTO, même clé)', url: 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key={k}', attr: `${OSM_ATTR}, © <a href="https://carto.com/attributions">CARTO</a>`, maxZoom: 20 },
@@ -460,7 +466,7 @@ function applyMapStyle() {
   if (tiles) map.removeLayer(tiles);
   // Tuiles demandées en CORS : le service worker peut les garder pour le métro sans réseau.
   // Filet de sécurité : si elles échouent toutes alors qu'on est en ligne, on revient au mode normal.
-  const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com/.test(st.url);
+  const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com|data\.geopf\.fr\/wmts/.test(st.url); // v381 : IGN aussi
   const native = Math.min(st.native ?? st.maxZoom, zoomCap[id] ?? st.maxZoom);
   tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, maxNativeZoom: native, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
   const okZ = new Set(); const badZ = {};
@@ -9355,7 +9361,7 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'help' }, cartoKey() ? 'Ta clé est enregistrée : les trois sont prêts.' : 'Une clé gratuite, la même pour les trois, à coller une fois.'),
       el('div', { class: 'style-grid' }, all.filter(([id]) => needsKey(id)).map(card)),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => openCartoKey() }, ico('settings'), cartoKey() ? 'Clé CARTO (changer ou retirer)' : 'Saisir ma clé CARTO'),
-      el('p', { class: 'help tip' }, 'Les fonds avec clé viennent de CARTO (la clé reste sur ton téléphone). Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel, Nuit et Éclairci sont des filtres faits par ton téléphone.'),
+      el('p', { class: 'help tip' }, 'Les fonds avec clé viennent de CARTO (la clé reste sur ton téléphone). Française et Douce viennent des serveurs bénévoles d\'OpenStreetMap France : parfait pour un usage personnel. Pastel, Nuit et Éclairci sont des filtres faits par ton téléphone. Plan IGN et Photo aérienne viennent de l\'IGN, sans clé.'),
       backBtn,
     ), { tall: true, name: 'settings:style', again: () => openSettings('style') });
     return;
@@ -11050,6 +11056,27 @@ document.getElementById('btnPlanning').addEventListener('click', () => openPlann
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v380 (mon choix 9A) : l'appareil photo en un appui
+document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v381 (mon choix 7A)
+/** v381 (mon choix 7A du 24 nov.) : les fonds sans clé les plus utiles, en vignettes ; un appui change la carte et revient à la carte.
+ *  Le fond choisi en ce moment y est toujours (même un fond CARTO) ; « Tous les fonds » ouvre Style de la carte. */
+const QUICK_STYLES = ['eclairci', 'classic', 'ign', 'photo', 'night'];
+function openStylePicker() {
+  const cur = state.mapStyle ?? 'classic';
+  const ids = QUICK_STYLES.includes(cur) || !STYLE_INFO[cur] ? QUICK_STYLES : [cur, ...QUICK_STYLES];
+  openSheet([ico('palette'), ' Fond de carte'], el('div', { class: 'stack' },
+    el('div', { class: 'style-grid' }, ids.map((id) => {
+      const st = STYLE_INFO[id];
+      return el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(cur === id), onclick: () => {
+        if (needsKey(id) && !cartoKey()) { openCartoKey(undefined, id); return; }
+        state.mapStyle = id; persist(); applyMapStyle(); closeSheet(); toast(`Carte : ${st.name}`);
+      } }, el('span', { class: `style-prev s-${id}`, 'aria-hidden': 'true' }), el('b', {}, st.name));
+    })),
+    el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('style', named('Fond de carte', openStylePicker)) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('palette')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Tous les fonds'), el('span', { class: 'menu-sub' }, 'Française, Douce, Pastel, et ceux de CARTO')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
+  ), { name: 'style-picker', again: openStylePicker });
+}
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -11334,7 +11361,7 @@ const HELP = [
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '**En bas de l\'écran** : {settings} Réglages, + Ajouter, Autour de moi. Cette aide est en tête des Réglages.',
     '**Sans réseau** (métro) : les quartiers déjà regardés restent affichés.',
-    '{palette} **Allure de la carte** : {settings} → Autres réglages → Style de la carte. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
+    '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
     '{moon} **Fond sombre** : {settings} → Mode sombre ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages par défaut », en bas des Réglages, permet d\'y revenir d\'un appui.',
   ]],
@@ -11558,6 +11585,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
@@ -11568,7 +11596,6 @@ const HELP = [
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
-    '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
