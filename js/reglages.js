@@ -60,3 +60,34 @@ export function helpWithoutCircuits(lines) {
   }
   return out;
 }
+
+/* v416 (mes choix 1A à 5A du 24 nov.) : « Boussole » éteinte dans Autres réglages. L'Aide ne cite que ce qui existe : les lignes
+   propres à la boussole et à la Balade guidée partent, les autres ne la citent plus, une ligne dit où la rallumer. */
+const COMPASS_ONLY = /^(\{navigation\} \*\*Balade guidée\*\*|\*\*Boussole « indisponible »\*\*)/;
+export const COMPASS_OFF_HELP = '{compass} **Boussole** : éteinte sur ce téléphone ; Y aller ouvre Google Maps à pied. Pour la rallumer : {settings} → Autres réglages → Boussole.';
+const COMPASS_WORDS = [
+  [', **Boussole** montre la direction (même sans réseau)', ''],
+  ['(Y aller, Boussole, Métro, Ajouter)', '(Y aller, Métro, Ajouter)'],
+  [' : la distance, Y aller et la boussole vont jusqu\'à elle.', ' : la distance et Y aller vont jusqu\'à elle.'],
+  ['Touche un arrêt pour la boussole.', 'Touche un arrêt pour y aller (Google Maps à pied).'],
+  ['Y aller, {compass} Boussole, Métro, Prévoir', 'Y aller, Métro, Prévoir'],
+  ['**Y aller**, Boussole et Métro mènent', '**Y aller** et Métro mènent'],
+  ['les escaliers et les pentes, Balade guidée, Voir sur la carte', 'les escaliers et les pentes, Voir sur la carte'],
+  [' ; il se suit avec la Balade guidée et se partage.', ' ; il se partage.'],
+  ['**Un parcours enregistré** : Balade guidée, Google Maps', '**Un parcours enregistré** : Google Maps'],
+  ['Y aller, Boussole, Métro et Ajouter', 'Y aller, Métro et Ajouter'],
+  ['**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.', '**Y aller** ouvre Google Maps.'],
+  ['Rentrer, M, la boussole, Où suis-je ?', 'Rentrer, M, Où suis-je ?'],
+  ['**Voix** : la boussole et le suivi parlent.', '**Voix** : le suivi parle.'],
+];
+export function helpWithoutCompass(lines) {
+  const out = [];
+  for (const l of lines) {
+    if (COMPASS_ONLY.test(l)) continue;
+    let t = l;
+    for (const [a, b] of COMPASS_WORDS) t = t.replace(a, b);
+    out.push(t);
+    if (t.startsWith('**Aller à un lieu**')) out.push(COMPASS_OFF_HELP);
+  }
+  return out;
+}

@@ -45,7 +45,7 @@ import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, clea
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
-import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits } from './reglages.js';
+import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (416)';
+const VERSION = '24 novembre 2026 (417)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2882,7 +2882,7 @@ function openDetail(id, back = null) {
   const goBox = el('div', { class: 'stack' },
     goLink,
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => quickPhoto(p, back), 'aria-label': 'Prendre une photo' }, ico('camera'), 'Photo')));
 
@@ -4069,7 +4069,7 @@ function renderNear(fit = false) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${walkMinutes(d)}\u00a0min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
+      compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(goTarget(p, origin), d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
@@ -4090,7 +4090,7 @@ function renderNear(fit = false) {
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
         ttbDotFor(x.rub),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
+      compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
     body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
   }
@@ -4104,7 +4104,7 @@ function renderNear(fit = false) {
         el('div', { class: 'item-main' },
           el('span', { class: 'cat-ico prized-ico', 'aria-hidden': 'true' }, ico('wheat')),
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${prizeText(x)}`))),
-        el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
+        compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
         el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
       body.push(el('p', { class: 'help' }, 'Baguette : Grand Prix de la Ville de Paris. Croissant : concours des boulangers du Grand Paris. 2024 à 2026 ; une boulangerie a pu fermer depuis.'),
         el('p', { class: 'help tip' }, `Listes tenues à la main d'après paris.fr et le site du Syndicat des boulangers du Grand Paris, vérifiées le ${BAGUETTES_CHECKED}. Les 10 premiers de chaque année, adresses de Paris seulement ; croissant 2026 : seulement la gagnante (le Syndicat n'a pas mis sa liste en ligne). Un prix vaut pour l'adresse primée, pas pour les autres boutiques de la même enseigne. Les heures d'ouverture ne sont pas connues ici.`));
@@ -4728,7 +4728,7 @@ function openRoute(id) {
     el('p', { class: 'summary' }, ok ? `${plural(steps.length, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)} (sans les arrêts)` : plural(steps.length, 'étape', 'étapes')),
     ok ? null : el('p', { class: 'warn' }, 'Le plan des rues a changé : un bout du chemin n\'est plus trouvé. Touche Modifier pour reposer l\'étape.'),
     crossingNote(legs, true),
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(steps.map(({ s: _s, ...st }) => st), 'Parcours') }, ico('navigation'), 'Balade guidée'),
+    compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(steps.map(({ s: _s, ...st }) => st), 'Parcours') }, ico('navigation'), 'Balade guidée'),
     el('div', { class: 'row' },
       steps.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(steps), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
       el('button', { type: 'button', class: 'btn', onclick: () => openTrace(r) }, ico('pencil'), 'Modifier')),
@@ -5160,7 +5160,7 @@ async function showVelib(at = null) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name),
           el('span', { class: 'item-sub' }, `${fmtDist(s.d)} · ${walkMinutes(s.d)} min · `,
             velibNeed === 'bike' ? `${plural(s.bikes, 'vélo', 'vélos')} (${s.mech} méca., ${s.ebike} élec.)` : plural(s.docks, 'place libre', 'places libres')))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
+      compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(s, s.d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${s.name}` }, 'Y aller'))))
       : el('p', { class: 'empty' }, 'Aucune station disponible trouvée.'),
     el('button', { type: 'button', class: 'btn c-metro', onclick: () => {
@@ -5694,7 +5694,7 @@ function openPlanning(from = null) {
     next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
       ico('arrow-right'), ...goText(dNext, pos)) : null, /* v231 : comme la fiche ; « de chez toi » quand Chez moi est allumé */
     next ? el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(next, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => dayDone(next), 'aria-label': `Fait : ${next.name}` }, ico('check'), 'Fait')) : null,
     next ? el('ol', { class: 'items' }, list.map((p, i) => el('li', { class: 'item' },
@@ -6050,7 +6050,7 @@ function receiveRoute(r) {
     el('p', { class: 'summary' }, `${r.title || 'Balade'} · ${plural(r.stops.length, 'étape', 'étapes')}`),
     el('ol', { class: 'items' }, r.stops.map((s, i) => el('li', { class: 'item' }, el('span', { class: 'item-main' },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)), el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name)))))),
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(r.stops, r.title || 'Balade') }, ico('navigation'), 'Balade guidée'),
+    compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(r.stops, r.title || 'Balade') }, ico('navigation'), 'Balade guidée'),
     el('a', { class: 'btn', href: routeUrl(r.stops), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
     missing.length ? el('button', { type: 'button', class: 'btn c-add', onclick: () => {
       for (const s of missing) state.points.push(newPoint({ name: s.name, cat: state.categories[0].id, lat: s.lat, lng: s.lng, note: 'Reçu dans une balade partagée.' }));
@@ -6070,8 +6070,10 @@ function receiveMeet(m) {
   const target = { name: m.name ? `${m.name}` : 'Point de rendez-vous', lat: m.lat, lng: m.lng };
   openSheet([ico('send'), ' Rejoindre'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${m.name || 'Quelqu\'un'} t'attend ici${ago != null && ago >= 0 ? ` (position envoyée il y a ${ago < 1 ? 'moins d\'une minute' : ago < 120 ? `${ago} min` : `${Math.round(ago / 60)} h`})` : ''}.`),
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheetThen(() => openCompass(target)) }, ico('compass'), 'Y aller avec la boussole'),
-    el('a', { class: 'btn', href: mapsUrl(target, Infinity), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
+    // v416 (4A) : boussole éteinte, Y aller par Google Maps à pied, seule plaque pleine
+    compassOff() ? el('a', { class: 'btn primary go-bar', href: mapsUrl(target, 0), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller')
+      : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheetThen(() => openCompass(target)) }, ico('compass'), 'Y aller avec la boussole'),
+    compassOff() ? null : el('a', { class: 'btn', href: mapsUrl(target, Infinity), target: '_blank', rel: 'noopener' }, 'Ouvrir dans Google Maps'),
     el('p', { class: 'help' }, 'La position a été envoyée une seule fois : elle ne bouge pas si la personne se déplace.'),
   ), { name: 'meet' });
   nearLayer.clearLayers();
@@ -6144,7 +6146,7 @@ const nameOf = (t) => t.name ?? t.title ?? 'ce lieu';
 const metroBtn = (t, back) => el('button', { type: 'button', class: 'go-compass go-metro', 'aria-label': `Métro vers ${nameOf(t)}`,
   onclick: () => showMetroPlan({ name: nameOf(t), lat: t.lat, lng: t.lng, id: `pt:${t.lat.toFixed(5)},${t.lng.toFixed(5)}` }, back) },
 el('b', { class: 'm-badge', 'aria-hidden': 'true' }));
-const compassBtn = (t) => el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: nameOf(t), lat: t.lat, lng: t.lng }), 'aria-label': `Boussole vers ${nameOf(t)}` }, ico('compass'));
+const compassBtn = (t) => compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: nameOf(t), lat: t.lat, lng: t.lng }), 'aria-label': `Boussole vers ${nameOf(t)}` }, ico('compass'));
 
 /* Galeries d'art et œuvres dans la rue (OpenStreetMap) : listes de tout Paris rangées dans l'appli par le robot des données
    une fois par mois (data/galeries.json, data/oeuvres.json, v170). Le téléphone ne demande plus rien à OpenStreetMap. */
@@ -6286,7 +6288,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     ...lines.filter(Boolean).map((t) => (typeof t === 'string' ? el('p', { class: 'help' }, t) : t)),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(place, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: title, lat: place.lat, lng: place.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: title, lat: place.lat, lng: place.lng, id: `spot:${place.lat},${place.lng}` }, named(title, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       // v167 : « ★ Favori » (un appui) pour un musée, une galerie, un théâtre ; « Ajouter » (formulaire) pour le reste
       fav ? favButton({ name: title, lat: place.lat, lng: place.lng, address: place.address ?? '', hours: add.hours ?? '', note: add.note ?? '', kind: fav }, again)
@@ -6364,7 +6366,7 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
     e.free ? el('p', {}, freeTag()) : null,
     el('a', { class: 'btn primary go-bar', href: mapsUrl(e, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: e.title, lat: e.lat, lng: e.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: e.title, lat: e.lat, lng: e.lng, id: `ev:${e.lat},${e.lng}` }, named('Sortie', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => planEvent(e, again) }, ico('alarm-clock'), planOfEvent(state.plans, e) ? 'Prévu' : 'Prévoir')),
     planOfEvent(state.plans, e) ? el('p', { class: 'summary' }, ico('alarm-clock'), ` Dans Mon planning : ${planText(planOfEvent(state.plans, e).ticket)}.`) : null,
@@ -7157,7 +7159,7 @@ async function openEvents(start = null) {
     el('div', { class: 'fiche-toc' }, SORTIES_LINKS.map(([title, sub, href]) => el('a', { class: 'fiche-row', href, target: '_blank', rel: 'noopener noreferrer' },
       ico('external-link'), el('span', {}, title, el('small', {}, sub)), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
     pageHelp(Boolean(marketsTime) && Date.now() - marketsTime > 30 * 864e5,
-        el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de ${evKm} ${fromMap ? 'du centre de la carte' : 'de toi'}. Touche une ligne pour Y aller, la Boussole, le Métro ou l'ajouter à ta carte.`),
+        el('p', { class: 'help' }, `Ici : les marchés, brocantes, fêtes et expos du jour de l'agenda de la Ville, à moins de ${evKm} ${fromMap ? 'du centre de la carte' : 'de toi'}. Touche une ligne pour Y aller, ${compassOff() ? '' : 'la Boussole, '}le Métro ou l'ajouter à ta carte.`),
         el('p', { class: 'help' }, 'Mise à jour automatique : l\'agenda se recharge chaque jour à la première ouverture, les marchés tous les 7 jours, les galeries tous les 30 jours. Le bouton recharge tout de suite (utile si une sortie vient d\'être annoncée ou si le réseau a manqué).'),
         el('button', { type: 'button', class: 'btn c-disc', onclick: refreshSorties }, ico('refresh-cw'), 'Mettre à jour maintenant'),
         el('p', { class: 'help' }, [`Agenda : aujourd'hui`, marketsTime ? `marchés : liste du ${new Date(marketsTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : '', mode === 'art' && galleriesTime ? `galeries : liste du ${new Date(galleriesTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''].filter(Boolean).join(' · ') + '.'),
@@ -7387,7 +7389,7 @@ async function openGalleryWalk(from = null) {
       ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'galerie', 'galeries')} ouvertes à ton arrivée, retour au départ : ${plan.walk} min de marche + 15 min par galerie = ${plan.total} min.`)
       : el('p', { class: 'empty' }, cands.length ? 'Aucune galerie ouverte sur ce temps. Essaie plus long, ou un autre jour (beaucoup ferment le dimanche et le lundi).' : 'Aucune galerie aux horaires connus à moins de 2 km.'),
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
-    plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin0.lat, lng: origin0.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
+    plan.route.length ? compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin0.lat, lng: origin0.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
     plan.route.length ? el('a', { class: 'btn', href: loopUrl(origin0, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
     el('p', { class: 'help' }, 'Seules les galeries aux horaires connus, ouvertes à ton arrivée, sont proposées.'),
     el('p', { class: 'help tip' }, 'Horaires d\'OpenStreetMap. Ta position n\'est pas envoyée.'),
@@ -7521,7 +7523,7 @@ async function openHomePlan(home) {
     !busReady() ? el('p', { class: 'empty' }, 'Les arrêts de bus ne sont pas chargés : il faut du réseau une fois. Rouvre Rentrer quand tu en as.')
       : busOpts === null ? el('p', { class: 'empty' }, several ? 'Tes arrêts de bus n\'existent plus dans la liste : choisis-les à nouveau dans Mes stations.' : 'Ton arrêt de bus n\'existe plus dans la liste : choisis-le à nouveau dans Mes stations.')
         : busOpts.length ? el('ul', { class: 'items' }, busOpts.map((o) => el('li', { class: 'item' },
-          el('button', { type: 'button', class: 'item-main', onclick: () => openCompass({ name: `Arrêt ${o.stop[2]}`, lat: o.stop[0], lng: o.stop[1] }), 'aria-label': `Boussole vers l'arrêt ${o.stop[2]}, lignes ${o.lines.join(', ')}` },
+          el('button', { type: 'button', class: 'item-main', onclick: () => openCompass({ name: `Arrêt ${o.stop[2]}`, lat: o.stop[0], lng: o.stop[1] }), 'aria-label': `${compassOff() ? 'Y aller : ' : 'Boussole vers '}l'arrêt ${o.stop[2]}, lignes ${o.lines.join(', ')}` }, // v416 : boussole éteinte, Google Maps à pied
             el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bus', { size: 18 })),
             el('span', { class: 'item-text' },
               el('span', { class: 'item-name' }, o.stop[2]),
@@ -7546,12 +7548,12 @@ async function openHomePlan(home) {
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, lineBadges(o.st), o === lead && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
           el('span', { class: 'item-sub' }, o.st === home.st ? `${walkMinutes(o.d)} min à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
-      el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
+      compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
     (best ? walk <= best.plan.minutes : homeNear) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
     ...busBlock,
     el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
-    el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour la boussole.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),
+    el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour ${compassOff() ? 'y aller (Google Maps à pied)' : 'la boussole'}.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),
     trafficLink(),
     el('button', { type: 'button', class: 'btn c-metro', onclick: openMyStations }, ico('house'), 'Mes stations'),
     // v276 : le trajet exact (horaires, correspondances, bus) vers ma station Maison, comme le bouton de la page Métro ;
@@ -7607,7 +7609,7 @@ async function openPlaceStations(p, back = null) {
     dest && (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min jusqu'à ${home.label}.`) : null,
     dest ? null : el('p', { class: 'help' }, 'Avec ta station Maison, l\'appli te dit par laquelle rentrer le plus vite.'),
     dest ? null : el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false, self) }, ico('house'), 'Choisir ma station Maison'),
-    el('p', { class: 'help' }, dest ? 'Estimation sans horaires, en partant du lieu.' : 'Un appui : la boussole vers la station.'),
+    el('p', { class: 'help' }, dest ? 'Estimation sans horaires, en partant du lieu.' : compassOff() ? 'Un appui : Google Maps à pied jusqu\'à la station.' : 'Un appui : la boussole vers la station.'), // v416
     back ? foot(backBtn(back)) : null,
   ), { name: `stations:${place.id}`, tall: true, again: () => openPlaceStations(p, back) });
 }
@@ -7778,7 +7780,7 @@ function openHomeSettings() {
     home ? el('p', { class: 'help' }, 'Éteint : tout part de là où tu es.') : null,
     home ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: homeFromHere }, ico('locate-fixed'), 'Je suis chez moi : ma position'),
     home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille : l'interrupteur est en haut de la page Météo, pour l'allumer ou l'éteindre.`) : null,
-    el('p', { class: 'help tip' }, 'Ne changent pas : Rentrer, M, la boussole, Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.'),
+    el('p', { class: 'help tip' }, `Ne changent pas : Rentrer, M, ${compassOff() ? '' : 'la boussole, '}Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.`),
     el('p', { class: 'help tip' }, `Ton adresse reste sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.${home ? '' : ' Pour la trouver, l\'appli envoie ce que tu tapes à l\'IGN, après ton appui.'}`),
     foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(named('Réglages', () => openSettings())))),
   { name: 'settings:chezmoi', again: openHomeSettings });
@@ -8201,7 +8203,7 @@ function openMarket(m, back = null, date = new Date()) {
     el('p', { class: 'help' }, m.covered ? 'Marché couvert, à l\'abri de la pluie. Ouvert du mardi au dimanche, fermé le lundi.' : `Se tient le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'].filter((_, i) => m.days[i]).join(', ')}.`),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(m, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: m.name, lat: m.lat, lng: m.lng, id: `mk:${m.lat},${m.lng}` }, named('Marché', () => openMarket(m, back, date))), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Ajouter')),
     back ? backBtn(back) : null,
@@ -8237,7 +8239,7 @@ function openNavigo(x, back = null) {
     el('p', { class: 'help tip' }, 'Passes Navigo valides : annuel, mois, imagine R, Senior, Liberté +.'),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `nv:${x.lat},${x.lng}` }, named('Avantage Navigo', again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: x.name, lat: x.lat, lng: x.lng, address: x.address, acc: null, note: `Avantage Navigo : ${x.offer}` }) }, ico('plus'), 'Ajouter')),
     x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico('info'), 'Site du lieu') : null,
@@ -8415,7 +8417,7 @@ function openTtbPlace(x, back = null) {
       metroCell(metro, metro ? `≈ ${metro.min} min à pied` : '', () => openPlaceStations({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)))),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
       mine ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openDetail(mine.id, named(x.name, again)), 'aria-label': `Dans mes lieux : ${mine.name}` }, ico('check'), 'Mon lieu')
         : el('button', { type: 'button', class: 'btn c-add', onclick: () => ttbAdd(x) }, ico('plus'), 'Ajouter')),
@@ -8584,7 +8586,7 @@ function openFreeTime() {
     plan.route.length ? nightLine(plan.total) : null,
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
     plan.closed ? el('p', { class: 'help' }, `${plural(plan.closed, 'lieu écarté', 'lieux écartés')} : fermé${plan.closed > 1 ? 's' : ''} à ton arrivée.`) : null,
-    plan.route.length ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin.lat, lng: origin.lng }], 'Temps libre') }, ico('navigation'), 'Balade guidée') : null,
+    plan.route.length ? compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin.lat, lng: origin.lng }], 'Temps libre') }, ico('navigation'), 'Balade guidée') : null,
     plan.route.length ? el('div', { class: 'row' },
       el('a', { class: 'btn', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(plan.route, 'Ma balade') }, ico('share-2'), 'Partager')) : null,
@@ -8764,6 +8766,9 @@ const stepStops = (c) => c.etapes.map((e) => ({ name: e.n, lat: e.lat, lng: e.ln
 
 /** v390 (mes choix du 24 nov.) : « Circuits de visite » éteint dans Réglages → Autres réglages. Rien n'est effacé. */
 function circuitsOff() { return state.circuitsOn === false; }
+/** v416 (mes choix 1A à 5A du 24 nov.) : la boussole éteinte dans Autres réglages : ses boutons, ses icônes et la Balade guidée
+ *  disparaissent ; un appui qui l'ouvrait (station, arrêt, monument du même auteur…) ouvre Google Maps à pied. Le cône du point bleu reste. */
+function compassOff() { return state.compassOn === false; }
 /** Circuits ouverts par un retour ou un vieux chemin, alors qu'ils sont éteints : le dire, et rallumer en un appui. */
 function openCircuitsOff(back) {
   openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' },
@@ -8836,7 +8841,7 @@ function openCircuit(c, back) {
     c.confort ? el('p', { class: 'help' }, ico('triangle-alert'), ` ${c.moved ? 'Circuit d\'origine : ' : ''}${c.confort}`) : null, // mes étapes changées : le confort dit celui de l'original
     c.note ? el('p', { class: 'help' }, ico('info'), ` ${c.note}`) : null,
     done.length ? el('button', { type: 'button', class: 'fiche-row', onclick: () => openOuting(done[0].id, self) }, ico('check'), el('span', {}, `Fait le ${dayText(done[0].at)}`, el('small', {}, done.length > 1 ? `${plural(done.length, 'fois', 'fois')} en tout · ce que j'en retiens` : 'Ce que j\'en retiens')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))) : null,
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(stepStops(c), c.titre) }, ico('navigation'), 'Balade guidée'),
+    compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(stepStops(c), c.titre) }, ico('navigation'), 'Balade guidée'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showCircuitOnMap(c, back) }, ico('map'), 'Voir sur la carte'),
     c.received ? el('button', { type: 'button', class: 'btn c-add', onclick: () => addReceivedCircuit(c) }, ico('plus'), 'Ajouter à mes circuits')
       : el('button', { type: 'button', class: 'btn c-add', onclick: () => markCircuitDone(c, self) }, ico('check'), 'Je l\'ai fait'),
@@ -9278,7 +9283,7 @@ function openSameAuthor(rec, back) {
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.t || 'Monument'),
           el('span', { class: 'item-sub' }, [x.m != null ? fmtWalk(x.m) : '', x.d].filter(Boolean).join(' · '))))))),
     el('p', { class: 'help' }, 'Seulement les édifices où ce nom est écrit à l\'identique : ce n\'est pas toute son œuvre.'),
-    el('p', { class: 'help tip' }, 'Un appui ouvre la boussole. Source : base Mérimée du ministère de la Culture (Licence Ouverte 2.0).'),
+    el('p', { class: 'help tip' }, `Un appui ouvre ${compassOff() ? 'Google Maps à pied' : 'la boussole'}. Source : base Mérimée du ministère de la Culture (Licence Ouverte 2.0).`),
     foot(backBtn(back)),
   ), { name: 'same-author', again: self });
 }
@@ -9308,7 +9313,7 @@ async function openMonuments() {
     return n ? el('button', { type: 'button', class: 'mini-link', onclick: () => openSameAuthor(rec, named('Monuments', openMonuments)), 'aria-label': `Les autres monuments de ${authorName(rec.a[0])}` }, ico('user'), `Du même auteur (${n})`) : null; };
   // Boussole, Métro, Ajouter : les mêmes trois boutons, à la même place, pour un monument et pour un immeuble de la Ville
   const rowBtns = (m) => [
-    el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
+    compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: m.name, lat: m.lat, lng: m.lng }), 'aria-label': `Boussole vers ${m.name}` }, ico('compass')),
     metroBtn(m, openMonuments),
     have(m) ? null : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${m.name} à ma carte`, onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, acc: null }) }, ico('plus'))];
   // v245 : un immeuble protégé par la Ville : son adresse, le début du texte de la Ville, « Lire la suite » le déroule sur place
@@ -9367,6 +9372,7 @@ let compassStop = null;
 const compassEl = document.getElementById('compass');
 
 function openCompass(p, step = null) {
+  if (compassOff()) { window.open(mapsUrl(goTarget(p, freshHere()), 0), '_blank', 'noopener'); return; } // v416 (4A) : Google Maps à pied
   track('Boussole');
   if (compassOpen) return;
   compassOpen = true;
@@ -10151,7 +10157,7 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'help' }, PRIVACY_LINES.join(' ')))),
       el('p', { class: 'help' }, USAGE_PRIVACY),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
-      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct ou la boussole est ouvert à l'écran.`),
+      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct${compassOff() ? '' : ' ou la boussole'} est ouvert à l'écran.`),
       el('p', { class: 'help tip' }, 'Une appli web n\'a pas accès au podomètre. Le nombre de pas est calculé avec 70 cm par pas.'),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
@@ -10259,7 +10265,7 @@ function openSettings(section = null, from = null) {
         toast(state.alertNear ? 'Tu seras prévenue près d\'un de tes lieux, Ma position allumée' : 'Plus d\'alerte près de tes lieux');
       })),
       tuneRow('alertM', (v) => `Prévenir à ${v}`, 'De 50 à 500 m, par 50 m'),
-      el('div', { class: 'menu' }, onOff('voice', voiceOn ? 'volume-2' : 'volume-x', 'Voix', 'Boussole, suivi en direct, lieux proches', voiceOn, () => {
+      el('div', { class: 'menu' }, onOff('voice', voiceOn ? 'volume-2' : 'volume-x', 'Voix', compassOff() ? 'Suivi en direct, lieux proches' : 'Boussole, suivi en direct, lieux proches', voiceOn, () => {
         state.voice = !voiceOn; if (!state.voice) silence();
         toast(state.voice ? 'Voix activée' : 'Voix désactivée');
       })),
@@ -10376,6 +10382,11 @@ function openSettings(section = null, from = null) {
     onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints partout ; tes circuits sont gardés' : 'Bouton, Itinéraire, + Ajouter, Mes parcours', !circuitsOff(), () => {
       state.circuitsOn = circuitsOff(); applyToolOrder();
       toast(circuitsOff() ? 'Circuits éteints partout (rien n\'est supprimé)' : 'Circuits de retour : bouton, Itinéraire, + Ajouter');
+    }),
+    // v416 (mes choix 1A à 5A du 24 nov.) : sous Circuits de visite, tout en bas, il ne pousse rien ; allumé au départ
+    onOff('compassOn', 'compass', 'Boussole', compassOff() ? 'Éteinte : Y aller ouvre Google Maps à pied' : 'Fiches, listes, Balade guidée', !compassOff(), () => {
+      state.compassOn = compassOff();
+      toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
     }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
@@ -11269,7 +11280,7 @@ function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
     onFoot || none ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai.'),
     onFoot ? null : el('p', { class: 'help tip' }, 'Le trajet exact est dans Google Maps ou l\'appli Île-de-France Mobilités.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(firstTarget ?? p) }, ico('compass'), firstTarget ? 'Vers la station' : 'Boussole'),
       el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1${fromPlace ? `&origin=${fromPlace.lat},${fromPlace.lng}` : ''}&destination=${p.lat},${p.lng}&travelmode=${onFoot ? 'walking' : 'transit'}`, target: '_blank', rel: 'noopener' }, 'Google Maps')),
     onFoot ? null : el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     onFoot ? null : trafficLink(),
@@ -11343,7 +11354,7 @@ function showNearestMetro(from, note = null) {
     el('p', { class: 'help' }, entry ? [fmtDist(dGoal), walkPart(dGoal), stationLabel(st)].filter(Boolean).join(' · ') : stationLabel(st)),
     note ? el('p', { class: 'warn' }, note) : null,
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
+      compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(target) }, ico('compass'), 'Boussole'),
       el('a', { class: 'btn primary', href: mapsUrl(goal, 0), target: '_blank', rel: 'noopener', 'aria-label': entry ? `Y aller : ${st.n}, ${entry.label}` : `Y aller : ${st.n}` }, 'Y aller')),
     el('a', { class: 'btn c-metro', href: IDFM_APP, target: '_blank', rel: 'noopener' }, ico('train-front'), 'Appli Île-de-France Mobilités'),
     trafficLink(),
@@ -11451,7 +11462,7 @@ function showPratique(from, fs, ts, cs = [], last = 'cool') {
           el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
             el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours, walkMinutes(d)) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
-          el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
+          compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
       }))
       : el('p', { class: 'empty' }, none),
@@ -12033,6 +12044,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
     '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
     '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
     '{git-commit-horizontal} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
@@ -12042,7 +12054,6 @@ const HELP = [
     '{git-commit-horizontal} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
     '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
-    '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12061,7 +12072,7 @@ function openHelp(first) {
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
-      el('ul', {}, (circuitsOff() ? helpWithoutCircuits(lines) : lines).map((l) => el('li', {}, ...helpLine(l)))), // v390 : l'Aide ne cite que ce qui existe
+      el('ul', {}, ((l1) => (compassOff() ? helpWithoutCompass(l1) : l1))(circuitsOff() ? helpWithoutCircuits(lines) : lines).map((l) => el('li', {}, ...helpLine(l)))), // v390, v416 : l'Aide ne cite que ce qui existe
       i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { forgetGot(); openWelcome(2); } }, 'Refaire les réglages du début') : null))), // v314 : le circuit du premier lancement, sans la page Bienvenue
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
@@ -12111,7 +12122,7 @@ function openWelcome(step = 1) {
       // v314 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
       welcomeGot?.msg || welcomeGot?.de ? el('p', {}, el('b', {}, welcomeGot.de ? `De la part ${deOf(welcomeGot.de)}` : 'Préparé pour toi'), welcomeGot.msg ? ` : « ${welcomeGot.msg} »` : '') : null, // v321
       el('div', { class: 'help-list' }, ...['{locate-fixed} **Où suis-je** : le point bleu, c\'est toi.', '**Autour de moi** : tes lieux, du plus proche au plus loin.',
-        '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.', '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
+        (compassOff() ? '**Y aller** : depuis la fiche d\'un lieu, à pied ou en métro.' : '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.'), '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
       el('p', { class: 'help' }, 'Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
       el('h3', { class: 'fiche-sec' }, 'Tu as déjà des lieux ?'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 0; pickImport('mine'); } }, ico('upload'), 'Restaurer ma sauvegarde'),
