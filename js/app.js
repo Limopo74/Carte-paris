@@ -45,7 +45,7 @@ import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, clea
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
 import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
-import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden } from './reglages.js';
+import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (389)';
+const VERSION = '24 novembre 2026 (390)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1803,10 +1803,10 @@ function openAddChoice() {
     el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux.'),
     // v257 : créer une balade en 2 appuis, depuis le bouton toujours visible ; sous les boutons des lieux, qui ne bougent pas
     el('h3', { class: 'fiche-sec' }, 'Une balade'),
-    el('p', { class: 'help' }, 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant »
+    el('p', { class: 'help' }, circuitsOff() ? 'Un parcours mesure : la distance et la durée à pied entre tes étapes.' : 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant » ; v390 : circuits éteints, le parcours seul
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewRoute(back) }, ico('route'), 'Un parcours'),
-    el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'),
-    el('p', { class: 'help tip' }, 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
+    circuitsOff() ? null : el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'), // v390 : circuits éteints dans Autres réglages
+    el('p', { class: 'help tip' }, circuitsOff() ? 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours.' : 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
     // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, tout en bas : rien ne bouge au-dessus
     el('h3', { class: 'fiche-sec' }, 'Une rue'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewStreet(back) }, ico('route'), 'Une rue d\'intérêt'),
@@ -4615,7 +4615,7 @@ function openRoute(id) {
       el('button', { type: 'button', class: 'btn', onclick: () => openTrace(r) }, ico('pencil'), 'Modifier')),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(steps.map(({ s: _s, ...st }) => st), r.name) }, ico('share-2'), 'Partager'),
-      el('button', { type: 'button', class: 'btn c-disc', onclick: () => openMakeCircuit(r.id) }, ico('signpost'), 'En faire un circuit')),
+      circuitsOff() ? null : el('button', { type: 'button', class: 'btn c-disc', onclick: () => openMakeCircuit(r.id) }, ico('signpost'), 'En faire un circuit')), // v390 : circuits éteints
     el('ol', { class: 'items' }, steps.map((p, i) => el('li', { class: 'item' }, el(p.pid && state.points.some((x) => x.id === p.pid) ? 'button' : 'div',
       { class: 'item-main', ...(p.pid && state.points.some((x) => x.id === p.pid) ? { type: 'button', onclick: () => openDetail(p.pid, named(r.name, () => openRoute(id))) } : {}) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
@@ -4731,8 +4731,9 @@ function addReceivedCircuit(v) {
   const [c] = cleanMyCircuits([{ ...v, id: myCircuitId(), tr: encodeTrace(v.trace), at: Date.now(), by: 'un lien reçu' }]);
   if (!c) return;
   state.myCircuits = cleanMyCircuits([c, ...myCircuitsList()]); persist();
-  openCircuit(asCircuit(c), named('Circuits', () => openCircuits()));
-  toast('Ajouté à Circuits de visite → Mes circuits');
+  const off = circuitsOff(); // v390 : circuits éteints, il est gardé et revient en les rallumant
+  openCircuit(asCircuit(c), off ? null : named('Circuits', () => openCircuits()));
+  toast(off ? 'Ajouté à Mes circuits : tu le retrouveras en rallumant les circuits' : 'Ajouté à Circuits de visite → Mes circuits');
 }
 /** Bas de la page d'un de mes circuits : Partager, Supprimer (confirmé). */
 function myCircuitActions(v, self, back) {
@@ -8511,7 +8512,7 @@ function openRoutes() {
     row('footprints', 'Sur mon chemin', 'Tes lieux sur le trajet vers une destination', () => openWayPicker()),
     row('route', 'Mes parcours', 'La distance et la durée à pied entre tes étapes, par les rues', () => openMyRoutes()),
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
-    row('signpost', 'Circuits de visite', 'Des visites à suivre étape par étape, avec leurs textes', () => openCircuits(openRoutes)),
+    circuitsOff() ? null : row('signpost', 'Circuits de visite', 'Des visites à suivre étape par étape, avec leurs textes', () => openCircuits(openRoutes)), // v390 : éteints dans Autres réglages
     row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { name: 'routes', again: openRoutes });
@@ -8572,7 +8573,18 @@ const dayText = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric
 const circuitDoneTag = (c) => { const d = circuitDone(state.outings, c.id)[0]; return d ? el('span', { class: 'tag open' }, `Fait le ${dayText(d.at)}`) : null; };
 const stepStops = (c) => c.etapes.map((e) => ({ name: e.n, lat: e.lat, lng: e.lng }));
 
+/** v390 (mes choix du 24 nov.) : « Circuits de visite » éteint dans Réglages → Autres réglages. Rien n'est effacé. */
+function circuitsOff() { return state.circuitsOn === false; }
+/** Circuits ouverts par un retour ou un vieux chemin, alors qu'ils sont éteints : le dire, et rallumer en un appui. */
+function openCircuitsOff(back) {
+  openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' },
+    el('p', { class: 'warn' }, 'Les circuits sont éteints sur ce téléphone. Rien n\'est effacé : tes circuits reviennent en les rallumant.'),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.circuitsOn = true; persist(); applyToolOrder(); toast('Circuits de retour : bouton, Itinéraire, + Ajouter'); openCircuits(back); } }, ico('signpost'), 'Rallumer les circuits'),
+    foot(back ? backBtn(back) : el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+  ), { name: 'circuits', again: () => openCircuits(back) });
+}
 async function openCircuits(back = null) {
+  if (circuitsOff()) { openCircuitsOff(back); return; } // v390 : par un retour ou un chemin oublié, jamais une liste éteinte
   track('Circuits');
   const again = () => openCircuits(back);
   if (!circuitsData) openSheet([ico('signpost'), ' Circuits'], el('p', { class: 'help' }, 'Chargement des circuits…'), { name: 'circuits' });
@@ -8624,8 +8636,9 @@ function openCircuit(c, back) {
   const self = named(c.titre, again);
   const pbs = notesOf(state.circuitNotes, c.id);
   const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
-  openSheet([ico('signpost'), ' ', ...withGear(c.titre, settingsGear('distances', 'Régler la distance de mes lieux au tracé', self))], el('div', { class: 'stack' }, // v365 (mes choix 1A 2A)
+  openSheet([ico('signpost'), ' ', ...withGear(c.titre, circuitsOff() ? null : settingsGear('distances', 'Régler la distance de mes lieux au tracé', self))], el('div', { class: 'stack' }, // v365 (mes choix 1A 2A) ; v390 : circuits éteints, leur réglage est caché, pas de roue
     isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
+    c.received && circuitsOff() ? el('p', { class: 'warn' }, 'Les circuits sont éteints sur ce téléphone : ce lien s\'ouvre quand même. Pour les rallumer : Réglages → Autres réglages → Circuits de visite.') : null, // v390 (4A)
     c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : c.base ? 'Ta version de ce circuit' : (myCircuitsList().find((x) => x.id === c.myId)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.myId).by}` : 'Mon circuit')) : null,
     revisedLine(c),
     el('p', { class: 'summary' }, c.mine ? [c.depart ? `Ⓜ ${c.depart}` : 'Départ', c.arrivee ? `Ⓜ ${c.arrivee}` : 'arrivée'].join(' → ') + ` · ${kmText(c.m)}` : `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
@@ -9515,7 +9528,7 @@ function openSettings(section = null, from = null) {
   }
 
   if (section === 'outils') {
-    const list = normalizeTools(state.mapTools);
+    const list = normalizeTools(state.mapTools).filter((t) => t !== 'circuits' || !circuitsOff()); // v390 : circuits éteints, le bouton n'est dans aucun groupe
     // v376 (mes choix 1A 2A 3A 4A du 21 nov.) : la liste suit l'écran, en trois groupes ; ↑ ↓ n'agissent que dans le groupe
     const whereOf = (t) => cleanHidden(state.hiddenTools).includes(t) ? 'hidden' : moreList().includes(t) ? 'more' : 'map';
     const row = (t, i, group) => {
@@ -9564,6 +9577,10 @@ function openSettings(section = null, from = null) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Noms à côté des boutons'), el('span', { class: 'menu-sub' }, 'Écrits sur la carte, à côté de chaque bouton de la colonne')),
         el('span', { class: `switch${state.toolLabels === true ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
       groups,
+      circuitsOff() ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('autres') }, // v390 : le même réglage, dit ici (sous les groupes : rien ne bouge au-dessus)
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('signpost')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Circuits de visite'), el('span', { class: 'menu-sub' }, 'Éteints : Réglages → Autres réglages')),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')) : null,
       el('p', { class: 'legend' }, 'Raccourcis'), // 2A : l'essentiel en bas, sur une ligne ›
       el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('essentiel') },
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('check')),
@@ -9586,7 +9603,7 @@ function openSettings(section = null, from = null) {
     };
     openSheet([ico('check'), ' L\'essentiel'], el('div', { class: 'stack' }, // v376 : le titre de la ligne qui l'ouvre
       el('p', { class: 'help tip' }, 'Coche les boutons à garder sur la carte. « Ne garder que l\'essentiel » range les autres dans ⋯ Plus ; rien n\'est masqué. « Remettre mes boutons d\'avant », dans Boutons de la carte, annule.'),
-      el('ul', { class: 'items' }, normalizeTools(state.mapTools).map((t) => {
+      el('ul', { class: 'items' }, normalizeTools(state.mapTools).filter((t) => t !== 'circuits' || !circuitsOff()).map((t) => {
         const info = TOOL_INFO[t];
         const box = el('input', { type: 'checkbox', class: 'check', checked: ess.includes(t), 'data-ess': t });
         box.addEventListener('change', () => flip(t, box));
@@ -10084,8 +10101,8 @@ function openSettings(section = null, from = null) {
       tuneRow('ttbMin', (v) => `TTB à moins de ${v}`, 'Quand le calque TTB est affiché'),
       tuneRow('rainMin', (v) => `Passages couverts à ${v}`, 'Quand il pleut'),
       tuneRow('villeM', (v) => `Immeubles de la Ville à ${v}`, 'Dans Monuments'),
-      el('h3', { class: 'fiche-sec' }, 'Circuits'),
-      tuneRow('traceMin', (v) => `Mes lieux à ${v} du tracé`, 'Sur la page d\'un circuit'),
+      circuitsOff() ? null : el('h3', { class: 'fiche-sec' }, 'Circuits'), // v390 : circuits éteints, leur réglage part avec eux (gardé)
+      circuitsOff() ? null : tuneRow('traceMin', (v) => `Mes lieux à ${v} du tracé`, 'Sur la page d\'un circuit'),
       el('h3', { class: 'fiche-sec' }, 'Mon planning'),
       tuneRow('askDays', (v) => `« Tu y es allée ? » ${v}`, 'Après la sortie'),
       tuneRow('leaveMin', (v) => `Marge de ${v}`, '« Pars à » : en plus du trajet'), // v365 (ma demande du 21 nov.) : sous la dernière ligne, il ne pousse rien
@@ -10120,7 +10137,7 @@ function openSettings(section = null, from = null) {
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     // v328 (mes choix du 20 nov.) : où la carte s'ouvre, à la place de l'interrupteur « Ouvrir sur ma position » (v176)
     row('locate', 'À l\'ouverture, la carte montre', START_VIEW_NAME[startViewOf(state)], () => openSettings('ouverture'), false, 'c-guide'),
-    row('ruler', 'Distances et durées', 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
+    row('ruler', 'Distances et durées', circuitsOff() ? 'Cercles, Y aller, sorties, Autour de moi' : 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
     row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
     row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
@@ -10148,6 +10165,11 @@ function openSettings(section = null, from = null) {
     onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? », « Déjà passée ici »' /* affichés au masculin par accord() */ : 'L\'appli écrit au féminin : « Tu y es allée ? »', state.masculin === true, () => {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
+    }),
+    // v390 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
+    onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints partout ; tes circuits sont gardés' : 'Bouton, Itinéraire, + Ajouter, Mes parcours', !circuitsOff(), () => {
+      state.circuitsOn = circuitsOff(); applyToolOrder();
+      toast(circuitsOff() ? 'Circuits éteints partout (rien n\'est supprimé)' : 'Circuits de retour : bouton, Itinéraire, + Ajouter');
     }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
@@ -11377,7 +11399,9 @@ const btnMore = el('button', { type: 'button', id: 'btnMore', class: 'map-btn c-
   ico('ellipsis', { size: 24 }), el('span', { class: 'map-count', hidden: true }));
 const morePanel = el('div', { id: 'morePanel', class: 'more-panel', role: 'group', 'aria-label': 'Plus de boutons', hidden: true });
 document.body.append(morePanel);
-const moreList = () => cleanMore(state.moreTools, cleanHidden(state.hiddenTools));
+/** v390 : « Circuits de visite » éteint dans Autres réglages : le bouton compte comme masqué, sans toucher à mon rangement. */
+const hiddenNow = () => { const h = cleanHidden(state.hiddenTools); return circuitsOff() && !h.includes('circuits') ? [...h, 'circuits'] : h; };
+const moreList = () => cleanMore(state.moreTools, hiddenNow());
 function openMore() {
   fill(morePanel, normalizeTools(state.mapTools).filter((t) => moreList().includes(t)).map((t) => {
     const info = TOOL_INFO[t];
@@ -11410,7 +11434,7 @@ function toolLabel(b, text) {
 function applyToolOrder() {
   const box = document.querySelector('.map-tools');
   box.classList.toggle('left', state.toolsSide === 'left');
-  const hidden = cleanHidden(state.hiddenTools);
+  const hidden = hiddenNow();
   const more = moreList();
   const order = normalizeTools(state.mapTools);
   if (following && hidden.includes('locate')) stopFollow(); /* v270 : bouton masqué, plus rien pour arrêter le suivi (GPS et écran allumé) */
@@ -11750,6 +11774,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
     '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
     '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
     '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
@@ -11759,7 +11784,6 @@ const HELP = [
     '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
     '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
-    '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -11778,7 +11802,7 @@ function openHelp(first) {
     el('p', { class: 'help' }, 'Touche un sujet pour l\'ouvrir.'),
     el('div', { class: 'help-list' }, HELP.map(([icon, title, lines], i) => el('details', { class: 'help-item', open: openFirst && i === 0 }, // Prise en main ouverte depuis « Ta carte est vide » (v258)
       el('summary', {}, el('span', { class: 'menu-ico help-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'help-title' }, title)),
-      el('ul', {}, lines.map((l) => el('li', {}, ...helpLine(l)))),
+      el('ul', {}, (circuitsOff() ? helpWithoutCircuits(lines) : lines).map((l) => el('li', {}, ...helpLine(l)))), // v390 : l'Aide ne cite que ce qui existe
       i === 0 ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { forgetGot(); openWelcome(2); } }, 'Refaire les réglages du début') : null))), // v314 : le circuit du premier lancement, sans la page Bienvenue
     el('p', { class: 'help' }, `Version du ${VERSION}.`),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),

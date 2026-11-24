@@ -44,3 +44,19 @@ export function tuningText(key, v) {
 /** Lignes de la fiche d'un lieu qu'on peut masquer : QR code, Avis Google, Uber jusqu'ici, Mes étoiles (v281). */
 export const FICHE_LINES = Object.freeze(['qr', 'avis', 'uber', 'stars']);
 export const cleanFicheHidden = (list) => FICHE_LINES.filter((k) => Array.isArray(list) && list.includes(k));
+
+/* v390 (mes choix 1A 2A 3A 4A du 24 nov.) : « Circuits de visite » éteint dans Autres réglages. L'Aide ne cite que ce qui existe :
+   les lignes propres aux circuits partent, Itinéraire, « Un parcours enregistré » et Ajouter ne les citent plus, une ligne dit où les rallumer. */
+const CIRCUIT_ONLY = /^(\{signpost\} \*\*(Circuits de visite|Mes circuits)\*\*|\{pencil\} \*\*Modifier ce circuit\*\*|\*\*La page d'un circuit\*\*|\{triangle-alert\} \*\*Un souci sur un circuit\*\*|\{check\} \*\*Je l'ai fait\*\*|\{route\} \*\*Parcours ou circuit \?\*\*)/;
+export const CIRCUITS_OFF_HELP = '{signpost} **Circuits de visite** : éteints sur ce téléphone. Pour les rallumer : {settings} → Autres réglages → Circuits de visite.';
+export function helpWithoutCircuits(lines) {
+  const out = [];
+  for (const l of lines) {
+    if (CIRCUIT_ONLY.test(l)) continue;
+    const t = l.replace(', Circuits de visite, ', ', ').replace(/, « En faire un circuit » \([^)]*\)/, '')
+      .replace('« **Un parcours** » et « **Un circuit** » ouvrent', '« **Un parcours** » ouvre');
+    out.push(t);
+    if (t.startsWith('{route} **Itinéraire**')) out.push(CIRCUITS_OFF_HELP);
+  }
+  return out;
+}

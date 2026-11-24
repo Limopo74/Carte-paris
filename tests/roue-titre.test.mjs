@@ -12,7 +12,7 @@ test('roue : Sorties, Autour de moi et la page d\'un circuit ouvrent Distances e
   assert.match(app, /const gear = settingsGear\('distances', '[^']+', named\('Sorties', \(\) => openEvents\(\)\)\);/);
   assert.match(app, /openSheet\(\[\.\.\.title, photoBtn, gear\]\.filter\(Boolean\), el\('div', \{ class: 'stack ev-page' \}/);
   assert.match(app, /withGear\(nearTitle\(\), settingsGear\('distances', '[^']+', named\('Autour de moi', nearAgain\)\)\)/);
-  assert.match(app, /withGear\(c\.titre, settingsGear\('distances', '[^']+', self\)\)/);
+  assert.match(app, /withGear\(c\.titre, (circuitsOff\(\) \? null : )?settingsGear\('distances', '[^']+', self\)\)/); // v390 : pas de roue quand les circuits sont éteints
   assert.equal((app.match(/settingsGear\('/g) ?? []).length, 3, 'trois roues, pas plus (mon choix 2A)');
 });
 
