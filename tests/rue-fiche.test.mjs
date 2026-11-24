@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lineLengthM, nearestOnLine, distanceM } from '../js/geo.js';
+import { lineLengthM, nearestOnLine, distanceM, goTarget } from '../js/geo.js';
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 // Un morceau de la rue Mouffetard (nord-sud, environ 330 m)
@@ -33,4 +33,27 @@ test('v403 : la fiche d\'une rue sans horaires dit sa longueur et la durée, à 
   assert.match(f, /distText\(rueM\)/);
   assert.match(f, /`≈ \$\{routeMin\(rueM\)\}`/); // à mon pas, le long de la rue (déjà mesurée) : pas de détour ajouté
   assert.match(f, /st \|\| metro \|\| rueM \?/);
+});
+
+test('v404 : Y aller d\'une rue d\'intérêt mène au bout le plus proche ; sur la rue, au point le plus proche ; un lieu : sa goutte', () => {
+  const rue = { id: 'r', name: 'Rue Mouffetard', lat: 48.8430, lng: 2.3496, line: LINE };
+  const nord = goTarget(rue, { lat: 48.8470, lng: 2.3500 }); // au nord : le bout nord
+  assert.deepEqual([nord.lat, nord.lng], LINE[0]);
+  const sud = goTarget(rue, { lat: 48.8395, lng: 2.3490 }); // au sud : le bout sud
+  assert.deepEqual([sud.lat, sud.lng], LINE.at(-1));
+  const dessus = goTarget(rue, { lat: 48.8437, lng: 2.3499 }); // à 20 m de la rue : le point le plus proche
+  assert.ok(distanceM(dessus, { lat: 48.8437, lng: 2.3499 }) < 30);
+  assert.equal(nord.name, 'Rue Mouffetard'); assert.equal(nord.id, 'r'); // le reste du lieu suit (nom pour Google Maps)
+  const lieu = { id: 'l', lat: 48.85, lng: 2.35 };
+  assert.equal(goTarget(lieu, { lat: 48.84, lng: 2.34 }), lieu);
+  assert.equal(goTarget(rue, null), rue); // sans position : la goutte
+});
+
+test('v404 : la fiche, Chemin à pied, Autour de moi, Sur mon chemin et la boussole passent par goTarget', () => {
+  assert.match(app, /const goPt = goTarget\(p, pos\);[^\n]*\n  const d = pos \? distanceM\(pos, goPt\) : null;/);
+  assert.match(app, /href: mapsUrl\(goPt, d \?\? Infinity\)/);
+  assert.match(app, /const b = snap\(P, goTarget\(p, pos\)\);/);
+  assert.match(app, /href: mapsUrl\(goTarget\(p, origin\), d\)/);
+  assert.match(app, /href: mapsUrl\(goTarget\(p, from\), distanceM\(from, goTarget\(p, from\)\)\)/);
+  assert.match(app, /compass-go'\)\.href = mapsUrl\(goTarget\(p, pos\)/);
 });

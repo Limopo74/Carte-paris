@@ -164,3 +164,14 @@ export function nearestOnLine(line, pt) {
   }
   return best;
 }
+
+/** v404 (mon choix 2 du 24 nov.) : où va « Y aller » d'un de mes lieux. Une rue d'intérêt : le bout de la rue le plus proche de moi,
+ *  ou le point de la rue le plus proche quand j'en suis à moins de 50 m (je suis déjà dessus) ; un autre lieu : sa goutte. */
+export function goTarget(p, pos) {
+  if (!p?.line || p.line.length < 2 || !Number.isFinite(pos?.lat)) return p;
+  const near = nearestOnLine(p.line, pos);
+  if (near && near.d < 50) return { ...p, lat: near.lat, lng: near.lng };
+  const [a, b] = [p.line[0], p.line.at(-1)].map(([lat, lng]) => ({ lat, lng }));
+  const e = distanceM(pos, a) <= distanceM(pos, b) ? a : b;
+  return { ...p, lat: e.lat, lng: e.lng };
+}

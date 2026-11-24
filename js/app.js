@@ -6,7 +6,7 @@ import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passes
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (409)';
+const VERSION = '24 novembre 2026 (410)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2865,7 +2865,8 @@ function openDetail(id, back = null) {
   const p = state.points.find((x) => x.id === id);
   if (!p) { closeSheet(); return; }
   const pos = startPos();
-  const d = pos ? distanceM(pos, p) : null;
+  const goPt = goTarget(p, pos); // v404 : une rue d'intérêt, le bout le plus proche
+  const d = pos ? distanceM(pos, goPt) : null;
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
   const here = named('Fiche', () => openDetail(p.id, back));
   // v326 (mes choix 1B 2A 3A du 20 nov.) : une photo prise en passant a sa propre fiche : Y aller, la photo en grand, sa date,
@@ -2874,7 +2875,7 @@ function openDetail(id, back = null) {
 
   // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
-  const goLink = el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
+  const goLink = el('a', { class: 'btn primary go-bar', href: mapsUrl(goPt, d ?? Infinity), target: '_blank', rel: 'noopener' },
     ico('arrow-right'), ...goText(d, pos)); /* v231 : minutes seulement sous la limite « à pied » (goText) */
   // v383 (mon choix 4A du 24 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la vraie distance et la durée par les rues
   if (d != null && walkGo(d)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico('arrow-right'), ...goRouteText(r.m, pos)); });
@@ -4061,7 +4062,7 @@ function renderNear(fit = false) {
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${walkMinutes(d)}\u00a0min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
       el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
-      el('a', { class: 'go', href: mapsUrl(p, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
+      el('a', { class: 'go', href: mapsUrl(goTarget(p, origin), d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
   if (!inside) {
     const what = [!filterCats.size ? 'lieu' : `lieu « ${[...filterCats].map((id) => catOf(id).name).join(' », « ')} »`, favOnly ? 'favori' : null].filter(Boolean).join(' ');
@@ -4306,7 +4307,7 @@ function renderWay(from, dest) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, favMark(p), p.name),
           el('span', { class: 'item-sub' }, photoMark(p), detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
-      el('a', { class: 'go', href: mapsUrl(p, distanceM(from, p)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
+      el('a', { class: 'go', href: mapsUrl(goTarget(p, from), distanceM(from, goTarget(p, from))), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
     found.length
       ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
         found.length > MAX_ROUTE - 1 ? `Itinéraire avec les ${MAX_ROUTE - 1} premiers arrêts` : 'Itinéraire avec ces arrêts')
@@ -4442,7 +4443,7 @@ async function walkRouteTo(p, pos) {
   if (!pos || !Number.isFinite(p?.lat)) return null;
   const P = streets ?? await loadStreets();
   if (!P) return null;
-  const a = snap(P, pos); const b = snap(P, p);
+  const a = snap(P, pos); const b = snap(P, goTarget(p, pos)); // v404 : une rue d'intérêt, jusqu'à son bout le plus proche
   const r = a && b ? route(P, a, b) : null;
   return r && r.m > 0 ? r : null;
 }
@@ -9391,7 +9392,7 @@ function openCompass(p, step = null) {
     doneBtn.hidden = true;
     toast(`${mine.name} : noté « ${didLower(catOf(mine.cat))} »`);
   };
-  compassEl.querySelector('.compass-go').href = mapsUrl(p, pos ? distanceM(pos, p) : Infinity);
+  compassEl.querySelector('.compass-go').href = mapsUrl(goTarget(p, pos), pos ? distanceM(pos, goTarget(p, pos)) : Infinity); // v404
   compassEl.hidden = false;
   if (!step?.replace) history.pushState({ compass: true }, '');
   keepScreenOn(true);
@@ -11902,7 +11903,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
+    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au bout de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -12024,6 +12025,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-right} **Y aller jusqu\'au bout de la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au bout de la rue le plus proche de toi, plus au milieu. Déjà dessus : au point le plus proche.',
     '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
@@ -12033,7 +12035,6 @@ const HELP = [
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
-    '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
