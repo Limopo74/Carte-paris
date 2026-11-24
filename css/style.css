@@ -736,6 +736,12 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
   text-shadow: 0 0 6px var(--bg), 0 0 10px var(--bg), 0 0 14px var(--bg); }
 .arr-num small { font-size: .5em; vertical-align: super; }
 #map.z-11 .arr-num { display: none; }
+/* v397 : le nom de mes lieux sous leur goutte, de près (zoom 16 et plus), sur une petite étiquette papier ; caché s'il touche un autre nom, une goutte ou un bouton */
+.pin-name { display: none; position: absolute; left: 50%; top: 42px; transform: translateX(-50%); max-width: calc(170px * var(--ts)); overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--display); font-weight: 700; font-size: var(--t13); line-height: 1.15; color: var(--ink); white-space: nowrap; pointer-events: none;
+  background: var(--bg); padding: 1px 4px; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); } /* fond papier plein : lisible au soleil sur n'importe quel fond de carte */
+#map.names-on .pin-name { display: block; }
+#map.names-on .pin-name.name-off { visibility: hidden; }
 /* Repères (v386) : dessins des grands monuments, vue de loin ; liseré papier pour se détacher du fond ; cachés quand ils touchent un bouton ou un lieu */
 .rep-mk.rep-off { visibility: hidden; }
 .rep-svg { display: block; overflow: visible; filter: drop-shadow(0 0 1.5px var(--bg)) drop-shadow(0 0 1px var(--bg)); }
