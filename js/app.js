@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (382)';
+const VERSION = '24 novembre 2026 (383)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2805,9 +2805,12 @@ function openDetail(id, back = null) {
 
   // En tête, juste sous le nom : Y aller (seule plaque pleine) puis Boussole, Métro, Photo (v93).
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
+  const goLink = el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
+    ico('arrow-right'), ...goText(d, pos)); /* v231 : minutes seulement sous la limite « à pied » (goText) */
+  // v382 (mon choix 4A du 24 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la vraie distance et la durée par les rues
+  if (d != null && walkGo(d)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico('arrow-right'), ...goRouteText(r.m, pos)); });
   const goBox = el('div', { class: 'stack' },
-    el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), ...goText(d, pos)), /* v231 : minutes seulement sous la limite « à pied » (goText) */
+    goLink,
     el('div', { class: 'row3' },
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(p) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(p, here), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
@@ -2974,6 +2977,8 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       state.navigo !== false && navigoOf(p) ? row('badge-percent', 'Avantage Navigo', /* v282 : « J'ai un passe Navigo » éteint, rien */ shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
+      // v382 (mon choix 3A du 24 nov.) : le chemin par les rues dessiné sur la carte, en tête de Pratique (Y aller garde Google Maps)
+      d != null && walkGo(d) ? row('route', 'Chemin à pied', 'Par les rues, dessiné sur la carte', () => showWalkRoute(p, pos, named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, reviewsSub(catOf(p.cat)))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
@@ -4308,6 +4313,41 @@ function placeSteps(steps) {
   const out = steps.map((st) => ({ ...st, s: snap(streets, st) }));
   const legs = out.slice(1).map((st, i) => route(streets, out[i].s, st.s));
   return { steps: out, legs };
+}
+
+/** v382 (mes choix 3A 4A du 24 nov.) : le chemin à pied par les rues de `pos` (ma position, ou chez moi) jusqu'au lieu, calculé sur le
+ *  téléphone avec le plan des rues s'il y est déjà (jamais téléchargé ici). null sans plan, ou si un bout est à plus de 60 m d'une rue :
+ *  la plaque garde alors son estimation. */
+async function walkRouteTo(p, pos) {
+  if (!pos || !Number.isFinite(p?.lat)) return null;
+  const P = streets ?? await loadStreets();
+  if (!P) return null;
+  const a = snap(P, pos); const b = snap(P, p);
+  const r = a && b ? route(P, a, b) : null;
+  return r && r.m > 0 ? r : null;
+}
+/** La plaque « Y aller » d'après le vrai chemin : « Y aller · 6 min à pied » et, en petit, la distance par les rues. */
+function goRouteText(m, pos) {
+  const nb = (t) => t.replace(/ /g, '\u00a0');
+  const from = pos?.kind === 'home' ? ' de\u00a0chez\u00a0toi' : '';
+  return [`Y aller · ${nb(from ? routeMin(m).replace(/ à pied$/, '') : routeMin(m))}${from}`, el('small', { class: 'go-dist' }, fmtDist(m))];
+}
+/** v382 (mon choix 3A) : « Chemin à pied » : le chemin dessiné sur la carte (trait plein encre, comme Mes parcours), un bandeau
+ *  dit la distance et la durée ; le toucher ramène à la fiche. Sans plan des rues : la page qui le propose, puis le chemin. */
+async function showWalkRoute(p, pos, back) {
+  if (!streets && !(await loadStreets())) {
+    openMyRoutes({ title: ' Chemin à pied', icon: 'route', fn: () => showWalkRoute(p, pos, back), back });
+    return;
+  }
+  const r = await walkRouteTo(p, pos);
+  if (!r) { toast('Pas de chemin trouvé dans les rues : un des deux bouts est loin d\'une rue. « Y aller » reste possible.', true); return; }
+  closeSheet(); endPeek();
+  const line = L.polyline(r.line, { color: ink(), weight: 5, opacity: 0.9, interactive: false }).addTo(peekLayer);
+  L.circleMarker(r.line[0], { radius: 6, color: ink(), weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(peekLayer);
+  const f = legsFlags([r]);
+  const note = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert' : null, f & STEPS ? 'escaliers' : null].filter(Boolean).join(', ');
+  showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '));
+  map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
 }
 
 /** `after` (v253) : { title, fn, back } quand on vient de « Nouveau circuit » : après le téléchargement, le tracé du circuit s'ouvre. */
@@ -11352,6 +11392,7 @@ const HELP = [
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
     '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
+    '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche. « Y aller » ouvre toujours Google Maps.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris).',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
@@ -11585,6 +11626,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **Chemin à pied** : sur la fiche d\'un lieu, Pratique → Chemin à pied dessine le chemin par les rues sur la carte, avec sa vraie distance. Quand le plan des rues est sur le téléphone, « Y aller » dit aussi la durée par les rues.',
     '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
@@ -11595,7 +11637,6 @@ const HELP = [
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
     '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
-    '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
