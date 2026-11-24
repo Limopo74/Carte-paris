@@ -15,7 +15,9 @@ Sortie (format 2, compacte, un seul fichier ; lue par js/rues.js, readPlan) :
     ek: [numéro du nom + 1 (0 = sans nom)], en: [nombre de points de forme],
     shape: [dlat, dlng, …]                  (points de forme, le 1er relatif au nœud a, les suivants au point d'avant) }
   La longueur d'un tronçon n'est pas écrite : le téléphone la recalcule.
-Drapeaux : 1 = dans un parc ou un jardin, 2 = peut fermer (passage sous un immeuble, galerie, voie avec horaires), 4 = escalier.
+Drapeaux : 1 = dans un parc ou un jardin, 2 = peut fermer (passage sous un immeuble, galerie, voie avec horaires), 4 = escalier,
+8 = hors du sol (pont, tunnel, voie à un autre niveau que le sol : son altitude n'est pas celle du sol, v406).
+Les altitudes (champ alt) sont ajoutées ensuite par tools/maj-altitudes.mjs.
 Seuls les tronçons dont un bout est dans Paris (data/arrondissements.json) sont gardés. Seuls les croisements sont des nœuds ; les points entre deux croisements sont des points de forme.
 Si les réponses sont trop petites (moins de 100 000 tronçons) ou le réseau trop morcelé (moins de 90 % d'un seul tenant),
 rien n'est écrit : le fichier d'avant reste.
@@ -50,6 +52,16 @@ def queries():
     out['q-parcs'] = (f'[out:json][timeout:300];(way({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];'
                       f'relation({bb})[leisure~"^(park|garden)$"][access!~"^(private|no)$"];);out geom qt;')
     return out
+
+
+def off_ground(t):
+    """v406 : pont, tunnel (pas un simple passage sous un immeuble) ou voie à un autre niveau que le sol (layer)."""
+    if t.get('bridge', 'no') != 'no' or t.get('tunnel', 'no') not in ('no', 'building_passage'):
+        return True
+    try:
+        return int(float(t.get('layer', '0'))) != 0
+    except ValueError:
+        return False
 
 
 def length_m(a, b):
@@ -130,7 +142,7 @@ def build(data, in_paris=lambda pt: True):
         # « Peut fermer » : passage sous un immeuble, intérieur, couloir, ou voie avec des horaires (galeries, cours).
         # Pas une simple arcade toujours ouverte (covered=yes sans horaires, rue de Rivoli).
         closes = t.get('tunnel') == 'building_passage' or t.get('indoor') == 'yes' or t.get('highway') == 'corridor' or bool(t.get('opening_hours'))
-        flag = (2 if closes else 0) | (4 if t.get('highway') == 'steps' else 0)
+        flag = (2 if closes else 0) | (4 if t.get('highway') == 'steps' else 0) | (8 if off_ground(t) else 0)
         nm = t.get('name', '').strip()
         if nm and nm not in name_ix:
             name_ix[nm] = len(names); names.append(nm)
@@ -242,7 +254,7 @@ def main():
     flags = doc['ef']
     print(f"Plan des rues : {len(g['nodes']) // 2} croisements, {n_edges} tronçons, {len(g['shape']) // 2} points de forme, "
           f"{len(g['names'])} noms, {parks} parcs et jardins")
-    print(f"  dans un parc : {sum(1 for f in flags if f & 1)} ; couverts : {sum(1 for f in flags if f & 2)} ; escaliers : {sum(1 for f in flags if f & 4)}")
+    print(f"  dans un parc : {sum(1 for f in flags if f & 1)} ; couverts : {sum(1 for f in flags if f & 2)} ; escaliers : {sum(1 for f in flags if f & 4)} ; ponts et tunnels : {sum(1 for f in flags if f & 8)}")
     print(f"  plus grand morceau d'un seul tenant : {share} % des croisements ({len(sizes)} morceaux) : seul gardé")
     print(f"  longueur totale : {round(sum(g['edges'][2::6]) / 1000)} km (longueurs calculées ici, pas écrites)")
     print(f"  POIDS : {len(raw) / 1e6:.2f} Mo tel quel, {gz / 1e6:.2f} Mo compressé (ce que le téléphone télécharge)")

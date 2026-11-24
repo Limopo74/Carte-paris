@@ -6,6 +6,8 @@
 export const PARK = 1;
 export const COVERED = 2;
 export const STEPS = 4;
+/** v406 : pont, tunnel ou voie hors du sol (passerelle, couloir sous terre) : son altitude n'est pas celle du sol. */
+export const OFFGROUND = 8;
 /** Un parc ou un passage couvert coûte 50 fois sa longueur : le chemin les contourne, sauf s'il n'y a pas d'autre passage
  *  ou si l'étape est dedans (choix 1A du 19 nov. 2026). */
 const AVOID = 50;
@@ -16,6 +18,20 @@ const CELL = 0.002; // ≈ 220 m sur 150 m à Paris
 
 const KY = 111_320;
 const kx = (lat) => KY * Math.cos((lat * Math.PI) / 180);
+
+/** v406 : altitudes du sol des croisements (tools/maj-altitudes.mjs, IGN RGE ALTI), en mètres entiers, chacune écrite
+ *  par écart avec la dernière connue ; null = inconnue (pont, tunnel, ou pas reçue). Float32Array (NaN = inconnue) ou null. */
+export function readAlt(a, N) {
+  if (!Array.isArray(a) || a.length !== N) return null;
+  const out = new Float32Array(N); let z = 0; let any = false;
+  for (let i = 0; i < N; i++) {
+    const d = a[i];
+    if (d === null) { out[i] = NaN; continue; }
+    if (!Number.isFinite(d)) return null;
+    z += d; out[i] = z; any = true;
+  }
+  return any ? out : null;
+}
 
 /** Lit le fichier du plan (format 2 de tools/maj-rues.py). Renvoie null s'il est illisible ou incohérent. */
 export function readPlan(json) {
@@ -63,7 +79,7 @@ export function readPlan(json) {
     put(lat[eb[i]], lng[eb[i]], i);
   }
   const names = Array.isArray(json.names) ? json.names.map((x) => String(x)) : [];
-  return { N, E, lat, lng, ea, eb, em, ef, ek, es, slat, slng, deg, adj, grid, names, updated: String(json.updated ?? '') };
+  return { N, E, lat, lng, ea, eb, em, ef, ek, es, slat, slng, deg, adj, grid, names, updated: String(json.updated ?? ''), alt: readAlt(json.alt, N) };
 }
 
 /** Les points d'un tronçon, de a vers b : [[lat, lng], …]. */
@@ -168,7 +184,8 @@ export function route(P, s1, s2) {
   // Même tronçon : tout droit le long de la rue
   if (s1.edge === s2.edge) {
     return { m: Math.abs(s2.t - s1.t), line: [[s1.lat, s1.lng], ...between(P, s1.edge, s1.t, s2.t), [s2.lat, s2.lng]],
-      flags: P.ef[s1.edge], names: [edgeName(P, s1.edge)].filter(Boolean), segs: [[s1.edge, Math.min(s1.t, s2.t), Math.max(s1.t, s2.t)]] };
+      flags: P.ef[s1.edge], names: [edgeName(P, s1.edge)].filter(Boolean), segs: [[s1.edge, Math.min(s1.t, s2.t), Math.max(s1.t, s2.t)]],
+      run: [[s1.edge, s1.t, s2.t]] };
   }
   const dist = new Float64Array(P.N).fill(Infinity); const via = new Int32Array(P.N).fill(-1);
   const h = new Heap();
@@ -199,15 +216,18 @@ export function route(P, s1, s2) {
   const line = [[s1.lat, s1.lng], ...between(P, s1.edge, s1.t, outB ? L1 : 0), [P.lat[first], P.lng[first]]];
   let m = outB ? L1 - s1.t : s1.t; let flags = P.ef[s1.edge]; const names = [edgeName(P, s1.edge)];
   const segs = [[s1.edge, outB ? s1.t : 0, outB ? L1 : s1.t]]; // [tronçon, de, à] en mètres depuis son nœud a
+  const run = [[s1.edge, s1.t, outB ? L1 : 0]]; // v406 : les mêmes morceaux dans le sens de la marche (pour la montée)
   for (const [i, to] of edges) {
     const pts = edgePoints(P, i); if (to === P.ea[i]) pts.reverse();
     line.push(...pts.slice(1)); m += P.em[i]; flags |= P.ef[i]; names.push(edgeName(P, i)); segs.push([i, 0, P.em[i]]);
+    run.push(to === P.eb[i] ? [i, 0, P.em[i]] : [i, P.em[i], 0]);
   }
   const inB = bestEnd === P.eb[s2.edge];
   line.push(...between(P, s2.edge, inB ? L2 : 0, s2.t), [s2.lat, s2.lng]);
   m += inB ? L2 - s2.t : s2.t; flags |= P.ef[s2.edge]; names.push(edgeName(P, s2.edge)); segs.push([s2.edge, inB ? s2.t : 0, inB ? L2 : s2.t]);
+  run.push([s2.edge, inB ? L2 : 0, s2.t]);
   const uniq = names.filter((n, i) => n && n !== names[i - 1]);
-  return { m, line, flags, names: [...new Set(uniq)], segs };
+  return { m, line, flags, names: [...new Set(uniq)], segs, run };
 }
 
 /* ---------- Mes parcours enregistrés (v1) : seulement les étapes ; le chemin se recalcule avec le plan ---------- */
@@ -339,4 +359,74 @@ export function wholeStreet(P, s) {
   const r = sa && sb ? route(P, sa, sb) : null;
   if (!r || r.m < 10 || r.m > WHOLE_MAX_M || r.line.length > 400) return null;
   return { a: { ...sa, name: s.name }, b: { ...sb, name: s.name }, r: { ...r, names: [s.name] } };
+}
+
+/* ---------- v406 (mes choix 3A 4A du 24 nov.) : altitude du sol et montée d'un chemin, calculées sur le téléphone ---------- */
+
+/** Une montée ne compte qu'une fois le chemin remonté de 2 m (le modèle de l'IGN a du bruit) ; la phrase à partir de 15 m. */
+export const CLIMB_NOISE_M = 2;
+export const CLIMB_FROM_M = 15;
+
+/** Altitude du sol à `t` mètres du nœud a du tronçon `i` (entre ses deux bouts), ou null : plan sans altitudes,
+ *  pont ou tunnel, bout inconnu. */
+export function altOnEdge(P, i, t) {
+  if (!P?.alt || !(i >= 0 && i < P.E) || P.ef[i] & OFFGROUND) return null;
+  const za = P.alt[P.ea[i]]; const zb = P.alt[P.eb[i]]; const L = P.em[i];
+  if (!Number.isFinite(za) || !Number.isFinite(zb)) return null;
+  const f = L > 0 ? Math.max(0, Math.min(1, t / L)) : 0;
+  return za + (zb - za) * f;
+}
+
+/** Les altitudes d'un ou plusieurs chemins (résultats de `route`), dans l'ordre de la marche ; les ponts et tunnels
+ *  sont sautés (le chemin va d'un bout à l'autre). null si une altitude manque ailleurs : rien ne s'affiche alors. */
+export function routeProfile(P, legs) {
+  if (!P?.alt) return null;
+  const out = [];
+  for (const r of legs) {
+    if (!r) continue;
+    if (!Array.isArray(r.run)) return null;
+    for (const [i, t1, t2] of r.run) {
+      if (P.ef[i] & OFFGROUND) continue;
+      const a = altOnEdge(P, i, t1); const b = altOnEdge(P, i, t2);
+      if (a === null || b === null) return null;
+      out.push(a, b);
+    }
+  }
+  return out.length ? out : null;
+}
+
+/** Montée cumulée (mètres), sans le bruit : un changement de sens ne compte qu'après CLIMB_NOISE_M. */
+export function climbUp(alts, noise = CLIMB_NOISE_M) {
+  if (!Array.isArray(alts) || alts.length < 2) return 0;
+  let up = 0; let ref = alts[0]; let dir = 0;
+  for (const z of alts.slice(1)) {
+    if (dir === 1 && z > ref) { up += z - ref; ref = z; }
+    else if (dir === -1 && z < ref) ref = z;
+    else if (dir !== 1 && z - ref >= noise) { up += z - ref; ref = z; dir = 1; }
+    else if (dir !== -1 && ref - z >= noise) { ref = z; dir = -1; }
+  }
+  return up;
+}
+
+/** Règle 4A : « monte de 40 m » à partir de 15 m, arrondi à 10 m ; sinon '' (rien n'est dit). */
+export function climbWords(up) {
+  if (!Number.isFinite(up) || up < CLIMB_FROM_M) return '';
+  return `monte de ${Math.max(20, Math.round(up / 10) * 10)} m`;
+}
+
+/** La montée d'un ou plusieurs chemins en mots (« monte de 40 m »), ou ''. */
+export function routeClimb(P, legs) {
+  const prof = routeProfile(P, legs);
+  return prof ? climbWords(climbUp(prof)) : '';
+}
+
+/** v406 (mes choix 1A 2A 3A du 24 nov.) : altitude du sol là où je suis, arrondie à 5 m, ou null. Seulement avec une position
+ *  de moins de 10 min, précise à 25 m, sur une rue du plan à 25 m au plus, hors pont et tunnel. */
+export const ALT_FIX_MAX_ACC = 25;
+export function altHere(P, fix, now = Date.now()) {
+  if (!P?.alt || !fix || !Number.isFinite(fix.time) || now - fix.time > 10 * 60 * 1000 || now < fix.time - 60000) return null;
+  if (!(fix.acc <= ALT_FIX_MAX_ACC)) return null;
+  const s = snap(P, fix, ALT_FIX_MAX_ACC);
+  const z = s ? altOnEdge(P, s.edge, s.t) : null;
+  return z === null ? null : Math.round(z / 5) * 5;
 }

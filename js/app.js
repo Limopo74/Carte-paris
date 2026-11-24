@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
-import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (405)';
+const VERSION = '24 novembre 2026 (406)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1539,6 +1539,7 @@ function remember(fix) {
   try { storage.setItem(LAST_KEY, JSON.stringify(fix)); } catch { /* facultatif */ }
   updateNow();
   try { drawWx(); } catch { /* pastille pas encore prête au démarrage */ }
+  if (view === 'weather' && streets?.alt && altHere(streets, fix) !== altShown) openWeather(true); // v406 : l'altitude suit
 }
 
 /** Moment de la journée pour « Maintenant » (types de lieux mis en avant), ou null. */
@@ -4394,11 +4395,16 @@ const routesBack = named('Mes parcours', () => openMyRoutes());
 const routeMin = (m) => { const n = routeMinutes(m); return `${n < 60 ? `${n} min` : minText(n)} à pied`; }; // à la minute près en dessous d'une heure
 const legsTotal = (legs) => legs.reduce((s, l) => s + (l?.m ?? 0), 0);
 const legsFlags = (legs) => legs.reduce((f, l) => f | (l?.flags ?? 0), 0);
-/** Phrase honnête sur ce que le chemin traverse (parc ou passage fermé la nuit, escaliers), sinon null. */
-function crossingNote(legs) {
+/** « a, b et c » */
+const andList = (parts) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} et ${parts.at(-1)}` : parts[0] ?? '');
+/** Phrase honnête sur ce que le chemin traverse (parc ou passage fermé la nuit, escaliers), sinon null.
+ *  v406 (mes choix 3A 4A du 24 nov.) : `climb` ajoute « monte de 40 m » (Mes parcours seulement, pas les circuits),
+ *  d'après les altitudes du plan des rues ; rien si elles manquent ou si ça monte de moins de 15 m. */
+function crossingNote(legs, climb = false) {
   const f = legsFlags(legs);
-  const parts = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert (fermé parfois la nuit)' : null, f & STEPS ? 'a des escaliers' : null].filter(Boolean);
-  return parts.length ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin ${parts.join(' et ')}.`) : null;
+  const up = climb ? routeClimb(streets, legs) : '';
+  const parts = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert (fermé parfois la nuit)' : null, f & STEPS ? 'a des escaliers' : null, up || null].filter(Boolean);
+  return parts.length ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin ${andList(parts)}.`) : null;
 }
 function drawTrace(steps, legs, fit = true, pick = null, sel = null) {
   nearLayer.clearLayers();
@@ -4451,8 +4457,10 @@ async function showWalkRoute(p, pos, back) {
   const line = L.polyline(r.line, { color: ink(), weight: 5, opacity: 0.9, interactive: false }).addTo(peekLayer);
   L.circleMarker(r.line[0], { radius: 6, color: ink(), weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(peekLayer);
   const f = legsFlags([r]);
-  const note = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert' : null, f & STEPS ? 'escaliers' : null].filter(Boolean).join(', ');
-  showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '));
+  const up = routeClimb(streets, [r]); // v406 : « ça monte de 40 m », seulement à partir de 15 m
+  const note = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert' : null, f & STEPS ? 'escaliers' : null, up ? `ça ${up}` : null].filter(Boolean).join(', ');
+  // v406 : avec la montée, « 4 min » sans « à pied » (le titre le dit déjà) : le bandeau garde sa hauteur en Grand texte
+  showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${up ? routeMin(r.m).replace(/ à pied$/, '') : routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '));
   map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
 }
 
@@ -4600,7 +4608,7 @@ function showTrace(fit = false) {
     nameIn ? el('label', { class: 'field' }, el('span', {}, 'Nom du parcours'), nameIn) : null,
     el('p', { class: 'summary' }, n > 1 ? `${plural(n, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)}` : n ? '1 étape' : 'Aucune étape'),
     el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), n ? (cm ? ' Touche la carte pour ajouter une étape : elle se place là où elle allonge le moins le chemin. Touche un numéro pour retirer l\'étape.' : ' Touche la carte pour ajouter une étape, un numéro pour la retirer. Le chemin suit les rues.') : ' Touche la carte là où tu veux partir.'),
-    crossingNote(t.legs.filter((l) => !l?.orig)),
+    crossingNote(t.legs.filter((l) => !l?.orig), !nc && !cm),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', disabled: !n, onclick: () => removeStep(n - 1) }, 'Retirer la dernière'),
       el('button', { type: 'button', class: 'btn', disabled: n < (cm ? 4 : 3), onclick: bestOrder }, 'Meilleur ordre')),
@@ -4702,7 +4710,7 @@ function openRoute(id) {
   openSheet(el('span', { class: 'title-clamp' }, ico('route'), ` ${r.name}`), el('div', { class: 'stack' }, // nom sur 2 lignes au plus (charte § 5)
     el('p', { class: 'summary' }, ok ? `${plural(steps.length, 'étape', 'étapes')} · ${fmtDist(total)} · ${routeMin(total)} (sans les arrêts)` : plural(steps.length, 'étape', 'étapes')),
     ok ? null : el('p', { class: 'warn' }, 'Le plan des rues a changé : un bout du chemin n\'est plus trouvé. Touche Modifier pour reposer l\'étape.'),
-    crossingNote(legs),
+    crossingNote(legs, true),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide(steps.map(({ s: _s, ...st }) => st), 'Parcours') }, ico('navigation'), 'Balade guidée'),
     el('div', { class: 'row' },
       steps.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(steps), target: '_blank', rel: 'noopener' }, 'Google Maps') : null,
@@ -7858,18 +7866,38 @@ const AIR_ADVICE = {
 };
 // v250 (mon choix A) : la ligne « Partir de chez moi » est toujours en haut de la page, allumée ou éteinte, dès qu'une adresse est enregistrée
 // (avant, v239 : seulement si Chez moi était allumé à l'ouverture ; l'allumer demandait Réglages → Chez moi).
+/* v406 (mes choix 1A 2A 3A du 24 nov.) : altitude du sol là où je suis, d'après les altitudes du plan des rues gardé sur le
+   téléphone (jamais téléchargé pour ça, rien d'envoyé) ; arrondie à 5 m ; rien si la position est vieille ou imprécise, loin
+   d'une rue, sur un pont, ou si le plan n'a pas d'altitudes. */
+let altLoading = false;
+let altShown = null;
+function altNow() {
+  if (!streets) {
+    if (!altLoading) {
+      altLoading = true;
+      streetsStored().then((j) => {
+        if (j && !streets) streets = readPlan(j);
+        if (streets?.alt && view === 'weather') openWeather(true);
+      }).catch(() => {});
+    }
+    return null;
+  }
+  return altHere(streets, here);
+}
 function openWeather(redraw = false) {
   if (!redraw) track('Météo et air');
   const day = dayNote();
   const on = homeOn();
   const home = cleanHome(state.home);
   const a = arrHere();
+  const z = altNow(); altShown = z;
   openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
     home ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, on ? `Distances depuis chez toi · ${homeShort(state.home)}` : 'Distances depuis ta position')),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))) : null,
     a ? el('p', { class: 'where-big' }, `Tu es dans le ${arrOrd(a)} arrondissement`) : null,
+    z !== null ? el('p', { class: 'alt-here' }, `Altitude : environ ${z} m`) : null,
     day ? el('p', { class: 'warn day-note' }, day.long) : null,
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
     air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
@@ -7880,7 +7908,7 @@ function openWeather(redraw = false) {
     air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
     meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
     el('p', { class: 'help' }, 'Valeurs du quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
-    el('p', { class: 'help tip' }, 'Source : Open-Meteo, et le service européen CAMS pour l\'air.'),
+    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''}.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
 wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
@@ -11742,7 +11770,7 @@ const HELP = [
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
-    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
+    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près).',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
     '**La colonne de boutons** : Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
@@ -11752,7 +11780,7 @@ const HELP = [
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
     '{map} **Toutes les stations sur la carte** : bouton en bas de Vélib\'. Chaque station montre ses vélos (ou ses places, selon ton choix). On les voit en zoomant.',
     '**L\'heure des Vélib\'** est écrite en haut à gauche. Touche-la pour mettre à jour. Après 10 min, les nombres s\'effacent : ils seraient faux.',
-    '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche. « Y aller » ouvre toujours Google Maps.',
+    '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche. Le bandeau dit « ça monte de 40 m » quand le chemin monte de 15 m ou plus (altitudes de l\'IGN, sans les ponts). « Y aller » ouvre toujours Google Maps.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). « Le plus rapide » ne s\'affiche qu\'avec 3 min d\'avance : en dessous, l\'estimation ne départage pas.',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
@@ -11827,7 +11855,7 @@ const HELP = [
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet ; dessous, les toilettes publiques et les fontaines à moins de 2 min de détour, sans celles fermées à ton arrivée (horaires publiés par la Ville).',
-    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation.',
+    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation. Sous le chemin, « monte de 40 m » quand il monte de 15 m ou plus.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
@@ -11988,6 +12016,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
     '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
@@ -11997,7 +12026,6 @@ const HELP = [
     '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
     '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
     '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
-    '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

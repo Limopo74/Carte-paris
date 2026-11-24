@@ -1,4 +1,5 @@
-# Robot du plan des rues à pied (Mes parcours, v244) : refait data/rues.json chaque mois depuis OpenStreetMap.
+# Robot du plan des rues à pied (Mes parcours, v244) : refait data/rues.json chaque mois depuis OpenStreetMap,
+# avec l'altitude du sol de chaque croisement d'après l'IGN (v406).
 # Séparé du robot des données (« Mise à jour des données ») : ses 10 demandes sont longues et les serveurs souvent
 # saturés (19 nov. 2026 : plusieurs passages pour tout obtenir). Jamais bloquant : s'il manque un morceau de rues,
 # ou si le plan obtenu est trop petit ou trop morcelé (tools/maj-rues.py), le plan d'avant reste et rien n'est publié.
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   rues:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -58,8 +59,16 @@ jobs:
             [ -s "/tmp/src/r-$k.json" ] || { echo "Morceau q-$k manquant : plan d'avant gardé."; echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; }
           done
           [ -s /tmp/src/r-parcs.json ] || echo "Parcs pas reçus : plan fait sans eux (les parcs ne sont alors pas évités)."
+          cp data/rues.json /tmp/rues-avant.json # v406 : ses altitudes sont reprises pour les croisements qui n'ont pas bougé
           if python3 -I tools/maj-rues.py /tmp/src data/rues.json "$(TZ=Europe/Paris date +%F)"; then echo "ok=1" >> "$GITHUB_OUTPUT"
           else git checkout -- data/rues.json; echo "Plan refusé : plan d'avant gardé."; echo "ok=0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Altitudes du sol (IGN), pour la montée d'un chemin et l'altitude de Météo et air
+        # v406 (24 nov. 2026) : seuls les croisements nouveaux sont demandés à l'IGN (environ 186 000 la première fois,
+        # 100 par demande, 4 demandes par seconde au plus : de 10 à 20 min). Jamais bloquant : ce qui manque reste inconnu
+        # et le téléphone ne dit alors rien.
+        if: steps.plan.outputs.ok == '1'
+        run: node tools/maj-altitudes.mjs data/rues.json /tmp/rues-avant.json
 
       - name: Contrôler et publier
         if: steps.plan.outputs.ok == '1'
@@ -77,7 +86,7 @@ jobs:
             git add data/rues.json
             if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
             npm test > /tmp/tests.txt 2>&1 || { tail -30 /tmp/tests.txt; exit 1; }
-            git commit -q -m "Plan des rues du $(TZ=Europe/Paris date +%-d/%m/%Y) (robot)"
+            git commit -q -m "Plan des rues du $(TZ=Europe/Paris date +%-d/%m/%Y), avec les altitudes du sol (robot)"
             if git push; then exit 0; fi
             echo "Envoi refusé (essai $essai), nouvel essai dans 20 s."; sleep 20
           done
