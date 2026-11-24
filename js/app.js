@@ -73,7 +73,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (426)';
+const VERSION = '25 novembre 2026 (427)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -620,6 +620,10 @@ const arrLayer = L.layerGroup().addTo(map);
 
 let filterCats = new Set(); // catégories choisies en haut ; vide = « Tout »
 let favOnly = false;
+// v427 (mes choix 1A 2A 3A 4A du 25 nov.) : Tout touché quand tout est affiché masque mes lieux sur la carte seule, le temps de la session ;
+// Autour de moi, la loupe, les listes et le bandeau les gardent. La fiche ouverte montre sa goutte seule (`hideShown`).
+let hideAll = false;
+let hideShown = null;
 let personFilter = 'all'; // 'all', '' (moi) ou le prénom d'une autre personne
 // Filtres (bouton « Filtres » en haut) : ouvert maintenant, mieux notés, abrités, listes, personne
 const filt = { open: false, top: false, covered: false, lists: new Set(), arr: 0 }; // arr : numéro de l'arrondissement choisi (0 = tous), le temps de la session
@@ -628,7 +632,15 @@ const passFilters = (p) => (!filt.open || openState(hoursOf(p))?.open === true) 
   && (!filt.covered || p.covered) && (!filt.lists.size || (p.lists ?? []).some((l) => filt.lists.has(l)))
   && (personFilter === 'all' || p.owner === personFilter);
 /** v267 : l'arrondissement choisi ne trie que la carte et sa liste ; Autour de moi, la recherche, Surprise ou le bandeau n'en tiennent pas compte. */
-const onMap = () => visible().filter((p) => !filt.arr || arrOfPoint(p) === filt.arr);
+const onMap = () => (hideAll ? state.points.filter((p) => String(p.id) === hideShown)
+  : visible().filter((p) => !filt.arr || arrOfPoint(p) === filt.arr));
+/** v427 : Tout est allumé quand tout est affiché ; un appui masque alors mes lieux, un autre (ou toute autre catégorie, Favoris) les remet. */
+const allShown = () => !filterCats.size && !favOnly && !hideAll;
+function pressAll() {
+  if (allShown()) { hideAll = true; hideShown = openIdOf(view); } else { filterCats.clear(); favOnly = false; hideAll = false; hideShown = null; }
+  refresh();
+  drawLayerNote(); // l'étiquette sous la barre suit (refresh tourne aussi au démarrage, avant elle)
+}
 const visible = () => state.points.filter((p) =>
   (!filterCats.size || filterCats.has(p.cat)) && (!favOnly || p.fav) && passFilters(p));
 /** Ce que l'appli propose (Autour de moi, Surprise, balades, alertes…) : pas une œuvre « Disparue ou recouverte » (v161). Elle reste sur la carte et dans le journal. */
@@ -1041,16 +1053,19 @@ function redrawIf(name) {
 }
 
 /** Centre la carte sur une position, au milieu de la partie visible au-dessus de la feuille. */
-function centerOn(lat, lng, zoom = map.getZoom()) {
+function centerOn(lat, lng, zoom = map.getZoom(), top = 0) {
   const h = sheet.hidden ? 0 : sheet.offsetHeight;
   map.setView([lat, lng], zoom, { animate: false });
-  if (h) map.panBy([0, h / 2], { animate: false });
+  // v427 : `top` (barre du haut et étiquette) : la goutte, haute d'environ 45 px, se place au milieu de ce qui reste visible, sous elles
+  const dy = top ? (h - top) / 2 - 22 : h / 2;
+  if (dy) map.panBy([0, dy], { animate: false });
 }
 
 /** v331 : la goutte du lieu dont la fiche est ouverte grossit, passe devant et prend un anneau encre ;
  *  elle palpite deux fois à l'ouverture (`pulse`), sauf si le téléphone supprime les animations (CSS). */
 function markOpen(pulse) {
   const id = openIdOf(view);
+  if (hideAll && id !== hideShown) { hideShown = id; renderMarkers(); } // v427 (mon choix 4A) : lieux masqués, la goutte de la fiche ouverte seule
   for (const [k, r] of markerEls) {
     const n = r.m.getElement();
     if (k === id) continue;
@@ -1076,8 +1091,9 @@ function showOpened(p, back) {
   if (!onMap().some((x) => x.id === p.id)) return;
   const r = markerEls.get(String(p.id));
   const pt = r ? map.latLngToContainerPoint([p.lat, p.lng]) : null;
-  const top = document.querySelector('header.top')?.getBoundingClientRect().bottom ?? 0;
-  if (needsCenter(pt, map.getSize(), sheet.hidden ? 0 : sheet.offsetHeight, top)) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16));
+  const note = layerNoteBtn.hidden ? 0 : layerNoteBtn.getBoundingClientRect().bottom; // v427 : l'étiquette sous la barre cache aussi la goutte
+  const top = Math.max(document.querySelector('header.top')?.getBoundingClientRect().bottom ?? 0, note);
+  if (needsCenter(pt, map.getSize(), sheet.hidden ? 0 : sheet.offsetHeight, top)) centerOn(p.lat, p.lng, Math.max(map.getZoom(), 16), top);
 }
 
 function showDraft(lat, lng) {
@@ -1110,12 +1126,12 @@ function chipItems(chip = null, catChip = null) {
   const toggleJardins = () => { setJardinLayer(!state.showJardins); refresh(); toast(state.showJardins ? 'Jardins publics sur la carte, en zoomant : vert clair, ouvert maintenant' : 'Jardins publics : masqués'); };
   const busOn = () => Boolean(state.showBusLines && (state.busLines ?? []).length);
   const fixed = [
-    { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: () => { filterCats.clear(); favOnly = false; refresh(); },
-      make: () => chip('Tout', !filterCats.size && !favOnly, () => { filterCats.clear(); favOnly = false; refresh(); }) },
+    { key: 'all', name: 'Tout', icon: ico('list'), active: false, act: pressAll,
+      make: () => chip('Tout', allShown(), pressAll, { aria: allShown() ? 'Tout : tes lieux sur la carte. Touche pour les masquer' : hideAll ? 'Tout : tes lieux sont masqués. Touche pour les afficher' : 'Tout : toutes tes catégories' }) },
     { key: 'filters', name: 'Filtres', icon: ico('list-filter'), active: activeFilters() > 0, act: openFilters,
       make: () => chip([ico('list-filter'), activeFilters() ? ` ${activeFilters()}` : ''], activeFilters() > 0, openFilters, { class: 'filters', aria: activeFilters() ? `Filtres : ${activeFilters()} actifs` : 'Filtres' }) },
-    { key: 'fav', name: 'Favoris', icon: glyph(state.fav.icon, { filled: true }), active: favOnly, act: () => { favOnly = !favOnly; refresh(); emptyHint(); },
-      make: () => chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { favOnly = !favOnly; refresh(); emptyHint(); }, { class: 'star', aria: 'Seulement les favoris' }) },
+    { key: 'fav', name: 'Favoris', icon: glyph(state.fav.icon, { filled: true }), active: favOnly, act: () => { hideAll = false; favOnly = !favOnly; refresh(); drawLayerNote(); emptyHint(); },
+      make: () => chip(glyph(state.fav.icon, { filled: true, size: 20 }), favOnly, () => { hideAll = false; favOnly = !favOnly; refresh(); drawLayerNote(); emptyHint(); }, { class: 'star', aria: 'Seulement les favoris' }) },
     { key: 'street', name: 'Dans la rue aujourd\'hui', icon: ico('tent'), active: Boolean(state.showMarkets), act: toggleStreet,
       make: () => chip(ico('tent'), Boolean(state.showMarkets), toggleStreet, { class: 'street', aria: 'Dans la rue aujourd\'hui : marchés, brocantes, fêtes, expos en plein air' }) },
     { key: 'ttb', name: 'TTB', icon: ttbDotFor(''), active: Boolean(state.showTtb), act: toggleTtb,
@@ -1338,9 +1354,11 @@ function openFilterChoice(back = openFilters) {
 /** Ajoute ou retire une catégorie du filtre du haut. */
 let lastToggled = null;
 function toggleCat(id) {
+  hideAll = false; // v427 : lieux masqués, une catégorie touchée montre seulement elle
   if (filterCats.has(id)) filterCats.delete(id); else filterCats.add(id);
   lastToggled = id;
   refresh();
+  drawLayerNote(); // v427
   emptyHint();
 }
 /** Si la combinaison choisie en haut ne montre plus aucun lieu, le dire (sinon la carte vide fait croire à une panne). */
@@ -5439,12 +5457,12 @@ const ttbNote = () => {
 };
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
@@ -5452,6 +5470,7 @@ layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
   if (n?.act === 'essai') endEssai(); // v315
   else if (n?.act === 'prep') stopPrep(); // v321
+  else if (n?.act === 'showall') pressAll(); // v427 : le même geste que Tout
   else if (n?.act === 'update') updateApp(); // v333 : le même geste que Réglages → Autres réglages → Mise à jour et confidentialité
   else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
@@ -11998,7 +12017,7 @@ const HELP = [
     '**M** : la station de métro la plus proche, avec son entrée la plus proche de toi (« Entrée 5, r. de la Roquette ») quand le fichier d\'Île-de-France Mobilités dit que c\'est une entrée : la distance, Y aller et la boussole vont jusqu\'à elle. Une entrée fermée pour travaux n\'est pas connue.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
     '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire. Une adresse (« 12 rue de Rivoli ») fait apparaître « Chercher cette adresse » : un appui sur la réponse la montre sur la carte et ouvre sa page, avec Y aller.',
-    '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
+    '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer. Tout déjà allumé, touche-le : tes lieux disparaissent de la carte, le temps de rouvrir l\'appli ; « Lieux masqués · Afficher » le rappelle. Autour de moi, la loupe et tes listes les gardent.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, la liste de tes lieux d\'un arrondissement. La rubrique Filtres explique tout.',
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
@@ -12255,6 +12274,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
@@ -12264,7 +12284,6 @@ const HELP = [
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
-    '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
