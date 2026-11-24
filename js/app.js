@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (386)';
+const VERSION = '24 novembre 2026 (387)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2893,7 +2893,8 @@ function openDetail(id, back = null) {
     p.gone ? row('eye', vanish ? 'Elle est de nouveau là' : 'De nouveau ouvert', 'L\'appli le propose à nouveau', () => setGone(false))
       : vanish ? row('eye-off', 'Disparue ou recouverte', 'Grise sur la carte, gardée dans ton journal', () => setGone(true))
         : row('store', 'Fermé définitivement', 'Constaté sur place ou dans Google Maps ; gris sur la carte', () => setGone(true)),
-    row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
+    // v387 : une rue d'intérêt n'a pas de « Déplacer le point » : sa goutte reste sur son trait (le déplacer laissait le trait en place)
+    p.line ? null : row('move', 'Déplacer le point', 'Corriger sa place sur la carte', () => startMove(p, back)),
     // v348 (mon choix 6A du 21 nov.) : « Rattacher » seulement sous « Cette photo » (il était aussi ici depuis la v326)
     // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
     photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
@@ -11210,7 +11211,7 @@ function openStylePicker() {
   const cur = state.mapStyle ?? 'classic';
   const ids = QUICK_STYLES.includes(cur) || !STYLE_INFO[cur] ? QUICK_STYLES : [cur, ...QUICK_STYLES];
   openSheet([ico('palette'), ' Fond de carte'], el('div', { class: 'stack' },
-    el('div', { class: 'style-grid' }, ids.map((id) => {
+    el('div', { class: 'style-grid compact' }, ids.map((id) => { // v387 : vignettes basses, « Tous les fonds » visible sans défiler
       const st = STYLE_INFO[id];
       return el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(cur === id), onclick: () => {
         if (needsKey(id) && !cartoKey()) { openCartoKey(undefined, id); return; }
@@ -11221,7 +11222,7 @@ function openStylePicker() {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('palette')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Tous les fonds'), el('span', { class: 'menu-sub' }, 'Française, Douce, Pastel, et ceux de CARTO')),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
-  ), { name: 'style-picker', again: openStylePicker });
+  ), { name: 'style-picker', again: openStylePicker, tall: true }); // v387 : en Très grand aussi, « Tous les fonds » sans défiler
 }
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
@@ -11733,6 +11734,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
     '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
     '{door-open} **Passages couverts redessinés** : le trait des Panoramas suit enfin le passage ; Vivienne, Colbert, Verdeau, Prado et Véro-Dodat ont maintenant le leur. Tracés lus dans OpenStreetMap.',
     '{route} **Une rue d\'intérêt** : + Ajouter, tout en bas. Touche le début puis la fin du morceau de rue : il se dessine sur la carte, de la couleur de sa catégorie, avec sa fiche comme un lieu (note, 6 photos, sauvegarde, envoi à un proche).',
@@ -11742,7 +11744,6 @@ const HELP = [
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
     '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
-    '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
