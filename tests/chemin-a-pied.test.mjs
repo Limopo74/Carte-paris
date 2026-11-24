@@ -1,4 +1,4 @@
-// v382 (mes choix 3A et 4A du 24 nov.) : « Chemin à pied » sur la fiche, le chemin par les rues dessiné sur la carte ;
+// v383 (mes choix 3A et 4A du 24 nov.) : « Chemin à pied » sur la fiche, le chemin par les rues dessiné sur la carte ;
 // la plaque « Y aller » dit la distance et la durée par les rues quand le plan est déjà sur le téléphone. Rien n'est envoyé.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

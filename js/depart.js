@@ -115,7 +115,7 @@ export async function decodePreset(code) {
 export const presetLink = (appUrl, code) => `${appUrl}#depart=${code}`;
 export const readPresetCode = (hash) => (/[#&]depart=([\w-]+)/.exec(hash ?? '') ?? [])[1] ?? null;
 
-/** v378 (mon choix 11A du 24 nov.) : les préparations d'une sauvegarde ; une préparation déjà là (même id) reste telle quelle. */
+/** v380 (mon choix 11A du 24 nov.) : les préparations d'une sauvegarde ; une préparation déjà là (même id) reste telle quelle. */
 export function mergePreps(mine, theirs) {
   const a = cleanPreps(mine); const ids = new Set(a.map((x) => x.id));
   return cleanPreps([...a, ...cleanPreps(theirs).filter((x) => !ids.has(x.id))]);

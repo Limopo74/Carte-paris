@@ -112,7 +112,7 @@ export function arrProgress(points, from) {
   return { now: now.size, gained: Math.max(0, now.size - before.size) };
 }
 
-/** v378 (mon choix 11A du 24 nov.) : Mes chiffres pour la sauvegarde : la marche et l'air de chaque jour, jamais les fonctions
+/** v380 (mon choix 11A du 24 nov.) : Mes chiffres pour la sauvegarde : la marche et l'air de chaque jour, jamais les fonctions
  *  utilisées (comme « Ce que j'utilise », elles ne quittent pas le téléphone). */
 export function journalForBackup(j) {
   const c = cleanJournal(j);

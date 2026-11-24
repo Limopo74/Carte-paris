@@ -26,5 +26,5 @@ test('v336 (mon choix 2A du 21 nov.) : dans l\'Aide, aucune ligne de Confidentia
   const lines = [...block.matchAll(/^ {2}'(.*)',$/gm)].map((m) => m[1].replace(/\\'/g, "'"));
   assert.ok(lines.length >= 12);
   for (const l of lines) assert.ok(l.length <= 300, `${l.length} signes : ${l.slice(0, 60)}…`);
-  assert.match(lines.join(' '), /les fonds de carte \(OpenStreetMap, CARTO, OpenStreetMap France ou l'IGN .* et Vélib' \(aucune position envoyée\)\./); // v381 : l'IGN
+  assert.match(lines.join(' '), /les fonds de carte \(OpenStreetMap, CARTO, OpenStreetMap France ou l'IGN .* et Vélib' \(aucune position envoyée\)\./); // v382 : l'IGN
 });

@@ -1,4 +1,4 @@
-// v380 (mon choix 9A du 24 nov.) : « Vu en passant » dans la colonne, tout en haut, l'appareil photo en un appui ;
+// v381 (mon choix 9A du 24 nov.) : « Vu en passant » dans la colonne, tout en haut, l'appareil photo en un appui ;
 // les boutons près du pouce ne bougent pas.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

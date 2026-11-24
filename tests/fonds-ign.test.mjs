@@ -1,4 +1,4 @@
-// v381 (mes choix 7A et 8AB du 24 nov.) : Plan IGN et Photo aérienne (Géoplateforme, sans clé, citer l'IGN) ;
+// v382 (mes choix 7A et 8AB du 24 nov.) : Plan IGN et Photo aérienne (Géoplateforme, sans clé, citer l'IGN) ;
 // un petit rond sur la carte ouvre les fonds en vignettes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

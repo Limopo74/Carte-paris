@@ -412,7 +412,7 @@ map.on('moveend', () => {
   try { storage.setItem(VIEW_KEY, JSON.stringify({ lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom() })); } catch { /* stockage plein : tant pis */ }
 });
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-/** v381 : tuiles de la Géoplateforme de l'IGN (WMTS, projection du web), la couche en dernier. */
+/** v382 : tuiles de la Géoplateforme de l'IGN (WMTS, projection du web), la couche en dernier. */
 const IGN_WMTS = 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=';
 const IGN_ATTR = '© <a href="https://www.ign.fr/">IGN</a>';
 // Fonds de carte sans clé : OpenStreetMap, et les rendus d'OpenStreetMap France (« FR » et humanitaire).
@@ -426,7 +426,7 @@ const STYLE_INFO = {
   night: { name: 'Nuit', sub: 'Fond sombre, repose les yeux le soir', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
   // v316 (mon choix du 20 nov.) : la carte classique, plus pâle et plus calme, sans clé ; le départ d'un nouveau venu
   eclairci: { name: 'Éclairci', sub: 'La classique, plus pâle et plus calme', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: OSM_ATTR, maxZoom: 19 },
-  // v381 (mon choix 8AB du 24 nov.) : deux fonds de l'IGN, sans clé (Géoplateforme, accès ouvert, Licence Ouverte 2.0 : citer l'IGN)
+  // v382 (mon choix 8AB du 24 nov.) : deux fonds de l'IGN, sans clé (Géoplateforme, accès ouvert, Licence Ouverte 2.0 : citer l'IGN)
   ign: { name: 'Plan IGN', sub: 'Le plan de l\'IGN : noms de rues officiels, très lisible', url: `${IGN_WMTS}GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&FORMAT=image/png`, attr: IGN_ATTR, maxZoom: 19 },
   photo: { name: 'Photo aérienne', sub: 'Vue du ciel de l\'IGN, sans noms de rues', url: `${IGN_WMTS}ORTHOIMAGERY.ORTHOPHOTOS&FORMAT=image/jpeg`, attr: IGN_ATTR, maxZoom: 19 },
   // v317 (ma demande du 20 nov.) : les deux autres fonds CARTO, avec la même clé qu'Épuré
@@ -466,7 +466,7 @@ function applyMapStyle() {
   if (tiles) map.removeLayer(tiles);
   // Tuiles demandées en CORS : le service worker peut les garder pour le métro sans réseau.
   // Filet de sécurité : si elles échouent toutes alors qu'on est en ligne, on revient au mode normal.
-  const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com|data\.geopf\.fr\/wmts/.test(st.url); // v381 : IGN aussi
+  const cors = !noCorsTiles && /tile\.openstreetmap\.org|basemaps\.cartocdn\.com|data\.geopf\.fr\/wmts/.test(st.url); // v382 : IGN aussi
   const native = Math.min(st.native ?? st.maxZoom, zoomCap[id] ?? st.maxZoom);
   tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, maxNativeZoom: native, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
   const okZ = new Set(); const badZ = {};
@@ -590,7 +590,7 @@ function renderMarkers() {
   pointsLayer.clearLayers();
   markerEls = new Map();
   drawnZoom = map.getZoom();
-  // v383 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche
+  // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche
   for (const p of onMap()) {
     if (!p.line || p.id === moving?.id) continue;
     L.polyline(p.line, { color: catOf(p.cat).color, weight: 8, opacity: p.gone ? 0.35 : 0.7, lineCap: 'round', className: 'rue-line' })
@@ -1457,7 +1457,7 @@ function setSheetMini(on) {
 
 let here = null; // dernière position GPS : { lat, lng, acc, time }
 let markets = null; // marchés de la Ville (liste gardée sur le téléphone)
-// Mes chiffres : totaux par jour, sur le téléphone (v378 : marche et air dans ma sauvegarde, sans les fonctions utilisées ; jamais le tracé)
+// Mes chiffres : totaux par jour, sur le téléphone (v380 : marche et air dans ma sauvegarde, sans les fonctions utilisées ; jamais le tracé)
 const JOURNAL_KEY = 'carte-paris.journal';
 let journal = (() => { try { return pruneJournal(cleanJournal(JSON.parse(storage.getItem(JOURNAL_KEY) ?? 'null'))); } catch { return cleanJournal(null); } })();
 let journalSavedAt = 0;
@@ -1805,7 +1805,7 @@ function openAddChoice() {
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewRoute(back) }, ico('route'), 'Un parcours'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewCircuit(back) }, ico('signpost'), 'Un circuit'),
     el('p', { class: 'help tip' }, 'Un parcours : touche la carte pour tes étapes, l\'appli donne la distance et la durée à pied par les rues ; il se range dans Itinéraire → Mes parcours. Un circuit : pareil, avec un titre, un thème et tes textes ; il se range dans Circuits de visite → Mes circuits.'),
-    // v383 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, tout en bas : rien ne bouge au-dessus
+    // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, tout en bas : rien ne bouge au-dessus
     el('h3', { class: 'fiche-sec' }, 'Une rue'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openNewStreet(back) }, ico('route'), 'Une rue d\'intérêt'),
     el('p', { class: 'help tip' }, 'Touche le début puis la fin du morceau de rue : il se dessine sur la carte, avec sa fiche comme un lieu (catégorie, note, photos).'),
@@ -2278,7 +2278,7 @@ async function addAtPosition() {
 
 // Appui long sur la carte (ou clic droit sur ordinateur).
 map.on('contextmenu', (e) => {
-  if (moving || view === 'trace' || view === 'rue') return; // v383 : ni pendant une rue d'intérêt ; pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
+  if (moving || view === 'trace' || view === 'rue') return; // v384 : ni pendant une rue d'intérêt ; pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
   addAt(e.latlng.lat, e.latlng.lng);
 });
 
@@ -2742,7 +2742,7 @@ function openForm(draft, existing = null) {
       state.points.push(np);
       created = np;
       if (draft.photoFile) savePhotos(np, [draft.photoFile]);
-      if (cleanLine(draft.line)) np.line = cleanLine(draft.line); // v383 : une rue d'intérêt garde son tracé
+      if (cleanLine(draft.line)) np.line = cleanLine(draft.line); // v384 : une rue d'intérêt garde son tracé
     }
     const ok = persist();
     renderMarkers();
@@ -2819,7 +2819,7 @@ function openDetail(id, back = null) {
   // Visibles sans défiler à 360 px, même avec la photo, qui passe dessous.
   const goLink = el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' },
     ico('arrow-right'), ...goText(d, pos)); /* v231 : minutes seulement sous la limite « à pied » (goText) */
-  // v382 (mon choix 4A du 24 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la vraie distance et la durée par les rues
+  // v383 (mon choix 4A du 24 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la vraie distance et la durée par les rues
   if (d != null && walkGo(d)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico('arrow-right'), ...goRouteText(r.m, pos)); });
   const goBox = el('div', { class: 'stack' },
     goLink,
@@ -2896,7 +2896,7 @@ function openDetail(id, back = null) {
     // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
     photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
     photoFiche ? row('camera', 'Ajouter une photo', `${MAX_PHOTOS} au plus`, () => quickPhoto(p, back)) : null,
-    // v378 (mon choix 5A du 24 nov.) : en bas de Rangement, juste au-dessus de Supprimer
+    // v379 (mon choix 5A du 24 nov.) : en bas de Rangement, juste au-dessus de Supprimer
     (p.photos?.length ?? 0) < MAX_PHOTOS ? row('image-plus', 'Depuis ma galerie', `Une photo de ton téléphone · ${MAX_PHOTOS} au plus`, () => galleryPhoto(p, back)) : null,
     row('trash-2', delLabel, 'Demande confirmation', askDelete, 'danger'));
   /** v326 (mon choix 5A) : revue sur place : un passage aujourd'hui, comme « Elle est de nouveau là », sans rien d'autre. */
@@ -2989,7 +2989,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       state.navigo !== false && navigoOf(p) ? row('badge-percent', 'Avantage Navigo', /* v282 : « J'ai un passe Navigo » éteint, rien */ shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
-      // v382 (mon choix 3A du 24 nov.) : le chemin par les rues dessiné sur la carte, en tête de Pratique (Y aller garde Google Maps)
+      // v383 (mon choix 3A du 24 nov.) : le chemin par les rues dessiné sur la carte, en tête de Pratique (Y aller garde Google Maps)
       d != null && walkGo(d) ? row('route', 'Chemin à pied', 'Par les rues, dessiné sur la carte', () => showWalkRoute(p, pos, named(p.name, () => openDetail(id, back)))) : null,
       row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
@@ -3053,12 +3053,12 @@ function photoWide(p, back, open = null) {
   const img = el('img', { alt: '', class: 'fiche-photo-img' });
   photoUrl(photos[0]).then((u) => { if (u) img.src = u; });
   return el('figure', { class: 'fiche-photo' },
-    // v378 (ma demande du 24 nov.) : un appui montre la photo en grand (pellicule, Supprimer), il n'ouvre plus la page qui en ajoute
+    // v379 (ma demande du 24 nov.) : un appui montre la photo en grand (pellicule, Supprimer), il n'ouvre plus la page qui en ajoute
     el('button', { type: 'button', onclick: open ?? (() => viewLieuPhotos(p, 0, back)), 'aria-label': photos.length > 1 ? `Voir les ${photos.length} photos en grand` : 'Voir la photo en grand' }, img),
     el('figcaption', {}, photos.length > 1 ? `Ta photo · 1 sur ${photos.length}` : 'Ta photo'));
 }
 
-/** v378 : les photos d'un de mes lieux en grand ; « Supprimer » sous la photo (question sur place), retour à la fiche. */
+/** v379 : les photos d'un de mes lieux en grand ; « Supprimer » sous la photo (question sur place), retour à la fiche. */
 function viewLieuPhotos(p, i, back) {
   const ids = [...(p.photos ?? [])];
   if (!ids.length) return;
@@ -3070,7 +3070,7 @@ function viewLieuPhotos(p, i, back) {
   } });
 }
 
-/** v378 (mon choix 5A du 24 nov.) : ajouter des photos de ma galerie à un lieu, sans passer par l'appareil photo. */
+/** v379 (mon choix 5A du 24 nov.) : ajouter des photos de ma galerie à un lieu, sans passer par l'appareil photo. */
 function galleryPhoto(p, back) {
   if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
   const gallery = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
@@ -4327,7 +4327,7 @@ function placeSteps(steps) {
   return { steps: out, legs };
 }
 
-/** v382 (mes choix 3A 4A du 24 nov.) : le chemin à pied par les rues de `pos` (ma position, ou chez moi) jusqu'au lieu, calculé sur le
+/** v383 (mes choix 3A 4A du 24 nov.) : le chemin à pied par les rues de `pos` (ma position, ou chez moi) jusqu'au lieu, calculé sur le
  *  téléphone avec le plan des rues s'il y est déjà (jamais téléchargé ici). null sans plan, ou si un bout est à plus de 60 m d'une rue :
  *  la plaque garde alors son estimation. */
 async function walkRouteTo(p, pos) {
@@ -4344,7 +4344,7 @@ function goRouteText(m, pos) {
   const from = pos?.kind === 'home' ? ' de\u00a0chez\u00a0toi' : '';
   return [`Y aller · ${nb(from ? routeMin(m).replace(/ à pied$/, '') : routeMin(m))}${from}`, el('small', { class: 'go-dist' }, fmtDist(m))];
 }
-/** v382 (mon choix 3A) : « Chemin à pied » : le chemin dessiné sur la carte (trait plein encre, comme Mes parcours), un bandeau
+/** v383 (mon choix 3A) : « Chemin à pied » : le chemin dessiné sur la carte (trait plein encre, comme Mes parcours), un bandeau
  *  dit la distance et la durée ; le toucher ramène à la fiche. Sans plan des rues : la page qui le propose, puis le chemin. */
 async function showWalkRoute(p, pos, back) {
   if (!streets && !(await loadStreets())) {
@@ -4362,7 +4362,7 @@ async function showWalkRoute(p, pos, back) {
   map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
 }
 
-/* ---------- v383 (mes choix 1A et 2A du 24 nov.) : une rue d'intérêt ----------
+/* ---------- v384 (mes choix 1A et 2A du 24 nov.) : une rue d'intérêt ----------
    Deux appuis sur la carte, le début et la fin ; le morceau entre les deux suit les rues (plan des rues, sur le téléphone).
    « Suivant » ouvre le formulaire d'un nouveau lieu : nom de la rue, catégorie, note ; le lieu garde son tracé (`line`). */
 let rueDraft = null; // { a, b, r, back } : début, fin (posés sur le plan), le chemin entre les deux
@@ -10277,7 +10277,7 @@ function openFavStyle() {
 }
 
 
-/** v378 (mes choix 10A et 11A du 24 nov.) : ce qui vient d'une de mes sauvegardes en plus des lieux ; tout s'ajoute, rien ne remplace. */
+/** v380 (mes choix 10A et 11A du 24 nov.) : ce qui vient d'une de mes sauvegardes en plus des lieux ; tout s'ajoute, rien ne remplace. */
 function restoreExtras(text) {
   let f; try { f = JSON.parse(text); } catch { return; }
   if (Array.isArray(f?.remarks) && f.remarks.length) { testState = { ...testState, remarks: mergeRemarks(testState.remarks, f.remarks) }; saveTest(); }
@@ -10488,7 +10488,7 @@ function backupSummary() {
 async function backupText(withPhotos, withTtb = false) {
   const obj = JSON.parse(exportJSON(state));
   if (withTtb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) obj.ttb = t; } /* v179 : la liste et mes marques */
-  // v378 (mes choix 10A et 11A du 24 nov.) : mes remarques, mes préparations pour un proche et Mes chiffres (marche et air, sans les fonctions utilisées) ;
+  // v380 (mes choix 10A et 11A du 24 nov.) : mes remarques, mes préparations pour un proche et Mes chiffres (marche et air, sans les fonctions utilisées) ;
   // jamais dans le fichier pour un proche ; « Ce que j'utilise » et la clé CARTO restent sur le téléphone
   if (testState.remarks.length) obj.remarks = testState.remarks;
   const preps = prepsNow(); if (preps.length) obj.preps = preps;
@@ -10825,7 +10825,7 @@ function importText(text, owner) {
     state = { ...r.state, ok: state.ok };
     importPhotos(text, state, !owner);
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
-    if (!owner) restoreExtras(text); // v378 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
+    if (!owner) restoreExtras(text); // v380 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
       let at = Date.now();
@@ -11155,9 +11155,9 @@ document.getElementById('btnHome').addEventListener('click', goHome);
 document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
-document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v380 (mon choix 9A) : l'appareil photo en un appui
-document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v381 (mon choix 7A)
-/** v381 (mon choix 7A du 24 nov.) : les fonds sans clé les plus utiles, en vignettes ; un appui change la carte et revient à la carte.
+document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
+document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
+/** v382 (mon choix 7A du 24 nov.) : les fonds sans clé les plus utiles, en vignettes ; un appui change la carte et revient à la carte.
  *  Le fond choisi en ce moment y est toujours (même un fond CARTO) ; « Tous les fonds » ouvre Style de la carte. */
 const QUICK_STYLES = ['eclairci', 'classic', 'ign', 'photo', 'night'];
 function openStylePicker() {
@@ -11697,7 +11697,6 @@ const HELP = [
     '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
     '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
-    '{map-pin} **L\'adresse plus visible sur la fiche d\'un lieu** : elle remonte sous « Aujourd\'hui » et « Métro », en noir et plus grande. Le bouton Copier a maintenant un cadre, partout où on copie une adresse.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12164,7 +12163,7 @@ if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense �
 updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés : due même sans nouveau changement)
 
 /* ---------- Période de test (v313, mes choix 1A à 6A du 20 nov.) : le porte-voix, une remarque, le menu de partage ----------
-   Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js) ; dans ma sauvegarde depuis la v378 (mon choix 10A), jamais chez un proche. */
+   Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js) ; dans ma sauvegarde depuis la v380 (mon choix 10A), jamais chez un proche. */
 let testState = readTest((() => { try { return storage.getItem(TEST_KEY); } catch { return null; } })());
 const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } };
 const btnRemark = document.getElementById('btnRemark');

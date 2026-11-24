@@ -388,7 +388,7 @@ test('ordre des catégories : monter, descendre, bornes', async () => {
 test('ordre des boutons de la carte : valide, complété, déplaçable', async () => {
   const { normalizeTools, moveTool, MAP_TOOLS } = await import('../js/store.js');
   assert.deepEqual(normalizeTools(undefined), MAP_TOOLS);
-  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['vu', 'home', 'paris', 'pratique', 'metro', 'velib', 'sorties', 'planning', 'circuits', 'notes', 'locate']); // v380 : Vu en passant tout en haut ; l'ancien bouton zoom disparaît
+  assert.deepEqual(normalizeTools(['home', 'home', 'zoom', 'pirate']), ['vu', 'home', 'paris', 'pratique', 'metro', 'velib', 'sorties', 'planning', 'circuits', 'notes', 'locate']); // v381 : Vu en passant tout en haut ; l'ancien bouton zoom disparaît
   assert.deepEqual(normalizeTools(['pratique', 'metro', 'velib', 'home', 'street', 'paris', 'locate']), ['vu', 'pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'circuits', 'notes', 'locate'], 'le bouton « Dans la rue » est parti en haut, Sorties arrive avant Ma position');
   assert.deepEqual(normalizeTools(['pratique', 'metro', 'home', 'locate']), ['vu', 'pratique', 'metro', 'home', 'paris', 'velib', 'sorties', 'planning', 'circuits', 'notes', 'locate'], 'bouton manquant juste avant Ma position');
   assert.deepEqual(moveTool(MAP_TOOLS, 'home', -1), ['vu', 'paris', 'pratique', 'metro', 'home', 'velib', 'sorties', 'planning', 'circuits', 'notes', 'locate']);
@@ -567,7 +567,7 @@ test('boutons de la carte (v124) : Paris à la place de Fontaine, et « Plus » 
   const { loadState, saveState, layoutV4, cleanMore, cleanSettings } = await import('../js/store.js');
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   const fresh = loadState(mem(null));
-  assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t) && !fresh.hiddenTools.includes(t)), ['vu', 'locate', 'paris', 'metro', 'sorties', 'planning'], 'v380 : Vu en passant en tête ; v314 : la colonne d\'un nouveau venu (3e capture)');
+  assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t) && !fresh.hiddenTools.includes(t)), ['vu', 'locate', 'paris', 'metro', 'sorties', 'planning'], 'v381 : Vu en passant en tête ; v314 : la colonne d\'un nouveau venu (3e capture)');
   assert.deepEqual(fresh.moreTools, ['home', 'circuits', 'velib', 'notes']);
   // Mes réglages de la v123 : Paris caché en 5e place, Fontaine en tête
   const v3 = mem(JSON.stringify({ points: [], layoutV: 3, mapTools: ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], hiddenTools: ['paris', 'velib'] }));

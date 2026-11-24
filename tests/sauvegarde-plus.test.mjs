@@ -1,4 +1,4 @@
-// v378 (mes choix 10A et 11A du 24 nov.) : remarques, préparations pour un proche et Mes chiffres dans ma sauvegarde ;
+// v380 (mes choix 10A et 11A du 24 nov.) : remarques, préparations pour un proche et Mes chiffres dans ma sauvegarde ;
 // à la restauration tout s'ajoute, rien n'est remplacé ; jamais les fonctions utilisées, jamais la clé CARTO, jamais chez un proche.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

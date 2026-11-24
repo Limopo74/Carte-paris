@@ -1,4 +1,4 @@
-// v383 (mes choix 1A et 2A du 24 nov.) : une rue d'intérêt : deux appuis, le morceau suit les rues ; une fiche comme un lieu,
+// v384 (mes choix 1A et 2A du 24 nov.) : une rue d'intérêt : deux appuis, le morceau suit les rues ; une fiche comme un lieu,
 // son tracé gardé (sauvegarde, envoi à un proche), dessiné de la couleur de sa catégorie.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

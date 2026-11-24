@@ -152,7 +152,7 @@ export function cleanCategories(list) {
 /** Genres d'un resto, repris des rubriques TTB qui sont des restos (v288 ; même liste que RESTO_RUBS de js/ttb.js). */
 export const PLACE_RUBS = ['La Table', 'Boui-boui', 'Street-food'];
 
-/** v383 (mes choix 1A et 2A du 24 nov.) : le tracé d'une rue d'intérêt, [[lat, lng], …] le long des rues, de 2 à 400 points,
+/** v384 (mes choix 1A et 2A du 24 nov.) : le tracé d'une rue d'intérêt, [[lat, lng], …] le long des rues, de 2 à 400 points,
  *  arrondis à 1 m ; autour de Paris seulement. null sinon (un lieu ordinaire n'en a pas). */
 export const LINE_MAX = 400;
 export function cleanLine(line) {
@@ -192,7 +192,7 @@ const clean = (p) => ({
   ...(p.pass === true ? { pass: true } : {}), // pris par + Ajouter → Vu en passant, quelle que soit sa catégorie (v305)
   ...(Number.isFinite(p.shot) && p.shot >= 0 ? { shot: p.shot } : {}), // v310 : photo de la galerie, date de la prise de vue (0 : inconnue)
   ...(typeof p.sub === 'string' && /^[\w-]{1,64}$/.test(p.sub) ? { sub: p.sub } : {}), // sa sous-catégorie, dans sa catégorie (v305)
-  ...(cleanLine(p.line) ? { line: cleanLine(p.line) } : {}), // v383 : rue d'intérêt, son tracé (sauvegarde et proche le gardent)
+  ...(cleanLine(p.line) ? { line: cleanLine(p.line) } : {}), // v384 : rue d'intérêt, son tracé (sauvegarde et proche le gardent)
   created: Number.isFinite(p.created) ? p.created : Date.now(),
 });
 
@@ -542,7 +542,7 @@ export function mergeFriend(state, obj, owner, choice) {
       if (Number.isFinite(c.checked) && !(old.checked >= c.checked)) next.checked = c.checked;
       // v292 (mon choix A du 20 nov.) : ses étoiles, « Abrité » et « Le bon moment » suivent aussi, comme son commentaire
       next.stars = c.stars; next.covered = c.covered;
-      if (c.line) next.line = c.line; else delete next.line; // v383 : le tracé de sa rue d'intérêt suit
+      if (c.line) next.line = c.line; else delete next.line; // v384 : le tracé de sa rue d'intérêt suit
       if (c.moments) next.moments = c.moments; else delete next.moments;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }
       continue;
@@ -765,7 +765,7 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', '
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-// v380 (mon choix 9A du 24 nov.) : « Vu en passant » (l'appareil photo en un appui), tout en haut de la colonne
+// v381 (mon choix 9A du 24 nov.) : « Vu en passant » (l'appareil photo en un appui), tout en haut de la colonne
 export const MAP_TOOLS = ['vu', 'paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'notes', 'locate'];
 /** Boutons rangés au départ dans « Plus » (un appui sur ⋯ les montre, avec leur nom). */
 export const DEFAULT_MORE = ['pratique', 'velib', 'home', 'circuits', 'notes'];
@@ -848,7 +848,7 @@ export function normalizeTools(list) {
   // Un bouton nouveau arrive juste avant « Ma position » (le gros bouton du bas reste en bas)
   for (const t of MAP_TOOLS.filter((x) => !out.includes(x))) {
     const i = out.indexOf('locate');
-    if (t === 'vu') out.unshift(t); // v380 (mon choix 9A) : tout en haut, les boutons près du pouce ne bougent pas
+    if (t === 'vu') out.unshift(t); // v381 (mon choix 9A) : tout en haut, les boutons près du pouce ne bougent pas
     else if (i >= 0 && t !== 'locate') out.splice(i, 0, t); else out.push(t);
   }
   return out;

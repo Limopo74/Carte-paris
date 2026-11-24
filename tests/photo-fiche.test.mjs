@@ -1,4 +1,4 @@
-// v378 (ma demande du 24 nov., mon choix 5A) : toucher la photo d'un lieu la montre en grand (plus la page qui en ajoute) ;
+// v379 (ma demande du 24 nov., mon choix 5A) : toucher la photo d'un lieu la montre en grand (plus la page qui en ajoute) ;
 // « Depuis ma galerie » en bas de Rangement, au-dessus de Supprimer.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

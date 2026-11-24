@@ -1,4 +1,4 @@
-// Période de test (v313) : le porte-voix, une remarque, envoyée par le menu de partage ; sans position. Dans ma sauvegarde depuis la v378.
+// Période de test (v313) : le porte-voix, une remarque, envoyée par le menu de partage ; sans position. Dans ma sauvegarde depuis la v380.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -54,7 +54,7 @@ test('le texte envoyé : prêt à coller pour Claude, de la plus ancienne', () =
   assert.equal(remarksText([]), '');
 });
 
-test('rangé à part, jamais dans store.js (donc jamais dans le fichier pour un proche ; ma sauvegarde les ajoute dans app.js, v378)', () => {
+test('rangé à part, jamais dans store.js (donc jamais dans le fichier pour un proche ; ma sauvegarde les ajoute dans app.js, v380)', () => {
   assert.equal(TEST_KEY, 'carte-paris.test');
   assert.doesNotMatch(store, /remarques|carte-paris\.test|testState/);
 });
