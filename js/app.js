@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (404)';
+const VERSION = '24 novembre 2026 (405)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -746,7 +746,8 @@ function openPassage(p, back, at = null) {
   const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : terrasse au soleil' });
   // Mots tout prêts (v226) : la série de la catégorie ; un appui ajoute le mot à la fin du texte, un second le retire
   const series = seriesOf(catOf(p.cat), wordsOf(state));
-  const wordBox = series ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': `Mots tout prêts : ${series.name}` }) : null;
+  // v405 (mon choix B du 24 nov.) : sur plusieurs lignes, tous visibles (avant : une rangée qui glissait, 3 mots et demi visibles à 360 px)
+  const wordBox = series ? el('div', { class: 'list-chips words-chips', role: 'group', 'aria-label': `Mots tout prêts : ${series.name}` }) : null;
   const drawWords = () => {
     if (!wordBox) return;
     fill(wordBox, series.words.map((w) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(hasWord(text.value, w)), onclick: () => {
@@ -11987,7 +11988,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Avant, 6 mots au plus par série.',
+    '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',

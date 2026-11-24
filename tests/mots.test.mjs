@@ -123,3 +123,11 @@ test('l\'appli : rangée de mots sous « En quelques mots », ligne dans Réglag
   assert.doesNotMatch(app, /Catégories et listes → Mots tout prêts/);
   assert.match(sw, /'js\/mots\.js'/);
 });
+
+test('v405 : dans « Écrire une impression », les mots sur plusieurs lignes, tous visibles (pas de rangée qui glisse)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const line = src.split('\n').find((l) => l.includes('const wordBox = series ?'));
+  assert.ok(line && line.includes('list-chips'), 'la boîte des mots existe');
+  assert.ok(!line.includes('chips-scroll'), 'pas de rangée qui glisse');
+});
