@@ -14,13 +14,13 @@ test('Boutons de la carte (v376) : ↑ ↓ échangent avec le voisin du même gr
   const g = (t) => (['pratique', 'velib'].includes(t) ? 'more' : t === 'planning' ? 'hidden' : 'map');
   // Descendre Métro : il passe sous Sorties (Fontaine, dans Plus, reste à sa place)
   const a = moveToolIn(list, 'metro', 1, g);
-  assert.deepEqual(a.slice(0, 3), ['sorties', 'pratique', 'metro']);
+  assert.deepEqual(a.filter((t) => t !== 'vu').slice(0, 3), ['sorties', 'pratique', 'metro']);
   // Monter Vélib' dans Plus : il passe devant Fontaine
   const b = moveToolIn(list, 'velib', -1, g);
   assert.deepEqual(b.filter((t) => g(t) === 'more'), ['velib', 'pratique']);
   assert.deepEqual(b.filter((t) => g(t) === 'map'), list.filter((t) => g(t) === 'map'), 'la colonne ne change pas');
   // Le premier d'un groupe ne monte pas, le dernier ne descend pas
-  assert.deepEqual(moveToolIn(list, 'metro', -1, g), list);
+  assert.deepEqual(moveToolIn(list, 'vu', -1, g), list);
   assert.deepEqual(moveToolIn(list, 'locate', 1, g), list);
 });
 

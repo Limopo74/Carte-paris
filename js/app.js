@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (380)';
+const VERSION = '24 novembre 2026 (381)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11049,6 +11049,7 @@ document.getElementById('btnHome').addEventListener('click', goHome);
 document.getElementById('btnPlanning').addEventListener('click', () => openPlanning('map'));
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
+document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v380 (mon choix 9A) : l'appareil photo en un appui
 
 /* Ordre des boutons de la carte (réglable dans ⚙ → Boutons de la carte) */
 const TOOL_INFO = {
@@ -11062,6 +11063,7 @@ const TOOL_INFO = {
   planning: { el: 'btnPlanning', icon: 'alarm-clock', name: 'Mon planning (sorties prévues)', short: 'Mon planning' },
   circuits: { el: 'btnCircuits', icon: 'signpost', name: 'Circuits de visite', short: 'Circuits' },
   notes: { el: 'btnNotes', icon: 'notebook-pen', name: 'Note du jour (sans lieu)', short: 'Note du jour' },
+  vu: { el: 'btnVu', icon: 'camera', name: 'Vu en passant : une photo tout de suite', short: 'Vu en passant' },
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
 function applyEssential() {
@@ -11556,6 +11558,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
     '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
     '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
@@ -11566,7 +11569,6 @@ const HELP = [
     '{search} **Mes artistes dans la loupe** : tape un nom que tu suis (« monet » suffit) ; en tête, « Mes artistes » et son nom : un appui ouvre sa page (ses œuvres, ses musées, l\'agenda).',
     '{user} **Mes artistes à un ou deux appuis** : ⋯ Plus, en haut, puis Mes artistes. Pour l\'avoir en un appui : {settings} → Ce qui s\'affiche → Barre du haut, « Barre » sur la ligne Mes artistes.',
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
-    '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

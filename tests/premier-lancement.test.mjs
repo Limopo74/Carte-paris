@@ -17,7 +17,7 @@ test('Mémoire vide : le départ d\'un nouveau venu (d\'après ma capture)', () 
   assert.ok(s.categories.some((c) => c.id === 'vu'), 'Vu en passant existe dès le départ');
   for (const k of ['street', 'lines']) assert.ok(!s.moreChips.includes(k) && !s.hiddenChips.includes(k), `${k} dans la barre`);
   // Colonne (3e capture, 18 h 53) : Ma position en tête, puis Paris, M, Sorties, Mon planning ; ⋯ Plus : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué
-  assert.deepEqual(s.mapTools.filter((t) => !s.moreTools.includes(t) && !s.hiddenTools.includes(t)), ['locate', 'paris', 'metro', 'sorties', 'planning']);
+  assert.deepEqual(s.mapTools.filter((t) => !s.moreTools.includes(t) && !s.hiddenTools.includes(t)), ['vu', 'locate', 'paris', 'metro', 'sorties', 'planning']); // v380 : Vu en passant en tête
   assert.deepEqual(s.mapTools.filter((t) => s.moreTools.includes(t)), ['home', 'circuits', 'velib', 'notes']);
   assert.deepEqual(s.hiddenTools, ['pratique']);
   assert.deepEqual(s.categories.filter((c) => c.id !== 'vu').map((c) => c.id), ['resto', 'boutique', 'culture']);

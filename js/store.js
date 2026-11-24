@@ -252,7 +252,7 @@ export const FRESH_HIDDEN_CHIPS = ['ttb', 'fav'];
 export const FRESH_FICHE_HIDDEN = ['uber'];
 /** Colonne de la carte d'un nouveau venu (3e capture, 18 h 53) : Ma position en tête, Paris, M, Sorties, Mon planning ;
  * sous ⋯ Plus, dans cet ordre : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué. */
-export const FRESH_TOOLS = { mapTools: ['locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes'] };
+export const FRESH_TOOLS = { mapTools: ['vu', 'locate', 'paris', 'pratique', 'metro', 'home', 'circuits', 'velib', 'sorties', 'planning', 'notes'], hiddenTools: ['pratique'], moreTools: ['home', 'circuits', 'velib', 'notes'] };
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
   const cats = categories.map((c) => `cat:${c.id}`); // Vu en passant compris
@@ -748,7 +748,8 @@ export const MAP_STYLES = ['classic', 'clean', 'fr', 'hot', 'pastel', 'night', '
 
 /** Boutons à droite de la carte, dans l'ordre par défaut (de haut en bas). */
 // « Ma position et direction » en bas, sous le pouce : c'est le bouton le plus utilisé en marchant.
-export const MAP_TOOLS = ['paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'notes', 'locate'];
+// v380 (mon choix 9A du 24 nov.) : « Vu en passant » (l'appareil photo en un appui), tout en haut de la colonne
+export const MAP_TOOLS = ['vu', 'paris', 'pratique', 'metro', 'velib', 'home', 'sorties', 'planning', 'circuits', 'notes', 'locate'];
 /** Boutons rangés au départ dans « Plus » (un appui sur ⋯ les montre, avec leur nom). */
 export const DEFAULT_MORE = ['pratique', 'velib', 'home', 'circuits', 'notes'];
 /** Boutons arrivés après coup et rangés d'office dans « Plus » chez qui avait déjà ses boutons (v168 : Circuits ; v205 : Note du jour). */
@@ -830,7 +831,8 @@ export function normalizeTools(list) {
   // Un bouton nouveau arrive juste avant « Ma position » (le gros bouton du bas reste en bas)
   for (const t of MAP_TOOLS.filter((x) => !out.includes(x))) {
     const i = out.indexOf('locate');
-    if (i >= 0 && t !== 'locate') out.splice(i, 0, t); else out.push(t);
+    if (t === 'vu') out.unshift(t); // v380 (mon choix 9A) : tout en haut, les boutons près du pouce ne bougent pas
+    else if (i >= 0 && t !== 'locate') out.splice(i, 0, t); else out.push(t);
   }
   return out;
 }

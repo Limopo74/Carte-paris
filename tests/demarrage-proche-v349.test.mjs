@@ -18,7 +18,7 @@ test('1A : son ordre des boutons du haut, de la colonne et des catégories part 
   assert.deepEqual(back.chipOrder.slice(0, 2), ['lines', 'street']);
   const s = applyPreset(fresh(), back);
   assert.deepEqual(barOrderOf(s.chipOrder, []).slice(0, 2), ['lines', 'street']);
-  assert.deepEqual(s.mapTools.slice(0, 2), ['paris', 'locate']);
+  assert.deepEqual(s.mapTools.slice(0, 3), ['vu', 'paris', 'locate']); // v380 : Vu en passant, nouveau, arrive en tête
   assert.deepEqual(s.categories.slice(0, 3).map((c) => c.id), p.categories.map((c) => c.id));
   assert.equal(cleanPreset({}).chipOrder, null, 'ordre de départ');
   assert.match(app, /moveChip\(\{ chipOrder: p\.chipOrder \}/);
