@@ -654,7 +654,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .s-hot { background: linear-gradient(135deg, #f6f1f0 0 40%, #c3dbe8 40% 55%, #f3e3e0 55% 70%, #d7ecc6 70%); }
 .s-pastel { background: linear-gradient(135deg, #fbf3ff 0 40%, #b9e6f5 40% 55%, #fff3e3 55% 70%, #d6f5c5 70%); }
 .s-eclairci { background: linear-gradient(135deg, #fffdfa 0 40%, #c6dbe2 40% 55%, #fffdfa 55% 70%, #e4f3d4 70%); }
-/* v381 : Plan IGN (blanc, Seine bleue, rues jaunes) et Photo aérienne (toits, Seine verte, arbres) */
+/* v382 : Plan IGN (blanc, Seine bleue, rues jaunes) et Photo aérienne (toits, Seine verte, arbres) */
 .s-ign { background: linear-gradient(135deg, #fbfbf7 0 34%, #f7e48a 34% 40%, #fbfbf7 40% 52%, #a8d5f0 52% 64%, #e9e1f0 64%); }
 .s-photo { background: linear-gradient(135deg, #8d8679 0 30%, #b9ae9c 30% 46%, #4f5d4b 46% 60%, #3d6a52 60% 72%, #a39985 72%); }
 .s-positron { background: linear-gradient(135deg, #fafaf8 0 40%, #d4dadc 40% 55%, #f2f2f0 55% 70%, #e6ece0 70%); }
@@ -1357,7 +1357,7 @@ body:has(#nowCard:not([hidden])) .map-tools.labels .col-last .map-label { displa
 
 /* Période de test : le porte-voix, toujours au même endroit, sous la barre du haut à droite, au-dessus des pages */
 .map-btn.remark-btn { position: fixed; right: 10px; top: 68px; z-index: 810; width: 44px; height: 44px; }
-/* v381 (mon choix 7A du 24 nov.) : le petit bouton des fonds de carte, rond, en bas du côté opposé à la colonne,
+/* v382 (mon choix 7A du 24 nov.) : le petit bouton des fonds de carte, rond, en bas du côté opposé à la colonne,
    au-dessus de la place du bandeau « Maintenant » (il ne bouge pas quand le bandeau va et vient) */
 .map-btn.style-btn { position: fixed; left: 10px; bottom: calc(196px + var(--safe-b)); z-index: 490; width: 44px; height: 44px; border-radius: 50%; }
 body:has(.map-tools.left) .map-btn.style-btn { left: auto; right: 10px; }
