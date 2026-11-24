@@ -109,10 +109,13 @@ test('une catégorie ajoutée sans choix prend la série de son nom', () => {
   assert.equal(seriesIdOf(c, wordsOf(s)), 'repas');
 });
 
-test('l\'appli : rangée de mots sous « Ce que j\'ai vu », ligne dans Réglages → Mes lieux (v239), fichier gardé hors réseau', () => {
+test('l\'appli : rangée de mots sous « En quelques mots », ligne dans Réglages → Mes lieux (v239), fichier gardé hors réseau', () => {
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(app, /'Ce que j\\'ai vu \(facultatif\)', text\),\n\s+wordBox,/);
+  assert.match(app, /'En quelques mots \(facultatif\)', text\),[^\n]*\n\s+wordBox,/);
+  // v404 : un titre et un exemple qui valent pour toutes les catégories (« Ce que j'ai vu » et la glycine ne vont pas à un resto)
+  assert.doesNotMatch(app, /Ce que j\\'ai vu|la glycine en fleur'/);
+  assert.match(app, /placeholder: 'Ex\. : terrasse au soleil' \}\);\n\s+\/\/ Mots tout prêts/);
   // v239 : une ligne à elle dans Réglages → Mes lieux ; plus dans la page Catégories et listes.
   // v322 (mon choix 1a) : rangée dans Autres réglages → Mes lieux, sous Mes lignes de bus
   assert.match(app, /'Le chemin de tes lignes sur la carte', \(\) => openMyBusLines\(\), false, 'c-metro'\),\n\s+row\('message-square-text', 'Mots tout prêts'/);

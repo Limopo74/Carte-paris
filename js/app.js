@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (403)';
+const VERSION = '24 novembre 2026 (404)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -743,7 +743,7 @@ function openPassage(p, back, at = null) {
   let day = oldIso === iso(today) ? 'today' : oldIso === iso(yday) ? 'yday' : 'other';
   const date = el('input', { type: 'date', max: iso(today), value: oldIso });
   const dateField = el('label', { class: 'field' }, 'Date', date);
-  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : la glycine en fleur' });
+  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : terrasse au soleil' });
   // Mots tout prêts (v226) : la série de la catégorie ; un appui ajoute le mot à la fin du texte, un second le retire
   const series = seriesOf(catOf(p.cat), wordsOf(state));
   const wordBox = series ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': `Mots tout prêts : ${series.name}` }) : null;
@@ -811,7 +811,7 @@ function openPassage(p, back, at = null) {
   openSheet([ico('footprints'), old ? ' Cette impression' : ' Écrire une impression'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, p.name),
     el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
-    el('label', { class: 'field' }, 'Ce que j\'ai vu (facultatif)', text),
+    el('label', { class: 'field' }, 'En quelques mots (facultatif)', text), // v404 (mes choix 1A 2A) : un titre et un exemple qui valent pour toutes les catégories, un resto comme un passage
     wordBox,
     el('div', { class: 'field' }, 'Mes étoiles (facultatif)', pick),
     preview, camera,
@@ -10644,13 +10644,13 @@ function openCategory(id, ret = null) {
   ), { tall: true, name: `category:${id ?? 'new'}`, again: () => openCategory(id, ret) });
 }
 
-/* ---------- Mots tout prêts (v226) : des séries de mots à toucher sous « Ce que j'ai vu » ; chaque catégorie en prend une ---------- */
+/* ---------- Mots tout prêts (v226) : des séries de mots à toucher sous « En quelques mots » ; chaque catégorie en prend une ---------- */
 function openWordSeries(back = toOthers()) {
   const words = wordsOf(state);
   const again = () => openWordSeries(back);
   const usedBy = (id) => state.categories.filter((c) => seriesIdOf(c, words) === id).map((c) => c.name);
   openSheet([ico('message-square-text'), ' Mots tout prêts'], el('div', { class: 'stack' },
-    el('p', { class: 'help tip' }, 'Des mots à toucher sous « Ce que j\'ai vu » quand tu écris une impression. Chaque catégorie prend une série : touche la catégorie dans'),
+    el('p', { class: 'help tip' }, 'Des mots à toucher sous « En quelques mots » quand tu écris une impression. Chaque catégorie prend une série : touche la catégorie dans'),
     el('button', { type: 'button', class: 'btn c-guide', onclick: () => openSettings('categories') }, ico('tags'), 'Catégories et listes'), // v365
     words.length ? el('div', { class: 'menu' }, words.map((x) => el('button', { type: 'button', class: 'menu-row c-add', onclick: () => openWordSerie(x.id, named('Mots tout prêts', again)) },
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name),
@@ -11873,7 +11873,7 @@ const HELP = [
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue). Touche la station (›) : les 3 stations proches du lieu et, avec ta station Maison, par laquelle rentrer le plus vite.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
-    '{footprints} **Impression** : le jour, ce que tu as vu, une photo. Sous « Ce que j\'ai vu », des mots tout prêts à toucher selon la catégorie ({settings} → Autres réglages → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
+    '{footprints} **Impression** : le jour, quelques mots, une photo. Sous « En quelques mots », des mots tout prêts à toucher selon la catégorie ({settings} → Autres réglages → Mots tout prêts). L\'historique est dans la fiche, sous le nom choisi pour la catégorie (« Mes impressions », « Mes repas »…).',
     '**Toutes tes impressions** : Mon Paris → Mon journal, avec les sorties de l\'agenda où tu es allée. Cocher « Déjà visité » note aussi le jour.',
     '{notebook-pen} **Note du jour** : ⋯ Plus → Note du jour, pour écrire sans lieu (une adresse qu\'on te donne, un nom lu sur une affiche). Une page par jour : rouvre-la pour la compléter ; « Effacer cette note » l\'efface d\'un appui, avec « Annuler » dans le message. Mon journal la range à sa date. Texte seulement, sans position ; elle part dans ta sauvegarde, jamais chez un proche. Pour la sortir sur la carte : {settings} → Boutons de la carte.',
     '**En repassant** près d\'un lieu où tu as écrit, « Maintenant » te rappelle ce que tu avais vu (une fois par visite). À 100 m au départ ; de 50 à 500 m dans {settings} → Autres réglages → Alertes et bandeau. Au-delà de 100 m, il écrit « Déjà passé » et les minutes à pied.',

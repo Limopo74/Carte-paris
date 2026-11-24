@@ -152,6 +152,7 @@ const ECRANS = {
   // v237 : le passage est dans mes lieux, avec une photo : « Ma fiche » à la place d'« Ajouter », ma photo sous « Source »
   // v379 : un de mes lieux avec deux photos ; la fiche, puis la photo touchée (en grand), puis Rangement (« Depuis ma galerie »)
   fichephoto: async (p) => { await avecLieu(p, { id: 'fp', name: 'Cour de test', cat: 'culture', lat: 48.8818, lng: 2.3360, photos: ['ph-fp1', 'ph-fp2'] }); await p.locator('.leaflet-marker-icon[aria-label^="Cour de test"]').click(); await p.waitForTimeout(500); await feuille(p).locator('.fiche-photo button').scrollIntoViewIfNeeded(); },
+  impression: async (p) => { await avecLieu(p, { id: 'imp', name: 'Bonito udon', cat: 'resto', lat: 48.8818, lng: 2.3360 }); await p.locator('.leaflet-marker-icon[aria-label^="Bonito udon"]').click(); await p.waitForTimeout(500); await feuille(p).locator('button', { hasText: 'Impression' }).first().click(); await p.waitForTimeout(400); }, // v404 : le titre du champ vaut pour toutes les catégories
   fichephotogrand: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-photo button').click(); await p.waitForTimeout(600); },
   fichegalerie: async (p) => { await ECRANS.fichephoto(p); await feuille(p).locator('.fiche-row', { hasText: 'Rangement' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('.fiche-row', { hasText: 'Depuis ma galerie' }).scrollIntoViewIfNeeded(); },
   fonds: async (p) => { await p.locator('#btnStyle').click(); await p.waitForTimeout(400); }, // v382 : le petit rond des fonds de carte

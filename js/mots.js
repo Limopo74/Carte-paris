@@ -1,4 +1,4 @@
-// Mots tout prêts (v226) : des séries de mots à toucher sous « Ce que j'ai vu » quand on écrit une impression.
+// Mots tout prêts (v226) : des séries de mots à toucher sous « En quelques mots » quand on écrit une impression.
 // Chaque catégorie prend une série (champ `words` de la catégorie : l'identifiant d'une série, ou '' pour « Aucun »).
 // Une catégorie sans ce champ prend la série de départ qui va avec son nom (Restos → Repas…), tant qu'elle existe.
 // Tout reste sur le téléphone et dans la sauvegarde ; rien ne part dans le fichier pour un proche.

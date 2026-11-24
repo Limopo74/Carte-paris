@@ -106,7 +106,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
   | une visite datée d'un de mes lieux | **impression** (« Écrire une impression » pour la page, « Impression » pour le bouton de la fiche, v297 ; « Mes impressions ») | passage (réservé aux **passages couverts**) |
   | mon texte sur un lieu / les étoiles / la page du jour | **Commentaire** / **Mes étoiles** / **Note du jour** | note (pour les deux premiers) |
   | message électronique | **courriel** | mail |
-  | les mots à toucher sous « Ce que j'ai vu » (v226) | **Mots tout prêts**, rangés en **séries** (« Repas », « Visite ») | liste (réservé aux listes de lieux), modèle |
+  | les mots à toucher sous « En quelques mots » (v226, nommé ainsi depuis la v404) | **Mots tout prêts**, rangés en **séries** (« Repas », « Visite ») | liste (réservé aux listes de lieux), modèle |
   | ce qu'est un resto, comme dans TTB : La Table, Boui-boui, Street-food (v288) | **Genre**, dans la ligne au-dessus du nom de la fiche et en bas de Modifier | rubrique (réservé aux parties d'un écran et au guide TTB), type, catégorie |
 - **Deux voix** : les noms d'écrans et de boutons parlent comme moi (Mon planning, Autour de moi, J'ai du temps, Où suis-je ?) ; les phrases me tutoient (« touche… », « tes lieux »). Jamais de vouvoiement. Claude est toujours nommé à la 3e personne.
 - **Accords au féminin** : l'appli sert à deux utilisatrices (« Tu y es allée ? », « Tu es déjà passée ici »).
