@@ -21,8 +21,8 @@ test('1A : son ordre des boutons du haut, de la colonne et des catégories part 
   assert.deepEqual(s.mapTools.slice(0, 3), ['vu', 'paris', 'locate']); // v381 : Vu en passant, nouveau, arrive en tête
   assert.deepEqual(s.categories.slice(0, 3).map((c) => c.id), p.categories.map((c) => c.id));
   assert.equal(cleanPreset({}).chipOrder, null, 'ordre de départ');
-  assert.match(app, /moveChip\(\{ chipOrder: p\.chipOrder \}/);
-  assert.match(app, /p\.mapTools = moveTool\(p\.mapTools, t, dd\)/);
+  assert.match(app, /moveChipIn\(\{ chipOrder: p\.chipOrder \}, k, dd, catIds, groupOf\)/); // v400 : dans le groupe
+  assert.match(app, /p\.mapTools = moveToolIn\(p\.mapTools, t, dd, toolPlace\)/); // v400 : dans le groupe
 });
 
 test('2B : ma clé ne part que si je coche, pour un fond CARTO, et n\'est jamais gardée dans mes préparations', async () => {

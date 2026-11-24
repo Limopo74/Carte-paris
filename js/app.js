@@ -11,7 +11,7 @@ import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
-  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
+  addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (399)';
+const VERSION = '24 novembre 2026 (400)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9565,29 +9565,40 @@ function openSettings(section = null, from = null) {
       [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']].map(([k, label]) =>
         el('button', { type: 'button', 'aria-pressed': String(place === k), 'data-top': `${key}:${k}`, onclick: () => { if (place !== k) putTop(key, name, k); } }, label)));
     if (section === 'barre') {
+      // v400 (mes choix 1A 2A 3A 5A du 24 nov.) : rangée comme Boutons de la carte (v376), en trois groupes qui suivent l'écran ;
+      // ↑ ↓ n'agissent que dans le groupe (avant, une flèche pouvait échanger avec un bouton de Plus : rien ne bougeait à l'écran).
       const items = chipItems();
       const order = barOrderOf(state.chipOrder, catIds);
-      const nTop = { bar: 0, more: 0, hidden: 0 };
-      for (const x of items) nTop[placeOf(x.key)] += 1;
+      const groupOf = chipGroupOf(placeOf);
       const moreNow = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips));
       const asStart = !cleanChips(state.hiddenChips).length && !cleanChipOrder(state.chipOrder) && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
-      const moveTop = (key, delta) => { state = moveChip(state, key, delta, catIds); persist(); refresh(); openSettings('barre');
+      const moveTop = (key, delta) => { state = moveChipIn(state, key, delta, catIds, groupOf); persist(); refresh(); openSettings('barre');
         requestAnimationFrame(() => document.querySelector(`[data-move="${key}:${delta}"]`)?.focus()); };
-      const rowOf = (x) => {
-        const i = order.indexOf(x.key);
-        return el('div', { class: `cat-row tool-row${placeOf(x.key) === 'hidden' ? ' off' : ''}` },
+      const rowOf = (x, movable) => {
+        const i = movable.indexOf(x.key);
+        const where = placeOf(x.key);
+        const fixedSub = where === 'hidden' ? null : x.key === 'artistes' ? 'Toujours en tête de Plus' : where === 'bar' && !order.includes(x.key) ? 'Toujours en tête' : null;
+        return el('div', { class: `cat-row tool-row${where === 'hidden' ? ' off' : ''}` },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, x.icon),
-          el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, x.name), i < 0 ? el('span', { class: 'menu-sub' }, 'Toujours en tête') : x.cat ? el('span', { class: 'menu-sub' }, 'Catégorie') : null, topSeg(x.key, x.name)),
-          i < 0 ? null : el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${x.key}:-1`, onclick: () => moveTop(x.key, -1), 'aria-label': `Monter ${x.name}` }, '↑'),
-          i < 0 ? null : el('button', { type: 'button', class: 'btn move', disabled: i === order.length - 1, 'data-move': `${x.key}:1`, onclick: () => moveTop(x.key, 1), 'aria-label': `Descendre ${x.name}` }, '↓'));
+          el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, x.name), fixedSub ? el('span', { class: 'menu-sub' }, fixedSub) : x.cat ? el('span', { class: 'menu-sub' }, 'Catégorie') : null, topSeg(x.key, x.name)),
+          i < 0 || movable.length < 2 ? null : [ // l'ordre des masqués ne se voit nulle part : pas de flèches (comme Boutons de la carte)
+            el('button', { type: 'button', class: 'btn move', disabled: i === 0, 'data-move': `${x.key}:-1`, onclick: () => moveTop(x.key, -1), 'aria-label': `Monter ${x.name}` }, '↑'),
+            el('button', { type: 'button', class: 'btn move', disabled: i === movable.length - 1, 'data-move': `${x.key}:1`, onclick: () => moveTop(x.key, 1), 'aria-label': `Descendre ${x.name}` }, '↓')]);
       };
       // v304 : Vu en passant est toujours dans la page ; « Barre » ou « Plus » crée sa catégorie avant la première photo
       const seenRow = catIds.includes(SEEN_CAT.id) ? null : el('div', { class: 'cat-row tool-row off' },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('images')),
         el('div', { class: 'tool-main' }, el('span', { class: 'cat-name' }, SEEN_CAT.name), el('span', { class: 'menu-sub' }, 'Catégorie · encore aucune photo'), topSeg(`cat:${SEEN_CAT.id}`, SEEN_CAT.name, 'hidden')));
+      const groups = [['bar', 'La barre, de gauche à droite'], ['more', 'Dans ⋯ Plus'], ['hidden', 'Masqués']].map(([k, title]) => {
+        // l'ordre de l'écran : celui de la barre, de ⋯ Plus (Mes artistes en tête, v375)
+        const g = items.filter((x) => placeOf(x.key) === k).sort((a, b) => (k === 'more' ? (b.key === 'artistes') - (a.key === 'artistes') : 0));
+        const extra = k === 'hidden' && seenRow ? [seenRow] : [];
+        if (!g.length && !extra.length) return null;
+        const movable = k === 'hidden' ? [] : g.filter((x) => order.includes(x.key) && groupOf(x.key) === k).map((x) => x.key);
+        return el('div', { class: 'tool-group', 'data-group': k }, el('p', { class: 'legend' }, `${title} (${g.length + extra.length})`), g.map((x) => rowOf(x, movable)), extra);
+      });
       openSheet([ico('panel-top'), ' Barre du haut'], el('div', { class: 'stack' },
-        el('p', { class: 'help tip' }, 'La barre du haut, de gauche à droite. « Barre » garde un bouton en haut, « Plus » le range sous ⋯ (à un appui), « Masqué » l\'enlève : les lieux restent sur la carte. ↑ ↓ règlent l\'ordre, catégories comprises ; Tout et Filtres restent en tête.'),
-        el('p', { class: 'summary' }, `En haut : ${plural(nTop.bar, 'bouton', 'boutons')}${nTop.more ? ` + ⋯ (${nTop.more} dans Plus)` : ''}${nTop.hidden ? ` · ${nTop.hidden} masqué${nTop.hidden > 1 ? 's' : ''}` : ''}`),
+        el('p', { class: 'help tip' }, 'Les boutons sont rangés comme sur l\'écran : la barre de gauche à droite, puis ceux de ⋯ Plus. « Barre », « Plus » ou « Masqué » change le groupe d\'un bouton (masqué, ses lieux restent sur la carte) ; ↑ ↓ changent sa place dans son groupe, catégories comprises. Tout et Filtres restent en tête de la barre, Mes artistes en tête de Plus.'),
         // Réglage de toute la barre : en tête de page, sans faire défiler
         el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.chipIcons === true), onclick: () => {
           state.chipIcons = !state.chipIcons; persist(); refresh(); openSettings('barre');
@@ -9596,8 +9607,9 @@ function openSettings(section = null, from = null) {
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, state.categories[0] ? catDot(state.categories[0].id) : '🏷️'),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Icônes seules en haut'), el('span', { class: 'menu-sub' }, 'Plus de catégories visibles sans faire défiler')),
         el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-        el('div', {}, items.map(rowOf), seenRow),
-        asStart ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; state.chipOrder = null; persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
+        groups,
+        // v400 (mon choix 5A) : comme « Boutons comme au début » : bouton simple, seulement si quelque chose a changé
+        asStart ? null : el('button', { type: 'button', class: 'btn', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; state.chipOrder = null; persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
         backBtn,
       ), { tall: true, name: 'settings:barre', again: () => openSettings('barre') });
       return;
@@ -9725,7 +9737,7 @@ function openSettings(section = null, from = null) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'L\'essentiel'), el('span', { class: 'menu-sub' }, 'Les boutons à garder sur la carte')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
       state.layoutBefore ? el('button', { type: 'button', class: 'btn', onclick: restoreLayout }, ico('rotate-ccw'), 'Remettre mes boutons d\'avant') : null,
-      el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris ; le côté de l\'écran ne change pas'); } }, 'Boutons comme au début'), /* v283 (comme « Barre du haut comme au début ») : « Tout » était faux, le côté et l'essentiel restent */
+      toolsAsStart() ? null : el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris ; le côté de l\'écran ne change pas'); } }, 'Boutons comme au début'), /* v283 (comme « Barre du haut comme au début ») : « Tout » était faux, le côté et l'essentiel restent */
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
@@ -11581,6 +11593,9 @@ document.body.append(morePanel);
 /** v390 : « Circuits de visite » éteint dans Autres réglages : le bouton compte comme masqué, sans toucher à mon rangement. */
 const hiddenNow = () => { const h = cleanHidden(state.hiddenTools); return circuitsOff() && !h.includes('circuits') ? [...h, 'circuits'] : h; };
 const moreList = () => cleanMore(state.moreTools, hiddenNow());
+/** v400 (mon choix 5A) : les boutons de la carte sont-ils comme « Boutons comme au début » les remet ? (le côté de l'écran n'en fait pas partie) */
+const toolsAsStart = () => normalizeTools(state.mapTools).join() === normalizeTools([]).join() && !cleanHidden(state.hiddenTools).length
+  && cleanMore(state.moreTools, []).join() === cleanMore(DEFAULT_MORE, []).join() && !Object.keys(state.toolNames ?? {}).length && state.toolLabels !== true;
 function openMore() {
   fill(morePanel, normalizeTools(state.mapTools).filter((t) => moreList().includes(t)).map((t) => {
     const info = TOOL_INFO[t];
@@ -11709,7 +11724,7 @@ const HELP = [
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
-    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. Pour chacun : Barre, Plus ou Masqué, et l\'ordre par ↑ ↓, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
+    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil.',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
@@ -11956,6 +11971,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
@@ -11965,7 +11981,6 @@ const HELP = [
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
-    '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12225,6 +12240,15 @@ function openPrep(step = 1) {
         el('button', { type: 'button', 'aria-pressed': String(place === k), onclick: () => { if (place !== k) { set(k); again(); } } }, label)))),
     ...(mv ? moveBtns(mv.key, name, mv.i, mv.n, mv.move) : []));
   const chipPlace = (k) => (p.hiddenChips.includes(k) ? 'hidden' : p.moreChips.includes(k) ? 'more' : 'bar');
+  /** v400 (mon choix 4A) : une liste en trois groupes, dans l'ordre de l'écran (Mes artistes en tête de Plus) ;
+   * `row(key, mv)` reçoit { i, n } pour ↑ ↓ dans le groupe, ou null (masqués, bouton qui ne se range pas, seul de son groupe). */
+  const placeGroups = (keys, place, groupOf, titles, row) => titles.map(([k, title]) => {
+    const g = keys.filter((x) => place(x) === k).sort((a, b) => (k === 'more' ? (b === 'artistes') - (a === 'artistes') : 0));
+    if (!g.length) return null;
+    const movable = k === 'hidden' ? [] : g.filter((x) => groupOf(x) === k);
+    return el('div', { class: 'tool-group', 'data-group': k }, el('p', { class: 'legend' }, `${title} (${g.length})`),
+      g.map((x) => row(x, movable.length > 1 && movable.includes(x) ? { i: movable.indexOf(x), n: movable.length } : null)));
+  });
   const setChip = (k, to) => { p.hiddenChips = p.hiddenChips.filter((x) => x !== k); p.moreChips = p.moreChips.filter((x) => x !== k); if (to === 'hidden') p.hiddenChips.push(k); if (to === 'more') p.moreChips.push(k); };
   const toolPlace = (t) => (p.hiddenTools.includes(t) ? 'hidden' : p.moreTools.includes(t) ? 'more' : 'map');
   const setTool = (t, to) => { p.hiddenTools = p.hiddenTools.filter((x) => x !== t); p.moreTools = p.moreTools.filter((x) => x !== t); if (to === 'hidden') p.hiddenTools.push(t); if (to === 'more') p.moreTools.push(t); };
@@ -12261,25 +12285,29 @@ function openPrep(step = 1) {
         sw('badge-percent', 'Passe Navigo', 'Sorties, fiches, loupe', p.navigo, () => { p.navigo = !p.navigo; })),
     ],
     5: (() => {
-      // v349 : une seule file, catégories comprises, dans son ordre (comme Réglages → Barre du haut)
+      // v349 : catégories comprises, dans son ordre (comme Réglages → Barre du haut) ; v400 (mon choix 4A) : en trois groupes, comme là-bas
       const cats = [...p.categories, SEEN_CAT];
       const catIds = cats.map((c) => c.id);
       const order = barOrderOf(p.chipOrder, catIds);
       const info = Object.fromEntries([...Object.entries(PREP_CHIPS).map(([k, [icon, name]]) => [k, [chipIcon(k, icon), name]]),
         ...cats.map((c) => [`cat:${c.id}`, [dotOf(c), c.name]])]); // v349 : la pastille de SA catégorie (couleur, icône), pas la mienne
-      const move = (k) => (dd) => { p.chipOrder = moveChip({ chipOrder: p.chipOrder }, k, dd, catIds).chipOrder; };
+      const groupOf = chipGroupOf(chipPlace);
+      const move = (k) => (dd) => { p.chipOrder = moveChipIn({ chipOrder: p.chipOrder }, k, dd, catIds, groupOf).chipOrder; };
+      const shown = order.filter((k) => info[k]);
       return [
-        el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête. ↑ ↓ règlent l\'ordre.'),
+        el('p', { class: 'help' }, 'Recherche, Tout et Filtres restent toujours en tête, Mes artistes en tête de Plus. ↑ ↓ règlent l\'ordre dans chaque groupe.'),
         // v349 (mon choix 5A) : en tête, comme dans Réglages → Barre du haut
         el('div', { class: 'menu' }, sw('panel-top', 'Icônes seules en haut', 'Plus de catégories visibles sans faire défiler', p.chipIcons, () => { p.chipIcons = !p.chipIcons; })),
-        el('div', {}, order.filter((k) => info[k]).map((k, i, all) => placeRow(info[k][0], info[k][1], chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to),
-          { key: k, i, n: all.length, move: move(k) }))),
+        placeGroups(shown, chipPlace, groupOf, [['bar', 'La barre, de gauche à droite'], ['more', 'Dans ⋯ Plus'], ['hidden', 'Masqués']], (k, mv) =>
+          placeRow(info[k][0], info[k][1], chipPlace(k), [['bar', 'Barre'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setChip(k, to), mv && { key: k, ...mv, move: move(k) })),
       ];
     })(),
     6: [
-      el('div', {}, normalizeTools(p.mapTools).map((t, i, all) => placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to),
-        { key: `tool:${t}`, i, n: all.length, move: (dd) => { p.mapTools = moveTool(p.mapTools, t, dd); } }))), // v349 : ↑ ↓ (mon choix 1A)
-      el('p', { class: 'help' }, 'Autour de moi, Ajouter et Réglages restent toujours en bas. ↑ ↓ règlent l\'ordre, du haut vers le bas.'),
+      // v400 (mon choix 4A) : en trois groupes, comme Réglages → Boutons de la carte ; ↑ ↓ dans le groupe
+      placeGroups(normalizeTools(p.mapTools), toolPlace, toolPlace, [['map', 'Sur la carte, de haut en bas'], ['more', 'Dans ⋯ Plus'], ['hidden', 'Masqués']], (t, mv) =>
+        placeRow(ICON_NAMES.has(TOOL_INFO[t].icon) ? ico(TOOL_INFO[t].icon) : el('b', {}, TOOL_INFO[t].icon), TOOL_INFO[t].short, toolPlace(t), [['map', 'Carte'], ['more', 'Plus'], ['hidden', 'Masqué']], (to) => setTool(t, to),
+          mv && { key: `tool:${t}`, ...mv, move: (dd) => { p.mapTools = moveToolIn(p.mapTools, t, dd, toolPlace); } })), // v349 : ↑ ↓ (mon choix 1A)
+      el('p', { class: 'help' }, 'Autour de moi, Ajouter et Réglages restent toujours en bas. ↑ ↓ règlent l\'ordre dans chaque groupe, du haut vers le bas.'),
     ],
     7: (() => {
       const card = (id, sub) => el('button', { type: 'button', class: 'style-card', 'aria-pressed': String(p.mapStyle === id), onclick: () => { p.mapStyle = id; if (!KEY_STYLES.includes(id)) p.withKey = false; again(); } },

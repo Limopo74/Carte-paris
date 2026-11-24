@@ -255,6 +255,21 @@ export function moveChip(state, key, delta, catIds = []) {
   [list[i], list[j]] = [list[j], list[i]];
   return { ...state, chipOrder: cleanChipOrder(list) };
 }
+/** Le groupe d'un bouton du haut dans les pages de réglage (v400) : 'bar', 'more' ou 'hidden', d'après `place(key)`.
+ * Mes artistes, rangé dans Plus, y est toujours en tête (v375) : groupe à part, il n'échange avec personne. */
+export const chipGroupOf = (place) => (key) => (key === 'artistes' && place(key) === 'more' ? 'lead' : place(key));
+/** Comme `moveChip`, mais seulement avec le voisin du même groupe (v400, comme `moveToolIn`) : chaque ↑ ↓ se voit à l'écran. */
+export function moveChipIn(state, key, delta, catIds = [], groupOf = () => 'bar') {
+  const list = barOrderOf(state.chipOrder, catIds);
+  const i = list.indexOf(key);
+  if (i < 0) return state;
+  const g = groupOf(key);
+  let j = i + delta;
+  while (j >= 0 && j < list.length && groupOf(list[j]) !== g) j += delta;
+  if (j < 0 || j >= list.length) return state;
+  [list[i], list[j]] = [list[j], list[i]];
+  return { ...state, chipOrder: cleanChipOrder(list) };
+}
 
 /** Lignes masquées de la feuille Filtres. */
 export const FILTER_KEYS = ['open', 'top', 'lines', 'buslines', 'markets', 'ttb', 'velib', 'pratique', 'passages', 'velo', 'jardins', 'covered', 'lists', 'people', 'arr'];
