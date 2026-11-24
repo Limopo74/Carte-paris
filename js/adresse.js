@@ -45,6 +45,17 @@ async function getJSON(url, signal) {
 /** Paris et départements limitrophes : code commune qui commence par 75, 92, 93 ou 94. */
 export const inZone = (r) => ['75', '92', '93', '94'].includes(String(r.citycode ?? '').slice(0, 2));
 
+/** v378 (mes choix 1A 2A du 24 nov.) : le texte tapé dans la loupe ressemble-t-il à une adresse ? Un mot de voie entier
+ *  (rue, avenue, bd, place, quai…), avec ou sans numéro. Rien n'est envoyé ici : ça décide seulement si le bouton
+ *  « Chercher l'adresse » apparaît. */
+const VOIES = ['rue', 'avenue', 'av', 'bd', 'boulevard', 'place', 'quai', 'impasse', 'allee', 'square', 'cours', 'villa', 'cite', 'passage'];
+export function looksLikeAddress(q) {
+  const t = String(q ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.,']/g, ' ');
+  if (t.replace(/\s/g, '').length < 3) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.some((w, i) => VOIES.includes(w) && (words.length > i + 1 || i > 0));
+}
+
 /** Suggestions d'adresses (5 au plus). `zone` : Paris, 92, 93 et 94 seulement. Lève une erreur en cas de souci réseau. */
 export async function searchAddress(q, signal, { zone = false } = {}) {
   if (q.trim().length < 3) return [];

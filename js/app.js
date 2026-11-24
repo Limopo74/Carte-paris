@@ -15,7 +15,7 @@ import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
-import { searchAddress, reverseAddress, reverseInfo } from './adresse.js';
+import { searchAddress, reverseAddress, reverseInfo, looksLikeAddress } from './adresse.js';
 import { cleanHome, awayFromHome, homeOrigin, homeShort, HOME_AWAY_M } from './chezmoi.js';
 import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
@@ -69,7 +69,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '23 novembre 2026 (377)';
+const VERSION = '24 novembre 2026 (378)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -77,7 +77,7 @@ const PRIVACY_LINES = [
   'Mes lignes de bus : le chemin de toutes les lignes est téléchargé en entier depuis l\'appli, GitHub ne sait donc pas lesquelles tu choisis ; seules les tiennes restent sur ce téléphone, et leurs numéros dans ta sauvegarde.',
   'L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, ou CARTO et OpenStreetMap France selon le style choisi : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi),',
   'le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde),',
-  'les adresses (IGN, avec la position exacte, quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu cherches ton adresse dans Chez moi, qui reste ensuite sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche),',
+  'les adresses (IGN : la position exacte quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu touches « Chercher cette adresse » dans la loupe ou cherches ton adresse dans Chez moi, qui reste sur ce téléphone et dans ta sauvegarde, jamais chez un proche),',
   'l\'annuaire et les horaires (OpenStreetMap),',
   'les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position),',
   'la liste des monuments (Wikidata, tout Paris, sans ta position),',
@@ -3607,6 +3607,8 @@ function confirmMove(p, back) {
 
 /* ---------- Chercher dans mes lieux ---------- */
 
+let lastAddress = null; // v378 : les dernières adresses trouvées par la loupe, le temps de la session (rien n'est gardé)
+
 function openSearch(initial = '') {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Un nom, une adresse, un artiste…', value: initial, 'aria-label': 'Chercher' });
   const list = el('ul', { class: 'items' });
@@ -3630,6 +3632,44 @@ function openSearch(initial = '') {
           el('span', { class: 'item-sub' }, [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
+  /* v378 (mes choix 1A 2A 3A du 24 nov.) : un texte qui ressemble à une adresse (« 12 rue de Rivoli ») fait apparaître
+     « Chercher cette adresse » ; ce qui est tapé ne part à l'IGN qu'à cet appui ; une adresse trouvée ouvre sa page (Y aller…). */
+  const toAddress = el('button', { type: 'button', class: 'btn c-disc', onclick: () => searchAddressHere() });
+  const addrBox = el('div', { class: 'stack' });
+  let addrCtrl;
+  const updateAddress = () => {
+    const q = input.value.trim();
+    addrCtrl?.abort();
+    toAddress.hidden = !looksLikeAddress(q);
+    fill(toAddress, ico('map-pin'), ' Chercher cette adresse');
+    fill(addrBox);
+  };
+  async function searchAddressHere() {
+    const q = input.value.trim();
+    addrCtrl?.abort();
+    addrCtrl = new AbortController();
+    const signal = addrCtrl.signal;
+    fill(addrBox, el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche de l\'adresse (IGN)…'));
+    let found;
+    try { found = await searchAddress(q, signal, { zone: true }); } catch {
+      if (signal.aborted) return;
+      fill(addrBox, el('p', { class: 'warn' }, 'La recherche d\'adresses ne répond pas. Vérifie ta connexion internet, puis touche de nouveau « Chercher cette adresse ».'));
+      return;
+    }
+    if (signal.aborted || input.value.trim() !== q) return;
+    lastAddress = { q, found }; // le retour depuis la page d'une adresse retrouve la liste, sans nouvel envoi
+    showAddresses(found);
+  }
+  function showAddresses(found) {
+    const ref = startHere();
+    fill(addrBox, ...(found.length ? [el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(found.length))),
+      el('ul', { class: 'items' }, found.map((r) => el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => openAddressSpot(r, back) },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('map-pin', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, r.label),
+            el('span', { class: 'item-sub' }, [ROUGH[r.type] ? 'Sans numéro' : '', ref ? fmtDist(distanceM(ref, r)) : ''].filter(Boolean).join(' · ') || 'Adresse'))))))]
+      : [el('p', { class: 'empty' }, 'Aucune adresse trouvée dans Paris et les départements voisins (92, 93, 94).')]));
+  }
   /* v373 (mon choix A du 21 nov.) : en tête, les noms de Mes artistes qui correspondent ; un appui ouvre la page de l'artiste */
   const artistBox = el('div', { class: 'stack' });
   const updateArtists = () => {
@@ -3654,6 +3694,7 @@ function openSearch(initial = '') {
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${p.address} · expos et programme`))))))] : []));
     toDirectory.hidden = q.length < 3;
     fill(toDirectory, ico('search'), ` Chercher « ${q} » dans l'annuaire`);
+    updateAddress();
     updateMore();
   };
   /* v158 : la loupe cherche aussi dans les listes gardées sur le téléphone (TTB, Navigo, galeries, art dans la rue),
@@ -3701,9 +3742,10 @@ function openSearch(initial = '') {
   }
   input.addEventListener('input', () => { run(); updateDir(); });
   run(); updateDir();
-  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, artistBox, info, list, bigBox, busBox, moreBox, toAgenda, agendaBox, toDirectory,
-    el('p', { class: 'help tip' }, 'Cherche dans Mes artistes, tes lieux, les Grands lieux, les lignes de bus (tape un numéro), TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. L\'agenda et l\'annuaire seulement quand tu les touches.')),
-  { tall: true, name: 'search', again: () => openSearch(input.value) });
+  if (lastAddress && lastAddress.q === input.value.trim() && !toAddress.hidden) showAddresses(lastAddress.found);
+  openSheet([ico('search'), ' Chercher'], el('div', { class: 'stack' }, input, artistBox, toAddress, addrBox, info, list, bigBox, busBox, moreBox, toAgenda, agendaBox, toDirectory,
+    el('p', { class: 'help tip' }, 'Cherche dans Mes artistes, tes lieux, les Grands lieux, les lignes de bus (tape un numéro), TTB, les avantages Navigo, les galeries et l\'art dans la rue, sur ce téléphone. Une adresse, l\'agenda et l\'annuaire seulement quand tu les touches.')),
+  { tall: true, name: 'search', onClose: () => addrCtrl?.abort(), again: () => openSearch(input.value) });
   input.focus();
   // Listes pas encore lues : chargées une fois (Navigo dans l'appli ; galeries et œuvres une fois par mois), puis la recherche se refait
   Promise.allSettled([loadNavigo(), loadGalleries(), loadStreetArt()]).then(() => { if (view === 'search') updateMore(); });
@@ -5962,6 +6004,11 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again });
+}
+/** v378 : la page d'une adresse trouvée par la loupe : Y aller, Boussole, Métro, Ajouter (le geste des pages de passage). */
+function openAddressSpot(r, back) {
+  openSpot({ icon: 'map-pin', title: r.label, kicker: 'Adresse', lines: [ROUGH[r.type] ?? null], place: { lat: r.lat, lng: r.lng, address: r.label },
+    back, key: 'address', add: { name: '', rough: ROUGH[r.type] ?? null }, mine: myResult(r) });
 }
 const addBtn = (name, label, onclick) => el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${label} ${name} à ma carte`, onclick }, ico('plus'));
 
@@ -11214,7 +11261,7 @@ const HELP = [
     '**Paris** recentre la carte sur Paris. **Perdue ?** {locate-fixed} te ramène sur toi.',
     '**M** : la station de métro la plus proche.',
     '**La barre du haut** se fait glisser de côté. Elle commence par {search} : chercher partout.',
-    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire.',
+    '{search} **La loupe** cherche dans tes lieux, les Grands lieux, TTB, les avantages Navigo, les galeries, l\'art dans la rue et les plaques commémoratives (tape un nom : « Colette » liste les plaques qui portent ce nom, en mot entier ; la liste de la Ville n\'est pas tout Paris). Sous les résultats : chercher dans l\'agenda de la semaine, ou dans l\'annuaire. Une adresse (« 12 rue de Rivoli ») fait apparaître « Chercher cette adresse » : un appui sur la réponse ouvre sa page, avec Y aller.',
     '**Tout** : toutes tes catégories. Touche une catégorie pour ne voir qu\'elle, touche-la encore pour la retirer.',
     '{star} **Favoris** : seulement tes favoris. Avec une catégorie : ses favoris.',
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, la liste de tes lieux d\'un arrondissement. La rubrique Filtres explique tout.',
@@ -11467,6 +11514,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Une adresse dans la loupe** : tape « 12 rue de Rivoli » ; « Chercher cette adresse » apparaît en haut. Un appui sur la réponse ouvre sa page : Y aller, Boussole, Métro, Ajouter. Ce que tu tapes ne part à l\'IGN qu\'à ton appui.',
     '{settings} **Une petite roue dans Sorties, Autour de moi et les circuits** : au bout du titre (dans Sorties, après l\'image des photos), elle ouvre Distances et durées. Le retour, en bas, te ramène à l\'écran de départ, comme depuis Mes Vu en passant et « Choisir ce qui va dans Plus ».',
     '{arrow-up-down} **Boutons de la carte, rangés comme l\'écran** : {settings} → Boutons de la carte montre « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». ↑ ↓ ne déplacent un bouton que dans son groupe. L\'essentiel est en bas, sur sa ligne.',
     '{user} **Mes artistes en tête de ⋯ Plus** : la seule ligne qui ouvre une page passe au-dessus des interrupteurs, séparée par un trait, sans faire défiler. Pour l\'enlever : « Choisir ce qui va dans Plus », puis « Masqué ».',
@@ -11476,7 +11524,6 @@ const HELP = [
     '{footprints} **Plus de « 132 min à pied » en haut d\'une page** : sur la page d\'une sortie, d\'une expo, d\'un marché ou d\'une TTB, au-delà de ta limite « À pied jusqu\'à », la ligne du haut donne la distance (« à 9,2 km »), comme la plaque Y aller. {settings} → Autres réglages → Distances et durées.',
     '{image} **Photos dans Sorties en un appui** : en haut de Sorties, la petite image à droite du titre allume ou éteint les photos. Image pleine : les photos de l\'agenda s\'affichent ; image vide : l\'icône du genre. C\'est le même réglage que {settings} → Autres réglages → Photos dans Sorties.',
     '{footprints} **« Pars à », une marge que tu règles** : {settings} → Autres réglages → Distances et durées → Mon planning. 20 min au départ en plus du trajet (5 min avant), de 15 à 60 min. « Maintenant » et Mon planning partent plus tôt d\'autant.',
-    '{chevron-right} **Des boutons plutôt que des chemins** : là où l\'appli disait « Réglages → … », un bouton y mène directement : Note du jour (Mon journal vide), Vu en passant (Mes Vu en passant vide), Allumer Photos dans Sorties, Données de l\'appli, Mettre à jour l\'appli (circuits), Barre du haut, Sauvegarde, Catégories et listes.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -14,6 +14,6 @@ test('Loupe : Mes artistes, sans accents ni majuscules, tous les mots, rien sous
   assert.deepEqual(searchArtists(mine, '  '), []);
   assert.deepEqual(searchArtists(undefined, 'monet'), []);
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-  assert.match(app, /input, artistBox, info, list/, 'en tête des résultats');
+  assert.match(app, /input, artistBox, toAddress, addrBox, info, list/, 'en tête des résultats');
   assert.match(app, /onclick: \(\) => openArtist\(n, backHere\)/, 'un appui ouvre la page de l\'artiste, retour à la recherche');
 });
