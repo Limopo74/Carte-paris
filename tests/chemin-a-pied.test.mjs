@@ -19,7 +19,8 @@ test('la fiche : plaque mise à jour seulement avec un vrai chemin, sans téléc
   const w = app.slice(app.indexOf('async function walkRouteTo('), app.indexOf('function goRouteText('));
   assert.ok(w.includes('const P = streets ?? await loadStreets();') && !w.includes('downloadStreets'), 'jamais téléchargé pour la plaque');
   assert.ok(w.includes('return r && r.m > 0 ? r : null;'));
-  assert.ok(app.includes('if (d != null && walkGo(d)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico(\'arrow-right\'), ...goRouteText(r.m, pos)); });'));
+  // v406 : sauf sur une rue d'intérêt dont on est à moins de 50 m (pas de détour par les trottoirs)
+  assert.ok(app.includes('if (d != null && walkGo(d) && !(p.line && d < 50)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico(\'arrow-right\'), ...goRouteText(r.m, pos)); });'));
   const i = app.indexOf("row('route', 'Chemin à pied'");
   assert.ok(i > 0 && i < app.indexOf("row('clock', 'Horaires'"));
   const s = app.slice(app.indexOf('async function showWalkRoute('), app.indexOf('async function showWalkRoute(') + 1400);

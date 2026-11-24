@@ -56,6 +56,7 @@ test('v404 : la fiche, Chemin à pied, Autour de moi, Sur mon chemin et la bouss
   assert.match(app, /href: mapsUrl\(goTarget\(p, origin\), d\)/);
   assert.match(app, /href: mapsUrl\(goTarget\(p, from\), distanceM\(from, goTarget\(p, from\)\)\)/);
   assert.match(app, /compass-go'\)\.href = mapsUrl\(goTarget\(p, pos\)/);
+  assert.match(app, /walkGo\(d\) && !\(p\.line && d < 50\)\) walkRouteTo/); // sur la rue : pas de détour par les trottoirs
 });
 
 test('v405 : dans les listes, une rue se mesure jusqu\'au trait, pas jusqu\'à sa goutte au milieu', () => {
@@ -70,4 +71,16 @@ test('v405 : dans les listes, une rue se mesure jusqu\'au trait, pas jusqu\'à s
   const app2 = app;
   assert.match(app2, /d: from \? placeDistM\(from, p\) : null/); // lieux d'une liste
   assert.match(app2, /d: start \? placeDistM\(start, p\) : 0/); // liste du jour
+});
+
+test('v406 : l\'origine du nom d\'une rue d\'intérêt, en bas de sa fiche, seulement pour une rue et quand la Ville la donne', async () => {
+  const { voieOrigin } = await import('../js/voies.js');
+  const dv = JSON.parse(readFileSync(new URL('../data/voies.json', import.meta.url), 'utf8'));
+  assert.match(voieOrigin(dv, 'Rue Mouffetard'), /Mont C[ée]tard/);
+  assert.equal(voieOrigin(dv, 'La Mouffe'), ''); // un nom changé à la main : rien (pas de devinette)
+  assert.match(app, /const origP = p\.line \? el\('p', \{ class: 'muted', hidden: true \}\) : null;/);
+  assert.match(app, /voieOrigin\(dv, String\(p\.address \?\? ''\)\.split\(', '\)\[0\]\) \|\| voieOrigin\(dv, p\.name\)/);
+  assert.match(app, /fill\(origP, el\('b', \{\}, 'Origine du nom : '\), o\); origP\.hidden = false;/);
+  const i = app.indexOf('const facts = el(\'div\', { class: \'fiche-lines\' }'); const f = app.slice(i, i + 1400);
+  assert.ok(f.indexOf('origP,') > 0 && f.indexOf('origP,') < f.indexOf('ageLine(p)'), 'juste avant la ligne d\'âge, en bas');
 });

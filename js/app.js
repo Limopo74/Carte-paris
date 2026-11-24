@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (411)';
+const VERSION = '24 novembre 2026 (412)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2878,7 +2878,8 @@ function openDetail(id, back = null) {
   const goLink = el('a', { class: 'btn primary go-bar', href: mapsUrl(goPt, d ?? Infinity), target: '_blank', rel: 'noopener' },
     ico('arrow-right'), ...goText(d, pos)); /* v231 : minutes seulement sous la limite « à pied » (goText) */
   // v383 (mon choix 4A du 24 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la vraie distance et la durée par les rues
-  if (d != null && walkGo(d)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico('arrow-right'), ...goRouteText(r.m, pos)); });
+  // v406 : déjà sur une rue d'intérêt (moins de 50 m), pas de chemin par les rues : le plan, qui dessine aussi les trottoirs, faisait faire un détour (« 190 m » sur la rue même)
+  if (d != null && walkGo(d) && !(p.line && d < 50)) walkRouteTo(p, pos).then((r) => { if (r && goLink.isConnected) fill(goLink, ico('arrow-right'), ...goRouteText(r.m, pos)); });
   const goBox = el('div', { class: 'stack' },
     goLink,
     el('div', { class: 'row3' },
@@ -2920,13 +2921,21 @@ function openDetail(id, back = null) {
   // « Encore là ? » (v161) : pour une œuvre, le dernier jour où je l'ai vue (jamais « toujours là »), ou qu'elle a disparu
   const vanish = canVanish(p, state.categories);
   const seenAt = vanish ? lastSeen(p) : null;
+  const origP = p.line ? el('p', { class: 'muted', hidden: true }) : null; // v406 : rempli quand le fichier des voies est lu
   const facts = el('div', { class: 'fiche-lines' },
     // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
     p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     p.gone ? el('p', {}, ico('eye-off'), ` ${vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'} (noté le ${formatDate(p.gone)})`) : null,
+    origP,
     el('p', { class: 'muted' }, seenAt ? `${p.gone ? 'Vue pour la dernière fois' : 'Vue'} le ${formatDate(seenAt)}` : ageLine(p)));
+  // v406 (mon choix 4 du 24 nov.) : l'origine du nom d'une rue d'intérêt, quand la Ville la donne (data/voies.json, comme Où suis-je ?) ;
+  // cherchée par le nom de la rue gardé à sa création (adresse), sinon par le nom du lieu ; rien quand le nom ne correspond pas
+  if (origP) loadVoies().then((dv) => {
+    const o = voieOrigin(dv, String(p.address ?? '').split(', ')[0]) || voieOrigin(dv, p.name);
+    if (o && origP.isConnected) { fill(origP, el('b', {}, 'Origine du nom : '), o); origP.hidden = false; }
+  });
 
   // Actions, version A « Sommaire » : trois rubriques nommées, tout à un appui (plus de « Plus »).
   const row = (icon, label, sub, onclick, cls = '') => el('button', { type: 'button', class: `fiche-row ${cls}`.trim(), onclick },
@@ -12025,6 +12034,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
     '{route} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
     '{arrow-right} **Y aller jusqu\'au bout de la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au bout de la rue le plus proche de toi, plus au milieu. Déjà dessus : au point le plus proche.',
     '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
@@ -12034,7 +12044,6 @@ const HELP = [
     '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Dans « Écrire une impression », tous les mots se voient, sur plusieurs lignes.',
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
-    '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
