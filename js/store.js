@@ -167,6 +167,9 @@ export function cleanLine(line) {
   return out;
 }
 
+/** v422 : le commentaire d'une ligne sur le café ou la boutique d'un lieu : texte brut sur une ligne, 100 signes au plus. */
+export const cleanServeNote = (t) => (typeof t === 'string' ? t.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) : '');
+
 // Ne garde que les champs connus, avec les bons types.
 const clean = (p) => ({
   id: p.id, name: p.name.trim(), cat: p.cat,
@@ -181,6 +184,10 @@ const clean = (p) => ({
   ...(cleanPlan(p.ticket) ? { ticket: cleanPlan(p.ticket) } : {}), // sortie prévue (Prévoir) : jour, heure ou moment, et avec qui (facultatif)
   lists: cleanIds(p.lists),
   covered: Boolean(p.covered),
+  ...(p.cafe === true ? { cafe: true } : {}), // v422 : « Café ou snack sur place », coché par moi (absent = non)
+  ...(p.shop === true ? { shop: true } : {}), // v422 : « Boutique sur place »
+  ...(p.cafe === true && cleanServeNote(p.cafeNote) ? { cafeNote: cleanServeNote(p.cafeNote) } : {}), // v422 : une ligne de commentaire sur le café, seulement s'il est coché
+  ...(p.shop === true && cleanServeNote(p.shopNote) ? { shopNote: cleanServeNote(p.shopNote) } : {}),
   arr: Number.isInteger(p.arr) && p.arr >= 1 && p.arr <= 20 ? p.arr : null, // arrondissement, trouvé une fois pour toutes
   photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 6) : [],
   ...(cleanPassages(p.passages).length ? { passages: cleanPassages(p.passages) } : {}), // Mes passages (v157)
@@ -540,7 +547,7 @@ export function mergeFriend(state, obj, owner, choice) {
     delete c.ticket;
     if (c.owner) { c.fav = false; c.done = false; c.visited = null; } // ses favoris et ses « Déjà visité » restent à lui (audit du 18 nov., choix 1A) ; ses étoiles restent, comme avis
     c.lists = c.lists.filter((x) => listIds.has(x));
-    if (!choice.notes) c.note = '';
+    if (!choice.notes) { c.note = ''; delete c.cafeNote; delete c.shopNote; } // v422 : ses lignes sur le café et la boutique sont des commentaires
     if (!choice.photos) { delete c.photos; if (c.passages) c.passages = c.passages.map(({ photo, ...x }) => x); }
     if (!choice.passages) delete c.passages;
     const i = points.findIndex((x) => x.id === c.id);
@@ -557,6 +564,9 @@ export function mergeFriend(state, obj, owner, choice) {
       if (Number.isFinite(c.checked) && !(old.checked >= c.checked)) next.checked = c.checked;
       // v292 (mon choix A du 20 nov.) : ses étoiles, « Abrité » et « Le bon moment » suivent aussi, comme son commentaire
       next.stars = c.stars; next.covered = c.covered;
+      if (c.cafe) next.cafe = true; else delete next.cafe; // v422 : son « Café ou snack sur place » et sa « Boutique sur place » suivent aussi
+      if (c.shop) next.shop = true; else delete next.shop;
+      for (const k of ['cafeNote', 'shopNote']) if (!next[k === 'cafeNote' ? 'cafe' : 'shop']) delete next[k]; else if (choice.notes) { if (c[k]) next[k] = c[k]; else delete next[k]; } // v422
       if (c.line) next.line = c.line; else delete next.line; // v384 : le tracé de sa rue d'intérêt suit
       if (c.moments) next.moments = c.moments; else delete next.moments;
       if (JSON.stringify(next) !== JSON.stringify(old)) { points[i] = next; updated++; }

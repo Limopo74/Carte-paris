@@ -12,7 +12,7 @@ import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, re
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey,
+  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo, looksLikeAddress } from './adresse.js';
@@ -47,7 +47,7 @@ import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, jou
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
-import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText } from './passage.js';
+import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (421)';
+const VERSION = '25 novembre 2026 (422)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2647,12 +2647,15 @@ function artistInput(value = '') {
 function openForm(draft, existing = null) {
   const firstCat = filterCats.size === 1 ? [...filterCats][0] : state.categories[0].id;
   // Modifier : les saisies en cours (draft.pending) passent avant le lieu enregistré, pour revenir d'une nouvelle catégorie sans rien perdre
-  const v = existing ? { ...existing, ...(draft.pending ?? {}) } : { name: draft.name ?? '', cat: draft.cat ?? firstCat, note: draft.note ?? '', done: draft.done ?? false, fav: draft.fav ?? favOnly, address: draft.address, stars: draft.stars ?? 0, covered: draft.covered, lists: draft.lists };
+  const v = existing ? { ...existing, ...(draft.pending ?? {}) } : { name: draft.name ?? '', cat: draft.cat ?? firstCat, note: draft.note ?? '', done: draft.done ?? false, fav: draft.fav ?? favOnly, address: draft.address, stars: draft.stars ?? 0, covered: draft.covered, cafe: draft.cafe, shop: draft.shop, cafeNote: draft.cafeNote, shopNote: draft.shopNote, lists: draft.lists };
   let cat = v.cat;
   let done = v.done;
   let fav = v.fav;
   let stars = v.stars ?? 0;
   let covered = Boolean(v.covered);
+  // v422 (mes choix 1A 2A 3A 4A du 24 nov.) : un café ou un snack, une boutique sur place ; pas pour un resto, une boutique ou un café (`canClose`)
+  let cafe = Boolean(v.cafe), shop = Boolean(v.shop);
+  const servesFits = () => !canClose(catOf(cat));
   // v288 : le genre d'un resto. Modifier : celui déjà choisi, ou celui du guide ; nouveau lieu : celui de l'adresse TTB gardée
   let rub = v.rub !== undefined ? v.rub : existing ? ttbRubByName(existing, ttbList()) : RESTO_RUBS.includes(draft.rub) ? draft.rub : '';
   let rubTouched = Boolean(existing ? v.rubTouched : draft.rubTouched);
@@ -2683,6 +2686,16 @@ function openForm(draft, existing = null) {
   drawRub();
   const rubBox = el('div', { class: 'stack', style: 'gap:8px' }, el('div', { class: 'legend' }, 'Genre (facultatif)'), rubChips);
   const syncRub = () => { rubBox.hidden = !isRestoCat(catOf(cat)); };
+  // v422 (ma demande du 25 nov.) : une ligne de commentaire sous chaque interrupteur, visible quand il est allumé
+  const serveText = (value, hint) => { const i = el('input', { type: 'text', maxlength: '100', autocomplete: 'off', enterkeyhint: 'done', placeholder: hint }); i.value = value ?? ''; return i; };
+  const cafeText = serveText(v.cafeNote, 'Ex. : salon de thé dans le jardin');
+  const shopText = serveText(v.shopNote, 'Ex. : beaux livres d\'art, accès sans billet');
+  const cafeField = el('label', { class: 'field', hidden: !cafe }, 'Son café (facultatif)', cafeText);
+  const shopField = el('label', { class: 'field', hidden: !shop }, 'Sa boutique (facultatif)', shopText);
+  const servesBox = el('div', { class: 'stack' },
+    formSwitch('Café ou snack sur place', null, cafe, (on) => { cafe = on; cafeField.hidden = !on; }), cafeField,
+    formSwitch('Boutique sur place', null, shop, (on) => { shop = on; shopField.hidden = !on; }), shopField);
+  const syncServes = () => { servesBox.hidden = !servesFits(); };
   const coveredBox = el('input', { type: 'checkbox', class: 'check', checked: covered });
   coveredBox.addEventListener('change', () => { covered = coveredBox.checked; });
 
@@ -2710,7 +2723,7 @@ function openForm(draft, existing = null) {
     return list.some((c) => c.id === cat) ? list : [...list, catOf(cat)];
   };
   const drawCats = () => fill(catSeg, ...catChoices().map((c) =>
-    segBtn([dotOf(c), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); syncSub(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
+    segBtn([dotOf(c), c.name], c.id === cat, () => { cat = c.id; drawCats(); drawDone(); syncArtist(); syncRub(); syncSub(); syncServes(); })), // le nom de « Déjà visité » et le champ Artiste suivent la catégorie
     // Au bout des catégories : en créer une sans quitter la fiche
     el('button', { type: 'button', class: 'seg-new', onclick: () => newCat() }, ico('plus'), 'Nouvelle'));
   drawCats();
@@ -2755,7 +2768,7 @@ function openForm(draft, existing = null) {
       : null;
   /** Nouvelle catégorie depuis la fiche : on garde ce qui est tapé, on revient avec la catégorie choisie. */
   const newCat = () => {
-    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched, sub };
+    const keep = { name: name.value, note: note.value, artist: artist.value, ...(addr ? { address: addr.value } : {}), cat, done, fav, stars, covered, cafe, shop, cafeNote: cafeText.value, shopNote: shopText.value, lists: [...lists], moments: [...moments], rub, rubTouched, sub };
     if (existing) draft.pending = keep; else Object.assign(draft, keep);
     const reopen = () => openForm(draft, existing);
     const pick = (id) => { if (existing) draft.pending.cat = id; else draft.cat = id; reopen(); };
@@ -2764,7 +2777,7 @@ function openForm(draft, existing = null) {
   };
   /** Ajuster la position d'un nouveau lieu sur toute la carte, sans perdre ce qui est déjà rempli. */
   const adjust = () => {
-    Object.assign(draft, { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, lists: [...lists], moments: [...moments], rub, rubTouched });
+    Object.assign(draft, { name: name.value, note: note.value, artist: artist.value, cat, done, fav, stars, covered, cafe, shop, cafeNote: cafeText.value, shopNote: shopText.value, lists: [...lists], moments: [...moments], rub, rubTouched });
     startDraftMove(draft);
   };
 
@@ -2795,6 +2808,10 @@ function openForm(draft, existing = null) {
     let created = null;
     if (existing) {
       Object.assign(existing, { name: n, cat, note: note.value, fav, stars, covered, lists: listIds });
+      if (cafe && servesFits()) existing.cafe = true; else delete existing.cafe; /* v422 */
+      if (shop && servesFits()) existing.shop = true; else delete existing.shop;
+      if (existing.cafe && cleanServeNote(cafeText.value)) existing.cafeNote = cleanServeNote(cafeText.value); else delete existing.cafeNote;
+      if (existing.shop && cleanServeNote(shopText.value)) existing.shopNote = cleanServeNote(shopText.value); else delete existing.shopNote;
       if (moments.size) existing.moments = cleanMoments([...moments]); else delete existing.moments;
       if (cleanArtist(artist.value)) existing.artist = cleanArtist(artist.value); else delete existing.artist;
       if (isRestoCat(catOf(cat)) && (rubTouched || rub)) existing.rub = rub; /* v288 : '' = « aucun » choisi : le guide ne le remplit plus */
@@ -2806,6 +2823,10 @@ function openForm(draft, existing = null) {
       if (moments.size) np.moments = cleanMoments([...moments]);
       if (cleanArtist(artist.value)) np.artist = cleanArtist(artist.value);
       if (isRestoCat(catOf(cat)) && (rubTouched || rub)) np.rub = rub; /* v288 */
+      if (cafe && servesFits()) np.cafe = true; /* v422 */
+      if (shop && servesFits()) np.shop = true;
+      if (np.cafe && cleanServeNote(cafeText.value)) np.cafeNote = cleanServeNote(cafeText.value);
+      if (np.shop && cleanServeNote(shopText.value)) np.shopNote = cleanServeNote(shopText.value);
       /* v207 : horaires reçus par un lien : la date où mon proche les a notés, pas aujourd'hui ; date inconnue = pas de date (rien ne s'affiche) */
       if (draft.hoursLink && np.hours) { if (Number.isFinite(draft.hoursAt)) np.hoursAt = draft.hoursAt; else delete np.hoursAt; }
       if (Number.isFinite(draft.ticketAt)) np.ticket = draftPlan(draft); // sortie datée (Sorties, invitation) : elle va dans Mon planning
@@ -2841,11 +2862,13 @@ function openForm(draft, existing = null) {
     keepPhoto(moments.size > 0) ? momentBox : null,
     rubBox, /* v288 : en bas, il ne pousse rien */
     passPlace ? null : subBox, /* v305 : tout en bas (v348 : sous le commentaire pour une photo prise en passant) */
+    keepPhoto(cafe || shop) ? servesBox : null, /* v422 : tout en bas, il ne pousse rien ; caché pour un resto, une boutique ou un café */
   ];
   syncArtist();
   syncRub();
   syncSub();
-  const filled = Boolean(v.artist || draft.artist || v.done || stars || covered || lists.size || moments.size);
+  syncServes();
+  const filled = Boolean(v.artist || draft.artist || v.done || stars || covered || cafe || shop || lists.size || moments.size);
   openSheet([ico(existing ? 'pencil' : 'map-pin-plus'), existing ? (passPlace ? ' Modifier photo' : ' Modifier le lieu') : ' Nouveau lieu'], el('div', { class: 'stack' },
     existing ? el('div', { class: 'stack', style: 'gap:8px' }, el('label', { class: 'field' }, 'Adresse', addr),
       el('p', { class: 'help tip' }, 'Corrige le texte : le point ne bouge pas. Pour le déplacer : fiche → Rangement → Déplacer le point (l\'adresse est alors recalculée).'))
@@ -2931,7 +2954,7 @@ function openDetail(id, back = null) {
       () => openPlaceStations(p, named(p.name, () => openDetail(p.id, back))))) : null;
 
   // Lignes d'information, séparées par des filets.
-  const listNames = [p.covered ? 'Abrité' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
+  const listNames = [p.covered ? 'Abrité' : null, p.cafe && !p.cafeNote ? 'Café' : null, p.shop && !p.shopNote ? 'Boutique' : null, ...(p.lists ?? []).map((lid) => state.lists?.find((l) => l.id === lid)?.name)].filter(Boolean);
   // « Encore là ? » (v161) : pour une œuvre, le dernier jour où je l'ai vue (jamais « toujours là »), ou qu'elle a disparu
   const vanish = canVanish(p, state.categories);
   const seenAt = vanish ? lastSeen(p) : null;
@@ -2939,6 +2962,8 @@ function openDetail(id, back = null) {
   const facts = el('div', { class: 'fiche-lines' },
     // La sortie prévue n'est écrite qu'une fois : sur le bouton Prévoir.
     listNames.length ? el('p', {}, listNames.join(' · ')) : null,
+    p.cafe && p.cafeNote ? el('p', {}, `Café : ${p.cafeNote}`) : null, /* v422 : avec son commentaire, une ligne à lui */
+    p.shop && p.shopNote ? el('p', {}, `Boutique : ${p.shopNote}`) : null,
     p.moments?.length ? el('p', {}, ico('sun'), ` Le bon moment : ${momentText(p.moments)}`) : null,
     p.owner || owners(state.points).length ? el('p', {}, ico('user'), ` Ajouté par ${p.owner || (state.me ? `toi (${state.me})` : 'toi')}`) : null,
     p.gone ? el('p', {}, ico('eye-off'), ` ${vanish ? 'Disparue ou recouverte' : 'Fermé définitivement'} (noté le ${formatDate(p.gone)})`) : null,
@@ -12017,7 +12042,7 @@ const HELP = [
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
     '{git-commit-horizontal} **Une rue d\'intérêt** : + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
-    '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
+    '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment » ; tout en bas, « Café ou snack sur place » et « Boutique sur place » (pas pour un resto ni une boutique), chacun avec une ligne de commentaire quand il est allumé.',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
     '**M Métro** : la ligne et la correspondance (en dessous, « Autres stations près de toi » : le temps depuis chacune des 3 stations les plus proches de toi) ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : l\'appareil photo, 6 photos par lieu ; une photo de ta galerie : Rangement → Depuis ma galerie.',
@@ -12138,6 +12163,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
     '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
@@ -12147,7 +12173,6 @@ const HELP = [
     '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
     '{git-commit-horizontal} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
     '{git-commit-horizontal} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
-    '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
