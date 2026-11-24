@@ -43,3 +43,17 @@ test('stations touchables : l\'aide le dit', () => {
   assert.match(app, /\*\*Lignes\*\* : [^\n]*touche-la : ce qu\\'il y a autour/);
   assert.match(app, /\*\*Les stations se touchent\*\*/);
 });
+
+// v428 (mon choix A du 25 nov.) : la page « Autour de Ⓜ … » propose d'aller jusqu'à la station.
+test('aller à la station : une ligne sous les 8 boutons, seulement autour d\'une station', () => {
+  assert.match(body('renderNear'), /tool\('map', 'Mon Paris'[^\n]*\n  \)\);\n  if \(origin\.kind === 'station'\) body\.push\(stationGoRow\(\)\);/);
+});
+
+test('aller à la station : Y aller vers la station, distance seulement depuis une position récente', () => {
+  const b = body('stationGoRow');
+  assert.match(b, /const me = freshHere\(\);/, 'position de moins de 10 min');
+  assert.match(b, /d == null \? null : walkGo\(d\) \? `\$\{fmtDist\(d\)\} · \$\{walkMinutes\(d\)\} min` : fmtDist\(d\)/, 'pas de minutes à pied hors de la distance de marche');
+  assert.match(b, /class: 'go', href: mapsUrl\(st, d \?\? 0\)/, 'Y aller : la station, jamais ma position dans le lien');
+  assert.match(b, /compassOff\(\) \? null : el\('button'[^\n]*openCompass\(target\)/);
+  assert.match(b, /stationBadges\(st\)/, 'ses lignes');
+});

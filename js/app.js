@@ -73,7 +73,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (427)';
+const VERSION = '25 novembre 2026 (428)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4154,6 +4154,24 @@ function drawNear() {
   }
 }
 
+/** v428 (mon choix A du 25 nov.) : dans « Autour de Ⓜ … », la station elle-même, avec Y aller (Google Maps) et la boussole.
+ * Distance et minutes seulement depuis ma position récente (moins de 10 min) ; les minutes seulement à distance de marche. */
+function stationGoRow() {
+  const st = stationByName(origin.label) ?? { n: origin.label, lat: origin.lat, lng: origin.lng, l: [] };
+  const me = freshHere();
+  const d = me ? distanceM(me, st) : null;
+  const sub = d == null ? null : walkGo(d) ? `${fmtDist(d)} · ${walkMinutes(d)} min` : fmtDist(d);
+  const target = { name: `Ⓜ ${st.n}`, lat: st.lat, lng: st.lng };
+  return el('ul', { class: 'items' }, el('li', { class: 'item' },
+    el('div', { class: 'item-main' },
+      el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'), // le rond de la station, comme dans Station
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, st.n),
+        el('span', { class: 'lines' }, stationBadges(st)),
+        sub ? el('span', { class: 'item-sub' }, sub) : null)),
+    compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers la station ${st.n}` }, ico('compass')),
+    el('a', { class: 'go', href: mapsUrl(st, d ?? 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : station ${st.n}` }, 'Y aller')));
+}
+
 function nearTitle() {
   if (origin.kind === 'station') return `Autour de Ⓜ ${origin.label}`;
   if (origin.kind === 'home') return 'Autour de chez toi';
@@ -4187,6 +4205,7 @@ function renderNear(fit = false) {
     tool('locate', 'Où suis-je\u00a0?', openWhereAmI), /* espace insécable : le « ? » ne passe pas seul à la ligne */
     tool('map', 'Mon Paris', () => openMyParis('near'), null, 'c-disc'),
   ));
+  if (origin.kind === 'station') body.push(stationGoRow()); // v428 (mon choix A du 25 nov.) : aller jusqu'à la station, sous les 8 boutons
   if (inside) { /* v209 : rien dans les cercles, c'est le message du bas qui le dit, une seule fois */
     const t = todoSummary(groups);
     const msg = t.first.ring === t.last.ring || t.first.n === t.last.n
@@ -12274,6 +12293,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
@@ -12283,7 +12303,6 @@ const HELP = [
     '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
-    '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
