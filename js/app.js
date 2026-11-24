@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (417)';
+const VERSION = '24 novembre 2026 (418)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -557,7 +557,7 @@ function placeNamesNow() {
 map.on('moveend zoomend resize', placeNamesSoon);
 map.on('zoomend', scalePins);
 map.on('zoomend', () => { if (!(map.getZoom() > GROUP_MAX_ZOOM && drawnZoom > GROUP_MAX_ZOOM)) renderMarkers(); }); /* groupes (v178) */
-map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); if (meShown) drawMe(); });
+map.on('zoomend', () => { if (view === 'near' && origin) drawNear(); if (meShown) drawMe(); redrawListRings(); });
 scalePins();
 
 /** Point « moi » toujours au-dessus des lieux. */
@@ -596,6 +596,7 @@ function startHeading() {
 const pointsLayer = L.layerGroup().addTo(map);
 const meLayer = L.layerGroup().addTo(map);
 const nearLayer = L.layerGroup().addTo(map);
+let listRings = null; // v415 : les cercles d'une liste (Sorties, Vélib', Rentrer, Curiosités, Monuments), redessinés à chaque zoom
 const draftLayer = L.layerGroup().addTo(map);
 // Contour de l'arrondissement choisi dans Filtres (v182) : seulement quand ce filtre est actif.
 const arrLayer = L.layerGroup().addTo(map);
@@ -3978,6 +3979,38 @@ function drawRings(layer, lat, lng, radii, label) {
   });
 }
 
+/* v415 (mes choix 1A 2A 3A du 24 nov.) : les listes posées sur la carte (Sorties, Vélib', Rentrer, Curiosités, Monuments)
+   gardent les cercles d'Autour de moi autour de leur point de départ, et leurs ronds se touchent. */
+/** Les cercles d'Autour de moi autour de p, dans nearLayer (effacés avec lui) ; redessinés à chaque zoom pour leurs étiquettes. */
+function listRingsAt(p) {
+  const group = L.layerGroup().addTo(nearLayer);
+  listRings = { group, lat: p.lat, lng: p.lng };
+  drawRings(group, p.lat, p.lng, nearRings(), ringText);
+}
+function redrawListRings() {
+  if (!listRings || !nearLayer.hasLayer(listRings.group)) { listRings = null; return; }
+  listRings.group.clearLayers();
+  drawRings(listRings.group, listRings.lat, listRings.lng, nearRings(), ringText);
+}
+/**
+ * Des ronds qu'on touche : entries [{ lat, lng, style }] ; onTap(k) reçoit le rond le plus proche du doigt.
+ * Le rond garde son dessin ; dessous, une zone d'appui invisible de 44 px. Tes gouttes, au-dessus, gardent la main ;
+ * pendant un tracé de Mes parcours, l'appui pose une étape (orTrace).
+ */
+function tapRounds(layer, entries, onTap) {
+  for (const x of entries) L.circleMarker([x.lat, x.lng], { ...x.style, interactive: false }).addTo(layer);
+  const nearest = (latlng) => {
+    const p = map.latLngToContainerPoint(latlng);
+    let best = 0; let bd = Infinity;
+    entries.forEach((y, k) => { const d = map.latLngToContainerPoint([y.lat, y.lng]).distanceTo(p); if (d < bd) { bd = d; best = k; } });
+    return best;
+  };
+  for (const x of entries) {
+    L.circleMarker([x.lat, x.lng], { radius: 22, stroke: false, fill: true, fillColor: '#000', fillOpacity: 0, bubblingMouseEvents: false, className: 'round-hit' })
+      .on('click', orTrace((e) => onTap(nearest(e.latlng)))).addTo(layer);
+  }
+}
+
 function drawNear() {
   nearLayer.clearLayers();
   const { lat, lng, acc, kind } = origin;
@@ -5171,8 +5204,13 @@ async function showVelib(at = null) {
     el('p', { class: 'help tip' }, 'En temps réel. Une station qui n\'a rien envoyé depuis plus d\'une heure n\'est pas proposée : ses nombres seraient sans doute faux.'),
   ), { name: 'velib', again: () => showVelib(from) });
   nearLayer.clearLayers();
+  listRingsAt(from);
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
-  for (const s of list) L.circleMarker([s.lat, s.lng], { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau, la boussole (la ligne n'a pas de page)
+  const vItems = list.map((s) => ({ name: s.name, lat: s.lat, lng: s.lng,
+    sub: `${walkMinutes(s.d)}\u00a0min · ${velibNeed === 'bike' ? plural(s.bikes, 'vélo', 'vélos') : plural(s.docks, 'place libre', 'places libres')}` }));
+  tapRounds(nearLayer, list.map((s) => ({ lat: s.lat, lng: s.lng, style: { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
+    (k) => showPeek({ kicker: 'Vélib\'', items: vItems, icon: 'bike', open: (x) => openCompass({ name: x.name, lat: x.lat, lng: x.lng }), back: () => showVelib(from), from, start: k, stay: true }));
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
@@ -7018,7 +7056,8 @@ async function openEvents(start = null) {
   };
   const mapList = []; // ce que montre « Carte » : { name, lat, lng, go, info }
   // b : le retour vers le bandeau de la carte (v213) ; info : l'heure, Gratuit, Sur réservation, sous le nom (v219)
-  const onMap = (xs, go, info = null) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: (b) => go(x, b), info: info ? () => info(x) : null }); };
+  // round (v415) : le dessin du rond sur la carte, quand il n'est pas le rond rose des sorties (galeries)
+  const onMap = (xs, go, info = null, round = null) => { for (const x of xs) mapList.push({ name: x.name ?? x.title, lat: x.lat, lng: x.lng, go: (b) => go(x, b), info: info ? () => info(x) : null, round: round ? round(x) : null }); };
 
   // Temps forts de la semaine et gratuité exceptionnelle du jour : sous la plaque (Tout)
   const soon = highlightsSoon();
@@ -7067,7 +7106,7 @@ async function openEvents(start = null) {
     drawGal();
     if (!galleries) loadGalleries().then(() => { if (view === 'events' && eventsMode === 'art') drawGal(); })
       .catch((e) => fill(galBox, el('p', { class: 'warn' }, artFileWarn('des galeries', e)), artFileBtn(e)));
-    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b), galleryInfo);
+    else onMap(galleriesNear(galleries, o, new Date(), evM).slice(0, 15), (g, b) => openGalleryCard(g, b), galleryInfo, galleryRound);
     onMap([...last, ...expos], (e, b) => openEventPage(e, b ?? back), eventInfo);
     const entry = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
@@ -7135,11 +7174,13 @@ async function openEvents(start = null) {
   // Le point de départ des distances : un seul contrôle, et « Carte » pour voir la liste de l'onglet sur la carte
   const fromLabel = fromMap ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi'];
   const tabName = { all: 'Sorties', free: 'Gratuit', art: 'Expos', navigo: 'Avantages Navigo' }[mode];
+  // « Carte » et un rond touché (v415) ouvrent le même bandeau
+  const peekOpts = { kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
+    open: (x, b) => x.go(b), back: () => openEvents(), from: o };
   const ctx = el('div', { class: 'ev-ctx' },
     el('button', { type: 'button', class: 'ev-from', onclick: openEventsFrom, 'aria-label': `Point de départ des distances : ${fromLabel.join('')}. Changer` },
       ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, fromLabel[0], el('b', {}, fromLabel[1])), ico('chevron-down')),
-    el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek({ kicker: tabName, label: plural(mapList.length, 'lieu', 'lieux'), items: mapList, icon: { all: 'calendar-days', free: 'landmark', art: 'palette', navigo: 'ticket' }[mode],
-      open: (x, b) => x.go(b), back: () => openEvents(), from: o }) }, ico('map'), 'Carte'));
+    el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek(peekOpts) }, ico('map'), 'Carte'));
   // v370 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
   // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
   const photosOn = state.evThumbs === true;
@@ -7169,10 +7210,13 @@ async function openEvents(start = null) {
     foot(backNear()),
   ), { tall: true, name: 'events', again: openEvents });
   nearLayer.clearLayers();
+  if (!fromMap) listRingsAt(o); // v415 : pas de cercles autour du centre de la carte (ce n'est pas un point où l'on est)
   if (!following && !fromMap) meMarker(o.lat, o.lng).addTo(nearLayer);
-  for (const e of mode === 'navigo' ? nvNear : mode === 'art' ? [...last, ...all.filter(isExpo)] : [...last.slice(0, 3), ...all]) L.circleMarker([e.lat, e.lng], { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  if (mode === 'art' && galleries) for (const g of galleriesNear(galleries, o, new Date(), evM).slice(0, 15)) L.circleMarker([g.lat, g.lng], { radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  // v415 : les ronds sont ceux de « Carte » (un rond = une ligne de la liste) ; un appui ouvre le bandeau sur ce lieu
+  tapRounds(nearLayer, mapList.map((x) => ({ lat: x.lat, lng: x.lng, style: x.round ?? EV_ROUND })), (k) => showPeek({ ...peekOpts, start: k, stay: true }));
 }
+const EV_ROUND = { radius: 6, color: '#c2255c', weight: 2, fillColor: '#fff', fillOpacity: 1 };
+const galleryRound = (g) => ({ radius: 6, color: '#A54A28', weight: 3, fillColor: openState(g.hours)?.open ? '#A54A28' : '#fff', fillOpacity: 1 });
 
 
 /* ---------- Voir sur la carte : les lieux d'une liste (Navigo, galeries), le temps de les regarder ----------
@@ -7220,12 +7264,12 @@ function showPeekCard(kicker, label, back, sub = 'Touche ici pour revenir à la 
  * items : { name, lat, lng, sub?, icon? } ; open(x, retour) ouvre sa page (le retour ramène ici, sur le même lieu) ;
  * off(x) : lieu fermé (contour pointillé) ; back : rouvre la liste (bouton « Liste ») ; from : point de départ des distances ;
  * tabs : { name, list: [{ label, on, fn }] } (Aujourd'hui · Demain) ; start : le lieu montré ; keep : garder la vue de la carte ;
- * onEnd : ce qu'il faut remettre en partant.
+ * onEnd : ce qu'il faut remettre en partant ; stay (v415, un rond touché) : la carte ne bouge que si le lieu passe sous le bandeau ou la barre du haut.
  * ‹ › et glisser de côté sur le bandeau passent au lieu suivant ou précédent, la carte se place sur lui ;
  * un rond touché devient le lieu du bandeau ; un appui sur le bandeau ouvre sa page.
  */
 function showPeek(opts) {
-  const { kicker, items, icon, open, off = () => false, back = null, from = null, tabs = null, start = 0, keep = false, onEnd = null } = opts;
+  const { kicker, items, icon, open, off = () => false, back = null, from = null, tabs = null, start = 0, keep = false, stay = false, onEnd = null } = opts;
   closeSheet();
   endPeek();
   if (!items.length) { toast('Rien à afficher sur la carte.'); return; }
@@ -7298,7 +7342,11 @@ function showPeek(opts) {
   card();
   peekOff = onEnd;
   if (keep) place(items[i]);
-  else map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 230], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
+  else if (stay) {
+    const y = map.latLngToContainerPoint([items[i].lat, items[i].lng]).y;
+    const top = peekCard.getBoundingClientRect().top - map.getContainer().getBoundingClientRect().top;
+    if (y > top - 24 || y < 90) map.panBy([0, Math.round(y - (90 + top) / 2)], { animate: false });
+  } else map.fitBounds(L.latLngBounds([...items, ...(from ? [from] : [])].map((x) => [x.lat, x.lng])), { paddingTopLeft: [24, 90], paddingBottomRight: [84, 230], maxZoom: 16, animate: false }); // ni sous la colonne de boutons, ni sous le bandeau
   setTimeout(sel, 0); // les ronds existent une fois ajoutés à la carte
 }
 /** Une galerie touchée sur la carte : sa ligne de liste dans une petite feuille (état, boussole, métro, ajouter). */
@@ -7561,8 +7609,13 @@ async function openHomePlan(home) {
     el('a', { class: 'btn primary', href: `https://www.google.com/maps/dir/?api=1&destination=${home.st.lat},${home.st.lng}&travelmode=transit`, target: '_blank', rel: 'noopener', 'aria-label': `Google Maps : le trajet en transports jusqu'à ${home.st.n}` }, 'Google Maps'),
   ), { name: `home:${home.id ?? home.label}`, again: back });
   nearLayer.clearLayers();
+  listRingsAt(from);
   if (!following) meMarker(from.lat, from.lng).addTo(nearLayer);
-  for (const o of opts) L.circleMarker([o.st.lat, o.st.lng], { radius: 9, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau fait comme la ligne (trajet, ou boussole vers ta station)
+  const hItems = opts.map((o) => ({ name: o.st.n, lat: o.st.lat, lng: o.st.lng, o }));
+  tapRounds(nearLayer, opts.map((o) => ({ lat: o.st.lat, lng: o.st.lng, style: { radius: 9, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
+    (k) => showPeek({ kicker: 'Rentrer', items: hItems, icon: 'train-front', from, start: k, stay: true, back,
+      open: (x, b) => (x.o.st === home.st ? openCompass({ name: `Ⓜ ${x.o.st.n}`, lat: x.o.st.lat, lng: x.o.st.lng }) : renderMetroPlan(dest, from, b, x.o.st)) }));
   if (opts.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...opts.map((o) => [o.st.lat, o.st.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
@@ -8685,10 +8738,18 @@ async function openCuriosities() {
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
+  listRingsAt(here);
   if (!following) meMarker(here.lat, here.lng).addTo(nearLayer);
-  for (const w of items) L.circleMarker([w.lat, w.lng], { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  for (const x of near) L.circleMarker([x.plaque.lat, x.plaque.lng], { radius: 5, color: PLAQUE_COLOR, weight: 2, fillColor: PLAQUE_COLOR, fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  for (const x of arcs) L.circleMarker([x.a.lat, x.a.lng], { radius: 6, color: discInk(), weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau fait comme la ligne (article, plaque, passage)
+  const cur = [
+    ...items.map((w) => ({ name: w.title, lat: w.lat, lng: w.lng, icon: 'book-open-text', style: { radius: 6, color: '#5f3dc4', weight: 2, fillColor: '#fff', fillOpacity: 1 },
+      open: () => window.open(wikiPage(w.title), '_blank', 'noopener') })),
+    ...near.map((x) => ({ name: x.plaque.t, lat: x.plaque.lat, lng: x.plaque.lng, icon: 'scroll-text', style: { radius: 5, color: PLAQUE_COLOR, weight: 2, fillColor: PLAQUE_COLOR, fillOpacity: 1 },
+      open: (b) => openPlaque(x.plaque, b) })),
+    ...arcs.map((x) => ({ name: x.a.nom, lat: x.a.lat, lng: x.a.lng, icon: 'door-open', style: { radius: 6, color: discInk(), weight: 2, fillColor: '#fff', fillOpacity: 1 },
+      open: (b) => openArcade(x.a, b) })),
+  ];
+  tapRounds(nearLayer, cur, (k) => showPeek({ kicker: 'Curiosités', items: cur, icon: 'book-open-text', open: (x, b) => x.open(b), back, from: here, start: k, stay: true }));
 }
 
 /* ---------- Itinéraire : un seul outil pour les trois façons de tracer un trajet ---------- */
@@ -9359,9 +9420,15 @@ async function openMonuments() {
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   ), { tall: true, name: 'hist', again: openMonuments });
   nearLayer.clearLayers();
+  listRingsAt(origin);
   if (!following) meMarker(origin.lat, origin.lng).addTo(nearLayer);
-  for (const x of pvp) L.circleMarker([x.lat, x.lng], { radius: 4, color: '#A54A28', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
-  for (const m of items) L.circleMarker([m.lat, m.lng], { radius: 7, color: '#A54A28', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(nearLayer);
+  // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau, la boussole (les lignes n'ont pas de page)
+  const mon = [
+    ...pvp.map((x) => ({ name: x.a, lat: x.lat, lng: x.lng, style: { radius: 4, color: '#A54A28', weight: 2, fillColor: '#fff', fillOpacity: 1 } })),
+    ...items.map((m) => ({ name: m.name, lat: m.lat, lng: m.lng, style: { radius: 7, color: '#A54A28', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
+  ];
+  tapRounds(nearLayer, mon, (k) => showPeek({ kicker: 'Monuments', items: mon, icon: 'landmark', open: (x) => openCompass({ name: x.name, lat: x.lat, lng: x.lng }),
+    back: named('Monuments', openMonuments), from: origin, start: k, stay: true }));
   if (items.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], ...items.slice(0, 8).map((m) => [m.lat, m.lng])]).pad(0.3), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
 }
 
@@ -11898,6 +11965,7 @@ const HELP = [
     '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mon Paris.',
     '**Marche et air** : touche une barre pour le détail du jour.',
     '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
+    '{map-pinned} **Les ronds de la carte se touchent**, dans Sorties, Vélib\', Rentrer, Curiosités et Monuments : le bandeau montre ce lieu, un appui l\'ouvre (Vélib\' et Monuments : la boussole). Ces listes gardent les cercles d\'Autour de moi, sauf depuis « Centre de la carte ».',
   ]],
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Un tracé sur la carte », « **Un parcours** », « **Un circuit** » et « Une rue d\'intérêt » ouvrent directement la carte. En bas, « Mes Vu en passant » ouvre tes photos.',
@@ -12044,6 +12112,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
     '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
     '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
     '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
@@ -12053,7 +12122,6 @@ const HELP = [
     '{git-commit-horizontal} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{git-commit-horizontal} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',
-    '{mountain} **Ça monte** : Mes parcours et Chemin à pied disent « monte de 40 m » quand le chemin monte de 15 m ou plus (Montmartre, Belleville…), et la page Météo et air donne ton altitude, à 5 m près. Altitudes du sol de l\'IGN, calculées sur le téléphone, sans les ponts ; elles arrivent avec la prochaine mise à jour du plan des rues.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
