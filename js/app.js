@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (398)';
+const VERSION = '24 novembre 2026 (399)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -81,6 +81,7 @@ const PRIVACY_LINES = [
   'L\'appli ne contacte d\'autres services que pour ce que tu demandes : les fonds de carte (OpenStreetMap, CARTO, OpenStreetMap France ou l\'IGN selon le style : comme pour toute carte en ligne, ils voient la zone affichée, donc à peu près où tu es quand la carte est centrée sur toi),',
   'le plan des rues de Mes parcours (téléchargé une fois depuis le site de l\'appli, sans ta position : le chemin entre tes étapes se calcule sur le téléphone, et tes parcours y restent, avec ta sauvegarde),',
   'les adresses (IGN : la position exacte quand tu ajoutes un lieu ou touches « Où suis-je ? » ; seulement ce que tu tapes quand tu touches « Chercher cette adresse » dans la loupe ou cherches ton adresse dans Chez moi, qui reste sur ce téléphone et dans ta sauvegarde, jamais chez un proche),',
+  'le point de la carte où tu laisses le doigt appuyé (IGN, pour trouver son adresse, page « Ce point »),',
   'l\'annuaire et les horaires (OpenStreetMap),',
   'les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position),',
   'la liste des monuments (Wikidata, tout Paris, sans ta position),',
@@ -1834,7 +1835,7 @@ function openAddChoice() {
     el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, back) }, ico('search'), 'Avec un nom ou une adresse'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
-    el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux.'),
+    el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux, puis toucher « Ajouter ».'),
     // v257 : créer une balade en 2 appuis, depuis le bouton toujours visible ; sous les boutons des lieux, qui ne bougent pas
     el('h3', { class: 'fiche-sec' }, 'Une balade'),
     el('p', { class: 'help' }, circuitsOff() ? 'Un parcours mesure : la distance et la durée à pied entre tes étapes.' : 'Un parcours mesure : la distance et la durée à pied entre tes étapes. Un circuit se visite : un titre, un texte par étape, jamais deux fois la même rue.'), // v258 : « garder les deux en explicitant » ; v390 : circuits éteints, le parcours seul
@@ -2315,8 +2316,23 @@ async function addAtPosition() {
 // Appui long sur la carte (ou clic droit sur ordinateur).
 map.on('contextmenu', (e) => {
   if (moving || view === 'trace' || view === 'rue') return; // v384 : ni pendant une rue d'intérêt ; pendant le tracé d'un parcours, l'appui long ne crée pas de lieu (le parcours en cours serait perdu)
-  addAt(e.latlng.lat, e.latlng.lng);
+  openPointAt(e.latlng.lat, e.latlng.lng); // v399 (mes choix 1A 2A du 24 nov.) : la page « Ce point », plus le formulaire tout de suite
 });
+
+/* v399 : l'appui long sur la carte ouvre « Ce point » (comme le repère de Google Maps) : l'adresse, la marche, Y aller, Boussole,
+   Métro, Ajouter (le formulaire, adresse remplie). Un petit rond (celui des résultats « Voir sur la carte ») marque le point,
+   jusqu'à ce que la page se ferme. Le point touché part à l'IGN pour trouver l'adresse, comme avant pour Nouveau lieu. */
+const pointLayer = L.layerGroup().addTo(map);
+function openPointAt(lat, lng) {
+  track('Ce point');
+  pointLayer.clearLayers();
+  L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 400,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('map-pin', { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(pointLayer);
+  const show = (label) => openSpot({ icon: 'map-pin', title: label || 'Ce point', kicker: 'Point de la carte', place: { lat, lng, address: label || '' },
+    key: 'point', add: { name: '' }, onClose: () => pointLayer.clearLayers() });
+  show('');
+  reverseAddress(lat, lng).then((label) => { if (label && view === 'point' && pointLayer.getLayers().length) show(label); }).catch(() => {});
+}
 
 // Résultats d'adresse imprécis : le point serait au milieu d'une rue ou d'une ville.
 const ROUGH = {
@@ -6227,10 +6243,10 @@ function followButton(name, again) {
   } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose });
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     // v238 (mes choix 1A 2A) : ma photo illustre la page d'un passage, en tête, en bandeau de 100 px (Boussole · Métro · Ma fiche
     // restent visibles à 360 × 740) ; sans photo, un cadre de la même hauteur « Prendre une photo » (`snap`) : d'un passage à
@@ -6254,7 +6270,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     /* v333 : musée, galerie, salle, théâtre (les pages qui ont un Favori) : Uber en bas de page, rien ne bouge au-dessus */
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
-  ), { tall: true, name: key, again });
+  ), { tall: true, name: key, again, onClose });
 }
 /** v378 : la page d'une adresse trouvée par la loupe : Y aller, Boussole, Métro, Ajouter (le geste des pages de passage). */
 function openAddressSpot(r, back) {
@@ -11665,7 +11681,7 @@ const HELP = [
     '**Autour de moi**, le gros bouton en bas : tes lieux du plus proche au plus loin. En haut : Itinéraire, Sorties, Station, Où suis-je ?…',
     '**Aller à un lieu** : touche sa goutte sur la carte, ou sa ligne dans une liste. Sur sa fiche, **Y aller** ouvre Google Maps, **Boussole** montre la direction (même sans réseau), **Métro** dit quel métro prendre.',
     '**M** : la station de métro la plus proche de toi. {house} **Rentrer** : quel métro prendre vers ta station Maison (au départ dans ⋯ Plus ; tes stations : {settings} → Mes stations).',
-    '{plus} **Ajouter un lieu** : + Ajouter, en bas, ou laisse le doigt appuyé sur la carte à l\'endroit voulu.',
+    '{plus} **Ajouter un lieu** : + Ajouter, en bas. Ou laisse le doigt appuyé sur la carte à l\'endroit voulu : la page « Ce point » s\'ouvre (Y aller, Boussole, Métro, Ajouter).',
     '{calendar-days} **Sortir** : Sorties, l\'agenda autour du centre de la carte. {alarm-clock} **Mon planning** : ce que tu as prévu.',
     '{save} **Ne rien perdre** : tes lieux sont seulement sur ce téléphone. Fais souvent {settings} → Sauvegarde ; une pastille sur Réglages te le rappelle.',
     '{info} **Perdue dans un écran** : la ligne « Aide », tout en bas, explique l\'écran. {chevron-down} à côté de la croix montre la carte ; le retour du téléphone ramène à l\'écran d\'avant.',
@@ -11812,7 +11828,7 @@ const HELP = [
     '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
     '{eye} **A pu fermer** : un resto ou un commerce sans nouvelles depuis plus d\'un an (ni visite, ni impression, ni horaires notés) : sa fiche le dit en haut, à côté de sa catégorie (« Restos · 9e · a pu fermer »). Vu ouvert sur place : Rangement → « Toujours ouvert ». Fermé : « Fermé définitivement ». La date d\'ajout du lieu est en bas de sa fiche.',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu (ou Cette photo) → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
-    '**Ou laisse le doigt appuyé** sur la carte, là où tu veux.',
+    '**Ou laisse le doigt appuyé** sur la carte, là où tu veux : la page « Ce point » donne l\'adresse, Y aller, Boussole, Métro et Ajouter.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
     '**Un nom courant** (« boulangerie ») ? Ajoute la rue ou le quartier : l\'annuaire ne connaît pas tous les commerces.',
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
@@ -11940,6 +11956,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
     '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
@@ -11948,8 +11965,7 @@ const HELP = [
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
-    '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
-    '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.'
+    '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12409,7 +12425,7 @@ if (state.points.length) {
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => pickImport('mine') }, ico('upload'), 'Restaurer ma sauvegarde'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => { closeSheet(); openAddChoice(); } }, ico('plus'), 'Ajouter mon premier lieu'),
     el('button', { type: 'button', class: 'btn c-guide', onclick: () => openHelp(true) }, ico('hand'), 'Prise en main'), // v258 : l'Aide s'ouvre sur la Prise en main, déjà ouverte
-    el('p', { class: 'help tip' }, 'Tu peux aussi laisser le doigt appuyé sur la carte. L\'aide est en tête des Réglages, en bas à gauche.'),
+    el('p', { class: 'help tip' }, 'Tu peux aussi laisser le doigt appuyé sur la carte : Y aller ou Ajouter. L\'aide est en tête des Réglages, en bas à gauche.'),
   ), { name: 'vide' });
 }
 if (!state.ok) toast('Le stockage de ce téléphone n\'est pas lisible : pense à sauvegarder tes lieux.', true);
