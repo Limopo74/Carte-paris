@@ -12,7 +12,7 @@ import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, re
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf,
+  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo, looksLikeAddress } from './adresse.js';
@@ -70,7 +70,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (388)';
+const VERSION = '24 novembre 2026 (389)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -451,7 +451,7 @@ darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !st
 
 let tiles = null;
 let noCorsTiles = false;
-/* Clé CARTO du style Épuré : saisie par toi, gardée sur ce téléphone seulement (ni sauvegarde, ni partage, ni GitHub). */
+/* Clé CARTO du style Épuré : saisie par toi, gardée sur ce téléphone ; dans ma sauvegarde si la case est cochée (v389), jamais sur GitHub. */
 const CARTO_KEY = 'carte-paris.carto';
 const cartoKey = () => { try { return localStorage.getItem(CARTO_KEY) ?? ''; } catch { return ''; } };
 const validCartoKey = (k) => /^[A-Za-z0-9_.-]{8,200}$/.test(k);
@@ -506,7 +506,7 @@ function openCartoKey(back = () => openSettings('style'), style = 'clean', backN
     err,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (needsKey(state.mapStyle)) state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
-    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : ni dans ta sauvegarde, ni sur GitHub ; dans le lien d\'un proche seulement si tu coches « Avec ma clé CARTO » en préparant son démarrage. Ne la donne pas dans une conversation.'),
+    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone, jamais sur GitHub ; dans ta sauvegarde si « Avec ma clé CARTO » est cochée (Sauvegarde) ; dans le lien d\'un proche seulement si tu coches « Avec ma clé CARTO » en préparant son démarrage. Ne la donne pas dans une conversation.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, `← ${backName}`)),
   ), { tall: true, name: 'carto-key' });
 }
@@ -9327,6 +9327,8 @@ function openSettings(section = null, from = null) {
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
   // La liste TTB et mes marques partent aussi, case cochée au départ (v179) : après une remise à zéro, plus besoin de réimporter la page du guide.
   const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
+  // v389 (mon choix A du 24 nov.) : ma clé CARTO dans la sauvegarde, case cochée au départ ; la restauration la remet si le téléphone n'en a pas
+  const withKey = el('input', { type: 'checkbox', class: 'check', checked: true });
   const nbTtb = ttbList().length;
   const nbTtbMarks = Object.keys(ttbMarksNow()).length;
   const canShareFile = (() => {
@@ -9355,14 +9357,17 @@ function openSettings(section = null, from = null) {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
           el('p', { class: 'help tip' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
-      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked, withKey.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked, withKey.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Fichier plus lourd, mais une restauration rend aussi les photos'))) : null,
       nbTtb || nbTtbMarks ? el('label', { class: 'item-main check-row' }, withTtb,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
+      cartoKey() ? el('label', { class: 'item-main check-row' }, withKey,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma clé CARTO'),
+          el('span', { class: 'item-sub' }, 'Restaurer la remet après un effacement. Le fichier porte ta clé : garde-le pour toi'))) : null,
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => openSendFriend(), disabled: count === 0 }, ico('users'), 'Envoyer à un proche…'),
       // v318 (mes choix 1a 2b 3a 4a du 20 nov.) : mes réglages seuls, pour un autre téléphone qui garde ses lieux
       el('button', { type: 'button', class: 'btn c-disc', onclick: () => sendSettings() }, ico('settings'), 'Envoyer mes réglages'), // v349 (mon choix 3A) : plus « Avec ma clé CARTO »
@@ -10532,11 +10537,12 @@ function backupSummary() {
 /* ---------- Sauvegarde : un fichier dans Téléchargements, toujours sur décision de la personne ---------- */
 
 /** Le texte du fichier de sauvegarde, avec les photos et la liste TTB si demandé. */
-async function backupText(withPhotos, withTtb = false) {
+async function backupText(withPhotos, withTtb = false, withKey = false) {
   const obj = JSON.parse(exportJSON(state));
+  if (withKey && cleanCartoKey(cartoKey())) obj.carto = cleanCartoKey(cartoKey()); /* v389 : seulement si la case est cochée */
   if (withTtb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) obj.ttb = t; } /* v179 : la liste et mes marques */
   // v380 (mes choix 10A et 11A du 24 nov.) : mes remarques, mes préparations pour un proche et Mes chiffres (marche et air, sans les fonctions utilisées) ;
-  // jamais dans le fichier pour un proche ; « Ce que j'utilise » et la clé CARTO restent sur le téléphone
+  // jamais dans le fichier pour un proche ; « Ce que j'utilise » reste sur le téléphone ; la clé CARTO, seulement si sa case est cochée (v389)
   if (testState.remarks.length) obj.remarks = testState.remarks;
   const preps = prepsNow(); if (preps.length) obj.preps = preps;
   const jb = journalForBackup(journal); if (jb) obj.journal = jb;
@@ -10556,8 +10562,8 @@ async function backupText(withPhotos, withTtb = false) {
 function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
 function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(withMarks(state)); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
-async function saveBackup(withPhotos = true, withTtb = true) {
-  downloadBackup(backupFile(await backupText(withPhotos, withTtb)));
+async function saveBackup(withPhotos = true, withTtb = true, withKey = false) {
+  downloadBackup(backupFile(await backupText(withPhotos, withTtb, withKey)));
 }
 function downloadBackup(f) {
   const url = URL.createObjectURL(f);
@@ -10568,8 +10574,8 @@ function downloadBackup(f) {
   toast(`« ${f.name} » enregistré dans tes Téléchargements`);
 }
 /** Envoyer le fichier (courriel, Drive…) par le menu de partage du téléphone. */
-async function sendBackup(withPhotos = true, withTtb = true) {
-  const f = backupFile(await backupText(withPhotos, withTtb));
+async function sendBackup(withPhotos = true, withTtb = true, withKey = false) {
+  const f = backupFile(await backupText(withPhotos, withTtb, withKey));
   try {
     await navigator.share({ files: [f], title: 'Ma carte de Paris' });
     markSaved();
@@ -10865,6 +10871,15 @@ function openFriendImport(text, owner, fresh = true) {
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('importer') }, '← Restaurer ou importer')),
   ), { name: 'import-proche', again });
 }
+/** v389 : la clé CARTO de ma sauvegarde revient seulement si le téléphone n'en a pas ; une clé déjà là n'est jamais remplacée. */
+function importCartoKey(text) {
+  let k = '';
+  try { k = cleanCartoKey(JSON.parse(text)?.carto); } catch { return false; }
+  if (!k || cartoKey()) return false;
+  try { localStorage.setItem(CARTO_KEY, k); } catch { return false; }
+  applyMapStyle();
+  return true;
+}
 function importText(text, owner) {
   const wasEmpty = state.points.length === 0;
   try {
@@ -10872,6 +10887,7 @@ function importText(text, owner) {
     state = { ...r.state, ok: state.ok };
     importPhotos(text, state, !owner);
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
+    const keyBack = owner ? false : importCartoKey(text); /* v389 : ma clé revient avant les réglages, jamais celle d'un fichier de proche */
     if (!owner) restoreExtras(text); // v380 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
@@ -10887,7 +10903,7 @@ function importText(text, owner) {
       closeSheet();
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
-    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
+    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}${keyBack ? ' ; ta clé CARTO est revenue' : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
     if (welcomeNext && owner) { const n = welcomeNext; welcomeNext = 0; openWelcome(n); } // v314 : lieux d'un proche depuis le circuit, on reprend les réglages
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
@@ -11672,7 +11688,7 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le-toi aussi par courriel ou sur ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques. Pas la clé CARTO, ni ta marche.',
+    '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques, et ta clé CARTO si « Avec ma clé CARTO » est cochée (Restaurer la remet si le téléphone n\'en a pas). Pas ta marche.',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',
@@ -11734,6 +11750,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
     '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.',
     '{palette} **Fonds de carte : tout tient sur la page** : le petit rond montre les vignettes et « Tous les fonds » sans faire défiler, même en Très grand. Une rue d\'intérêt n\'a plus « Déplacer le point » : sa goutte reste sur son trait.',
     '{landmark} **Les grands monuments dessinés sur la carte** : vue de loin, 19 monuments (tour Eiffel, Arc de triomphe, Notre-Dame, Opéra, Louvre…) se montrent en petits dessins, pour te repérer. Ils se cachent quand ils touchent un bouton ou un de tes lieux, et dès que tu t\'approches. Pour les retirer : {settings} → Autres réglages → La carte → Dessins des monuments.',
@@ -11743,7 +11760,6 @@ const HELP = [
     '{palette} **Changer de fond depuis la carte** : un petit rond en bas, du côté opposé aux boutons. Deux fonds nouveaux, sans clé : Plan IGN (noms de rues officiels, très lisible) et Photo aérienne.',
     '{camera} **Vu en passant en un appui** : un bouton appareil photo, tout en haut de la colonne, ouvre l\'appareil tout de suite. Pour le ranger ou l\'enlever : {settings} → Boutons de la carte.',
     '{save} **La sauvegarde garde plus de choses** : tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). À la restauration, tout s\'ajoute, rien n\'est remplacé. « Ce que j\'utilise » et ta clé CARTO restent sur le téléphone.',
-    '{image-plus} **Toucher une photo la montre en grand** : sur la fiche d\'un lieu, un appui ouvre la photo, avec ses voisines dessous et « Supprimer ». Pour en ajouter une de ta galerie : Rangement → Depuis ma galerie.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
