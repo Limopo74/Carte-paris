@@ -304,3 +304,39 @@ export function repeated(P, legs, fixed = null) { // fixed : les bouts gardés d
   const name = [...byName].sort((x, y) => y[1] - x[1])[0]?.[0] ?? '';
   return { m: total, name, leg: Math.min(...kept.map(([, , , li]) => li + 1)) };
 }
+
+/** v401 (mes choix 1A 2A 3A du 24 nov.) : « Toute la rue » : depuis une étape posée (snap), toute la rue du même nom, d'un bout à l'autre, en un seul trait.
+ *  Les tronçons du même nom se suivent ; un carrefour (autre nom, 80 m au plus) ne coupe pas la rue.
+ *  Le trait est le chemin le plus court entre les deux bouts (une seule chaussée, pas les trottoirs en double).
+ *  Rien quand la rue continue plus loin (un bout du même nom à moins de 150 m d'un bout) ou dépasse 1,5 km. */
+export const WHOLE_MAX_M = 1500;
+export function wholeStreet(P, s) {
+  if (!P || !s?.name) return null;
+  const k = P.names.indexOf(s.name) + 1; if (!k) return null;
+  const GAP = 80; const best = new Map(); const named = new Set(); const q = [];
+  for (const n of [P.ea[s.edge], P.eb[s.edge]]) { best.set(n, 0); q.push([n, 0]); }
+  if (P.ek[s.edge] === k) named.add(s.edge);
+  while (q.length) {
+    const [n, g] = q.pop(); if (best.get(n) < g) continue;
+    for (let j = P.deg[n]; j < P.deg[n + 1]; j++) {
+      const e = P.adj[j]; const o = P.ea[e] === n ? P.eb[e] : P.ea[e];
+      const same = P.ek[e] === k; const ng = same ? 0 : g + P.em[e];
+      if (ng > GAP) continue;
+      if (same) named.add(e);
+      if (!best.has(o) || best.get(o) > ng) { best.set(o, ng); q.push([o, ng]); }
+    }
+  }
+  if (!named.size) return null;
+  const m = (a, b) => Math.hypot((a[0] - b[0]) * KY, (a[1] - b[1]) * kx(a[0]));
+  const nodes = [...new Set([...named].flatMap((e) => [P.ea[e], P.eb[e]]))].map((n) => [P.lat[n], P.lng[n]]);
+  const far = (p) => nodes.reduce((b, x) => (m(x, p) > m(b, p) ? x : b), nodes[0]);
+  const a = far([s.lat, s.lng]); const b = far(a);
+  for (let i = 0; i < P.E; i++) if (P.ek[i] === k && !named.has(i)) {
+    const p1 = [P.lat[P.ea[i]], P.lng[P.ea[i]]]; const p2 = [P.lat[P.eb[i]], P.lng[P.eb[i]]];
+    if (Math.min(m(p1, a), m(p1, b), m(p2, a), m(p2, b)) < 150) return null; // la rue continue : on ne promet pas « toute la rue »
+  }
+  const sa = snap(P, { lat: a[0], lng: a[1] }, 5); const sb = snap(P, { lat: b[0], lng: b[1] }, 5);
+  const r = sa && sb ? route(P, sa, sb) : null;
+  if (!r || r.m < 10 || r.m > WHOLE_MAX_M || r.line.length > 400) return null;
+  return { a: { ...sa, name: s.name }, b: { ...sb, name: s.name }, r: { ...r, names: [s.name] } };
+}

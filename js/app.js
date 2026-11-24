@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes } from './geo.js';
-import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (400)';
+const VERSION = '24 novembre 2026 (401)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4480,9 +4480,12 @@ function showRue() {
   };
   openSheet([ico('route'), ' Une rue d\'intérêt'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, t.r ? `${names.join(', ') || 'Rue sans nom'} · ${fmtDist(t.r.m)}` : t.a ? `Début : ${t.a.name || 'rue sans nom'}` : 'Aucun point'),
-    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), !t.a ? ' Touche la carte au début du morceau de rue.' : !t.b ? ' Touche maintenant la fin, sur la même rue.' : ' Le morceau suit les rues. Pas le bon ? « Recommencer ».'),
+    el('p', { class: 'help' }, ico('map-pin-plus', { size: 15 }), !t.a ? ' Touche la carte au début du morceau de rue.' : !t.b ? (t.whole ? ' Touche la fin, sur la même rue, ou « Toute la rue ».' : ' Touche maintenant la fin, sur la même rue.') : ' Le morceau suit les rues. Pas le bon ? « Recommencer ».'),
     t.r && names.length > 1 ? el('p', { class: 'help' }, ico('info', { size: 15 }), ` Le chemin passe par ${names.length} rues : touche plus près pour n'en garder qu'une.`) : null,
-    el('button', { type: 'button', class: 'btn', disabled: !t.a, onclick: () => { rueDraft = { ...t, a: null, b: null, r: null }; showRue(); } }, ico('rotate-ccw'), 'Recommencer'),
+    el('button', { type: 'button', class: 'btn', disabled: !t.a, onclick: () => { rueDraft = { ...t, a: null, b: null, r: null, whole: null }; showRue(); } }, ico('rotate-ccw'), 'Recommencer'),
+    // v401 (mes choix 1A 2A 3A du 24 nov.) : après le début, toute la rue en un appui, sous « Recommencer » (rien ne bouge au-dessus) ;
+    // pas de bouton si la rue continue plus loin, dépasse 1,5 km ou n'a pas de nom (wholeStreet, js/rues.js)
+    t.whole ? el('button', { type: 'button', class: 'btn', onclick: () => { rueDraft = { ...t, ...t.whole, whole: null }; showRue(); } }, ico('route'), `Toute la rue · ${fmtDist(t.whole.r.m)}`) : null,
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: leave }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: next }, 'Suivant'))),
   ), { name: 'rue', again: showRue });
@@ -4492,11 +4495,11 @@ function rueTap(lat, lng) {
   const t = rueDraft; if (!t) return;
   const s = snap(streets, { lat, lng });
   if (!s) { toast('Pas de rue à moins de 60 m : touche plus près d\'une rue.'); return; }
-  if (!t.a || t.b) { rueDraft = { ...t, a: s, b: null, r: null }; showRue(); return; }
+  if (!t.a || t.b) { rueDraft = { ...t, a: s, b: null, r: null, whole: wholeStreet(streets, s) }; showRue(); return; }
   const r = route(streets, t.a, s);
   if (!r || r.m < 10) { toast(r ? 'Trop court : touche plus loin sur la rue.' : 'Pas de chemin à pied jusque-là d\'après le plan des rues.'); return; }
   if (r.line.length > 400) { toast('Morceau trop long : choisis une partie plus courte.'); return; }
-  rueDraft = { ...t, b: s, r }; showRue();
+  rueDraft = { ...t, b: s, r, whole: null }; showRue();
 }
 map.on('click', (e) => {
   if (view !== 'rue' || moving || e.originalEvent?.target?.closest?.('.leaflet-marker-icon')) return;
@@ -11849,7 +11852,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin : le morceau suit les rues (plan des rues, sur le téléphone). « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
+    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -11971,6 +11974,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
     '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
@@ -11980,7 +11984,6 @@ const HELP = [
     '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
-    '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
