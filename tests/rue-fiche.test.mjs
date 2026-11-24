@@ -35,14 +35,14 @@ test('v403 : la fiche d\'une rue sans horaires dit sa longueur et la durée, à 
   assert.match(f, /st \|\| metro \|\| rueM \?/);
 });
 
-test('v404 : Y aller d\'une rue d\'intérêt mène au bout le plus proche ; sur la rue, au point le plus proche ; un lieu : sa goutte', () => {
+test('v404, v407 (mon choix A) : Y aller d\'une rue d\'intérêt mène au point de la rue le plus proche ; la même distance qu\'Autour de moi ; un lieu : sa goutte', () => {
   const rue = { id: 'r', name: 'Rue Mouffetard', lat: 48.8430, lng: 2.3496, line: LINE };
   const nord = goTarget(rue, { lat: 48.8470, lng: 2.3500 }); // au nord : le bout nord
   assert.deepEqual([nord.lat, nord.lng], LINE[0]);
-  const sud = goTarget(rue, { lat: 48.8395, lng: 2.3490 }); // au sud : le bout sud
-  assert.deepEqual([sud.lat, sud.lng], LINE.at(-1));
-  const dessus = goTarget(rue, { lat: 48.8437, lng: 2.3499 }); // à 20 m de la rue : le point le plus proche
-  assert.ok(distanceM(dessus, { lat: 48.8437, lng: 2.3499 }) < 30);
+  const cote = { lat: 48.8431, lng: 2.3520 }; // ≈ 175 m à l'est du milieu, à plus de 50 m : le point en face, pas un bout (v404)
+  const g = goTarget(rue, cote);
+  assert.ok(distanceM(g, { lat: 48.8431, lng: 2.3496 }) < 10, `${g.lat} ${g.lng}`);
+  assert.ok(Math.abs(distanceM(cote, g) - placeDistM(cote, rue)) < 1); // fiche et Autour de moi disent le même nombre
   assert.equal(nord.name, 'Rue Mouffetard'); assert.equal(nord.id, 'r'); // le reste du lieu suit (nom pour Google Maps)
   const lieu = { id: 'l', lat: 48.85, lng: 2.35 };
   assert.equal(goTarget(lieu, { lat: 48.84, lng: 2.34 }), lieu);
@@ -83,4 +83,9 @@ test('v406 : l\'origine du nom d\'une rue d\'intérêt, en bas de sa fiche, seul
   assert.match(app, /fill\(origP, el\('b', \{\}, 'Origine du nom : '\), o\); origP\.hidden = false;/);
   const i = app.indexOf('const facts = el(\'div\', { class: \'fiche-lines\' }'); const f = app.slice(i, i + 1400);
   assert.ok(f.indexOf('origP,') > 0 && f.indexOf('origP,') < f.indexOf('ageLine(p)'), 'juste avant la ligne d\'âge, en bas');
+});
+
+test('les fonctions de geo.js utilisées pour les rues sont bien importées dans app.js (une fusion les avait perdues)', () => {
+  const imp = app.match(/import \{([^}]*)\} from '\.\/geo\.js';/)[1];
+  for (const f of ['lineLengthM', 'nearestOnLine', 'goTarget', 'placeDistM']) assert.ok(new RegExp(`\\b${f}\\b`).test(imp), f);
 });

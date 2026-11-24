@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (412)';
+const VERSION = '24 novembre 2026 (413)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2865,7 +2865,7 @@ function openDetail(id, back = null) {
   const p = state.points.find((x) => x.id === id);
   if (!p) { closeSheet(); return; }
   const pos = startPos();
-  const goPt = goTarget(p, pos); // v404 : une rue d'intérêt, le bout le plus proche
+  const goPt = goTarget(p, pos); // v404, v407 : une rue d'intérêt, le point de la rue le plus proche
   const d = pos ? distanceM(pos, goPt) : null;
   const update = (fn) => { fn(); persist(); renderMarkers(); openDetail(id, back); };
   const here = named('Fiche', () => openDetail(p.id, back));
@@ -4452,7 +4452,7 @@ async function walkRouteTo(p, pos) {
   if (!pos || !Number.isFinite(p?.lat)) return null;
   const P = streets ?? await loadStreets();
   if (!P) return null;
-  const a = snap(P, pos); const b = snap(P, goTarget(p, pos)); // v404 : une rue d'intérêt, jusqu'à son bout le plus proche
+  const a = snap(P, pos); const b = snap(P, goTarget(p, pos)); // v404, v407 : une rue d'intérêt, jusqu'au point de la rue le plus proche
   const r = a && b ? route(P, a, b) : null;
   return r && r.m > 0 ? r : null;
 }
@@ -11912,7 +11912,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au bout de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
+    '{route} **Une rue d\'intérêt** : + Ajouter → Une rue d\'intérêt (tout en bas). Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment ».',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -12036,7 +12036,7 @@ const HELP = [
   ['sparkles', 'Nouveautés', [
     '{route} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
     '{route} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
-    '{arrow-right} **Y aller jusqu\'au bout de la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au bout de la rue le plus proche de toi, plus au milieu. Déjà dessus : au point le plus proche.',
+    '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
     '{route} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
     '{route} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
     '{layers} **Les bandeaux de la carte** (Chemin à pied, Voir sur la carte) ne passent plus sous le petit rond des fonds de carte : il se cache tant qu\'un bandeau est affiché.',

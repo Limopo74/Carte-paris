@@ -165,15 +165,13 @@ export function nearestOnLine(line, pt) {
   return best;
 }
 
-/** v404 (mon choix 2 du 24 nov.) : où va « Y aller » d'un de mes lieux. Une rue d'intérêt : le bout de la rue le plus proche de moi,
- *  ou le point de la rue le plus proche quand j'en suis à moins de 50 m (je suis déjà dessus) ; un autre lieu : sa goutte. */
+/** v404 (mon choix 2 du 24 nov.), v407 (mon choix A) : où va « Y aller » d'un de mes lieux. Une rue d'intérêt : le point de la rue
+ *  le plus proche de moi (v404 visait le bout le plus proche : la fiche disait 300 m quand Autour de moi disait 100 m) ;
+ *  un autre lieu, ou sans position : sa goutte. */
 export function goTarget(p, pos) {
   if (!p?.line || p.line.length < 2 || !Number.isFinite(pos?.lat)) return p;
   const near = nearestOnLine(p.line, pos);
-  if (near && near.d < 50) return { ...p, lat: near.lat, lng: near.lng };
-  const [a, b] = [p.line[0], p.line.at(-1)].map(([lat, lng]) => ({ lat, lng }));
-  const e = distanceM(pos, a) <= distanceM(pos, b) ? a : b;
-  return { ...p, lat: e.lat, lng: e.lng };
+  return near ? { ...p, lat: near.lat, lng: near.lng } : p;
 }
 
 /** v405 (mon choix 3 du 24 nov.) : la distance d'un de mes lieux pour les listes. Une rue d'intérêt : jusqu'au point de la rue
