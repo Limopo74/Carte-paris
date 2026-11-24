@@ -143,6 +143,23 @@ jobs:
           if [ -s /tmp/src/bancs.json ]; then python3 -I tools/compte-bancs.py /tmp/src/bancs.json; else echo "Bancs : aucun serveur n'a répondu, rien à compter ce mois-ci"; fi
           exit 0
 
+      - name: Mesurer le dénivelé de quelques trajets (mesure seulement, rien n'est écrit)
+        # 24 nov. 2026 (mes choix 2A 3A 4A) : pour décider de « ça monte de 40 m » dans Mes parcours et Chemin à pied. Le
+        # résultat se lit dans ce journal. Altitudes de l'IGN pour 13 trajets fixes entre des lieux publics ; les ponts et
+        # tunnels d'OpenStreetMap sont écartés (le modèle de l'IGN donne l'eau sous un pont). Jamais bloquant ; un seul tour.
+        run: |
+          set -u
+          node tools/mesure-denivele.mjs requete /tmp/src/q-ponts.txt
+          UA='Carte-paris, robot mensuel (https://github.com/Limopo74/Carte-paris)'
+          for server in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+            if curl -fsS --compressed --max-time 240 -A "$UA" --data-urlencode "data@/tmp/src/q-ponts.txt" -o /tmp/src/ponts.json "$server"; then
+              echo "ponts : $(wc -c < /tmp/src/ponts.json) octets depuis $server"; break
+            fi
+            echo "ponts : $server ne répond pas"; rm -f /tmp/src/ponts.json; sleep 30
+          done
+          if [ -s /tmp/src/ponts.json ]; then node tools/mesure-denivele.mjs /tmp/src/ponts.json || true; else node tools/mesure-denivele.mjs || true; fi
+          exit 0
+
       - name: Refaire les données
         run: |
           set -euo pipefail
