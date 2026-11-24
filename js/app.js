@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (397)';
+const VERSION = '24 novembre 2026 (398)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4267,6 +4267,7 @@ function openWayPicker() {
 
 function renderWay(from, dest) {
   const found = onTheWay(offered(), from, dest).filter((x) => distanceM(x.point, dest) > 30);
+  const pausesBox = el('div', { class: 'stack' }); // v398 : toilettes et fontaines sur le chemin, sous les boutons (rien ne bouge au-dessus)
   const total = distanceM(from, dest);
   const body = [
     el('p', { class: 'summary' }, found.length
@@ -4284,15 +4285,48 @@ function renderWay(from, dest) {
       ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
         found.length > MAX_ROUTE - 1 ? `Itinéraire avec les ${MAX_ROUTE - 1} premiers arrêts` : 'Itinéraire avec ces arrêts')
       : el('a', { class: 'btn primary', href: routeUrl([dest]), target: '_blank', rel: 'noopener' }, 'Itinéraire direct'),
+    pausesBox,
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear(true) }, '← Autour de moi')),
   ];
   openSheet(`Vers ${dest.label}`, el('div', { class: 'stack' }, body), { tall: true, name: 'way', again: () => renderWay(from, dest) });
+  fillWayPauses(pausesBox, from, dest);
   nearLayer.clearLayers();
   L.polyline([[from.lat, from.lng], [dest.lat, dest.lng]], { color: ink(), weight: 3, dashArray: '8 8', interactive: false }).addTo(nearLayer);
   L.circleMarker([from.lat, from.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#4c6ef5', fillOpacity: 1, interactive: false }).addTo(nearLayer);
   L.circleMarker([dest.lat, dest.lng], { radius: 8, color: '#fff', weight: 3, fillColor: ink(), fillOpacity: 1, interactive: false }).addTo(nearLayer);
   const b = L.latLngBounds([[from.lat, from.lng], [dest.lat, dest.lng]]).pad(0.25);
   map.fitBounds(b, { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
+}
+
+/* v398 (mon choix 4 du 24 nov., comme « un café avec toilettes sur mon trajet » de Google Maps) : les toilettes publiques
+   et les fontaines à moins de 2 min de détour, dans l'ordre du chemin (ligne droite, comme mes lieux). Toilettes fermées en ce moment
+   ou à mon arrivée écartées ; « Ouvert » ou l'heure seulement quand les horaires publiés le disent (ceux du parc pour des toilettes dans un parc).
+   Données de la Ville et de la RATP déjà utilisées par Fontaine et WC ; ma position ne part nulle part. */
+const PAUSE_DETOUR_M = 150; // ≈ 2 min de détour aller-retour
+const PAUSE_MAX = { wc: 3, eau: 2 };
+async function fillWayPauses(box, from, dest) {
+  fill(box, el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche des toilettes et fontaines sur ton chemin…'));
+  const [fontaines, tv, tr, parcs] = await Promise.all([loadPratique('fontaines'), loadPratique('toilettes'), loadRatpToilets(), loadPratique('fraisParcs')]).catch(() => [[], [], [], []]);
+  if (!box.isConnected) return;
+  const parkOf = (x) => parcs.filter((pk) => pk.hours).map((pk) => ({ pk, d: distanceM(x, pk) })).filter((y) => y.d <= 150).sort((a, b) => a.d - b.d)[0]?.pk;
+  const wcAll = [...tv, ...tr].filter((x) => x.ok !== false).map((x) => (x.inPark && !x.hours ? { ...x, hours: parkOf(x)?.hours ?? '' } : x));
+  const wc = onTheWay(wcAll, from, dest, PAUSE_DETOUR_M).filter(({ point: x }) => openState(x.hours)?.open !== false && !closedOnArrival(x.hours, walkMinutes(distanceM(from, x)))).slice(0, PAUSE_MAX.wc); // fermées, ou fermées à mon arrivée : écartées
+  const eau = onTheWay(fontaines.filter((x) => x.ok !== false), from, dest, PAUSE_DETOUR_M).slice(0, PAUSE_MAX.eau);
+  if (!fontaines.length && !wcAll.length) { fill(box, el('p', { class: 'help' }, 'Toilettes et fontaines : les données de la Ville ne répondent pas.')); return; }
+  const row = (icon, { point: x, detour }) => el('li', { class: 'item' },
+    el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.label, x.hours ? stateTag(x.hours, walkMinutes(distanceM(from, x))) : null),
+        el('span', { class: 'item-sub' }, [detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`, x.short].filter(Boolean).join(' · ')))), // le détail (adresse, horaires bruts) reste dans Fontaine et WC ; « zone payante » reste
+    el('a', { class: 'go', href: mapsUrl(x, distanceM(from, x)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.label}` }, 'Y aller'));
+  fill(box,
+    el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Toilettes et fontaines sur ton chemin'), el('span', {}, '')),
+    wc.length || eau.length
+      ? el('ul', { class: 'items' }, [...wc.map((x) => row('toilet', x)), ...eau.map((x) => row('glass-water', x))])
+      : el('p', { class: 'empty' }, 'Aucune à moins de 2 min de détour.'));
+  for (const [list, icon] of [[wc, 'toilet'], [eau, 'glass-water']]) for (const { point: x } of list) {
+    L.marker([x.lat, x.lng], { interactive: false, keyboard: false, zIndexOffset: 1500,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="pr-pin far">${svgIcon(icon, { size: 16 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(nearLayer);
+  }
 }
 
 /* ---------- Mes parcours (v244, à la place de Relier des lieux) : je touche la carte pour poser mes étapes ;
@@ -11744,7 +11778,7 @@ const HELP = [
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet.',
+    '{footprints} **Sur mon chemin** : tes lieux sur ton trajet ; dessous, les toilettes publiques et les fontaines à moins de 2 min de détour, sans celles fermées à ton arrivée (horaires publiés par la Ville).',
     '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
@@ -11906,6 +11940,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{toilet} **Toilettes et fontaines sur ton chemin** : Autour de moi → Itinéraire → Sur mon chemin montre, sous tes lieux, les toilettes publiques et les fontaines à moins de 2 min de détour (sans celles fermées à ton arrivée).',
     '{map-pin} **Le nom de tes lieux sur la carte**, comme dans Google Maps : de près, il est écrit sous chaque goutte ; un nom qui en touche un autre se cache (tes favoris d\'abord). Pour les retirer : Autres réglages → La carte → Noms de mes lieux.',
     '{zoom-in} **Zoomer d\'un seul doigt**, comme dans Google Maps : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner.',
     '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
@@ -11914,8 +11949,7 @@ const HELP = [
     '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
     '{image} **Une marque pour tes photos** : dans les listes de tes lieux, la petite icône photo au début de la ligne grise dit que le lieu a au moins une de tes photos.',
     '{signpost} **Éteindre les circuits** : {settings} → Autres réglages → Circuits de visite, tout en bas de « Ce qui s\'affiche ». Éteints, ils quittent le bouton, Itinéraire, + Ajouter et Mes parcours. Rien n\'est effacé : tes circuits reviennent en les rallumant.',
-    '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.',
-    '{palette} **Plan IGN et Photo aérienne s\'affichent** : l\'appli refusait leurs images (son autorisation des sites d\'images ne citait pas l\'IGN). Corrigé.'
+    '{palette} **Ta clé CARTO dans ta sauvegarde** : {settings} → Sauvegarde, « Avec ma clé CARTO » (cochée au départ). Après un effacement de Chrome, Restaurer remet ta clé si le téléphone n\'en a plus ; une clé déjà là n\'est jamais remplacée. Le fichier porte ta clé : garde-le pour toi.'
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

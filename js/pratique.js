@@ -173,6 +173,7 @@ export function parseRatpToilets(json) {
     label: `Toilettes RATP · ${t.n || 'station'}`,
     detail: [t.ou, t.zone ? 'Dans la zone payante : il faut un ticket ou un passe pour y aller' : 'Sans passer les tourniquets',
       t.passe ? 'Porte ouverte avec un passe Navigo ou un ticket' : '', t.payant ? 'Payant' : '', t.pmr ? 'Accès fauteuil' : ''].filter(Boolean).join(' · '),
+    short: [t.zone ? 'Zone payante : il faut un ticket' : '', t.payant ? 'Payant' : ''].filter(Boolean).join(' · '), // v398 : ce qui compte avant d'y aller (Sur mon chemin)
     ok: true,
   }));
 }
