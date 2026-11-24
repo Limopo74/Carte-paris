@@ -37,18 +37,27 @@ test('un appui ajoute le mot à la fin, un second le retire ; le texte libre res
   assert.ok(!hasWord('Très bonne table', 'Très bon'));
 });
 
-test('une série : nom et au moins un mot, 6 mots au plus, sans doublon ; nom unique', () => {
+test('une série : nom et au moins un mot, sans doublon ; nom unique', () => {
   const r = saveSeries(DEFAULT_WORDS, null, '  Expo ', ['Belle', '', 'belle', 'À revoir', 'a', 'b', 'c', 'd', 'e'], ids);
   const s = r.words.find((x) => x.id === r.id);
   assert.equal(s.name, 'Expo');
-  assert.equal(s.words.length, WORDS_MAX);
-  assert.deepEqual(s.words.slice(0, 2), ['Belle', 'À revoir']);
+  assert.deepEqual(s.words, ['Belle', 'À revoir', 'a', 'b', 'c', 'd', 'e']);
   assert.throws(() => saveSeries(DEFAULT_WORDS, null, 'repas', ['x'], ids), /existe déjà/);
   assert.throws(() => saveSeries(DEFAULT_WORDS, null, 'Nouvelle', ['', ' '], ids), /au moins un mot/);
   assert.throws(() => saveSeries(DEFAULT_WORDS, null, '', ['x'], ids), /nom/);
   const edited = saveSeries(DEFAULT_WORDS, 'repas', 'Repas', ['Bon'], ids);
   assert.deepEqual(edited.words.find((x) => x.id === 'repas').words, ['Bon']);
   assert.equal(cleanWords([{ id: 'a', name: 'A', words: [] }]).length, 0);
+});
+
+test('v403 : autant de mots que je veux (plus de 6), gardés au rechargement ; 100, limite de sécurité', () => {
+  const douze = Array.from({ length: 12 }, (_, i) => `Mot ${i + 1}`);
+  const r = saveSeries(DEFAULT_WORDS, 'repas', 'Repas', douze, ids);
+  assert.deepEqual(r.words.find((x) => x.id === 'repas').words, douze);
+  assert.deepEqual(cleanWords(r.words).find((x) => x.id === 'repas').words, douze); // relu depuis le téléphone ou une sauvegarde
+  assert.equal(WORDS_MAX, 100);
+  const trop = saveSeries(DEFAULT_WORDS, null, 'Long', Array.from({ length: 150 }, (_, i) => `m${i}`), ids);
+  assert.equal(trop.words.find((x) => x.id === trop.id).words.length, WORDS_MAX);
 });
 
 test('supprimer une série : ses catégories passent à « Aucun »', () => {

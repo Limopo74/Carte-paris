@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (402)';
+const VERSION = '24 novembre 2026 (403)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10666,7 +10666,18 @@ function openWordSeries(back = toOthers()) {
 function openWordSerie(id, back) {
   const old = id ? wordsOf(state).find((x) => x.id === id) : null;
   const name = el('input', { type: 'text', value: old?.name ?? '', maxlength: String(SERIES_NAME_MAX), autocomplete: 'off', placeholder: 'Ex. : Repas' });
-  const fields = Array.from({ length: WORDS_MAX }, (_, i) => el('input', { type: 'text', value: old?.words[i] ?? '', maxlength: String(WORD_MAX), autocomplete: 'off' }));
+  // v403 (ma demande du 24 nov. : « autant de mots que souhaité ») : un champ par mot, plus un champ vide en bas ;
+  // écrire dans ce champ vide en ajoute un autre dessous (pas de bouton à toucher), jusqu'à WORDS_MAX
+  const fields = [];
+  const fieldBox = el('div', { class: 'stack' });
+  const addField = (value = '') => {
+    const input = el('input', { type: 'text', value, maxlength: String(WORD_MAX), autocomplete: 'off', enterkeyhint: 'next' });
+    input.addEventListener('input', () => { if (input === fields.at(-1) && input.value.trim() && fields.length < WORDS_MAX) addField(); });
+    fields.push(input);
+    fieldBox.append(el('label', { class: 'field' }, `Mot ${fields.length}`, input));
+  };
+  for (const w of (old?.words ?? []).slice(0, WORDS_MAX)) addField(w);
+  if (fields.length < WORDS_MAX) addField();
   const err = el('p', { class: 'error', role: 'alert' });
   const zone = el('div', { class: 'stack' });
   const used = old ? state.categories.filter((c) => seriesIdOf(c, wordsOf(state)) === id).map((c) => c.name) : [];
@@ -10686,8 +10697,8 @@ function openWordSerie(id, back) {
   showButtons();
   openSheet([ico('message-square-text'), old ? ` Série « ${old.name} »` : ' Nouvelle série'], el('div', { class: 'stack' },
     el('label', { class: 'field' }, 'Nom de la série', name),
-    el('div', { class: 'legend' }, `Les mots, dans cet ordre (${WORDS_MAX} au plus)`),
-    fields.map((x, i) => el('label', { class: 'field' }, `Mot ${i + 1}`, x)),
+    el('div', { class: 'legend' }, 'Les mots, dans cet ordre'),
+    fieldBox,
     el('p', { class: 'help' }, `Vide un champ pour retirer un mot.${used.length ? ` Prise par : ${used.join(', ')}.` : ' Pour la donner à une catégorie : Réglages → Catégories et listes → la catégorie.'}`),
     err, zone,
     foot(el('div', { class: 'row' },
@@ -11976,6 +11987,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{message-square-text} **Autant de mots tout prêts que tu veux** : {settings} → Autres réglages → Mots tout prêts → une série. Écris dans le champ vide du bas : un autre apparaît dessous. Avant, 6 mots au plus par série.',
     '{route} **Toute la rue en un appui** : + Ajouter → Une rue d\'intérêt. Touche un endroit de la rue, puis « Toute la rue · 640 m » : elle se dessine d\'un bout à l\'autre. Pas de bouton quand la rue continue plus loin ou dépasse 1,5 km : touche alors la fin toi-même.',
     '{panel-top} **Barre du haut rangée comme l\'écran** : {settings} → Barre du haut montre « La barre », « Dans ⋯ Plus » et « Masqués », comme Boutons de la carte. ↑ ↓ ne changent la place d\'un bouton que dans son groupe : chaque appui se voit en haut de la carte. Pareil pour Mes proches.',
     '{map-pin} **Laisser le doigt appuyé sur la carte** ouvre maintenant « Ce point », comme le repère de Google Maps : l\'adresse, la marche, Y aller, Boussole, Métro et Ajouter. Le formulaire d\'un nouveau lieu est à un appui de plus (Ajouter).',
@@ -11985,7 +11997,6 @@ const HELP = [
     '{train-front} **L\'entrée du métro la plus proche de toi** : M dit par quelle entrée descendre (« Entrée 5, r. de la Roquette ») ; Y aller et la boussole y vont. Sur la fiche, une entrée seule n\'est plus jamais annoncée comme sortie. Il faut que le robot des données soit passé.',
     '{train-front} **Par quelle station partir** : sur la fiche d\'un lieu, Métro donne toujours le trajet le plus rapide ; en dessous, « Autres stations près de toi » montre les 3 stations les plus proches de toi et le temps jusqu\'au lieu depuis chacune. Un appui : le trajet depuis celle-là.',
     '{train-front} **Par quelle station rentrer** : sur la fiche d\'un lieu, touche la station de la case Métro (« Cadet › ») : les 3 stations proches du lieu, et le temps jusqu\'à ta station Maison depuis chacune. « Le plus rapide », ici et dans Rentrer, seulement avec 3 min d\'avance.',
-    '{images} **Le rond d\'une photo sur la carte** montre les photos empilées, comme le bouton Vu en passant : l\'appareil photo ne veut plus dire que « prendre une photo ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -4,7 +4,7 @@
 // Tout reste sur le téléphone et dans la sauvegarde ; rien ne part dans le fichier pour un proche.
 
 export const SERIES_MAX = 20;
-export const WORDS_MAX = 6;
+export const WORDS_MAX = 100; // v403 (ma demande du 24 nov.) : autant de mots que je veux ; 100, seulement une limite de sécurité (6 avant)
 export const SERIES_NAME_MAX = 20;
 export const WORD_MAX = 24;
 export const WORD_SEP = ' · ';
@@ -29,7 +29,7 @@ const GUESS = {
 };
 const GUESS_ID = { resto: 'repas', culture: 'visite', boutique: 'boutique' };
 
-/** Les mots d'une série : une ligne chacun, sans doublon, 6 au plus. */
+/** Les mots d'une série : une ligne chacun, sans doublon, WORDS_MAX au plus. */
 export function cleanSeriesWords(list) {
   const out = [];
   for (const w of Array.isArray(list) ? list : []) {
