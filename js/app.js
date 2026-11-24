@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (424)';
+const VERSION = '25 novembre 2026 (425)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3996,7 +3996,9 @@ function timeAgoShort(t) {
 }
 
 /** Choisir une station pour voir ce qu'il y a autour en sortant (sans GPS). */
-function openStationPicker(onPick = (st) => { origin = { lat: st.lat, lng: st.lng, acc: 0, time: Date.now(), kind: 'station', label: st.n }; renderNear(true); }, back = null) {
+/** Autour de moi depuis une station : « Choisir une station » et, depuis la v425, un appui sur une station des lignes (mon choix A du 25 nov.). */
+function nearStation(st) { origin = { lat: st.lat, lng: st.lng, acc: 0, time: Date.now(), kind: 'station', label: st.n }; renderNear(true); }
+function openStationPicker(onPick = nearStation, back = null) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ex. : Opéra, Bastille…', 'aria-label': 'Nom de la station' });
   const list = el('ul', { class: 'results' });
   const run = () => {
@@ -8089,13 +8091,16 @@ async function refreshSorties() {
 /* ---------- Lignes de métro et RER sur la carte (à la demande) ----------
    Tracés Île-de-France Mobilités (ODbL) simplifiés, gardés dans l'appli : rien n'est demandé à un serveur. */
 const linesLayer = L.layerGroup();
+map.createPane('stHit').style.zIndex = 398; // au-dessus des pistes à vélo, sous les calques et les gouttes
+const stHitRenderer = L.svg({ pane: 'stHit' });
+const stHitLayer = L.layerGroup();
 const LINES_ATTR = 'Lignes : <a href="https://data.iledefrance-mobilites.fr/">Île-de-France Mobilités</a> (ODbL)';
 let linesData = null;
 // texte foncé sur les couleurs claires (ligne 1 jaune, RER C…), blanc sur les foncées
 const textOn = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 0.3 ? '#15181D' : '#ffffff'; };
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 async function drawLines() {
-  linesLayer.clearLayers();
+  linesLayer.clearLayers(); stHitLayer.clearLayers(); syncStHits();
   if (!state.showLines) { map.removeLayer(linesLayer); map.attributionControl.removeAttribution(LINES_ATTR); return; }
   try { linesData ??= (await (await fetch('data/lignes.json')).json()).lines ?? []; } catch { toast('Les tracés des lignes n\'ont pas pu être chargés.', true); return; }
   if (!state.showLines) return;
@@ -8122,9 +8127,29 @@ async function drawLines() {
     }).join('');
     L.marker([st.lat, st.lng], { interactive: false, keyboard: false, zIndexOffset: -150,
       icon: L.divIcon({ className: 'pin-wrap st-wrap', html: `<span class="st-mark"><span class="st-dot"></span>${badges}<span class="st-name">${esc(st.n)}</span></span>`, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(linesLayer);
+    L.circleMarker([st.lat, st.lng], { pane: 'stHit', renderer: stHitRenderer, radius: 22, stroke: false, fill: true, fillColor: '#000', fillOpacity: 0, bubblingMouseEvents: false, className: 'round-hit' })
+      .on('click', stationTap).on('contextmenu', (e) => map.fire('contextmenu', e)).addTo(stHitLayer);
   }
   linesLayer.addTo(map);
+  syncStHits();
   map.attributionControl.addAttribution(LINES_ATTR);
+}
+/* v425 (mon choix A du 25 nov.) : une station des lignes se touche, dès qu'on la voit (zoom 15) : Autour de moi depuis elle.
+   Zone invisible de 44 px, sous les ronds des listes et mes gouttes (ils gardent la main) ; la station la plus proche du doigt.
+   Pendant un tracé ou une rue d'intérêt, l'appui pose une étape comme ailleurs ; en déplaçant un lieu, rien ; l'appui long reste « Ce point ». */
+function syncStHits() {
+  const on = Boolean(state.showLines) && map.getZoom() >= 15 && stHitLayer.getLayers().length > 0;
+  if (on) stHitLayer.addTo(map); else map.removeLayer(stHitLayer);
+}
+map.on('zoomend', syncStHits);
+function stationTap(e) {
+  if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; }
+  if (view === 'rue') { rueTap(e.latlng.lat, e.latlng.lng); return; }
+  if (moving || !stations.length) return;
+  const p = map.latLngToContainerPoint(e.latlng);
+  let best = null; let bd = Infinity;
+  for (const st of stations) { const d = map.latLngToContainerPoint([st.lat, st.lng]).distanceTo(p); if (d < bd) { bd = d; best = st; } }
+  if (best) nearStation(best);
 }
 function toggleLines() {
   state.showLines = !state.showLines; persist(); drawLines(); refresh();
@@ -11929,7 +11954,7 @@ const HELP = [
     '{list-filter} **Filtres** : ouvert maintenant, mieux notés, abrités, tes listes, la liste de tes lieux d\'un arrondissement. La rubrique Filtres explique tout.',
     '{tent} **Dans la rue aujourd\'hui** : marchés, brocantes, fêtes et expos en plein air. Le message propose « Parcourir » : un lieu à la fois dans le bandeau, aujourd\'hui ou demain.',
     '**TTB** : les bonnes tables du guide. La rubrique TTB explique comment les mettre.',
-    '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom (raccourci : appui long sur M).',
+    '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom ; touche-la : ce qu\'il y a autour (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
     '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
@@ -12180,6 +12205,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
     '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
     '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
@@ -12189,7 +12215,6 @@ const HELP = [
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
     '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
     '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
-    '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
