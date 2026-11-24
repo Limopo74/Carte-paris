@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '24 novembre 2026 (419)';
+const VERSION = '24 novembre 2026 (420)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3968,6 +3968,7 @@ function openStationPicker(onPick = (st) => { origin = { lat: st.lat, lng: st.ln
   input.focus();
 }
 
+const RING_LABEL_GAP = 16; // v420 : distance minimale entre le bord d'une étiquette de cercle et le centre (point bleu)
 /** Cercles (rayons en mètres) avec leurs étiquettes, sur un calque. */
 function drawRings(layer, lat, lng, radii, label) {
   const c0 = map.latLngToContainerPoint([lat, lng]);
@@ -3982,11 +3983,14 @@ function drawRings(layer, lat, lng, radii, label) {
     const pos = [lat, lng + side * r / (111195 * Math.cos((lat * Math.PI) / 180))];
     const px = Math.abs(map.latLngToContainerPoint(pos).x - c0.x);
     if (px < 30 || last[side] - px < 46) return;
-    last[side] = px;
-    L.marker(pos, {
+    const m = L.marker(pos, {
       interactive: false, keyboard: false, zIndexOffset: 2500,
       icon: L.divIcon({ className: '', html: `<span class="ring-label">${label(r)}</span>`, iconSize: [0, 0] }),
     }).addTo(layer);
+    // v420 : une étiquette qui toucherait le point bleu (rayon 10 px, halo compris : 16 px) ne s'affiche pas
+    const w = m.getElement()?.firstElementChild?.getBoundingClientRect().width ?? 0;
+    if (px - w / 2 < RING_LABEL_GAP) { layer.removeLayer(m); return; }
+    last[side] = px;
   });
 }
 
@@ -12124,6 +12128,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
     '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
     '{calendar-days} **Les ronds des listes se touchent** : dans Sorties, Vélib\', Rentrer, Curiosités et Monuments, touche un rond sur la carte : le bandeau montre ce lieu (‹ › pour son voisin), un appui sur le bandeau l\'ouvre. Et les cercles d\'Autour de moi restent autour de toi.',
     '{compass} **Éteindre la boussole** : {settings} → Autres réglages → Boussole, tout en bas. Éteinte, ses boutons et la Balade guidée disparaissent (Métro et Photo prennent toute la ligne) ; une station ou un arrêt touché ouvre Google Maps à pied. Rien n\'est effacé.',
@@ -12133,7 +12138,6 @@ const HELP = [
     '{git-commit-horizontal} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
     '{arrow-right} **Y aller jusqu\'à la rue** : pour une rue d\'intérêt, Y aller et Chemin à pied mènent au point de la rue le plus proche de toi, plus à son milieu. La distance est la même que dans Autour de moi.',
     '{git-commit-horizontal} **La longueur d\'une rue d\'intérêt** : sur sa fiche, à la place de « Horaires inconnus », sa longueur et le temps pour la parcourir à ton pas.',
-    '{git-commit-horizontal} **Les rues d\'intérêt plus visibles** : leur trait, de la couleur de la catégorie, est maintenant bordé d\'encre (de clair en mode sombre). Il ne se confond plus avec la bande pâle d\'un passage couvert.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
