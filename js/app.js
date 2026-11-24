@@ -72,7 +72,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (422)';
+const VERSION = '25 novembre 2026 (423)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -338,6 +338,11 @@ const favMark = (p) => {
   m.style.color = state.fav.color;
   return m;
 };
+/** v423 (ma demande du 25 nov. : « le cœur à droite du mot ») : dans les listes de mes lieux, le nom puis le cœur du favori.
+ *  Le cœur reste hors du nom coupé à deux lignes : un nom trop long ne l'emporte jamais. */
+const nameFav = (p) => (p.fav
+  ? el('span', { class: 'name-fav' }, el('span', { class: 'item-name' }, p.name), favMark(p))
+  : el('span', { class: 'item-name' }, p.name));
 /** v391 : petite marque « avec photo » dans les listes de mes lieux (ma photo sur le lieu). Pas pour une note prise en passant
  *  (elle a toujours sa photo) ni pour un lieu d'un proche (ses photos ne partent jamais). Début de la petite ligne grise. */
 const photoMark = (p) => (p.photos?.length && !isPass(p) && !p.owner
@@ -3797,7 +3802,7 @@ function openSearch(initial = '') {
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Recherche', () => openSearch(input.value))) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
-          el('span', { class: 'item-name' }, favMark(p), p.name),
+          nameFav(p),
           el('span', { class: 'item-sub' }, photoMark(p), [catOf(p.cat).name, d != null ? fmtDist(d) : null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))))));
   };
   const toDirectory = el('button', { type: 'button', class: 'btn', onclick: () => openPlaceSearch(input.value, true) });
@@ -4143,7 +4148,7 @@ function renderNear(fit = false) {
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Autour de moi', () => renderNear())) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
-          el('span', { class: 'item-name' }, favMark(p), p.name),
+          nameFav(p),
           el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${walkMinutes(d)}\u00a0min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(goTarget(p, origin), d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
@@ -4389,7 +4394,7 @@ function renderWay(from, dest) {
       el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Sur mon chemin', () => renderWay(from, dest))) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
-          el('span', { class: 'item-name' }, favMark(p), p.name),
+          nameFav(p),
           el('span', { class: 'item-sub' }, photoMark(p), detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
       el('a', { class: 'go', href: mapsUrl(goTarget(p, from), distanceM(from, goTarget(p, from))), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
     found.length
@@ -5559,7 +5564,7 @@ function openArrList(n) {
     el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, back) },
       catDot(p.cat),
       el('span', { class: 'item-text' },
-        el('span', { class: 'item-name' }, favMark(p), p.name),
+        nameFav(p),
         el('span', { class: 'item-sub' }, photoMark(p), [p.address || null, p.done || isPass(p) ? null : 'À faire'].filter(Boolean).join(' · '), p.stars ? ' ' : null, starsText(p.stars)))));
   openSheet([ico('map'), ` Mes lieux du ${arrOrd(n)}`], el('div', { class: 'stack' },
     pts.length ? null : el('p', { class: 'empty' }, state.points.some(here) ? 'Aucun de tes lieux ici avec les filtres choisis.' : 'Aucun de tes lieux dans cet arrondissement.'),
@@ -5862,7 +5867,7 @@ function openDayPicker(selected = null, query = '') {
       update();
     });
     return el('li', {}, el('label', { class: 'item-main check-row' }, box, catDot(p.cat),
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
+      el('span', { class: 'item-text' }, nameFav(p),
         el('span', { class: 'item-sub' }, photoMark(p), busy(p) ? `Prévu ${planText(p.ticket)}` : [start ? fmtDist(d) : null, p.done ? didName(catOf(p.cat)) : 'À faire'].filter(Boolean).join(' · ')))));
   };
   const draw = () => {
@@ -8677,7 +8682,7 @@ function openFreeTime() {
     const leg = distanceM(prev, p); prev = p;
     return el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, openFreeTime) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
-      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, favMark(p), p.name),
+      el('span', { class: 'item-text' }, nameFav(p),
         el('span', { class: 'item-sub' }, photoMark(p), `${fmtWalk(leg)} `, starsText(p.stars), hoursTag(p)))));
   });
   openSheet([ico('hourglass'), ' Temps libre'], el('div', { class: 'stack' },
@@ -12163,6 +12168,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
     '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
     '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
@@ -12172,7 +12178,6 @@ const HELP = [
     '{plus} **+ Ajouter rangé en trois groupes** : sous Vu en passant, « Un lieu » (à ma position, avec un nom, depuis une photo), puis « Un tracé sur la carte » (parcours, circuit, rue d\'intérêt). « Mes Vu en passant » descend tout en bas. Les explications sont dans « Aide ».',
     '{save} **« Réglages par défaut » devient « Réglages de référence »**, en bas des Réglages : ce n\'est pas une sauvegarde, tes lieux n\'y sont pas. Pour garder tes lieux : Sauvegarde → Sauvegarder maintenant.',
     '{git-commit-horizontal} **L\'origine du nom d\'une rue d\'intérêt** : sur sa fiche, en bas, quand la Ville de Paris la donne (« Rue Mouffetard : corruption de Mont Cétard, ancien lieu-dit »).',
-    '{git-commit-horizontal} **La distance d\'une rue d\'intérêt** : dans Autour de moi et tes listes, elle se mesure jusqu\'à la rue, plus jusqu\'à son milieu. Sur la rue, l\'appli dit « à côté ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

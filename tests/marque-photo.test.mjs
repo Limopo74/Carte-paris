@@ -18,7 +18,7 @@ test('la marque existe : seulement avec une photo, pas pour une note prise en pa
 });
 
 test('chaque liste qui montre le favori montre aussi la marque photo', () => {
-  const rows = app.split('\n').filter((l) => /class: 'item-name' \}, favMark\(p\), p\.name\)/.test(l));
+  const rows = app.split('\n').filter((l) => /nameFav\(p\)/.test(l));
   assert.ok(rows.length >= 6, `listes trouvées : ${rows.length}`);
   const withMark = app.split('\n').filter((l) => /class: 'item-sub' \}, photoMark\(p\)/.test(l));
   assert.equal(withMark.length, rows.length, 'une marque par liste, au début de la petite ligne grise');

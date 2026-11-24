@@ -581,6 +581,9 @@ ol.items { padding: 0; }
 .pin svg { display: block; }
 .fav-mark { color: var(--fav-icon); display: inline-flex; vertical-align: -2px; margin-right: 6px; }
 .fav-mark .ico svg { width: 18px; height: 18px; }
+.name-fav { display: flex; align-items: flex-start; gap: 6px; min-width: 0; font-size: var(--t16); } /* v423 : le nom, puis le cœur à sa droite */
+.name-fav .item-name { min-width: 0; }
+.name-fav .fav-mark { flex: none; margin: calc((1lh - 18px) / 2) 0 0; } /* centré sur la première ligne, à toutes les tailles du texte */
 .chip.star .ico svg { width: 20px; height: 20px; }
 .tool-ico .ico svg { width: 22px; height: 22px; }
 .menu-ico .ico svg { width: 22px; height: 22px; }
