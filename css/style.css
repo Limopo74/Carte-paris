@@ -1224,9 +1224,10 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .st-line { display: inline-flex; align-items: center; justify-content: center; min-width: calc(17px * var(--ts)); height: calc(17px * var(--ts)); padding: 0 3px; border-radius: calc(9px * var(--ts));
   background: var(--c); color: var(--t); font-family: var(--display); font-weight: 800; font-size: calc(10.5px * var(--ts)); box-shadow: 0 0 0 1.5px var(--bg); }
 .st-line.rer { border-radius: 3px; }
-.st-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: var(--r); background: color-mix(in srgb, var(--bg) 88%, transparent);
+.st-name, .rescue-name { display: none; margin-left: 3px; padding: 1px 5px; border-radius: var(--r); background: color-mix(in srgb, var(--bg) 88%, transparent);
   font-family: var(--display); font-weight: 700; font-size: var(--t115); color: var(--ink); }
-#map.z-name .st-name { display: inline; }
+#map.z-name .st-name, .rescue-name { display: inline; } /* v495 : .rescue-name = nom d'une rue du plan de secours (zoom 17 et plus) */
+.rescue-label .rescue-name { display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; margin: 0; } /* v495 : centré sur la rue */
 /* v233 : arrêt d'une de mes lignes de bus (un point par quai), dans la couleur de la ligne */
 .bus-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 3px solid var(--c); box-sizing: border-box; margin: 1px 3px 0 1px; flex: none; }
 

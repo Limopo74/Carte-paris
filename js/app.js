@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (495)';
+const VERSION = '25 novembre 2026 (496)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5976,6 +5976,7 @@ const offlineRow = (again, family = 'c-guide') => el('button', { type: 'button',
    (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent en encre, à partir du zoom 15.
    Avec du réseau, la vraie carte reste. Rien n'est téléchargé pour ça : sans plan gardé, un message renvoie à Préparer hors ligne. */
 const RESCUE_ZOOM = 15;
+const RESCUE_NAMES_ZOOM = 17; // v495 : noms des rues
 map.createPane('rescue').style.zIndex = 250; // au-dessus du fond (200), sous les couches et les gouttes
 const rescueLayer = L.layerGroup().addTo(map);
 const rescueRenderer = L.canvas({ pane: 'rescue', padding: 0.2 });
@@ -5990,8 +5991,22 @@ async function drawRescue() {
   if (map.getZoom() < RESCUE_ZOOM) { say('zoom', 'Pas de fond de carte : zoome pour voir le plan de secours (les rues gardées sur le téléphone).'); return; }
   const b = map.getBounds();
   const edges = edgesInBox(P, b.getSouth(), b.getWest(), b.getNorth(), b.getEast());
-  const lines = edges.map((i) => edgePoints(P, i));
-  if (lines.length) L.polyline(lines, { pane: 'rescue', renderer: rescueRenderer, color: ink(), weight: 2.5, opacity: 0.85, interactive: false }).addTo(rescueLayer);
+  // v495 (ma demande « peut améliorer la carte ») : les rues nommées en encre épaisse, les trottoirs, allées et chemins
+  // sans nom en trait fin gris (avant : tout pareil, les trottoirs faisaient des traits doubles) ; de près, le nom des rues
+  const named = []; const plain = [];
+  for (const i of edges) (edgeName(P, i) ? named : plain).push(edgePoints(P, i));
+  const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#5c6370';
+  if (plain.length) L.polyline(plain, { pane: 'rescue', renderer: rescueRenderer, color: muted, weight: 1.2, opacity: 0.7, interactive: false }).addTo(rescueLayer);
+  if (named.length) L.polyline(named, { pane: 'rescue', renderer: rescueRenderer, color: ink(), weight: 3.5, opacity: 0.9, interactive: false }).addTo(rescueLayer);
+  if (map.getZoom() >= RESCUE_NAMES_ZOOM) {
+    const best = new Map(); // un nom par rue : son plus long tronçon dans la vue
+    for (const i of edges) { const n = edgeName(P, i); if (n && b.contains([P.lat[P.ea[i]], P.lng[P.ea[i]]]) && (best.get(n)?.m ?? 0) < P.em[i]) best.set(n, { i, m: P.em[i] }); }
+    for (const [n, { i }] of [...best].sort((x, y) => y[1].m - x[1].m).slice(0, 20)) {
+      const pts = edgePoints(P, i); const mid = pts[Math.floor(pts.length / 2)];
+      const at = pts.length % 2 ? mid : [(pts[pts.length / 2 - 1][0] + mid[0]) / 2, (pts[pts.length / 2 - 1][1] + mid[1]) / 2];
+      L.marker(at, { pane: 'rescue', interactive: false, keyboard: false, icon: L.divIcon({ className: 'rescue-label', html: `<span class="rescue-name">${esc(n)}</span>`, iconSize: null, iconAnchor: [0, 8] }) }).addTo(rescueLayer);
+    }
+  }
   say('on', 'Pas de fond de carte : plan de secours, les rues gardées sur le téléphone.');
 }
 map.on('moveend', rescueSoon);

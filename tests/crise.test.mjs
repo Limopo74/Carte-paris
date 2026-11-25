@@ -113,3 +113,10 @@ test('v494 : plan de secours (réponse 5, choix 31 A) : les rues du cadre, rien 
   assert.match(fn, /map\.getZoom\(\) < RESCUE_ZOOM/);
   assert.ok(!/downloadStreets/.test(fn), 'rien n\'est téléchargé pour le dessiner');
 });
+
+test('v495 : plan de secours plus lisible : rues nommées en encre épaisse, sans nom en gris fin, noms des rues de près', () => {
+  const fn = app.slice(app.indexOf('async function drawRescue()'), app.indexOf("map.on('moveend', rescueSoon);"));
+  assert.match(fn, /\(edgeName\(P, i\) \? named : plain\)\.push/);
+  assert.match(fn, /map\.getZoom\(\) >= RESCUE_NAMES_ZOOM/);
+  assert.match(fn, /esc\(n\)/, 'le nom est échappé');
+});
