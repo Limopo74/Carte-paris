@@ -79,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (472)';
+const VERSION = '25 novembre 2026 (473)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2572,7 +2572,8 @@ const ROUGH = {
 const myResult = (r) => myPlaceFor(state.points, r);
 
 /** Chercher un lieu de l'annuaire (OpenStreetMap) ou une adresse, puis l'ajouter. */
-function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null) {
+/** v467 : `saved(p)` (facultatif) reçoit le lieu enregistré depuis un résultat, au lieu de revenir à la liste (Lieux du jour). */
+function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null, saved = null) {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', value: initial, placeholder: 'Ex. : Uniqlo Opéra, 12 rue de Rivoli', 'aria-describedby': 'placeHelp' });
   const info = el('p', { class: 'help', id: 'placeHelp' }, 'Tape un nom de lieu ou une adresse, puis touche « Chercher ». Recherche dans Paris et les départements voisins (92, 93, 94).');
   const out = el('div', { class: 'stack' });
@@ -2581,7 +2582,8 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
   const row = (title, sub, onclick, mine = null) => el('li', {}, el('button', { type: 'button', onclick: mine ? () => openDetail(mine.id, named('Recherche', toList)) : onclick },
     el('span', { class: 'res-title' }, title), sub || mine ? el('span', { class: 'res-sub' }, sub, mine ? el('span', { class: 'tag' }, 'Sur ta carte') : null) : null));
   /* v248 : après « Enregistrer » ou « Annuler », la fiche ramène à cette liste, sans nouvelle recherche */
-  const toList = () => openPlaceSearch(kept?.q ?? input.value, false, back, kept);
+  const toList = () => openPlaceSearch(kept?.q ?? input.value, false, back, kept, saved);
+  const done = saved ?? toList;
 
   const run = async () => {
     const q = input.value.trim();
@@ -2622,16 +2624,16 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
     const { q, P, M, A, failed, box } = res;
     fill(out);
     const placeRows = (list) => el('ul', { class: 'results' }, list.map((r) => row(r.name, [r.kind, r.address, fmtDist(r.d)].filter(Boolean).join(' · '),
-      () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours, onCancel: toList, onSaved: toList }), myResult(r))));
+      () => openForm({ lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours, onCancel: toList, onSaved: done }), myResult(r))));
     if (P.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, box ? 'Lieux dans la zone de la carte' : 'Lieux, du plus proche'), el('span', {}, String(P.length))), placeRows(P));
     if (M.length) out.append(el('h3', { class: 'ring-title' }, el('span', {}, P.length ? 'Ailleurs à Paris et autour' : 'Rien dans la zone de la carte : ailleurs à Paris et autour'), el('span', {}, String(M.length))), placeRows(M));
     if (A.length) {
       out.append(el('h3', { class: 'ring-title' }, el('span', {}, 'Adresses'), el('span', {}, String(A.length))),
         el('ul', { class: 'results' }, A.map((r) => row(r.label, ROUGH[r.type] ?? null,
-          () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null, onCancel: toList, onSaved: toList }), myResult(r)))));
+          () => openForm({ lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null, onCancel: toList, onSaved: done }), myResult(r)))));
     }
     const total = P.length + M.length + A.length;
-    if (total >= 2) out.prepend(el('button', { type: 'button', class: 'btn c-disc', onclick: () => showSearchPeek(res, () => openPlaceSearch(q, false, back, res)) }, ico('map'), 'Voir sur la carte'));
+    if (total >= 2) out.prepend(el('button', { type: 'button', class: 'btn c-disc', onclick: () => showSearchPeek(res, () => openPlaceSearch(q, false, back, res, saved), saved) }, ico('map'), 'Voir sur la carte'));
     if (P.length || M.length || A.length) {
       info.textContent = failed ? 'Une partie de la recherche n\'a pas répondu, les résultats peuvent être incomplets.' : 'Choisis un résultat :';
     } else {
@@ -2647,21 +2649,21 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
     el('label', { class: 'field' }, 'Lieu ou adresse', input),
     el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
     info, out, back ? foot(backBtn(back)) : null), /* v467 : avant, « ← openAddChoice » (nom interne) et un bouton sans effet */
-    { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim()), back) });
+    { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim()), back, null, saved) });
   if (kept) show(kept); else if (autoRun) run(); else input.focus();
 }
 
 /** Ajouter → Nom ou adresse → « Voir sur la carte » : les résultats en ronds à contour terre cuite.
     Un rond touché : son nom et son adresse dans le bandeau, un appui sur le bandeau ouvre la fiche d'ajout.
     Toucher la carte à côté revient à « tous les résultats » ; le bandeau de départ rouvre la liste (sans nouvelle recherche). */
-function showSearchPeek(res, back) {
+function showSearchPeek(res, back, saved = null) {
   const items = [
     ...[...res.P, ...res.M].map((r) => ({ lat: r.lat, lng: r.lng, name: r.name, sub: [r.kind, r.address].filter(Boolean).join(' · '), draft: { lat: r.lat, lng: r.lng, address: r.address, name: r.name, hours: r.hours } })),
     ...res.A.map((r) => ({ lat: r.lat, lng: r.lng, name: r.label, sub: ROUGH[r.type] ?? 'Adresse', draft: { lat: r.lat, lng: r.lng, address: r.label, rough: ROUGH[r.type] ?? null } })),
   ];
   /* v248 : un résultat déjà dans mes lieux n'a pas de rond : c'est ma goutte qui le montre (un appui ouvre ma fiche) */
   const mine = items.filter((x) => myResult(x.draft.name != null ? x.draft : { label: x.name, lat: x.lat, lng: x.lng }));
-  const again = () => showSearchPeek(res, back);
+  const again = () => showSearchPeek(res, back, saved);
   closeSheet();
   endPeek();
   const pins = [];
@@ -2669,7 +2671,7 @@ function showSearchPeek(res, back) {
     peekCard?.remove();
     if (x) {
       peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Résultat choisi' },
-        el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openForm({ ...x.draft, onCancel: again, onSaved: again }); } },
+        el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openForm({ ...x.draft, onCancel: again, onSaved: saved ?? again }); } },
           el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, 'Résultat'), el('span', { class: 'now-name' }, x.name), el('span', { class: 'now-sub' }, `${x.sub ? `${x.sub} · ` : ''}Touche ici pour l'ajouter`)),
           el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
         el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
@@ -6221,7 +6223,15 @@ function openDayPicker(selected = null, query = '') {
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Chercher un de mes lieux', 'aria-label': 'Chercher un de mes lieux', value: query });
   const list = el('ul', { class: 'items' });
   const more = el('p', { class: 'help' });
+  const findBox = el('div', { class: 'stack' });
   const go = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => save() }); /* v208 : dans la barre du bas, toujours visible */
+  const findInParis = () => {
+    const q = input.value.trim();
+    openPlaceSearch(q, true, named('Lieux du jour', () => openDayPicker(sel, q)), null, (p) => {
+      if (p && !busy(p) && sel.size < DAY_MAX) { sel.add(p.id); openDayPicker(sel, ''); setTimeout(() => toast(`${p.name} : sur ta carte, coché pour aujourd'hui. Touche Enregistrer.`)); } /* après le message de la fiche */
+      else { openDayPicker(sel, ''); if (p && sel.size >= DAY_MAX) setTimeout(() => toast(`${DAY_MAX} lieux au plus : ${p.name} est sur ta carte, pas coché.`)); }
+    });
+  };
   const update = () => {
     go.disabled = !sel.size && !cur.length;
     fill(go, sel.size ? `Enregistrer (${sel.size})` : cur.length ? 'Vider la liste' : 'Enregistrer');
@@ -6246,6 +6256,8 @@ function openDayPicker(selected = null, query = '') {
     more.textContent = !hits.length ? (q ? 'Aucun de tes lieux ne porte ce nom.' : 'Ta carte n\'a pas encore de lieu : touche Ajouter, en bas de la carte.')
       : hits.length > shown.length ? `${shown.length} lieux affichés sur ${hits.length} : cherche un nom pour voir les autres.` : '';
     more.hidden = !more.textContent;
+    // v467 (mon choix 1A du 25 nov.) : un lieu qui n'est pas encore sur ma carte se cherche dans Paris ; enregistré, il revient coché pour aujourd'hui
+    fill(findBox, input.value.trim() ? el('button', { type: 'button', class: 'btn c-add', onclick: findInParis }, ico('search'), `Chercher « ${input.value.trim()} » dans Paris`) : null);
   };
   function save() {
     const kept = cur.filter((p) => sel.has(p.id));
@@ -6264,7 +6276,7 @@ function openDayPicker(selected = null, query = '') {
   openSheet([ico('alarm-clock'), ' Lieux du jour'], el('div', { class: 'stack' },
     input,
     el('p', { class: 'help' }, `Coche les lieux d'aujourd'hui, ${DAY_MAX} au plus. ${start ? 'Les plus proches d\'abord.' : 'Par ordre alphabétique : ta position n\'est pas connue.'}`),
-    list, more,
+    list, more, findBox,
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => openPlanning() }, 'Annuler'), go)),
   ), { tall: true, name: 'jourlieux', again: () => openDayPicker(sel, input.value) });
 }
@@ -13159,7 +13171,7 @@ const HELP = [
     '{alarm-clock} **Prévoir**, sur la page d\'une sortie : elle va dans Mon planning, à l\'heure de l\'agenda quand elle est connue. Elle ne se met pas sur ta carte.',
     '{plus} **Ajouter** (galerie, musée gratuit, Kiosque, sortie prévue) met le lieu sur ta carte, pour de bon.',
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda.',
-    '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom. Depuis une fiche : Prévoir → Aujourd\'hui → Enregistrer, sans choisir de moment.',
+    '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom ; un lieu pas encore sur ta carte : « Chercher … dans Paris », il revient coché. Depuis une fiche : Prévoir → Aujourd\'hui → Enregistrer, sans choisir de moment.',
     '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
@@ -13366,6 +13378,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',

@@ -37,6 +37,8 @@ test('rien sans position ni nom, et le plus proche gagne', () => {
 test('la fiche venue d\'une recherche revient aux résultats après Enregistrer et Annuler (liste et ronds)', () => {
   const s = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(s, /draft\.onSaved\) draft\.onSaved\(created\)/);
-  assert.equal((s.match(/onCancel: toList, onSaved: toList/g) ?? []).length, 2);
-  assert.match(s, /onCancel: again, onSaved: again/);
+  // v468 : `done` = toList, sauf depuis Lieux du jour (le lieu enregistré revient coché pour aujourd'hui)
+  assert.match(s, /const done = saved \?\? toList;/);
+  assert.equal((s.match(/onCancel: toList, onSaved: done/g) ?? []).length, 2);
+  assert.match(s, /onCancel: again, onSaved: saved \?\? again/);
 });
