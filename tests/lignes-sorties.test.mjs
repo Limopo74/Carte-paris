@@ -19,9 +19,10 @@ test('Grands lieux : « rendez-vous » seul, sur sa propre ligne', () => {
   assert.match(f, /p\.address \? el\('span', \{ class: 'week-arr-sub' \}, p\.address\) : null/);
 });
 
-test('Grands lieux : « rien cette semaine », petites lignes à la taille du texte, icône du genre en haut', () => {
+test('Grands lieux : « pas dans l\'agenda » (jamais « rien », v523), petites lignes à la taille du texte, icône du genre en haut', () => {
   const f = app.slice(app.indexOf('async function openArtPlaces'), app.indexOf('const DAY_NAMES'));
-  assert.match(f, /'rien cette semaine'/);
+  assert.match(f, /'pas dans l\\'agenda'/);
+  assert.doesNotMatch(f, /'rien cette semaine'/);
   assert.match(css, /\.week-arr-sub \{[^}]*font-size: var\(--t14\)/);
   assert.match(css, /\.ev-main > \.genre \{[^}]*align-self: start;/);
 });

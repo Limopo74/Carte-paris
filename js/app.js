@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (525)';
+const VERSION = '25 novembre 2026 (526)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7959,7 +7959,7 @@ async function openArtPlaces(focus = '', from = null, lateDay = null) { // v519 
     el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
       // v361 (mes choix 1A 2A du 21 nov.) : l'adresse, puis « 5 rendez-vous · 3,0 km » sur sa propre ligne
       p.address ? el('span', { class: 'week-arr-sub' }, p.address) : null,
-      el('span', { class: 'week-arr-sub' }, [p.events.length ? plural(p.events.length, 'rendez-vous', 'rendez-vous') : 'rien cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
+      el('span', { class: 'week-arr-sub' }, [p.events.length ? plural(p.events.length, 'rendez-vous', 'rendez-vous') : 'pas dans l\'agenda' /* v523 (mon choix A du 25 nov.) : l'agenda n'a pas tout (« rien » était faux pour le Grand Palais) ; même longueur que l'ancien « rien cette semaine », une ligne en Très grand */, p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
     el('div', { class: 'stack' },
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
       latePlanBtn(p, p.name === focus ? lateDay : null, () => openArtPlaces(p.name, from, p.name === focus ? lateDay : null)), // v519 (mon choix 3A du 25 nov.) : sous la ligne Ouvert tard
