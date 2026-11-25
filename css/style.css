@@ -1322,7 +1322,9 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .copy-row > .where { color: var(--ink); font-size: var(--t18); }
 /* v520 : Où suis-je ? — la ligne du métro sans les marges d'un paragraphe, comme l'adresse et la précision (écart de la page partout) */
 .badge.where-line { margin: 0; }
-.copy-row .nowrap { white-space: nowrap; } /* les coordonnées ne se coupent pas en deux */
+.copy-row .nowrap { white-space: nowrap; }
+/* v521 : Météo et air — un paragraphe sans classe (conseil de l'air, altitude) prend l'écart de la page, pas ses marges de 16 px */
+.wx-page > p { margin: 0; } /* les coordonnées ne se coupent pas en deux */
 .go-compass.copy-btn { flex: none; width: 48px; min-height: 48px; background: transparent; border: 2px solid var(--neutral-bd); border-radius: var(--r); box-shadow: none; color: var(--ink); }
 .go-compass.copy-btn .ico svg { width: 22px; height: 22px; }
 .item-sub > .tag:first-child { margin-left: 0; }

@@ -56,6 +56,6 @@ test('l\'appli : interrupteur, fiche, listes, aide, cache', () => {
   assert.equal((app.match(/onclick: \(ev\) => go\(\{ deck: deckOf\(ev, e\) \}\)/g) ?? []).length, 2, 'Sorties (et Mes salles) et Trouver une sortie');
   assert.match(app, /if \(name !== 'sortie'\) sortieDeck = null;/);
   const news = app.slice(app.indexOf("['sparkles', 'Nouveautés', ["));
-  assert.match(news.slice(0, 600), /Glisser entre les sorties/);
+  assert.match(news.slice(0, news.indexOf(']],')), /Glisser entre les sorties/); // v521 : dans les Nouveautés (d'autres lignes peuvent arriver devant)
   assert.match(sw, /'js\/glisser-sorties\.js'/);
 });
