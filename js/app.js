@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (522)';
+const VERSION = '25 novembre 2026 (523)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3934,8 +3934,8 @@ function planEvent(e, again) {
 function openPlanSpot(x, back = null) {
   const again = () => openPlanSpot(x, back);
   openSpot({ icon: 'calendar-days', title: x.name, kicker: `Prévu ${planText(x.ticket)}${x.ticket.with ? ` avec ${x.ticket.with}` : ''}`,
-    lines: [[x.place, x.address].filter(Boolean).join(' · '), 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allée. « Ajouter » la garde dans tes lieux.'],
-    place: x, link: x.url ? [x.url, 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
+    lines: [[x.place, x.address].filter(Boolean).join(' · '), x.late ? 'Nocturne habituelle d\'un grand lieu : vérifie sur son site avant d\'y aller (fermeture exceptionnelle). Le lendemain, Mon planning te demande si tu y es allée.' /* v519 */ : 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allée. « Ajouter » la garde dans tes lieux.'],
+    place: x, link: x.url ? [x.url, x.late ? 'Site officiel' : 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
     add: { note: [x.place, x.url].filter(Boolean).join(' · ') },
     extra: x.by
       ? el('div', { class: 'stack' },
@@ -6924,6 +6924,7 @@ function openPlanning(from = null) {
     ]),
     ...pastBlock, /* v208 : après les jours à venir, pour que les jours se suivent */
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
+    lateWeekBlock(back), // v519 (mes choix 1A 2A 4A du 25 nov.) : sous « Trouver une sortie », qui ne bouge pas ; seulement si le réglage est allumé
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
 }
@@ -7939,7 +7940,7 @@ async function openWeekExpos() {
 }
 
 /** Grands lieux d'art et de musique, toute distance : liste fixe ; leurs événements viennent de l'agenda de la semaine. */
-async function openArtPlaces(focus = '', from = null) {
+async function openArtPlaces(focus = '', from = null, lateDay = null) { // v519 : `lateDay`, le soir de la nocturne touchée (Ouvert tard, Mon planning)
   if (typeof focus !== 'string') focus = '';
   track('Grands lieux');
   const title = [ico('landmark'), ' Grands lieux'];
@@ -7952,7 +7953,7 @@ async function openArtPlaces(focus = '', from = null) {
     }
   }
   const o = await evPoint(); // v450 : les distances partent d'un point dit en haut (« Autour de toi ▾ »), jamais d'une position de plus de 10 min
-  const again = named('Grands lieux', () => openArtPlaces(focus, from));
+  const again = named('Grands lieux', () => openArtPlaces(focus, from, lateDay));
   const places = artPlacesWith(weekCache.items).map((p) => ({ ...p, d: distanceM(o, p) }));
   const block = (p) => el('details', { class: 'help-item week-arr', open: p.name === focus },
     el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
@@ -7961,6 +7962,7 @@ async function openArtPlaces(focus = '', from = null) {
       el('span', { class: 'week-arr-sub' }, [p.events.length ? plural(p.events.length, 'rendez-vous', 'rendez-vous') : 'rien cette semaine', p.d != null ? fmtDist(p.d) : ''].filter(Boolean).join(' · '))),
     el('div', { class: 'stack' },
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
+      latePlanBtn(p, p.name === focus ? lateDay : null, () => openArtPlaces(p.name, from, p.name === focus ? lateDay : null)), // v519 (mon choix 3A du 25 nov.) : sous la ligne Ouvert tard
       el('div', { class: 'row' },
         el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
         favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique', scene: 'theatre' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167, v300 : scene
@@ -7977,7 +7979,7 @@ async function openArtPlaces(focus = '', from = null) {
     el('p', { class: 'help' }, 'Le Centre Pompidou est fermé jusqu\'en 2030 (ses expositions au Grand Palais) ; le musée Maillol rouvre le 13 janvier 2027. L\'agenda n\'a pas tous les rendez-vous : le programme officiel fait foi.'),
     el('p', { class: 'help tip' }, `Lieux vérifiés le ${ART_PLACES_CHECKED}, salles de concert le ${ART_MUSIC_CHECKED}, théâtre et danse le ${ART_SCENE_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
     back,
-  ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from) });
+  ), { tall: true, name: 'grands-lieux', again: () => openArtPlaces(focus, from, lateDay) });
   if (focus) sheetBody.querySelector('details[open]')?.scrollIntoView({ block: 'start' });
 }
 
@@ -7987,6 +7989,54 @@ function lateLine(p) {
   const parts = (p.late ?? []).map((r) => `${r.first ? '1er ' : ''}${r.d.length === 5 ? 'tous les jours d\'ouverture' : r.d.map((d) => DAY_NAMES[d]).join(' et ')}${r.first ? ' du mois' : ''} jusqu'à ${lateHour(r.to)}${lateBefore(r.to, p.last) ? `, arriver avant ${lateHour(lateBefore(r.to, p.last))}` : ''}${r.note ? ` (${r.note})` : ''}`);
   return parts.length ? `Ouvert tard : ${parts.join(' ; ')}${p.lateNote ? ` — ${p.lateNote}` : ''}.` : '';
 }
+/* ---------- v519 (mes choix 1A 2A 3A 4A du 25 nov.) : les nocturnes en bas de Mon planning, et « Prévoir … soir » ----------
+   Les nocturnes des 7 prochains jours (ce soir : seulement si l'on peut encore entrer) ; rien un jour férié (horaires changés). */
+function lateWeekDays(now = new Date(), places = ART_PLACES) {
+  const out = [];
+  for (let k = 0; k < 7; k++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k, 12);
+    const list = k ? lateOn(d, places, holidayOn(d)) : lateTonight(now, places, holidayOn(now));
+    if (list.length) out.push({ k, date: d, list });
+  }
+  return out;
+}
+/** « ce soir », « demain soir », « jeudi soir » (dans les 7 jours). */
+const lateWhen = (k, d) => (k === 0 ? 'ce soir' : k === 1 ? 'demain soir' : `${DAY_NAMES[d.getDay()]} soir`);
+/** La nocturne prévue de ce lieu ce jour-là (Mon planning), ou null. */
+const latePlanOf = (p, d) => (state.plans ?? []).find((x) => x.late && x.name === p.name && new Date(x.ticket.at).toDateString() === d.toDateString()) ?? null;
+/** « Prévoir jeudi soir » : le soir donné s'il a une nocturne, sinon la prochaine des 7 jours ; null sans nocturne à venir. */
+function latePlanBtn(p, day, again) {
+  if (!(p.late ?? []).length) return null;
+  const days = lateWeekDays(new Date(), [p]);
+  const w = (day && days.find((x) => x.date.toDateString() === new Date(day).toDateString())) ?? days[0];
+  if (!w) return null;
+  const known = latePlanOf(p, w.date);
+  const to = w.list[0].to;
+  const plan = known ?? { id: newPhotoId(), name: p.name, lat: p.lat, lng: p.lng, plan: true, late: true, place: `Nocturne jusqu'à ${lateHour(to)}`,
+    ...(p.address ? { address: p.address } : {}), ...(p.site ? { url: p.site } : {}),
+    ticket: { at: planAt(w.date, 'soir'), part: 'soir' } }; // moment Soir proposé, réglable dans Prévoir ; jamais une heure inventée
+  return el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(plan, named(p.name, again), { done: again }) },
+    ico('alarm-clock'), known ? `Prévu ${planShort(known.ticket)}` : `Prévoir ${lateWhen(w.k, w.date)}`);
+}
+/** Le bloc replié du bas de Mon planning (Réglages → Autres réglages → Nocturnes au planning, éteint au départ). */
+function lateWeekBlock(back) {
+  if (state.lateWeek !== true) return null;
+  const days = lateWeekDays();
+  const first = days[0];
+  const sub = !days.length ? 'Aucune nocturne ces 7 jours' : `${first.k === 0 ? 'Ce soir' : first.k === 1 ? 'Demain' : DAY_NAMES[first.date.getDay()].replace(/^./, (c) => c.toUpperCase())} : ${first.list.map((p) => p.name.replace(/^Musée (du |de l'|d'|de la )?/, '')).slice(0, 3).join(', ')}${first.list.length > 3 ? '…' : ''}`;
+  const row = (p, w) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, back, w.date) },
+    el('span', { class: 'plan-time' }, lateHour(p.to)),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
+      el('span', { class: 'item-sub' }, [p.before ? `arriver avant ${lateHour(p.before)}` : '', latePlanOf(p, w.date) ? `Prévu ${lateWhen(w.k, w.date)}` : ''].filter(Boolean).join(' · ') || 'Nocturne')),
+    el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  return el('details', { class: 'help-item week-arr late-week' },
+    el('summary', {}, el('span', { class: 'week-arr-name' }, ico('moon'), ' Ouvert tard cette semaine'), el('span', { class: 'week-arr-sub' }, sub)),
+    el('div', { class: 'stack' },
+      ...days.flatMap((w) => [el('h3', { class: 'ring-title' }, el('span', {}, w.k === 0 ? 'Ce soir' : w.k === 1 ? `Demain · ${dayTitle(w.date)}` : dayTitle(w.date).replace(/^./, (c) => c.toUpperCase())), el('span', {}, String(w.list.length))),
+        el('ul', { class: 'items' }, w.list.map((p) => row(p, w)))]),
+      el('p', { class: 'help' }, 'Horaires habituels des grands lieux. Fermetures exceptionnelles : vérifie sur le site du lieu.')));
+}
+
 /**
  * Ouvert tard (v158) : les nocturnes habituelles des grands lieux, ce soir puis toute la semaine.
  * Liste fixe vérifiée sur le site de chaque lieu ; un jour férié, rien n'est annoncé (horaires changés).
@@ -7997,12 +8047,12 @@ async function openLate() {
   const now = new Date();
   const holiday = holidayOn(now);
   const tonight = lateTonight(now, ART_PLACES, holiday);
-  const row = (p, back) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, back) },
+  const row = (p, back, day = now) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openArtPlaces(p.name, back, day) }, // v519 : le soir touché, pour « Prévoir … soir »
     el('span', { class: 'plan-time' }, lateHour(p.to)),
     el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
       el('span', { class: 'item-sub' }, [p.before ? `arriver avant ${lateHour(p.before)}` : '', p.note, o ? fmtDist(distanceM(o, p)) : ''].filter(Boolean).join(' · ')))));
   const back = named('Ouvert tard', () => openLate());
-  const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, list: lateOn(d) }; });
+  const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, date: d, list: lateOn(d) }; });
   openSheet([ico('moon'), ' Ouvert tard'], el('div', { class: 'stack' },
     holiday ? el('p', { class: 'warn' }, `Jour férié (${holiday}) : les horaires changent. Vérifie sur le site du lieu.`) : null,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Ce soir'), el('span', {}, String(tonight.length))),
@@ -8011,7 +8061,7 @@ async function openLate() {
     el('div', { class: 'help-list' }, week.filter((w) => w.list.length).map((w) => el('details', { class: 'help-item week-arr' },
       el('summary', {}, el('span', { class: 'week-arr-name' }, DAY_NAMES[w.k].charAt(0).toUpperCase() + DAY_NAMES[w.k].slice(1)),
         el('span', { class: 'week-arr-sub' }, w.list.map((p) => p.name).join(', '))),
-      el('ul', { class: 'items' }, w.list.map((p) => row(p, back)))))),
+      el('ul', { class: 'items' }, w.list.map((p) => row(p, back, w.date)))))),
     el('p', { class: 'help' }, 'Horaires habituels. Fermetures exceptionnelles et 1er samedi : vérifie sur le site du lieu.'),
     el('p', { class: 'help tip' }, `À gauche, la fermeture. « Arriver avant » : fermeture du guichet ou dernière entrée, lue le ${LAST_CHECKED} sur le site du lieu ; le lieu quitte alors « Ce soir ». Sans cette ligne (Orsay, Art moderne) : heure non trouvée, le lieu quitte « Ce soir » une heure avant sa fermeture. Horaires vérifiés le ${LATE_CHECKED}, remis à jour avec les listes annuelles.`),
     foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); }))),
@@ -12906,6 +12956,11 @@ function openSettings(section = null, from = null) {
       state.evSwipe = state.evSwipe === false;
       toast(state.evSwipe ? 'Sur la fiche d\'une sortie, glisse de côté : la voisine de la liste' : 'Glisser entre les sorties éteint');
     }),
+    // v519 (mon choix 4A du 25 nov.) : sous Glisser entre les sorties, tout en bas de « Ce qui s'affiche », il ne pousse rien ; éteint au départ
+    onOff('lateWeek', 'moon', 'Nocturnes au planning', state.lateWeek === true ? 'En bas, 7 soirs' : 'Éteint : dans Expos', state.lateWeek === true, () => {
+      state.lateWeek = state.lateWeek !== true;
+      toast(state.lateWeek ? 'Ouvert tard cette semaine : en bas de Mon planning' : 'Nocturnes retirées de Mon planning');
+    }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Version, données, partager', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Boutons touchés ou jamais', openUsage), // v254
@@ -14406,7 +14461,7 @@ const HELP = [
     '**Gratuit** : sorties gratuites, musées gratuits, théâtre à moitié prix, et les prochains jours gratuits.',
     '**Musées gratuits et Kiosque** : un tampon dit s\'ils sont ouverts (Ouvert, Ferme dans 20 min, Fermé à ton arrivée, Fermé). Les fermés passent à la fin. Les musées de la Ville sont fermés le lundi.',
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
-    '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
+    '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié. Touche un lieu : « Prévoir jeudi soir » le met dans Mon planning.',
     '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut, et dans la loupe) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Pour l\'enlever de ⋯ Plus : « Choisir ce qui va dans Plus », puis « Masqué » sur sa ligne (rien n\'est supprimé, la loupe y mène toujours). Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
     '{user} **La page d\'une personne** : touche un nom sous les boutons d\'une plaque, d\'une œuvre dans la rue ou d\'une tombe, ou l\'artiste sur la fiche d\'un de tes lieux. Elle réunit ses œuvres dans la rue, sa tombe, ses plaques et la rue à son nom ; « Son site » et « Ses expos » seulement pour un artiste. Relié par le nom complet : un nom seul ou porté par plusieurs personnes ne relie rien.',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
@@ -14423,6 +14478,7 @@ const HELP = [
     '{footprints} **Entre deux lieux du jour** : sous chaque lieu, les minutes à pied depuis le précédent (« 8 min du n° 1 ») ; sous la liste, le total. Par les rues si le plan des rues de Mes parcours est sur ton téléphone, sinon estimées (« ≈ »).',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
+    '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
     '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
     '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allée ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche : elle reste, avec « Prévoir un autre jour » ou « Retirer ». « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
@@ -14640,6 +14696,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
     '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
     '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
@@ -14649,7 +14706,6 @@ const HELP = [
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
     '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
-    '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

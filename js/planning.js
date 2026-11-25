@@ -155,6 +155,7 @@ export function cleanPlans(list, now = Date.now(), keepDays = 30) {
       ...(typeof x.by === 'string' && x.by.trim() ? { by: x.by.trim().slice(0, 30) } : {}), // v181 : prévue par un proche (son fichier)
       ...(Number.isFinite(x.until) && x.until > 0 ? { until: x.until } : {}), // v199 : fin d'une expo de l'agenda
       ...(x.missed === true ? { missed: true } : {}), // v199 : « Non » à « Tu y es allée ? », encore à l'affiche
+      ...(x.late === true ? { late: true } : {}), // v519 : une nocturne prévue (Grands lieux), pas une sortie de l'agenda
     };
   }).filter(Boolean).slice(0, 200);
 }

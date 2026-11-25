@@ -39,7 +39,7 @@ test('les pages de Sorties ne lisent plus le point de départ tel quel', () => {
 
 test('Grands lieux : « Autour de toi ▾ » sous « Voir sur la carte », qui le rouvre au même endroit', () => {
   const f = fn('async function openArtPlaces(');
-  assert.match(f, /const again = named\('Grands lieux', \(\) => openArtPlaces\(focus, from\)\);/);
+  assert.match(f, /const again = named\('Grands lieux', \(\) => openArtPlaces\(focus, from(, lateDay)?\)\);/);
   assert.ok(f.indexOf("'Voir sur la carte'),\n    evFromBtn(o, again),") > 0);
   const from = fn('function openEventsFrom(');
   assert.match(from, /if \(again\) \{ setEvFrom\(start\); again\(\); \} else openEvents\(start\);/);
