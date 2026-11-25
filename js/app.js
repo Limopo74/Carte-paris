@@ -75,7 +75,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (452)';
+const VERSION = '25 novembre 2026 (453)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1563,6 +1563,8 @@ window.addEventListener('popstate', () => {
   }
 });
 document.getElementById('sheetClose').addEventListener('click', () => { if (traceAsk('close')) return; closeSheet(); }); // v271 : un nouveau tracé demande confirmation
+// v453 (mes choix 1A 2A du 25 nov.) : une croix dessinée au trait épais, en encre, à la place du caractère ✕ (fin et pâle au soleil, selon la police)
+document.getElementById('sheetClose').replaceChildren(ico('x', { stroke: 3 }));
 
 /* Réduire la feuille pour voir la carte (v166) : un bouton à côté de la croix, et la barre du titre qui se fait glisser.
    Réduite, seule la barre du titre reste ; la carte se voit et se déplace. Agrandie, la liste revient à la même hauteur. */
@@ -12649,6 +12651,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place.',
     '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
     '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
@@ -12658,7 +12661,6 @@ const HELP = [
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
-    '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -62,6 +62,7 @@ test('v441 : la marque photo des listes (v391) devant le nom sous la goutte, ave
   // TalkBack l'entend sur la goutte (le nom est caché aux lecteurs d'écran)
   assert.match(app, /myPhoto\(p\) \? ', avec photo' : ''/);
   // la marque suit la taille du texte
-  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n').slice(1, 11).some((l) => l.includes('**Photo sous la goutte**'))); // v452 : « Deux nouveaux styles » en tête ; // v443, v444 : « Le démarrage d'un proche », « Sauvegarde » au-dessus ; v445 : « Mon Paris plus court » aussi ; v446 : une ligne de plus ; v452 : « Sorties, une ligne de moins » ; v448 : « Des boutons à la place des chemins » en tête ; v450 : « Grands lieux, depuis toi » ; v450, v451 : deux lignes de plus
+  // v453 : la ligne, la plus ancienne, sort des Nouveautés (10 au plus, « Croix Fermer plus visible » en tête)
+  assert.ok(!app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split(']],')[0].includes('**Photo sous la goutte**')); // v452 : « Deux nouveaux styles » en tête ; // v443, v444 : « Le démarrage d'un proche », « Sauvegarde » au-dessus ; v445 : « Mon Paris plus court » aussi ; v446 : une ligne de plus ; v452 : « Sorties, une ligne de moins » ; v448 : « Des boutons à la place des chemins » en tête ; v450 : « Grands lieux, depuis toi » ; v450, v451 : deux lignes de plus
   assert.match(readFileSync('css/style.css', 'utf8'), /\.pin-name \.ico svg \{ width: calc\(13px \* var\(--ts\)\); height: calc\(13px \* var\(--ts\)\); \}/);
 });

@@ -912,6 +912,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .sheet-head::before { content: ''; position: absolute; top: 4px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 999px; background: var(--line); } /* poignée : la barre se fait glisser */
 .sheet.mini .sheet-body { display: none; } /* réduite (v166) : seule la barre du titre reste, la carte se voit */
 .sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 2px solid var(--ink); background: transparent; }
+#sheetClose .ico svg { width: 24px; height: 24px; } /* v453 : croix dessinée, trait 3 */
 .sheet-head #sheetListen[aria-pressed="true"] { background: var(--info-bg); } /* v432 : lecture en cours, comme un choix sélectionné (charte § 4) */
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
