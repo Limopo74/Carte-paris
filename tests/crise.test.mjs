@@ -120,3 +120,9 @@ test('v495 : plan de secours plus lisible : rues nommées en encre épaisse, san
   assert.match(fn, /map\.getZoom\(\) >= RESCUE_NAMES_ZOOM/);
   assert.match(fn, /esc\(n\)/, 'le nom est échappé');
 });
+
+test('v496 (32 A) : Chez moi et mes points de crise dessinés sur le plan de secours', () => {
+  const fn = app.slice(app.indexOf('async function drawRescue()'), app.indexOf("map.on('moveend', rescueSoon);"));
+  assert.match(fn, /if \(home\) pin\(home\.lat, home\.lng, 'house', 'Chez moi'\)/);
+  assert.match(fn, /for \(const c of CRISIS_POINTS\) if \(cps\[c\.k\]\) pin\(/);
+});

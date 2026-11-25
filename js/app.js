@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (496)';
+const VERSION = '25 novembre 2026 (497)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6007,6 +6007,17 @@ async function drawRescue() {
       L.marker(at, { pane: 'rescue', interactive: false, keyboard: false, icon: L.divIcon({ className: 'rescue-label', html: `<span class="rescue-name">${esc(n)}</span>`, iconSize: null, iconAnchor: [0, 8] }) }).addTo(rescueLayer);
     }
   }
+  // v496 (mon choix 32 A) : Chez moi et mes points de crise sur le plan, pour voir où aller sans ouvrir de page
+  const pin = (lat, lng, icon, label, onclick = null) => {
+    const m = L.marker([lat, lng], { pane: 'rescue', interactive: Boolean(onclick), keyboard: Boolean(onclick), title: label, alt: label, zIndexOffset: 1500,
+      icon: L.divIcon({ className: 'pin-wrap', html: `<span class="metro-pin home-pin">${svgIcon(icon, { size: 16 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) });
+    if (onclick) m.on('click', onclick);
+    m.addTo(rescueLayer);
+  };
+  const home = cleanHome(state.home);
+  if (home) pin(home.lat, home.lng, 'house', 'Chez moi');
+  const cps = cleanCrisisPoints(state.crisisPoints) ?? {};
+  for (const c of CRISIS_POINTS) if (cps[c.k]) pin(cps[c.k].lat, cps[c.k].lng, c.icon, c.name, () => openCrisisPoint(c.k, named('Carte', () => closeSheet())));
   say('on', 'Pas de fond de carte : plan de secours, les rues gardées sur le téléphone.');
 }
 map.on('moveend', rescueSoon);
