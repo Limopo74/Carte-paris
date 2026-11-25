@@ -32,6 +32,7 @@ import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js'
 import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
+import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
@@ -86,7 +87,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (507)';
+const VERSION = '25 novembre 2026 (508)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5869,6 +5870,9 @@ function crisisBlock() {
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
     crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v502 (choix 7 A et 9 A)
     ...(crisis.k === 'crue' ? [floodRows(pos, back)].flat() : []),
+    // v508 (ma réponse 20 A) : en Coupure, la radio FM (piles) ; (26 A) en Abri, le lien du niveau Vigipirate, jamais le niveau lui-même
+    crisis.k === 'coupure' ? el('p', { class: 'help crisis-radio' }, ico('radio', { size: 17 }), ` ${RADIO_TEXT}.`) : null,
+    crisis.k === 'abri' ? el('a', { class: 'btn', href: VIGIPIRATE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Niveau Vigipirate (info.gouv.fr)') : null,
     // v506 (ma réponse 10 A) : en mode Canicule, les lieux frais de la Ville (îlots de fraîcheur), avec la fontaine et les toilettes
     crisis.k === 'canicule' ? el('div', { class: 'menu' }, row('trees', 'Lieux frais près de moi', 'Fontaine, toilettes, lieu frais', nearestPratique)) : null, // v503 (choix 8 A et 23 A)
     // v491 (mes réponses 15 et 22, choix 30 B) : mon point de repli et nos deux rendez-vous, sous Rentrer à pied
@@ -5882,9 +5886,32 @@ function crisisBlock() {
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('phone')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Appeler ${c.name || c.tel}`), el('span', { class: 'menu-sub' }, 'Le téléphone s\'ouvre')))),
       row('volume-x', 'Alerter en silence', 'SMS au 114, proches, sans bruit', () => (pos ? openSilentAlert(pos, () => '', () => nearAgain(), 'Autour de moi') : openWhereAmI())),
+      row('heart-pulse', 'Urgences à l\'hôpital', 'AP-HP, 24 h/24 · pharmacie de garde', () => openUrgences(pos, back)), // v508 (12 bis A, 13 A)
       offlineRow(() => { if (view === 'near') renderNear(); }), // v493 (réponse 21)
       row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Autour de moi'), el('span', {}, '')));
+}
+/** v508 (12 bis A, 13 A) : les urgences adultes de l'AP-HP dans Paris, de la plus proche ; Y aller, Appeler ; en bas, la pharmacie de garde. */
+function openUrgences(pos, back) {
+  track('Urgences');
+  const list = urgencesNear(pos, distanceM);
+  openSheet([ico('heart-pulse'), ' Urgences à l\'hôpital'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Danger immédiat : appelle le 15 ou le 112.'),
+    el('ul', { class: 'items' }, list.map(({ x, d }) => el('li', { class: 'item' },
+      el('div', { class: 'item-main' },
+        el('span', { class: 'cat-ico police-ico', 'aria-hidden': 'true' }, ico('heart-pulse')),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name),
+          el('span', { class: 'item-sub' }, d == null ? x.address : `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${x.address}`))),
+      el('a', { class: 'go-compass', href: `tel:${x.tel}`, 'aria-label': `Appeler les urgences de ${x.name}, ${telText(x.tel)}` }, ico('phone')),
+      el('a', { class: 'go', href: mapsUrl(x, d ?? 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Pharmacie de garde'), el('span', {}, '')),
+    el('div', { class: 'row' },
+      el('a', { class: 'btn', href: `tel:${PHARMA_TEL}`, 'aria-label': 'Appeler le 32 37, pharmacie de garde, 0,35 euro la minute' }, ico('phone'), '32 37'),
+      el('a', { class: 'btn', href: PHARMA_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), '3237.fr')),
+    el('p', { class: 'help' }, 'Le 32 37 coûte 0,35 € la minute ; le site est gratuit.'),
+    el('p', { class: 'help tip' }, `Urgences générales adultes de l'AP-HP situées dans Paris, d'après sa page des urgences (mise à jour le 27/04/2026), relevée le ${URGENCES_CHECKED}. Ni les urgences pour enfants, ni les hôpitaux privés.`),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'urgences', again: () => openUrgences(pos, back) });
 }
 /** « Je vais bien » (réponse 14) : un SMS par proche ; la position seulement si je la coche. */
 function openImOk(back) {
@@ -14236,6 +14263,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
@@ -14245,7 +14273,6 @@ const HELP = [
     '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
     '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
     '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
-    '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
