@@ -86,7 +86,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (505)';
+const VERSION = '25 novembre 2026 (506)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5867,7 +5867,9 @@ function crisisBlock() {
       ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
     crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v502 (choix 7 A et 9 A)
-    ...(crisis.k === 'crue' ? [floodRows(pos, back)].flat() : []), // v503 (choix 8 A et 23 A)
+    ...(crisis.k === 'crue' ? [floodRows(pos, back)].flat() : []),
+    // v506 (ma réponse 10 A) : en mode Canicule, les lieux frais de la Ville (îlots de fraîcheur), avec la fontaine et les toilettes
+    crisis.k === 'canicule' ? el('div', { class: 'menu' }, row('trees', 'Lieux frais près de moi', 'Fontaine, toilettes, lieu frais', nearestPratique)) : null, // v503 (choix 8 A et 23 A)
     // v491 (mes réponses 15 et 22, choix 30 B) : mon point de repli et nos deux rendez-vous, sous Rentrer à pied
     el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => {
       const p = (cleanCrisisPoints(state.crisisPoints) ?? {})[c.k];
@@ -5976,7 +5978,7 @@ async function prepareOffline(again = null) {
   try { await downloadStreets(); } catch { fail.push('le plan des rues'); }
   waitToast('Fontaines et toilettes (2 sur 3)…');
   try {
-    const [f, w] = await Promise.all([loadPratique('fontaines'), loadPratique('toilettes'), loadRatpToilets()]);
+    const [f, w] = await Promise.all([loadPratique('fontaines'), loadPratique('toilettes'), loadRatpToilets(), loadPratique('fraisLieux'), loadPratique('fraisParcs')]); // v506 : les lieux frais aussi (mode Canicule)
     if (!f.length || !w.length) fail.push('les fontaines et toilettes');
   } catch { fail.push('les fontaines et toilettes'); }
   waitToast('L\'appli elle-même (3 sur 3)…');
@@ -13579,7 +13581,7 @@ async function nearestPratique() {
     .sort((a, b) => (openState(a.item.hours)?.open === false) - (openState(b.item.hours)?.open === false) || a.d - b.d).slice(0, n);
   // v261 (mon choix A) : hors chaleur, le dernier bloc donne les jardins ouverts maintenant (squares, jardins, parcs ;
   // horaires connus seulement, rien par grand vent) ; à 28° et plus, il redevient « Lieu frais » (jardins, musées, bibliothèques).
-  if (meteo?.temp >= 28) { showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), openFirst([...fraisLieux, ...fraisParcs], 2)); return; }
+  if (meteo?.temp >= 28 || crisis?.k === 'canicule') { showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), openFirst([...fraisLieux, ...fraisParcs], 2)); return; }
   const gardens = windy() ? [] : fraisParcs.filter((x) => /^(Promenades ouvertes|Jardins d'Etat)$/.test(x.type ?? '') && x.hours && openState(x.hours)?.open);
   showPratique(from, nearestOf(fontaines, from, 2), openFirst(toilettes, 2), nearestOf(gardens, from, 2), 'garden');
 }
@@ -14213,6 +14215,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
@@ -14222,7 +14225,6 @@ const HELP = [
     '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
     '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
-    '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
