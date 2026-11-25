@@ -126,3 +126,14 @@ test('v496 (32 A) : Chez moi et mes points de crise dessinés sur le plan de sec
   assert.match(fn, /if \(home\) pin\(home\.lat, home\.lng, 'house', 'Chez moi'\)/);
   assert.match(fn, /for \(const c of CRISIS_POINTS\) if \(cps\[c\.k\]\) pin\(/);
 });
+
+test('v499 : bandes jaune et noir en haut et en bas en mode crise, jamais en Abri ; jamais touchables', () => {
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(app, /function markCrisis\(\) \{ const r = document\.documentElement; if \(crisis && crisis\.k !== 'abri'\) r\.dataset\.crise = crisis\.k; else delete r\.dataset\.crise; \}/);
+  const set = app.slice(app.indexOf('function setCrisis('), app.indexOf('function endCrisis('));
+  const end = app.slice(app.indexOf('function endCrisis('), app.indexOf('function openCrisis('));
+  assert.match(set, /markCrisis\(\)/); assert.match(end, /markCrisis\(\)/);
+  assert.match(css, /html\[data-crise\]::before, html\[data-crise\]::after \{[^}]*pointer-events: none;/);
+  assert.match(css, /var\(--crisis-a\) 0 14px, var\(--crisis-b\) 14px 28px/);
+  assert.match(css, /html\[data-crise\] \.look-dot \{ z-index: 100000; \}/, 'le point du style reste visible par-dessus la bande');
+});

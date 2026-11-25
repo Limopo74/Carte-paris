@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (498)';
+const VERSION = '25 novembre 2026 (499)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5797,12 +5797,16 @@ const ttbNote = () => {
 const CRISIS_KEY = 'carte-paris.crise';
 let crisis = (() => { try { return cleanCrisis(JSON.parse(storage.getItem(CRISIS_KEY) ?? 'null')); } catch { return null; } })();
 function saveCrisis() { try { if (crisis) storage.setItem(CRISIS_KEY, JSON.stringify(crisis)); else storage.removeItem(CRISIS_KEY); } catch { /* rien */ } }
+/** v499 (mes choix 2 A et « A attentat ») : bandes rayées jaune et noir en haut et en bas de l'écran tant que le mode est allumé ;
+    aucune en mode Abri (confinement, attentat), pour ne pas se faire repérer. Posé sur <html>, jamais touchable (css : html[data-crise]). */
+function markCrisis() { const r = document.documentElement; if (crisis && crisis.k !== 'abri') r.dataset.crise = crisis.k; else delete r.dataset.crise; }
+markCrisis();
 /** Allumer (ou changer de crise). Fontaines et toilettes s'allument pour une crue, une coupure, une canicule (réponse 11). */
 function setCrisis(k) {
   const c = crisisOf(k); if (!c) return;
   const pratBefore = crisis ? crisis.pratBefore : state.showPratique === true;
   crisis = { k, since: crisis?.since ?? Date.now(), pratBefore };
-  saveCrisis();
+  saveCrisis(); markCrisis();
   if (c.water && !state.showPratique) setPratLayer(true);
   if (!c.water && state.showPratique && !pratBefore) setPratLayer(false);
   drawLayerNote(); renderChips(); rescueSoon();
@@ -5811,7 +5815,7 @@ function setCrisis(k) {
 /** Terminer : Fontaines et toilettes reviennent comme avant ; « Annuler » rallume la même crise. */
 function endCrisis() {
   const was = crisis; if (!was) return;
-  crisis = null; saveCrisis();
+  crisis = null; saveCrisis(); markCrisis();
   if (state.showPratique && !was.pratBefore) setPratLayer(false);
   drawLayerNote(); renderChips(); rescueSoon();
   toast('Mode crise terminé', false, { label: 'Annuler', fn: () => { setCrisis(was.k); crisis = { ...crisis, since: was.since, pratBefore: was.pratBefore }; saveCrisis(); } });
@@ -13992,6 +13996,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
     '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
     '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
     '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
@@ -14001,7 +14006,6 @@ const HELP = [
     '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
     '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
     '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
-    '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

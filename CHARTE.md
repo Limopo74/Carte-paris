@@ -25,6 +25,8 @@ Règles d'apparence de toute l'appli, en place depuis la v103 (16 novembre 2026)
 | Réglages | `--info` | `#5C6370` | `#C7CCD6` | Réglages, aide |
 | Supprimer | `--danger` | `#9A2620` | `#FF7272` | supprimer, fermé |
 
+**Mode crise** (v499, mes choix du 25 nov. 2026) : `--crisis-a` jaune `#FFD23F` et `--crisis-b` encre `#15181D`, mêmes en sombre, en bandes rayées de 12 px en haut et en bas de l'écran tant que le mode crise est allumé, sauf en Abri (confinement, attentat). Le jaune et noir rayé ne veut rien dire d'autre et ne sert nulle part ailleurs.
+
 Fonds légers d'un état allumé seulement (Favori, Déjà visité…) : `--fav-bg`, `--add-bg`, `--info-bg`. Messages : `--warn-*`, `--rain-*`, `--heat-*`. Qualité de l'air : `--aq-*`. Boussole : `--compass-bg`, `--compass-ink`, `--compass-muted`. Focus clavier : `--focus`.
 Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles (icônes) au moins 3:1.
 

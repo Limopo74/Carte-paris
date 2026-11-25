@@ -4,6 +4,8 @@
   font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
   --ink: #15181D;
+  --crisis-a: #FFD23F; /* v499 : bandes du mode crise (jaune et noir, mêmes en sombre), rien d'autre */
+  --crisis-b: #15181D;
   --muted: #5C6370;
   --line: #D6D0C4;
   --bg: #FFFFFF;
@@ -1670,3 +1672,13 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="pop"] .switch.on { background: var(--plaque-img); }
 :root[data-look="pop"] .switch .knob { box-shadow: 0 0 0 3px var(--ink); }
 
+
+/* v499 (mes choix 2 A et « A attentat ») : mode crise allumé = bandes rayées jaune et noir de 12 px en haut et en bas de l'écran,
+   par-dessus tout, jamais touchables ; posées par markCrisis() sauf en mode Abri. Le jaune et noir ne veut rien dire d'autre (CHARTE.md §2). */
+html[data-crise]::before, html[data-crise]::after { content: ""; position: fixed; left: 0; right: 0; height: 12px; z-index: 99999; pointer-events: none;
+  background: repeating-linear-gradient(-45deg, var(--crisis-a) 0 14px, var(--crisis-b) 14px 28px); }
+html[data-crise]::before { top: 0; }
+html[data-crise]::after { bottom: 0; }
+/* v499 : en mode crise, le petit point du style passe par-dessus la bande du haut, plein, cerclé de papier, sinon il disparaît dans les rayures. */
+html[data-crise] .look-dot { z-index: 100000; }
+html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
