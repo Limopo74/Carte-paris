@@ -108,7 +108,7 @@ export function memoryHere(points, pos, shown = {}, now = Date.now(), maxM = MEM
 }
 
 /** Le titre du rappel (v214) : « ici » n'est vrai que jusqu'à 100 m ; au-delà, la distance réglée peut aller à 500 m, on donne les minutes à pied. */
-export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passée ici' : `Déjà passée · ${durText(minutes)} à pied`);
+export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passée ici' : `Déjà passée · ${typeof minutes === 'string' ? minutes : durText(minutes)} à pied`);
 
 /** Le carnet des rappels : remis à zéro pour un lieu après 7 jours ; les vieux rappels (plus de 7 jours) sont oubliés. */
 export function markShown(shown, id, now = Date.now()) {

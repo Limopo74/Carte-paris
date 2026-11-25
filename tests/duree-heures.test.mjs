@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { durText, walkLabel } from '../js/geo.js';
+import { durText, walkLabel, walkWhen, walkMinutes } from '../js/geo.js';
 import { tuningText } from '../js/reglages.js';
 import { vueSub, VUES } from '../js/vues.js';
 
@@ -33,4 +33,18 @@ test('aucun « ${…} min » brut dans le code : chaque durée passe par durText
     });
   }
   assert.deepEqual(bad, []);
+});
+
+// v499 (ma demande du 25 nov.) : au-delà de 1 km, la distance et la durée.
+test('walkWhen : la durée seule jusqu\'à 1 km, puis « distance · durée »', () => {
+  assert.equal(walkWhen(500), durText(walkMinutes(500)));
+  assert.equal(walkWhen(999), durText(walkMinutes(999)));
+  assert.equal(walkWhen(1000), `1,0 km · ${durText(walkMinutes(1000))}`);
+  assert.match(walkWhen(9100), /^9,1 km · \d h \d\d$/);
+  assert.match(walkWhen(12400), /^12 km · \d h \d\d$/);
+  assert.ok(!walkWhen(9100, true).includes(' h '), 'insécables dans chaque morceau');
+  assert.match(walkWhen(9100, true), / · /, 'le point reste coupable');
+});
+test('Points de vue : distance et durée dans la petite ligne au-delà de 1 km', () => {
+  assert.match(vueSub(VUES[0], walkWhen(9100, true), new Date('2026-11-25')), /^9,1\u00a0km · \d\u00a0h\u00a0\d\d · /);
 });

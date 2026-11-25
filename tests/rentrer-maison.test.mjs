@@ -32,7 +32,7 @@ test('fastestHomeOption : loin de Maison, comme avant (la plus rapide, sans traj
 test('Rentrer : la ligne de ma station Maison dit « c\'est ta station », sans minutes de métro', () => {
   const i = app.indexOf('async function openHomePlan');
   const body = app.slice(i, app.indexOf('\n}\n', i));
-  assert.match(body, /o\.st === home\.st \? `\$\{durText\(walkMinutes\(o\.d\)\)\} à pied · c'est ta station \$\{home\.label\}`/);
+  assert.match(body, /o\.st === home\.st \? `\$\{walkWhen\(o\.d\)\} à pied · c'est ta station \$\{home\.label\}`/);
   assert.match(body, /fastestHomeOption\(opts, home\.st, walk\)/);
   assert.match(body, /const homeNear = opts\.some\(\(o\) => o\.st === home\.st\)/);
   assert.match(body, /\(best \? walk <= best\.plan\.minutes : homeNear\) \? el\('p', \{ class: 'summary' \}/);

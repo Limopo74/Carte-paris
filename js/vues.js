@@ -66,9 +66,10 @@ export function vueFermeText(v, now = new Date()) {
   return `Fermée jusqu'au ${d.getDate() === 1 ? '1er' : d.getDate()} ${MOIS[d.getMonth()]}${v.ferme.pourquoi ? ` (${v.ferme.pourquoi})` : ''}.`;
 }
 
-/** La petite ligne d'une ligne de liste : « 6 min · Gratuit », « Payant · sur réservation ». */
+/** La petite ligne d'une ligne de liste : « 6 min · Gratuit », « 2,4 km · 31 min · Gratuit », « Payant · sur réservation ».
+ *  `minutes` : un nombre de minutes, ou le texte déjà écrit (walkWhen, v499). */
 export function vueSub(v, minutes = null, now = new Date()) {
-  const parts = [minutes != null ? `${durText(minutes).replace(/ /g, '\u00a0')}` : ''];
+  const parts = [minutes == null ? '' : typeof minutes === 'string' ? minutes : durText(minutes).replace(/ /g, '\u00a0')];
   if (!vueStale(now)) parts.push(v.libre ? 'Gratuit' : `Payant${v.acces ? ` · ${v.acces}` : ''}`);
   return parts.filter(Boolean).join(' · ');
 }

@@ -55,6 +55,14 @@ export function durText(n) {
   return `${h} h${mn ? ` ${String(mn).padStart(2, '0')}` : ''}`;
 }
 
+/** Depuis ma position : la durée seule jusqu'à 1 km (« 12 min »), puis la distance et la durée (« 9,1 km · 1 h 57 »)
+ *  (v499, ma demande du 25 nov.). `nb` : espaces insécables dans chaque morceau, pour une petite ligne de liste. */
+export function walkWhen(m, nb = false) {
+  const keep = (t) => (nb ? t.replace(/ /g, '\u00a0') : t);
+  const t = keep(durText(walkMinutes(m)));
+  return m >= 1000 ? `${keep(distText(m))} · ${t}` : t;
+}
+
 /** « ≈ 12 min à pied », « ≈ 1 h 10 à pied », ou « à 385 km » quand la marche dépasserait 3 h. */
 export function walkLabel(m) {
   const min = walkMinutes(m);
