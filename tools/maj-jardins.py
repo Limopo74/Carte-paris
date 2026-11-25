@@ -10,6 +10,8 @@ champs identifiant, nsq_espace_vert, nom, type, geo_point_2d, geo_shape.
 Gardés : les « Promenades ouvertes » (squares, jardins, parcs, promenades), les « Jardins d'Etat » (Luxembourg, Tuileries…)
 et les « Bois ». Écartés : jardinières et décorations de la voie publique, jardinets décoratifs (on n'y entre pas),
 jardins partagés, cimetières, jardins de musées (leurs horaires sont ceux du musée, souvent payant).
+v450 : sauf les trois grands cimetières (Père-Lachaise, Montparnasse, Montmartre, par leur identifiant), gardés pour leur contour
+seulement (type « c ») : leurs horaires, portes et tombes sont dans data/cimetieres.json, tenu à la main (ceux du jeu sont ceux du bureau).
 Chaque contour est simplifié (écart de 1,5 m au plus), arrondi au mètre (5 décimales) ; la surface est calculée sur le
 contour (trous retirés) : 4 ha ou plus = « grand jardin » (bandeau « Maintenant »).
 Les horaires ne sont pas copiés ici : ils changent avec les saisons, l'appli les lit dans la copie du jour du même jeu.
@@ -21,7 +23,8 @@ SRC, TODAY = sys.argv[1:3]
 MIN = int(sys.argv[3]) if len(sys.argv) > 3 else 500
 OUT = sys.argv[4] if len(sys.argv) > 4 else 'data/jardins.json'
 SOURCE = 'Îlots de fraîcheur – Espaces verts frais (Ville de Paris, licence ODbL)'
-KINDS = {'Promenades ouvertes': 'j', "Jardins d'Etat": 'e', 'Bois': 'b'}
+KINDS = {'Promenades ouvertes': 'j', "Jardins d'Etat": 'e', 'Bois': 'b', 'Cimetières': 'c'}
+CIMETIERES = {'ID154', 'ID130', 'ID129'}  # v450 : Père-Lachaise, Montparnasse, Montmartre (data/cimetieres.json, champ jid)
 S, N, W, E = 48.80, 48.91, 2.22, 2.48
 TOL_M = 1.5
 BIG_M2 = 40000
@@ -119,6 +122,8 @@ for r in rows(SRC):
     if not kind:
         continue
     rid = str(r.get('identifiant') or '').strip()
+    if kind == 'c' and rid not in CIMETIERES:
+        continue
     if not rid:
         nsq = r.get('nsq_espace_vert')
         rid = f'EV{nsq}' if isinstance(nsq, (int, float)) else ''
@@ -142,7 +147,7 @@ for r in rows(SRC):
         continue
     seen.add(rid)
     item = {'id': rid[:20], 'n': name[:120], 't': kind, 'c': [round(lat0, 5), round(lng0, 5)], 's': rings}
-    if area >= BIG_M2:
+    if area >= BIG_M2 and kind != 'c':
         item['big'] = 1
     items.append(item)
 

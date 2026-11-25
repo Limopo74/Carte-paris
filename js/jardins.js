@@ -18,7 +18,7 @@ export const WIND_GUST = 60;
 /** Pas de grand jardin dans le bandeau s'il ferme dans moins de 20 min : le temps d'y entrer et de s'asseoir. */
 export const CLOSE_MARGIN = 20;
 
-const KINDS = { j: 'Jardin public', e: 'Jardin public', b: 'Bois' };
+const KINDS = { j: 'Jardin public', e: 'Jardin public', b: 'Bois', c: 'Cimetière' }; // v450 : « c », les trois grands cimetières (js/cimetieres.js)
 const SMALL = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'l', 'd', 'et', 'à', 'au', 'aux', 'en', 'sur', 'dit', 'dite']);
 
 /** « SQUARE DU TEMPLE » → « Square du Temple » ; « JARDIN DE L'HOTEL SALE - LEONOR FINI » → « Jardin de l'Hotel Sale - Leonor Fini ».
@@ -104,7 +104,7 @@ export function nearestEdge(p, j) {
 }
 
 /** Les horaires du jardin (format OpenStreetMap), lus dans la copie du jour du jeu de la Ville, par l'identifiant ; '' si inconnus. */
-export const jardinRecord = (j, parks) => (parks ?? []).find((x) => x.id && x.id === j?.id) ?? null;
+export const jardinRecord = (j, parks) => (j?.kind === 'c' ? null : (parks ?? []).find((x) => x.id && x.id === j?.id) ?? null); // v450 : pas les horaires du jeu pour un cimetière (ceux du bureau)
 export const jardinHours = (j, parks) => jardinRecord(j, parks)?.hours ?? '';
 /** « 50 RUE BRETAGNE » → « 50 rue Bretagne » (le texte de la Ville, sans rien deviner) ; '' si absente. */
 export function jardinAddress(a) {
@@ -121,7 +121,7 @@ export function bigJardinNear(list, pos, { parks = [], shown = new Set(), now = 
   if (!pos || !Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return null;
   let best = null;
   for (const j of list ?? []) {
-    if (!j.big || shown.has(j.id)) continue;
+    if (!j.big || j.kind === 'c' || shown.has(j.id)) continue; // v450 : un cimetière n'est jamais un « grand jardin »
     if (Math.abs(j.lat - pos.lat) > 0.03 || Math.abs(j.lng - pos.lng) > 0.045) continue; // à plus de 3 km : inutile de calculer
     const d = distanceToJardin(pos, j);
     if (d > near) continue;

@@ -107,6 +107,9 @@ export function parseRecords(json, kind) {
           : /brumis/i.test(str(r.modele)) ? { extra: 'Brumisateur' } : {}),
       });
     } else if (kind === 'fraisLieux' || kind === 'fraisParcs') {
+      // v450 : pas de cimetière parmi les parcs : le jeu donne pour eux les horaires du bureau (fermé le dimanche), pas ceux des portes
+      // (les trois grands ont leurs horaires relevés à la main, js/cimetieres.js)
+      if (kind === 'fraisParcs' && /^cimeti/i.test(str(r.type))) continue;
       const name = str(r.nom);
       const pay = str(r.payant).toLowerCase();
       out.push({
