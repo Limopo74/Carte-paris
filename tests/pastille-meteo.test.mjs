@@ -74,3 +74,10 @@ test('la page et la pastille : six interrupteurs, la ligne dans Autres réglages
   assert.match(app, /\['thermometer-sun', 'Pastille météo', RA, /, 'Chercher un réglage la trouve');
   assert.match(draw, /wxBadge\.getBoundingClientRect\(\)\.right > innerWidth - 6\) wxBadge\.classList\.add\('wx-tight'\)/, 'trop large : les mots de l\'air s\'effacent, le point reste');
 });
+
+test('v481 (27 A) : le saint du jour, un lien vers Nominis dans Météo et air, aucun prénom dans l\'appli', () => {
+  const page = app.slice(app.indexOf('function openWeather('), app.indexOf("{ name: 'weather'"));
+  assert.match(app, /const NOMINIS = 'https:\/\/nominis\.cef\.fr\/';/);
+  assert.match(page, /el\('a', \{ class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' \}, ico\('external-link'\), 'Saint du jour \(Nominis\)'\)/);
+  assert.ok(page.indexOf('Saint du jour') > page.indexOf('Ce que montre la pastille'), 'sous l\'ancien bouton');
+});

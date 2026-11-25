@@ -81,7 +81,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (480)';
+const VERSION = '25 novembre 2026 (481)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8829,6 +8829,7 @@ const arrHere = () => (arrData ? arrSure(here, arrData) : null);
    Pastille météo ; au départ, seulement la température et l'air. Le canapé de Chez moi reste visible dès que Chez moi est
    allumé (un mode allumé dit toujours son état), même si l'arrondissement est éteint. */
 const wxOn = (k) => wxPart(state, k);
+const NOMINIS = 'https://nominis.cef.fr/'; // v481 : la page d'accueil montre le saint du jour (vérifié le 25 nov. 2026 : sainte Catherine d'Alexandrie)
 const WX_NAME = { arr: 'arrondissement', day: 'dimanche', temp: 'température', rain: 'pluie', air: 'air', sun: 'soleil' };
 /** La petite ligne de « Pastille météo » dans Autres réglages : ce qui est allumé. */
 function wxSub() {
@@ -8920,6 +8921,8 @@ function openWeather(redraw = false) {
     el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('pastille', named('Météo et air', () => openWeather())) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sliders-horizontal')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
+    // v481 (mon choix 27 A du 25 nov.) : le saint du jour sur Nominis (site de l'Église catholique en France) ; aucun prénom écrit dans l'appli
+    el('a', { class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Saint du jour (Nominis)'),
     el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
@@ -13567,6 +13570,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
     '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
     '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
@@ -13576,7 +13580,6 @@ const HELP = [
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
-    '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
