@@ -47,7 +47,7 @@ test('v442 : « comme au début » range TTB et toutes mes catégories dans ⋯ 
 test('v440 : Nouveautés, la ligne en tête', () => {
   const i = app.indexOf("['sparkles', 'Nouveautés', [");
   const lines = app.slice(i, app.indexOf(']],', i)).split('\n').filter((l) => l.trim().startsWith("'{"));
-  assert.ok(lines.slice(0, 5).some((l) => l.includes('**Les boutons comme au début**'))); // v441 : « Photo sous la goutte » au-dessus ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde » ; v445 : « Mon Paris plus court »
+  assert.ok(lines.slice(0, 6).some((l) => l.includes('**Les boutons comme au début**'))); // v441 : « Photo sous la goutte » au-dessus ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde » ; v445 : « Mon Paris plus court » ; v446 : une ligne de plus
 });
 
 test('v440 : la préparation d\'un proche part du même départ', () => {

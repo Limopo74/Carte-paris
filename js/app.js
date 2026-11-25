@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (445)';
+const VERSION = '25 novembre 2026 (446)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -12233,13 +12233,13 @@ function mySettingsBlock() {
 // ouverte seulement depuis le bouton de « Ta carte est vide ». 8 lignes au plus
 // (tests/prise-en-main.test.mjs). À revoir avec « Ce que j'utilise » (v255) quand il aura quelques semaines de comptes.
 const HELP = [
-  ['hand', 'Prise en main', [
-    '{locate-fixed} **Où suis-je** : Ma position, la cible dans la colonne de boutons. Le point bleu, c\'est toi ; la carte te suit.',
+  ['hand', 'Prise en main', [ // v446 (mon choix 3A du 25 nov.) : dans l'ordre de la colonne de boutons d'une appli neuve, puis le bas de l'écran
+    '{locate-fixed} **Ma position**, la cible dans la colonne de boutons : le point bleu, c\'est toi ; la carte te suit.',
+    '{calendar-days} **Sorties** : l\'agenda autour du centre de la carte. {alarm-clock} **Mon planning** : ce que tu as prévu.',
+    '{camera} **Vu en passant** : une photo tout de suite. {plus} **Ajouter un lieu** : + Ajouter, en bas, ou le doigt appuyé sur la carte (la page « Ce point »).',
+    '{house} **Rentrer** : quel métro prendre vers ta station Maison (tes stations : {settings} → Mes stations). **M**, la station la plus proche, est au départ dans ⋯ Plus.',
     '**Autour de moi**, le gros bouton en bas : tes lieux du plus proche au plus loin. En haut : Itinéraire, Sorties, Station, Où suis-je ?…',
     '**Aller à un lieu** : touche sa goutte sur la carte, ou sa ligne dans une liste. Sur sa fiche, **Y aller** ouvre Google Maps, **Boussole** montre la direction (même sans réseau), **Métro** dit quel métro prendre.',
-    '**M** : la station de métro la plus proche de toi. {house} **Rentrer** : quel métro prendre vers ta station Maison (au départ dans ⋯ Plus ; tes stations : {settings} → Mes stations).',
-    '{plus} **Ajouter un lieu** : + Ajouter, en bas. Ou laisse le doigt appuyé sur la carte à l\'endroit voulu : la page « Ce point » s\'ouvre (Y aller, Boussole, Métro, Ajouter).',
-    '{calendar-days} **Sortir** : Sorties, l\'agenda autour du centre de la carte. {alarm-clock} **Mon planning** : ce que tu as prévu.',
     '{save} **Ne rien perdre** : tes lieux sont seulement sur ce téléphone. Fais souvent {settings} → Sauvegarde ; une pastille sur Réglages te le rappelle.',
     '{info} **Perdue dans un écran** : la ligne « Aide », tout en bas, explique l\'écran. {chevron-down} à côté de la croix montre la carte ; le retour du téléphone ramène à l\'écran d\'avant.',
   ]],
@@ -12516,6 +12516,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter. Réglages → Aide de l\'appli → Prise en main.',
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
@@ -12525,7 +12526,6 @@ const HELP = [
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
-    '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12575,6 +12575,29 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 window.addEventListener('appinstalled', () => { installEvt = null; if (view === `welcome:${WELCOME_STEPS}`) openWelcome(WELCOME_STEPS); });
 
+// v446 (mes choix 1A 2A 3A du 25 nov.) : les grandes fonctions de Bienvenue suivent la colonne de boutons, de haut en bas,
+// avec leur icône et leur nom (renommé compris) : au départ Ma position, Sorties et Mon planning (une ligne), Vu en passant, Rentrer.
+// 4 lignes de boutons au plus (au-delà, « Importer les lieux d'un proche » passe sous le bouton du bas en Très grand), puis Autour de moi et + Ajouter.
+// « Tes lieux restent sur ce téléphone » reste à l'étape C'est prêt (choix 2A).
+const WELCOME_TOOL_LINES = {
+  locate: 'le point bleu, c\'est toi.', sorties: 'l\'agenda.', planning: 'ce que tu as prévu.',
+  vu: 'une photo, vite.', home: 'le métro pour rentrer.', metro: 'la station la plus proche.',
+  velib: 'la station Vélib\' la plus proche.', pratique: 'fontaine et toilettes les plus proches.', paris: 'la carte revient au centre de Paris.',
+  notes: 'une note du jour, sans lieu.', myparis: 'ton journal, ton planning, tes chiffres.', circuits: 'des balades toutes prêtes.',
+};
+function welcomeLines() {
+  const hidden = hiddenNow(); const more = moreList();
+  const shown = normalizeTools(state.mapTools).filter((t) => !hidden.includes(t) && !more.includes(t) && WELCOME_TOOL_LINES[t]);
+  const line = (t) => `${ICON_NAMES.has(TOOL_INFO[t].icon) ? `{${TOOL_INFO[t].icon}} ` : ''}**${toolName(t)}** : ${WELCOME_TOOL_LINES[t]}`;
+  const out = [];
+  for (const t of shown) {
+    if (out.length === 4) break;
+    if (t === 'planning' && shown.includes('sorties')) continue; // dans la ligne de Sorties
+    out.push(t === 'sorties' && shown.includes('planning') ? `${line('sorties').replace(/\.$/, ' ;')} ${line('planning')}` : line(t));
+  }
+  return [...out, '**Autour de moi**, en bas : tes lieux, du plus proche au plus loin. Sur leur fiche, **Y aller**.', '{plus} **Ajouter**, en bas : un lieu.'];
+}
+
 function openWelcome(step = 1) {
   if (step === 1) { try { storage.setItem(FIRST_KEY, '1'); } catch { /* rien */ } }
   const go = (n) => () => openWelcome(n);
@@ -12593,8 +12616,7 @@ function openWelcome(step = 1) {
     1: ['Bienvenue', [
       // v314 (mon choix du 20 nov.) : les grandes fonctions en 4 lignes, avant les réglages
       welcomeGot?.msg || welcomeGot?.de ? el('p', {}, el('b', {}, welcomeGot.de ? `De la part ${deOf(welcomeGot.de)}` : 'Préparé pour toi'), welcomeGot.msg ? ` : « ${welcomeGot.msg} »` : '') : null, // v321
-      el('div', { class: 'help-list' }, ...['{locate-fixed} **Où suis-je** : le point bleu, c\'est toi.', '**Autour de moi** : tes lieux, du plus proche au plus loin.',
-        (compassOff() ? '**Y aller** : depuis la fiche d\'un lieu, à pied ou en métro.' : '**Y aller** : depuis la fiche d\'un lieu, à pied, en métro ou à la boussole.'), '{plus} **Ajouter** : un lieu, ou une photo prise en passant.'].map((l) => el('div', {}, ...helpLine(l)))),
+      el('div', { class: 'help-list' }, ...welcomeLines().map((l) => el('div', {}, ...helpLine(l)))),
       el('p', { class: 'help' }, 'Quelques réglages d\'abord : tout se change ensuite dans Réglages.'),
       el('h3', { class: 'fiche-sec' }, 'Tu as déjà des lieux ?'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => { welcomeNext = 0; pickImport('mine'); } }, ico('upload'), 'Restaurer ma sauvegarde'),
@@ -12625,7 +12647,7 @@ function openWelcome(step = 1) {
           state = home ? { ...state, myStations: state.myStations.map((x) => (x.id === home.id ? { ...x, station: st.n } : x)) } : addMyStation(state, st.n, 'Maison');
           persist(); toast(`${home?.label ?? 'Maison'} : ${st.n}`); openWelcome(nextOf(4)); // v319 : un appui de moins
         }, { name: 'Rentrer', fn: go(4) }) }, ico('house'), home ? 'Changer de station' : 'Choisir ma station Maison'),
-        el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Rentrer est rangé dans ⋯ Plus, dans la colonne de boutons.'),
+        el('p', { class: 'help tip' }, 'Facultatif. D\'autres stations (Travail…) : Réglages → Mes stations. Le bouton Rentrer est dans la colonne de boutons (ou dans ⋯ Plus).'),
       ];
     })(), [back, next()]],
     5: ['Ta position', [
