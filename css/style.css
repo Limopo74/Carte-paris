@@ -278,6 +278,9 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
   outline: 3px solid var(--focus); outline-offset: 2px;
 }
 .help { color: var(--muted); font-size: var(--t14); margin: 0; font-weight: 400; }
+/* v504 (« aère la page », 25 nov.) : un bouton posé sous une liste (Appeler le 34 30, Liste TTB) et la phrase sous un bouton respirent */
+.items + :is(.btn, a.btn) { margin-top: 12px; }
+:is(.btn, a.btn) + .help { margin-top: 10px; }
 .help > .btn { display: flex; width: 100%; margin-top: 8px; } /* v440 : le bouton qui remplace un chemin écrit reste sous sa phrase, dans l'Aide repliée */
 .error { color: var(--danger); font-size: var(--t14); margin: 0; }
 .warn {
@@ -318,7 +321,7 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-w
 .item-name { font-size: var(--t16); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .item-sub { color: var(--muted); font-size: var(--t14); }
 .note { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: var(--t16); line-height: 1.4; }
-.empty { color: var(--muted); margin: 6px 0; }
+.empty { color: var(--muted); margin: 8px 0 12px; }
 
 /* Étiquettes des cercles sur la carte */
 .ring-label {
@@ -1129,7 +1132,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .market-pin { width: 26px; height: 26px; background: var(--surface); color: var(--disc); border: 2px solid var(--disc); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); border-radius: var(--r); }
 
 /* Bandeaux */
-.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 8px; border-radius: var(--r); border-width: 2px; }
+.rain { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--rain-bg); border: 1px solid var(--rain-bd); color: var(--rain-ink); font-weight: 600; margin-bottom: 12px; border-radius: var(--r); border-width: 2px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t14); color: var(--muted); font-family: inherit; }
 .pin-in { display: flex; align-items: center; justify-content: center; line-height: 1; }
 /* Notes et favori : or Opéra */
@@ -1206,7 +1209,7 @@ body:has(#nowCard:not([hidden])):not(:has(#sheet:not([hidden]))) .leaflet-bottom
 a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip:not([aria-pressed="true"]) { background: var(--bg); }
 .btn.danger.solid { background: var(--danger); --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
-.tools { display: grid; gap: 6px; margin-bottom: 10px; grid-template-columns: repeat(var(--tools-cols, 4), minmax(0, 1fr)); } /* 8 outils : 2 rangées de 4, 3 colonnes en Grand et Très grand (v176) */
+.tools { display: grid; gap: 8px; margin-bottom: 14px; grid-template-columns: repeat(var(--tools-cols, 4), minmax(0, 1fr)); } /* 8 outils : 2 rangées de 4, 3 colonnes en Grand et Très grand (v176) */
 /* Pastilles de lignes (Rentrer) */
 .lines { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
 .line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;

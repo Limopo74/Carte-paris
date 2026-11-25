@@ -85,7 +85,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (503)';
+const VERSION = '25 novembre 2026 (504)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4516,7 +4516,8 @@ function renderNear(fit = false) {
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${prizeText(x)}`))),
         compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
         el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
-      body.push(el('p', { class: 'help' }, 'Baguette : Grand Prix de la Ville de Paris. Croissant : concours des boulangers du Grand Paris. 2024 à 2026 ; une boulangerie a pu fermer depuis.'),
+      body.push(el('p', { class: 'help' }, 'Primées de 2024 à 2026 : une boulangerie a pu fermer depuis.'), /* v504 : le détail des concours dans l'Aide repliée */
+        el('p', { class: 'help tip' }, 'Boulangeries : baguette, Grand Prix de la Ville de Paris ; croissant, concours des boulangers du Grand Paris.'),
         el('p', { class: 'help tip' }, `Listes tenues à la main d'après paris.fr et le site du Syndicat des boulangers du Grand Paris, vérifiées le ${BAGUETTES_CHECKED}. Les 10 premiers de chaque année, adresses de Paris seulement ; croissant 2026 : seulement la gagnante (le Syndicat n'a pas mis sa liste en ligne). Un prix vaut pour l'adresse primée, pas pour les autres boutiques de la même enseigne. Les heures d'ouverture ne sont pas connues ici.`));
     }
   }
@@ -4533,7 +4534,9 @@ function renderNear(fit = false) {
         el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
       // v489 (mon choix 1A du 25 nov.) : le seul numéro que donne chaque fiche de la Préfecture de Police, le même pour tous
       body.push(el('a', { class: 'btn', style: 'width:100%', href: `tel:${POLICE_TEL}`, 'aria-label': 'Appeler le 34 30, commissariat, pas pour une urgence' }, ico('phone'), 'Appeler le 34 30 (pas urgent)'));
-      body.push(el('p', { class: 'help' }, `Liste de la Préfecture de Police, relevée le ${COMMISSARIATS_CHECKED} ; les horaires sont ceux de sa page, les jours n'y sont pas écrits. Le 34 30 joint un commissariat (prix d'un appel local). En urgence : le 17 ou le 112.`));
+      // v504 (« aère la page », 25 nov.) : la phrase utile reste visible, la source va dans l'Aide repliée (pas de texte gris de plusieurs lignes)
+      body.push(el('p', { class: 'help' }, 'Horaires de la Préfecture de Police : les jours n\'y sont pas écrits. En urgence : le 17 ou le 112.'), // mise en garde : reste visible
+        el('p', { class: 'help tip' }, `Commissariats : liste de la Préfecture de Police, relevée le ${COMMISSARIATS_CHECKED}. Le 34 30 joint un commissariat (prix d'un appel local).`));
     }
   }
   // v365 (mes choix 1A 2A) : la roue ouvre Distances et durées (TTB, passages couverts, Y aller) ; son retour revient ici
