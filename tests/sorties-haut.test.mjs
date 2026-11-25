@@ -28,3 +28,13 @@ test('2A : une sortie à plus de 3 h à pied montre la distance seule, sans minu
   const card = body('sortieCard');
   assert.match(card, /isFar\(d\)/, 'la règle de la v217 (FAR_WALK_MIN) vaut aussi dans Sorties');
 });
+
+test('3A : Mes salles suit Dehors / À l\'abri, dans la liste et dans les doublons', () => {
+  assert.match(body('venueBox'), /const where = venueWhere\(\);[\s\S]{0,120}passWhere\(e\.indoor, where\)/);
+  assert.match(body('venueBox'), /`Mes salles \(\$\{every\.length\}\)`/, 'le bouton compte tout le programme, comme sa page');
+  assert.match(body('venueShownKeys'), /passWhere\(e\.indoor, venueWhere\(\)\)/);
+  // une sortie sans indication est écartée dès qu'un filtre est choisi (règle d'avant)
+  assert.equal(passWhere(null, 'in'), false);
+  assert.equal(passWhere(true, 'in'), true);
+  assert.equal(passWhere(null, ''), true);
+});

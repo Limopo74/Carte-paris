@@ -7321,10 +7321,12 @@ function openVenuePhoto(name, back) {
     foot(backBtn(back)),
   ), { name: `sallephoto:${artistKey(name)}`, again, tall: true });
 }
+/** v445 (mon choix 3A du 25 nov.) : Mes salles suit Dehors / À l'abri, comme le reste de Tout. */
+const venueWhere = () => (eventsMode === 'all' || eventsMode === 'free' ? evWhere : '');
 function venueShownKeys() {
   const names = cleanVenues(state.venues);
   if (!names.length || weekCache?.day !== new Date().toDateString()) return new Set();
-  return new Set(venueEvents(weekCache.items ?? [], names).slice(0, 3).map(({ e }) => evKey(e)));
+  return new Set(venueEvents(weekCache.items ?? [], names).filter(({ e }) => passWhere(e.indoor, venueWhere())).slice(0, 3).map(({ e }) => evKey(e)));
 }
 /**
  * Mes salles en tête de Sorties → Tout (v166) : les 3 prochains rendez-vous de mes salles cette semaine, puis « Mes salles ».
@@ -7339,12 +7341,15 @@ function venueBox(back, todayRow = () => null) {
   if (!names.length) return line('Suis tes lieux préférés (« Suivre ce lieu » sur la page d\'une sortie) : leur programme ici');
   const box = el('div', { class: 'stack', style: 'gap:0' });
   const draw = () => {
-    const found = venueEvents(weekCache?.items ?? [], names);
+    const every = venueEvents(weekCache?.items ?? [], names);
+    const where = venueWhere();
+    const found = every.filter(({ e }) => passWhere(e.indoor, where));
     const o = evFrom;
-    if (!found.length) { fill(box, line(`${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} : rien cette semaine`)); return; }
+    if (!found.length) { fill(box, line(`${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} : rien${every.length && where ? (where === 'out' ? ' dehors' : ' à l\'abri') : ''} cette semaine`)); return; }
     fill(box, el('h3', { class: 'ring-title' }, el('span', {}, 'Mes salles cette semaine'), el('span', {}, String(found.length))),
       el('ul', { class: 'items ev-list' }, found.slice(0, 3).map(({ e }) => todayRow(e) ?? eventRow({ ...e, d: o ? distanceM(o, e) : null }, back, { week: true }))),
-      el('button', { type: 'button', class: 'ev-more', onclick: go }, `Mes salles (${found.length})`, ico('chevron-right')));
+      // la page Mes salles montre tout le programme, sans le filtre : son nombre aussi
+      el('button', { type: 'button', class: 'ev-more', onclick: go }, `Mes salles (${every.length})`, ico('chevron-right')));
   };
   if (weekCache?.day === new Date().toDateString()) draw();
   else { fill(box, line('Programme de la semaine en chargement…')); weekEvents().then(() => { if (!box.isConnected) return; if (venueShownKeys().size) openEvents(); else draw(); }) /* v186 : redessine Sorties pour retirer les doublons */.catch(() => { if (box.isConnected) fill(box, line('L\'agenda de la semaine ne répond pas')); }); }
