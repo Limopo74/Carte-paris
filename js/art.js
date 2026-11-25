@@ -700,7 +700,7 @@ export function topVenues(events, { followed = [], max = 15 } = {}) {
     if (same) g.titles.forEach((t) => same.titles.add(t));
     else kept.push(g);
   }
-  return kept.map((g) => ({ name: g.name, n: g.titles.size })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'fr')).slice(0, max);
+  return kept.map((g) => ({ name: g.name, n: g.titles.size, lat: g.lat, lng: g.lng })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'fr')).slice(0, max);
 }
 
 /* ---------- 19. Garder un lieu en favori d'un appui (v167) : la catégorie devinée parmi les miennes ---------- */

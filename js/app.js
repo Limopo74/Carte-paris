@@ -69,6 +69,7 @@ import { REPERES, REPERE_SVG, REPERE_SIZE, placeReperes } from './reperes.js';
 import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
+import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
 import { cleanCimetieres, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -78,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (467)';
+const VERSION = '25 novembre 2026 (468)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3806,9 +3807,9 @@ const HOURS_DAYS = [['Mo', 'Lun', 'lundi'], ['Tu', 'Mar', 'mardi'], ['We', 'Mer'
 const HOURS_STEP = 15;
 /** « 9h30 », « 19h », « minuit » (typo() affiche « 9 h 30 »). */
 const clockText = (m) => (m % 1440 === 0 ? 'minuit' : `${Math.floor(m / 60) % 24}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`);
-function openHours(p, back) {
-  const again = () => openHours(p, back);
-  const toFiche = () => openDetail(p.id, back);
+function openHours(p, back, after = null) { // v467 : `after` = À mettre à jour, qui reprend la main (Enregistrer, Annuler, Effacer)
+  const again = () => openHours(p, back, after);
+  const toFiche = after ?? (() => openDetail(p.id, back));
   const cur = simpleHours(p.hours);
   const v = cur ? { days: new Set(cur.days), open: cur.open, close: cur.close, pause: cur.pause ? [...cur.pause] : null }
     : { days: new Set(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']), open: 10 * 60, close: 19 * 60, pause: null };
@@ -7439,6 +7440,17 @@ async function openVenuePhotos(back) {
     foot(backBtn(back)),
   ), { name: 'sallesphotos', again, tall: true });
 }
+/** Ranger ma photo d'une salle (Photos des salles, À mettre à jour) ; rend true quand elle est enregistrée. */
+async function saveVenuePhotoFile(name, f) {
+  let blob;
+  try { blob = await compressImage(f, VENUE_PHOTO_SIDE); } catch { toast('Photo illisible.', true); return false; }
+  const id = `salle-${newPhotoId()}`;
+  try { await putPhoto(id, blob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return false; }
+  const r = setVenuePhoto(venuePhotos, name, id);
+  venuePhotos = r.list; saveVenuePhotos();
+  if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
+  return true;
+}
 function openVenuePhoto(name, back) {
   const again = () => openVenuePhoto(name, back);
   const cur = venuePhotoOf(name, venuePhotos);
@@ -7447,15 +7459,7 @@ function openVenuePhoto(name, back) {
   const take = async (input) => {
     const f = input.files?.[0];
     input.value = '';
-    if (!f) return;
-    let blob;
-    try { blob = await compressImage(f, VENUE_PHOTO_SIDE); } catch { toast('Photo illisible.', true); return; }
-    const id = `salle-${newPhotoId()}`;
-    try { await putPhoto(id, blob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; }
-    const r = setVenuePhoto(venuePhotos, name, id);
-    venuePhotos = r.list; saveVenuePhotos();
-    if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
-    again(); toast(`Photo de ${name} enregistrée`);
+    if (f && await saveVenuePhotoFile(name, f)) { again(); toast(`Photo de ${name} enregistrée`); }
   };
   camera.addEventListener('change', () => take(camera));
   gallery.addEventListener('change', () => take(gallery));
@@ -7486,6 +7490,122 @@ function openVenuePhoto(name, back) {
     zone, camera, gallery,
     foot(backBtn(back)),
   ), { name: `sallephoto:${artistKey(name)}`, again, tall: true });
+}
+/* ---------- v467 (mes choix du 25 nov.) : Réglages → Autres réglages → À mettre à jour sur place ----------
+   Les 5 choses les plus proches de ma position qui ne se vérifient que sur place (js/a-verifier.js), une tombe au plus.
+   Chaque étape ouvre une petite page : ce qu'il faut faire, un seul bouton plein, Y aller. Une étape faite sort de la liste
+   (avec « Annuler ») ; la suivante la plus proche entre. La position de la liste est gardée tant qu'elle est ouverte. */
+let checkFrom = null;
+const CHECK_ICON = { stale: 'store', hours: 'clock', venue: 'camera', vue: 'mountain', tomb: 'flower-2' };
+async function checkCands() {
+  const now = Date.now();
+  const out = [];
+  for (const p of state.points) {
+    const kind = pointCheck(p, staleSince(p, catOf(p.cat), now), now);
+    if (kind) out.push({ kind, key: p.id, name: p.name, lat: p.lat, lng: p.lng, p });
+  }
+  let agendaOk = true;
+  try { await weekEvents(); } catch { agendaOk = false; }
+  if (agendaOk && weekCache) {
+    const items = weekCache.items ?? [];
+    const mine = cleanVenues(state.venues);
+    for (const name of mine) {
+      const e = venueEvents(items, [name])[0]?.e;
+      if (e && !venuePhotoOf(name, venuePhotos)) out.push({ kind: 'venue', key: artistKey(name), name, lat: e.lat, lng: e.lng });
+    }
+    for (const x of topVenues(items, { followed: mine })) if (!venuePhotoOf(x.name, venuePhotos)) out.push({ kind: 'venue', key: artistKey(x.name), name: x.name, lat: x.lat, lng: x.lng });
+  }
+  // Points de vue gratuits, ouverts aujourd'hui, sans ma photo ; rien quand la liste est trop vieille (gratuit ou non n'est plus sûr)
+  if (!vueStale()) for (const v of VUES) {
+    if (!v.libre || vueFermee(v) || myArcadePlace(state.points, v)?.photos?.length) continue;
+    out.push({ kind: 'vue', key: v.id, name: v.nom, lat: v.lat, lng: v.lng, v });
+  }
+  if (!cimData) await loadCimetieres();
+  for (const c of cimData ?? []) {
+    const h = cimHours(c);
+    const st = h ? openState(h) : null;
+    if (st && !st.open) continue; // cimetière fermé maintenant : pas de tombe à photographier
+    for (const t of c.tombs) {
+      const place = tombPlace(c, t);
+      if (!place || myTombPlace(t, place)?.photos?.length) continue;
+      out.push({ kind: 'tomb', key: `${c.id}:${t.key}:${t.div}`, name: t.name, lat: place.lat, lng: place.lng, c, t });
+    }
+  }
+  return { cands: out, agendaOk };
+}
+async function openToCheck(back, { keep = false } = {}) {
+  track('À mettre à jour');
+  const self = named('À mettre à jour', () => openToCheck(back, { keep: true }));
+  const title = [ico('map-pinned'), ' À mettre à jour'];
+  if (!keep || !checkFrom) {
+    const fix = freshHere();
+    if (fix) checkFrom = fix;
+    else {
+      openSheet(title, el('p', { class: 'help' }, 'Recherche de ta position…'), { name: 'averifier' });
+      waitToast('Recherche de ta position… (quelques secondes pour plus de précision)');
+      try { checkFrom = await locate(); hideToast(); } catch (e) {
+        hideToast();
+        openSheet(title, el('div', { class: 'stack' },
+          el('p', { class: 'warn' }, `Position introuvable : la liste part de l'endroit où tu es. ${e?.message ?? ''}`.trim()),
+          el('button', { type: 'button', class: 'btn c-info', onclick: () => openToCheck(back) }, ico('rotate-cw'), 'Réessayer'),
+          foot(backBtn(back))), { name: 'averifier' });
+        return;
+      }
+    }
+  }
+  if (view !== 'averifier') openSheet(title, el('p', { class: 'help' }, 'Recherche des lieux à vérifier…'), { name: 'averifier' });
+  const { cands, agendaOk } = await checkCands();
+  const list = pickChecks(cands, checkFrom, distanceM);
+  const row = (c) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCheckStep(c, self) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(CHECK_ICON[c.kind], { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, c.name),
+      el('span', { class: 'item-sub' }, `${checkWhat(c, { hoursMonth: c.p?.hoursAt ? monthYear(c.p.hoursAt) : '' })} · ${distText(c.d)}`)),
+    el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `Les ${CHECK_MAX} lieux à vérifier les plus proches de toi, du plus proche au plus loin. Calculé sur ton téléphone.`),
+    agendaOk ? null : el('p', { class: 'warn' }, 'L\'agenda de la Ville ne répond pas : les salles n\'y sont pas.'),
+    list.length ? el('ul', { class: 'items' }, list.map(row)) : el('p', { class: 'empty' }, 'Rien à vérifier près de toi.'),
+    el('p', { class: 'help tip' }, 'Salles de l\'agenda sans ta photo, points de vue gratuits et tombes célèbres sans ta photo (une tombe au plus), restos et commerces qui ont pu fermer, horaires notés il y a plus d\'un an. Une étape faite sort de la liste ; la suivante la plus proche entre.'),
+    foot(backBtn(back)),
+  ), { name: 'averifier', tall: true, again: () => openToCheck(back, { keep: true }), onClose: () => { checkFrom = null; } });
+}
+/** La page d'une étape : ce qu'il faut vérifier, un seul bouton plein, puis Y aller. */
+function openCheckStep(c, back) {
+  const done = () => back();
+  const p = c.p;
+  const undoPoint = (field, old) => () => { if (old == null) delete p[field]; else p[field] = old; persist(); renderMarkers(); if (view === 'averifier') back(); };
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const f = camera.files?.[0]; camera.value = '';
+    if (!f) return;
+    if (await saveVenuePhotoFile(c.name, f)) { done(); toast(`Photo de ${c.name} enregistrée`); }
+  });
+  const snap = () => {
+    if (c.kind === 'venue') camera.click();
+    else if (c.kind === 'vue') vuePhoto(c.v, back, { ...(state.categories.some((x) => x.id === 'culture') ? { cat: 'culture' } : {}) }, done);
+    else tombPhoto({ id: c.c.jid }, c.t, back, { cat: tombCat(), address: c.c.name }, done);
+  };
+  const photoBtn = el('button', { type: 'button', class: 'btn c-add solid', onclick: snap }, ico('camera'), 'Prendre la photo');
+  const what = {
+    stale: [p ? staleText(staleSince(p, catOf(p.cat)) ?? Date.now()) + '. Regarde sur place.' : '', 'Encore ouvert ?', [
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => { const old = p.checked; p.checked = Date.now(); persist(); renderMarkers(); done(); toast('Noté : vu ouvert aujourd\'hui', false, { label: 'Annuler', fn: undoPoint('checked', old) }); } }, ico('check'), 'Toujours ouvert'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { p.gone = Date.now(); persist(); renderMarkers(); done(); toast('Noté fermé : l\'appli ne le propose plus', false, { label: 'Annuler', fn: undoPoint('gone', null) }); } }, ico('x'), 'Fermé définitivement')]],
+    hours: [p?.hoursAt ? `Horaires notés en ${monthYear(p.hoursAt)}. Compare avec ceux de la porte.` : '', 'Les horaires', [
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => openHours(p, back, done) }, ico('clock'), 'Noter les horaires'),
+      el('button', { type: 'button', class: 'btn', onclick: () => { const old = p.hoursAt; p.hoursAt = Date.now(); persist(); renderMarkers(); done(); toast('Noté : horaires toujours les mêmes', false, { label: 'Annuler', fn: undoPoint('hoursAt', old) }); } }, ico('check'), 'Toujours les mêmes')]],
+    venue: ['Ta photo de la salle remplace l\'icône dans Sorties quand l\'agenda n\'a pas de photo.', 'Photo de la salle', [photoBtn]],
+    vue: ['Point de vue gratuit. Ta photo va dans tes lieux, avec lui.', 'Photo du point de vue', [photoBtn]],
+    tomb: [c.c ? `${c.c.short} · division ${c.t.div}. Ta photo va dans tes lieux, avec elle.` : '', 'Photo de la tombe', [photoBtn]],
+  }[c.kind];
+  const d = checkFrom ? distanceM(checkFrom, c) : null;
+  openSheet([ico(CHECK_ICON[c.kind]), ` ${c.name}`], el('div', { class: 'stack' },
+    what[0] ? el('p', { class: 'help' }, what[0]) : null,
+    el('h3', { class: 'ring-title' }, what[1]),
+    ...what[2],
+    el('a', { class: 'btn c-info', href: mapsUrl(c, d ?? 0), target: '_blank', rel: 'noopener' }, ico('navigation'), d != null ? `Y aller · ${distText(d)}` : 'Y aller'),
+    camera,
+    foot(backBtn(back)),
+  ), { name: `averifier:${c.kind}:${c.key}`, again: () => openCheckStep(c, back) });
 }
 /** v445 (mon choix 3A du 25 nov.) : Mes salles suit Dehors / À l'abri, comme le reste de Tout. */
 const venueWhere = () => (eventsMode === 'all' || eventsMode === 'free' ? evWhere : '');
@@ -9963,7 +10083,7 @@ function openTombPlaques(t, plq, from, back) {
 }
 /** « Prendre une photo » d'une tombe, comme pour un jardin (v264) : sur ma fiche si la tombe est déjà dans mes lieux ; sinon elle y
  * est ajoutée seule (nom, cimetière, au milieu de sa division), avec « Annuler ». Rien ne part du téléphone. */
-function tombPhoto(j, t, back, add) {
+function tombPhoto(j, t, back, add, done = null) { // v467 : `done` = À mettre à jour, qui reprend la main après la photo
   const c = cimOf(j); const place = tombPlace(c, t);
   if (!c || !place) return;
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
@@ -9974,20 +10094,21 @@ function tombPhoto(j, t, back, add) {
     const mine = myTombPlace(t, place);
     if (mine) {
       if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
-      if (await savePhotos(mine, [f])) { renderMarkers(); openTombe(j, t, back); }
+      if (await savePhotos(mine, [f])) { renderMarkers(); if (done) done(); else openTombe(j, t, back); }
       return;
     }
     const np = newPoint({ name: t.name, cat: add.cat, lat: place.lat, lng: place.lng, address: add.address });
     state.points.push(np);
     if (!(await savePhotos(np, [f]))) { state.points = state.points.filter((p) => p !== np); return; }
     renderMarkers();
-    openTombe(j, t, back);
+    if (done) done(); else openTombe(j, t, back);
     toast(`${t.name} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
       for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
       renderMarkers();
       if (view === `tombe:${c.id}:${t.key}:${t.div}`) openTombe(j, t, back);
+      else if (done && view === 'averifier') done();
       toast('Tombe retirée de tes lieux, photo effacée');
     } });
   });
@@ -10166,7 +10287,7 @@ function openVue(v, back = null) {
     snap: () => vuePhoto(v, back, add) }); // pas d'« Écouter » : il reste aux plaques, passages et Où suis-je ? (mon choix 2A, v437)
 }
 /** « Prendre une photo » sur la page d'un point de vue : comme un passage couvert (v238), le lieu s'ajoute seul à mes lieux. */
-function vuePhoto(v, back, add) {
+function vuePhoto(v, back, add, done = null) { // v467 : `done` = À mettre à jour
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   camera.addEventListener('change', async () => {
     const f = camera.files?.[0];
@@ -10175,7 +10296,7 @@ function vuePhoto(v, back, add) {
     const mine = myArcadePlace(state.points, v);
     if (mine) {
       if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
-      if (await savePhotos(mine, [f])) { renderMarkers(); openVue(v, back); }
+      if (await savePhotos(mine, [f])) { renderMarkers(); if (done) done(); else openVue(v, back); }
       return;
     }
     if (findDuplicate(state.points, { name: v.nom, lat: v.lat, lng: v.lng })) { openForm({ name: v.nom, lat: v.lat, lng: v.lng, address: v.adresse ?? '', acc: null, ...add, photoFile: f }); return; }
@@ -10183,13 +10304,14 @@ function vuePhoto(v, back, add) {
     state.points.push(np);
     if (!(await savePhotos(np, [f]))) { state.points = state.points.filter((p) => p !== np); return; }
     renderMarkers();
-    openVue(v, back);
+    if (done) done(); else openVue(v, back);
     toast(`${v.nom} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
       for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
       renderMarkers();
       if (view === `vue:${v.id}`) openVue(v, back);
+      else if (done && view === 'averifier') done();
       toast('Point de vue retiré de tes lieux, photo effacée');
     } });
   });
@@ -10541,6 +10663,7 @@ const SETTINGS_FIND = [
   ['sliders-horizontal', 'Filtres affichés', RA, 'filtres lignes masquer', (b) => openFilterChoice(b)],
   ['file-text', 'Fiche d\'un lieu', RA, 'fiche qr code avis google uber etoiles chemin a pied horaires partager masquer', (b) => openSettings('fiche', b)],
   ['camera', 'Photos des salles', RA, 'photos salles concerts theatre', (b) => openVenuePhotos(b)],
+  ['map-pinned', 'À mettre à jour sur place', RA, 'verifier mettre a jour photos ouvert ferme horaires tombes points de vue salles tournee', (b) => openToCheck(b)],
   ['image', 'Photos dans Sorties', RA, 'photos sorties agenda vignette', () => openSettings('autres')],
   ['badge-percent', 'J\'ai un passe Navigo', RA, 'navigo avantages passe', () => openSettings('autres')],
   ['spell-check', 'Écrire au masculin', RA, 'masculin feminin homme accord', () => openSettings('autres')],
@@ -11493,6 +11616,7 @@ function openSettings(section = null, from = null) {
     row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis, Uber, étoiles, Chemin, Horaires, Partager', () => openSettings('fiche'), false, 'c-guide'),
     // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
+    row('map-pinned', 'À mettre à jour sur place', 'Les 5 lieux à vérifier près de toi', () => openToCheck(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'), // v467 (mon choix A du 25 nov.)
     // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
     onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
       state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
@@ -13199,6 +13323,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). Chacun a ses puces, ses icônes et le contour de tes gouttes. En sombre, toujours Signalétique. Les boutons restent à leur place.',
@@ -13208,7 +13333,6 @@ const HELP = [
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
-    '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

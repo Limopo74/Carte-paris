@@ -89,7 +89,8 @@ test('Les salles les plus présentes : sorties différentes comptées, sans bibl
     ev('I', 'Le Double Fond', 48.8556, 2.3626),
   ];
   const top = topVenues(events, { followed: ['Le Double Fond'] });
-  assert.deepEqual(top, [{ name: '38Riv', n: 3 }, { name: 'Le Baiser Salé', n: 2 }, { name: 'Forum des images', n: 1 }]);
+  assert.deepEqual(top.map(({ name, n }) => ({ name, n })), [{ name: '38Riv', n: 3 }, { name: 'Le Baiser Salé', n: 2 }, { name: 'Forum des images', n: 1 }]);
+  assert.ok(top.every((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng)), 'v467 : chaque salle garde sa position (À mettre à jour)');
   assert.equal(topVenues(events, { max: 1 }).length, 1);
   assert.deepEqual(topVenues([ev('X', '38Riv'), ev('Y', '38Riv Jazz Club', 48.87, 2.30)]).length, 2, 'deux lieux loin l\'un de l\'autre restent deux');
 });
@@ -122,7 +123,8 @@ test('Autres réglages → Ce qui s\'affiche : « Photos des salles » sous Fich
   const a = page.indexOf("onOff('masculin'");
   const d = page.indexOf("'ring-title menu-group' }, 'Appli')");
   assert.ok(f > 0 && c > f && b > c && a > b && d > a);
-  assert.ok(!page.slice(c + 10, b).includes('row('), 'les deux lignes Photos côte à côte');
+  // v467 (mon choix A du 25 nov.) : « À mettre à jour sur place » se glisse entre les deux, rien d'autre
+  assert.ok(!page.slice(c + 10, b).replace("row('map-pinned', 'À mettre à jour sur place'", '').includes('row('), 'les deux lignes Photos côte à côte, À mettre à jour seul entre elles');
   const notStyle = (t) => t.replace("row('palette', 'Style de l\\'appli'", ''); // v452 : Style de l'appli, une ligne de plus tout en bas
   assert.ok(!notStyle(page.slice(b, d)).includes('row('), 'les interrupteurs ensemble, en bas du groupe');
   assert.match(app, /'Dans Sorties, la photo de l\\'agenda passe toujours avant la tienne\.'/);
