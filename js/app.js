@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (440)';
+const VERSION = '25 novembre 2026 (441)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -347,7 +347,8 @@ const nameFav = (p) => (p.fav
   : el('span', { class: 'item-name' }, p.name));
 /** v391 : petite marque « avec photo » dans les listes de mes lieux (ma photo sur le lieu). Pas pour une note prise en passant
  *  (elle a toujours sa photo) ni pour un lieu d'un proche (ses photos ne partent jamais). Début de la petite ligne grise. */
-const photoMark = (p) => (p.photos?.length && !isPass(p) && !p.owner
+const myPhoto = (p) => Boolean(p.photos?.length && !isPass(p) && !p.owner);
+const photoMark = (p) => (myPhoto(p)
   ? el('span', { class: 'photo-mark', role: 'img', 'aria-label': p.photos.length > 1 ? `${p.photos.length} photos` : 'Avec photo' }, ico('image', { size: 16 }))
   : null);
 
@@ -697,7 +698,7 @@ function renderMarkers() {
       zIndexOffset: p.fav ? 500 : 0,
       alt: p.name,
     })
-      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? (canVanish(p, state.categories) ? ', disparue ou recouverte' : ', fermé définitivement') : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}`); n.removeAttribute('alt'); if (!seen) n.append(el('span', { class: 'pin-name', 'aria-hidden': 'true' }, shortName(p.name))); } }) // v397 : le nom sous la goutte, en texte brut
+      .on('add', (e) => { const n = e.target.getElement(); if (n && seen) seenThumb(n); if (n) { n.setAttribute('aria-label', `${p.name}, ${c.name}${p.gone ? (canVanish(p, state.categories) ? ', disparue ou recouverte' : ', fermé définitivement') : p.done ? `, ${didLower(c)}` : ''}${p.fav ? ', favori' : ''}${p.owner ? `, lieu de ${p.owner}` : ''}${soon ? `, sortie prévue ${planText(p.ticket)}` : ''}${myPhoto(p) ? ', avec photo' : ''}`); n.removeAttribute('alt'); if (!seen) n.append(el('span', { class: 'pin-name', 'aria-hidden': 'true' }, myPhoto(p) ? ico('image', { size: 13, stroke: 2.4 }) : null, shortName(p.name))); } }) // v397 : le nom sous la goutte, en texte brut ; v441 : devant lui, la marque photo des listes (v391) quand le lieu a ma photo
       .bindTooltip(el('span', {}, p.name), { direction: 'top', offset: [0, -16] }) // texte brut : un nom importé ne doit jamais devenir du HTML
       .on('click', () => { if (view === 'trace') { traceTap(p.lat, p.lng, p); return; } if (!moving) openDetail(p.id, arrBack()); })
       .addTo(pointsLayer);
@@ -12475,6 +12476,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
     '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue, Lignes et Vu en passant ; Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
@@ -12484,7 +12486,6 @@ const HELP = [
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
-    '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

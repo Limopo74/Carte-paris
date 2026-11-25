@@ -46,7 +46,22 @@ test('réglage : allumé au départ, gardé, dans la sauvegarde et les réglages
 
 test('le nom est du texte brut, sous Dessins des monuments, et le fichier est gardé hors ligne', () => {
   const app = readFileSync('js/app.js', 'utf8');
-  assert.match(app, /el\('span', \{ class: 'pin-name', 'aria-hidden': 'true' \}, shortName\(p\.name\)\)/);
+  assert.match(app, /el\('span', \{ class: 'pin-name', 'aria-hidden': 'true' \}, myPhoto\(p\) \? ico\('image', \{ size: 13, stroke: 2\.4 \}\) : null, shortName\(p\.name\)\)/);
   assert.ok(app.indexOf("onOff('names'") > app.indexOf("onOff('reperes'"));
   assert.match(readFileSync('sw.js', 'utf8'), /'js\/noms\.js'/);
+});
+
+test('v441 : la marque photo des listes (v391) devant le nom sous la goutte, avec la même règle', () => {
+  const app = readFileSync('js/app.js', 'utf8');
+  // même règle que la marque des listes : ma photo, pas une note prise en passant, pas un lieu d'un proche
+  assert.match(app, /const myPhoto = \(p\) => Boolean\(p\.photos\?\.length && !isPass\(p\) && !p\.owner\);/);
+  assert.match(app, /const photoMark = \(p\) => \(myPhoto\(p\)/);
+  // même icône que dans les listes
+  assert.match(app, /class: 'photo-mark'[^\n]*ico\('image'/);
+  assert.match(app, /class: 'pin-name'[^\n]*myPhoto\(p\) \? ico\('image'/);
+  // TalkBack l'entend sur la goutte (le nom est caché aux lecteurs d'écran)
+  assert.match(app, /myPhoto\(p\) \? ', avec photo' : ''/);
+  // la marque suit la taille du texte
+  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n')[1].includes('**Photo sous la goutte**'));
+  assert.match(readFileSync('css/style.css', 'utf8'), /\.pin-name \.ico svg \{ width: calc\(13px \* var\(--ts\)\); height: calc\(13px \* var\(--ts\)\); \}/);
 });

@@ -46,8 +46,8 @@ test('v440 : avec une liste TTB, « comme au début » range TTB dans ⋯ Plus ;
 
 test('v440 : Nouveautés, la ligne en tête', () => {
   const i = app.indexOf("['sparkles', 'Nouveautés', [");
-  const first = app.slice(i, app.indexOf(']],', i)).split('\n').find((l) => l.trim().startsWith("'{"));
-  assert.ok(first.includes('**Les boutons comme au début**'));
+  const lines = app.slice(i, app.indexOf(']],', i)).split('\n').filter((l) => l.trim().startsWith("'{"));
+  assert.ok(lines.slice(0, 2).some((l) => l.includes('**Les boutons comme au début**'))); // v441 : « Photo sous la goutte » au-dessus
 });
 
 test('v440 : la préparation d\'un proche part du même départ', () => {

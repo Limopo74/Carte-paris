@@ -10,9 +10,13 @@ const def = app.match(/const photoMark = \(p\) => \(([\s\S]*?)\n {2}: null\);/);
 
 test('la marque existe : seulement avec une photo, pas pour une note prise en passant ni pour un lieu d\'un proche', () => {
   assert.ok(def, 'photoMark absente');
-  assert.match(def[1], /p\.photos\?\.length/);
-  assert.match(def[1], /!isPass\(p\)/);
-  assert.match(def[1], /!p\.owner/);
+  // v441 : la règle est dans myPhoto, partagée avec l'étiquette sous la goutte
+  const rule = app.match(/const myPhoto = \(p\) => (.*);/);
+  assert.ok(rule, 'myPhoto absente');
+  assert.match(def[1], /^myPhoto\(p\)/);
+  assert.match(rule[1], /p\.photos\?\.length/);
+  assert.match(rule[1], /!isPass\(p\)/);
+  assert.match(rule[1], /!p\.owner/);
   assert.match(def[1], /ico\('image'/, 'icône « photo » ; l\'appareil photo veut dire « prendre une photo »');
   assert.match(def[1], /aria-label/, 'dite par TalkBack');
 });

@@ -764,6 +764,8 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
   font-family: var(--display); font-weight: 700; font-size: var(--t13); line-height: 1.15; color: var(--ink); white-space: nowrap; pointer-events: none;
   background: var(--bg); padding: 1px 4px; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); } /* fond papier plein : lisible au soleil sur n'importe quel fond de carte */
 #map.names-on .pin-name { display: block; }
+.pin-name .ico { display: inline-flex; vertical-align: -2px; margin-right: 3px; } /* v441 : la marque photo des listes (v391), devant le nom */
+.pin-name .ico svg { width: calc(13px * var(--ts)); height: calc(13px * var(--ts)); }
 #map.names-on .pin-name.name-off { visibility: hidden; }
 /* Repères (v386) : dessins des grands monuments, vue de loin ; liseré papier pour se détacher du fond ; cachés quand ils touchent un bouton ou un lieu */
 .rep-mk.rep-off { visibility: hidden; }
