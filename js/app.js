@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (464)';
+const VERSION = '25 novembre 2026 (465)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7404,7 +7404,7 @@ const evKey = (e) => `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng *
    une sortie de cette salle, ou que la sienne ne se charge pas : la photo de l'agenda passe toujours avant. */
 function venuePhotoSub() {
   const n = cleanVenuePhotos(venuePhotos).length;
-  return n ? `${plural(n, 'photo', 'photos')} · quand l'agenda n'a pas de photo` : 'Tes photos, quand l\'agenda n\'a pas de photo';
+  return n ? `${plural(n, 'photo', 'photos')} · si l'agenda n'en a pas` : 'Quand l\'agenda n\'a pas de photo';
 }
 async function openVenuePhotos(back) {
   track('Photos des salles');
@@ -10593,7 +10593,7 @@ function openSettingsSearch(q = '') {
 /** 1A (25 nov.) : la petite ligne d'Apparence dans Réglages : le style du jour, puis clair ou sombre. */
 function appearanceSub() {
   if (cleanLook(state.look) === 'signal') return 'Signalétique · sombre jour et nuit'; // v464
-  const t = state.theme === 'light' ? 'clair' : state.theme === 'dark' ? 'sombre' : 'clair ou sombre comme le téléphone';
+  const t = state.theme === 'light' ? 'clair' : state.theme === 'dark' ? 'sombre' : 'comme le téléphone';
   return `${LOOK_NAME[cleanLook(state.look)]} · ${t}`;
 }
 /** 6A (25 nov.) : la page Alertes et bandeau est-elle comme au départ ? */
@@ -11454,7 +11454,7 @@ function openSettings(section = null, from = null) {
     toast(state.showArrNums ? 'Numéros des arrondissements affichés de loin' : 'Numéros des arrondissements masqués');
   } },
   el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map')),
-  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Numéros des arrondissements'), el('span', { class: 'menu-sub' }, 'Sur la carte vue de loin, avec leurs limites')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Numéros des arrondissements'), el('span', { class: 'menu-sub' }, 'Avec leurs limites, de loin')),
   el('span', { class: `switch${state.showArrNums !== false ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
 
   // v322 (mon choix 1a du 20 nov.) : les réglages qu'on fait une fois, dans leurs groupes d'avant ; Réglages tient en deux écrans
@@ -11462,25 +11462,25 @@ function openSettings(section = null, from = null) {
     // v362 (ma demande du 21 nov.) : une petite flèche de retour à droite du titre, comme la flèche de mise à jour de Réglages ; la roue retirée, sinon la flèche passait seule à la ligne (218 px de titre à 360 px) ; « ← Réglages » reste en bas
     openSheet(['Autres réglages', el('button', { type: 'button', class: 'title-maj title-back', 'aria-label': 'Retour aux Réglages', title: 'Retour aux Réglages', onclick: () => openSettings() }, ico('arrow-left', { size: 18 }))], el('div', { class: 'menu' },
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
-    row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Le chemin de tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
-    row('message-square-text', 'Mots tout prêts', `${plural(wordsOf(state).length, 'série', 'séries')} · à toucher dans « Écrire une impression »`, () => openWordSeries(), false, 'c-add'), // v239 : sorti de Catégories et listes
+    row('bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `${refsText(state.busLines)} · à voir sur la carte` : 'Tes lignes sur la carte', () => openMyBusLines(), false, 'c-metro'),
+    row('message-square-text', 'Mots tout prêts', `${plural(wordsOf(state).length, 'série', 'séries')} · pour tes impressions`, () => openWordSeries(), false, 'c-add'), // v239 : sorti de Catégories et listes
     row(glyph(state.fav.icon, { filled: true }), 'Favoris', 'Étoile ou cœur, couleur', openFavStyle, false, 'c-fav'),
-    row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo sur la carte'}`, () => openSettings('vu'), false, 'c-add'),
+    row('camera', 'Vu en passant', `${state.seenKeep !== false ? 'Catégorie gardée' : 'Catégorie à choisir'} · ${state.seenPhotoMap !== false ? 'photo sur la carte' : 'sans photo'}`, () => openSettings('vu'), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     // v328 (mes choix du 20 nov.) : où la carte s'ouvre, à la place de l'interrupteur « Ouvrir sur ma position » (v176)
     row('locate', 'À l\'ouverture, la carte montre', START_VIEW_NAME[startViewOf(state)], () => openSettings('ouverture'), false, 'c-guide'),
-    row('ruler', 'Distances et durées', circuitsOff() ? 'Cercles, Y aller, sorties, Autour de moi' : 'Cercles, Y aller, sorties, Autour de moi, circuits', () => openSettings('distances'), false, 'c-guide'),
-    row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h · toutes les durées à pied`, () => openSettings('pas'), false, 'c-guide'),
+    row('ruler', 'Distances et durées', circuitsOff() ? 'Cercles, Y aller, sorties' : 'Cercles, Y aller, sorties, circuits', () => openSettings('distances'), false, 'c-guide'),
+    row('footprints', 'Mon pas', `${PACE_NAME[cleanPace(state.pace).mode]} · ${kmhText(paceKmh(state.pace))} km/h`, () => openSettings('pas'), false, 'c-guide'),
     row('palette', 'Style de la carte', (STYLE_INFO[state.mapStyle] ?? STYLE_INFO.classic).name, () => openSettings('style'), false, 'c-guide'),
-    row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions, lieux proches', () => openSettings('alertes'), false, 'c-guide'),
+    row('vibrate', 'Alertes et bandeau', 'Voix, vibrations, suggestions', () => openSettings('alertes'), false, 'c-guide'),
     arrNumsSwitch,
     // v386 (mes choix 1A 2A du 24 nov.) : tout en bas de « La carte », allumé au départ
-    onOff('reperes', 'landmark', 'Dessins des monuments', state.showReperes !== false ? '19 grands monuments, sur la carte vue de loin' : 'Éteint : pas de dessins sur la carte', state.showReperes !== false, () => {
+    onOff('reperes', 'landmark', 'Dessins des monuments', state.showReperes !== false ? '19 monuments, de loin' : 'Éteint : pas de dessins', state.showReperes !== false, () => {
       state.showReperes = state.showReperes === false; drawReperes();
       toast(state.showReperes ? 'Dessins des monuments sur la carte vue de loin' : 'Dessins des monuments retirés de la carte');
     }),
     // v397 (mon choix 3 du 24 nov.) : sous Dessins des monuments, allumé au départ
-    onOff('names', 'map-pin', 'Noms de mes lieux', state.showNames !== false ? 'Écrits sous les gouttes, de près' : 'Éteint : le nom en touchant la goutte', state.showNames !== false, () => {
+    onOff('names', 'map-pin', 'Noms de mes lieux', state.showNames !== false ? 'Sous les gouttes, de près' : 'Éteint : en touchant la goutte', state.showNames !== false, () => {
       state.showNames = state.showNames === false; scalePins(); placeNamesSoon();
       toast(state.showNames ? 'Noms de tes lieux sous les gouttes, de près' : 'Noms de tes lieux retirés de la carte');
     }),
@@ -11490,42 +11490,42 @@ function openSettings(section = null, from = null) {
     // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
-    onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+    onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
       state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
     }),
     // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
-    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Avantages Navigo : Sorties, fiches, loupe' : 'Avantages Navigo masqués partout', state.navigo !== false, () => {
+    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Sorties, fiches, loupe' : 'Avantages masqués partout', state.navigo !== false, () => {
       state.navigo = state.navigo === false;
       toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
     }),
     // v286 (mon choix 3A) : tout en bas, éteint au départ ; l'appli s'adresse à moi au féminin (v223)
-    onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? », « Déjà passée ici »' /* affichés au masculin par accord() */ : 'L\'appli écrit au féminin : « Tu y es allée ? »', state.masculin === true, () => {
+    onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? »' /* affiché au masculin par accord() */ : 'Au féminin : « Tu y es allée ? »', state.masculin === true, () => {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
       toast(state.masculin ? 'L\'appli écrit au masculin : « Tu y es allée ? »' /* accord() l'écrit « allé » */ : 'L\'appli écrit au féminin : « Tu y es allée ? »');
     }),
     // v390 (mes choix 1A 2A 3A 4A du 24 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ ; rien n'est effacé
-    onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints partout ; tes circuits sont gardés' : 'Bouton, Itinéraire, + Ajouter, Mes parcours', !circuitsOff(), () => {
+    onOff('circuitsOn', 'signpost', 'Circuits de visite', circuitsOff() ? 'Éteints ; tes circuits gardés' : 'Bouton, Itinéraire, + Ajouter', !circuitsOff(), () => {
       state.circuitsOn = circuitsOff(); applyToolOrder();
       toast(circuitsOff() ? 'Circuits éteints partout (rien n\'est supprimé)' : 'Circuits de retour : bouton, Itinéraire, + Ajouter');
     }),
     // v416 (mes choix 1A à 5A du 24 nov.) : sous Circuits de visite, tout en bas, il ne pousse rien ; allumé au départ
-    onOff('compassOn', 'compass', 'Boussole', compassOff() ? 'Éteinte : Y aller ouvre Google Maps à pied' : 'Fiches, listes, Balade guidée', !compassOff(), () => {
+    onOff('compassOn', 'compass', 'Boussole', compassOff() ? 'Éteinte : Google Maps à pied' : 'Fiches, listes, Balade guidée', !compassOff(), () => {
       state.compassOn = compassOff();
       toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
     }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
-    row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
-    row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
-    ESSAI ? null : row('hand', 'Essayer le premier lancement', 'Comme un téléphone neuf ; tes lieux et réglages ne bougent pas', () => startEssai(), false, 'c-guide'),
+    row('info', 'Mise à jour et confidentialité', 'Version, données, partager', () => openSettings('appli')),
+    row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Boutons touchés ou jamais', openUsage), // v254
+    ESSAI ? null : row('hand', 'Essayer le premier lancement', 'Comme neuf ; tes lieux restent', () => startEssai(), false, 'c-guide'),
     // v321 (autre conversation) : sous l'essai ; v322 : dans Autres réglages → Appli
-    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · par un lien ou un QR code` : 'Ses boutons, sa carte, ton mot ; par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
+    row('users', 'Préparer le démarrage d\'un proche', (() => { const n = prepsNow().length; return n ? `${plural(n, 'préparation', 'préparations')} · lien ou QR code` : 'Par un lien ou un QR code'; })(), openPrepList, false, 'c-guide'),
     // v359 (mon choix A du 21 nov.) : l'interrupteur en bas du groupe, Mes remarques juste dessous
     onOff('test', 'megaphone', 'Période de test', testState.on ? 'Le porte-voix, en haut à droite' : 'Éteinte : pas de porte-voix', testState.on, () => {
       testState = { ...testState, on: !testState.on }; saveTest(); showRemarkBtn();
       const n = testState.remarks.filter((r) => !r.sent).length;
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
-    testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · les envoyer, les supprimer` : 'Aucune remarque pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
+    testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · envoyer, supprimer` : 'Aucune pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
     ), { name: 'settings:autres', again: () => openSettings('autres'), tall: true });
     return;
@@ -11541,7 +11541,7 @@ function openSettings(section = null, from = null) {
     el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Chercher un réglage', title: 'Chercher un réglage', onclick: () => openSettingsSearch() }, ico('search', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
-    row('circle-help', 'Aide de l\'appli', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
+    row('circle-help', 'Aide de l\'appli', 'Mode d\'emploi, nouveautés', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
     el('h3', { class: 'ring-title menu-group' }, 'Mes données'),
     // En tête : l'état de la sauvegarde se voit dès l'ouverture des Réglages.
     el('button', { type: 'button', class: `menu-row c-add${unsaved ? ' warn-row' : ''}`, onclick: () => openSettings('sauvegarde') },
@@ -11549,27 +11549,27 @@ function openSettings(section = null, from = null) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sauvegarde'), el('span', { class: 'menu-sub' }, unsaved ? plural(unsaved, 'changement non sauvegardé', 'changements non sauvegardés') : saveSummary)),
       el('span', { class: unsaved ? 'tag due' : 'tag open' }, unsaved ? 'À faire' : 'À jour'),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
-    row('upload', 'Restaurer ou importer', 'Ta sauvegarde, les lieux d\'un proche, Google Maps', () => openSettings('importer'), false, 'c-add'),
+    row('upload', 'Restaurer ou importer', 'Sauvegarde, proche, Google Maps', () => openSettings('importer'), false, 'c-add'),
     // v322 : ligne d'alerte (seulement quand une donnée est à mettre à jour), avec la sauvegarde
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
     el('h3', { class: 'ring-title menu-group' }, 'Mes lieux'),
-    row('map', 'Mon Paris', 'Planning, journal, arrondissements, marche', () => openMyParis('settings'), false, 'c-disc'),
-    row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail… pour rentrer en 1 appui', openMyStations, false, 'c-metro'),
+    row('map', 'Mon Paris', 'Planning, journal, arrondissements', () => openMyParis('settings'), false, 'c-disc'),
+    row('house', 'Mes stations', (state.myStations ?? []).length ? state.myStations.map((x) => `${x.label} : ${x.station}`).join(' · ') : 'Maison, Travail : rentrer en 1 appui', openMyStations, false, 'c-metro'),
     row('tags', 'Catégories et listes', `${plural(state.categories.length, 'catégorie', 'catégories')} · ${plural((state.lists ?? []).length, 'liste', 'listes')}`, () => openSettings('categories'), false, 'c-add'),
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
-    row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Les distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
-    row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
+    row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
+    row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer la liste du guide', () => openTtb(), false, 'c-disc'),
     // 1A (mes choix « tout conseillé » du 25 nov.) : à la place de l'interrupteur Mode sombre (v280 : et de « Comme le téléphone », qui apparaissait
     // dessous et poussait la suite) ; le style du jour et clair ou sombre sur une seule page
     row('sun', 'Apparence', appearanceSub(), () => openSettings('apparence'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', `${TEXT_NAME[cleanTextSize(state.textSize)]} · gouttes ${PIN_NAME[cleanPinSize(state.pinSize)].toLowerCase()}`, /* 3A */ () => openSettings('texte'), false, 'c-guide'),
-    row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
-    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
+    row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'masqué', 'masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
+    row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, place', () => openSettings('outils'), false, 'c-guide'),
     // v322 (mon choix 1a) : les 18 réglages qu'on fait une fois ; en dernier de « Ce qui s'affiche », il ne pousse rien d'autre
     // v344 (ma demande du 21 nov.) : mise en valeur par son propre intertitre (filet encre), à la même place ; titre plus grand
     el('h3', { class: 'ring-title menu-group' }, 'Plus de réglages'),
-    Object.assign(row('settings', 'Autres réglages', 'Distances, Mon pas, style, alertes, fiche, Navigo…', () => openSettings('autres'), false, 'c-guide'), { className: 'menu-row c-guide others-row' }),
+    Object.assign(row('settings', 'Autres réglages', 'Distances, pas, alertes, fiche…', () => openSettings('autres'), false, 'c-guide'), { className: 'menu-row c-guide others-row' }),
     ESSAI ? el('button', { type: 'button', class: 'menu-row c-guide', onclick: endEssai }, /* agit tout de suite : pas de › ; reste ici pendant l'essai */
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
@@ -13187,6 +13187,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
     '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
@@ -13196,7 +13197,6 @@ const HELP = [
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
-    '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

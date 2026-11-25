@@ -80,5 +80,5 @@ test('Mon Paris dans ⋯ Plus : jamais posé sur la carte tout seul, ni chez moi
   assert.match(html, /<button type="button" id="btnMyParis" class="map-btn c-disc" aria-label="[^"]+">/);
   assert.ok(app.includes("document.getElementById('btnMyParis').addEventListener('click', () => openMyParis('map'));"));
   assert.match(app, /myparis: \{ el: 'btnMyParis', icon: 'map', name: '[^']+', short: 'Mon Paris' \}/);
-  assert.ok(app.includes("row('map', 'Mon Paris', 'Planning, journal, arrondissements, marche'"), 'le sous-titre de Réglages dit vrai');
+  assert.ok(app.includes("row('map', 'Mon Paris', 'Planning, journal, arrondissements'" /* 1A du 25 nov. : sur une ligne */), 'le sous-titre de Réglages dit vrai');
 });
