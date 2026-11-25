@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (519)';
+const VERSION = '25 novembre 2026 (520)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7316,7 +7316,7 @@ async function openWhereAmI() {
   const near = nearestStation(stations, at);
   const body = el('div', { class: 'stack' });
   const addr = el('p', { class: 'where-big' }, 'Recherche de l\'adresse…');
-  const arrLine = el('p', { class: 'help' }, '');
+  const arrLine = el('p', { class: 'help', hidden: true }, ''); /* v520 : cachée tant qu'elle est vide (hors de Paris, elle laissait un trou sous l'adresse) */
   const origLine = el('p', { class: 'help', hidden: true }, ''); /* v198 : l'origine du nom de la rue, quand la Ville la donne */
   const quarter = el('div', { class: 'quarter', 'aria-live': 'polite' }, el('p', { class: 'help' }, 'Le quartier : recherche dans Wikipédia…'));
   const delinq = el('div', { class: 'stack delinq' }); // v470 : sous les boutons (ils ne bougent pas), au-dessus du quartier
@@ -7328,8 +7328,8 @@ async function openWhereAmI() {
     el('div', { class: 'copy-row' }, addr, copyBtn(() => addrText || coords, 'l\'adresse', () => (addrText ? 'Adresse copiée' : 'Adresse inconnue : coordonnées copiées'))),
     arrLine,
     origLine,
-    near ? el('p', { class: 'badge' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
-    el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${coords}`), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
+    near ? el('p', { class: 'badge where-line' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
+    el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · `, el('span', { class: 'nowrap' }, coords)), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
     secoursRow(),
@@ -7370,6 +7370,7 @@ async function openWhereAmI() {
     addr.textContent = r?.label ?? 'Adresse introuvable';
     addrText = r?.label ?? '';
     arrLine.textContent = a ? `${a === 1 ? '1er' : `${a}e`} arrondissement` : '';
+    arrLine.hidden = !a;
     showDelinq(a);
     if (r?.street) loadVoies().then((d) => { const o = voieOrigin(d, r.street); if (o) { fill(origLine, el('b', {}, `${r.street} : `), o); origLine.hidden = false; } });
   } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
@@ -14626,6 +14627,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
     '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
@@ -14635,7 +14637,6 @@ const HELP = [
     '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
     '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
-    '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

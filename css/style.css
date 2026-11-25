@@ -1320,6 +1320,9 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .copy-row > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 /* v374 (mon choix 1B) : l'adresse à copier en encre, 18 px ; le bouton Copier, icône seule dans un cadre de 48 px (comme les boutons de la fiche) */
 .copy-row > .where { color: var(--ink); font-size: var(--t18); }
+/* v520 : Où suis-je ? — la ligne du métro sans les marges d'un paragraphe, comme l'adresse et la précision (écart de la page partout) */
+.badge.where-line { margin: 0; }
+.copy-row .nowrap { white-space: nowrap; } /* les coordonnées ne se coupent pas en deux */
 .go-compass.copy-btn { flex: none; width: 48px; min-height: 48px; background: transparent; border: 2px solid var(--neutral-bd); border-radius: var(--r); box-shadow: none; color: var(--ink); }
 .go-compass.copy-btn .ico svg { width: 22px; height: 22px; }
 .item-sub > .tag:first-child { margin-left: 0; }
