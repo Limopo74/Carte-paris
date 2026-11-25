@@ -15,7 +15,7 @@ test('Marche : « Ma position et direction », plus « le suivi en direct », et
   const b = page.indexOf("ico('timer'), 'Mes chiffres')");
   const c = page.indexOf('podomètre');
   assert.ok(a > 0 && b > a && c > b, 'phrase, bouton, puis la ligne du podomètre');
-  assert.match(page, /openMyStats\(named\('Mise à jour et confidentialité', \(\) => openSettings\('appli'\)\)\)/);
+  assert.match(page, /openMyStats\(named\('Mise à jour', \(\) => openSettings\('appli'\)\)\)/);
 });
 
 test('Mes chiffres : « ← » ramène là d\'où l\'on vient (Mon Paris ou Mise à jour et confidentialité)', () => {
@@ -45,4 +45,11 @@ test('Aide : chaque ligne de Réglages et d\'Autres réglages y est citée', () 
   const missing = titles.filter((t) => !help.toLowerCase().includes(t.toLowerCase()) && !t.startsWith('Aide de l'));
   assert.deepEqual(missing, []);
   assert.ok(lines.some((l) => l.startsWith('**Position refusée**') && l.includes('Infos sur l\'appli') && l.includes('Paramètres des sites')));
+});
+
+// v529 (mon choix A du 25 nov.) : « ← Mise à jour et confidentialité » passait sur deux lignes en Très grand
+test('Retour vers Mise à jour et confidentialité : « ← Mise à jour », partout', () => {
+  assert.ok(!app.includes('← Mise à jour et confidentialité'));
+  assert.ok(!app.includes("named('Mise à jour et confidentialité'"));
+  assert.equal((app.match(/'← Mise à jour'\)/g) ?? []).length, 2);
 });

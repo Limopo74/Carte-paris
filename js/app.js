@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (528)';
+const VERSION = '25 novembre 2026 (529)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9235,7 +9235,7 @@ function showAppQr() {
   openSheet([ico('qr-code'), ' Partager l\'appli'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, 'Ma carte de Paris'), box,
     el('p', { class: 'help' }, `Ton proche le scanne avec l'appareil photo, ouvre le lien dans Chrome, puis menu ⋮ → « Ajouter à l'écran d'accueil ». Sur iPhone : Safari, Partager → « Sur l'écran d'accueil ». Adresse : ${APP_URL()}`),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour et confidentialité')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour')),
   ), { name: 'appqr' });
 }
 
@@ -12468,7 +12468,7 @@ function openSettings(section = null, from = null) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Adresses TTB'), el('span', { class: 'menu-sub' }, ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} · page du ${ttbDateText() || 'date inconnue'} · à réimporter quand le guide change` : 'Pas encore importées')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
       el('a', { class: 'btn c-info', href: 'https://opendata.paris.fr/', target: '_blank', rel: 'noopener' }, ico('database'), 'Toutes les données de la Ville : opendata.paris.fr'),
-      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour et confidentialité')),
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour')),
     ), { tall: true, name: 'settings:donnees', again: () => openSettings('donnees') });
     return;
   }
@@ -12649,7 +12649,7 @@ function openSettings(section = null, from = null) {
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
       el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement avec Ma position et direction${compassOff() ? '' : ' ou la boussole'}, l'appli ouverte à l'écran.`), // v522 : le vrai nom du bouton (avant : un ancien nom)
       // v522 (mon choix A du 25 nov.) : sous la phrase, il ne pousse rien ; la marche jour par jour est dans Mes chiffres
-      el('button', { type: 'button', class: 'btn c-info', onclick: () => openMyStats(named('Mise à jour et confidentialité', () => openSettings('appli'))) }, ico('timer'), 'Mes chiffres'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => openMyStats(named('Mise à jour', () => openSettings('appli'))) }, ico('timer'), 'Mes chiffres'),
       el('p', { class: 'help tip' }, 'Une appli web n\'a pas accès au podomètre. Le nombre de pas est calculé avec 70 cm par pas.'),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
@@ -14715,6 +14715,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
     '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
     '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
     '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
@@ -14724,7 +14725,6 @@ const HELP = [
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
     '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
-    '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
