@@ -305,6 +305,9 @@ const ECRANS = {
   chercherbus: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('38'); await p.waitForSelector('#sheet .bus-name'); }, // v234
   plushaut: async (p) => { await p.locator('.chip.more-chip').click(); await p.waitForTimeout(300); },
   barrehaut: async (p) => { await reglage(p, 'Barre du haut'); await p.waitForTimeout(300); },
+  // v519 : un grand lieu dans mes lieux ; le bas de sa fiche (« Au programme », dernière ligne de Pratique), puis la page ouverte (ouvert par la loupe)
+  fichegrandlieu: async (p) => { await avecLieu(p, { id: 'gp', name: 'Grand Palais', cat: 'culture', lat: 48.8660, lng: 2.3126, address: 'Avenue Winston-Churchill, 8e (entrée Clemenceau)' }); await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('grand palais'); await p.waitForTimeout(800); await feuille(p).locator('button, .item-main').filter({ hasText: 'Grand Palais' }).first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-toc').last().scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  fichegrandlieuprog: async (p) => { await ECRANS.fichegrandlieu(p); await feuille(p).locator('.fiche-row', { hasText: 'Au programme' }).click(); await p.waitForTimeout(1200); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
 // v237 : un lieu de plus (et sa photo, dessinée ici, rangée dans la base des photos) le temps d'un écran ; le fichier d'état est remis ensuite.

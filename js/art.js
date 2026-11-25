@@ -330,6 +330,18 @@ const plain = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[\u
 const matches = (p) => [].concat(p.match);
 export const artPlaceOf = (e, places = ART_PLACES) => { const n = plain(e?.place); return n ? places.find((p) => matches(p).some((m) => n.includes(m))) ?? null : null; };
 
+/**
+ * v519 (mes choix 1A 2A 3A du 25 nov.) : le grand lieu d'un de mes lieux, pour « Au programme » sur sa fiche.
+ * Par le nom (le même nom, ou une graphie de `match` dans le nom) ET à moins de 150 m : jamais par la seule distance,
+ * jamais par le seul nom (le Théâtre de la Ville a deux adresses). Rien n'est envoyé.
+ */
+export function artPlaceForPoint(pt, places = ART_PLACES) {
+  const n = plain(pt?.name).trim();
+  if (!n || !Number.isFinite(pt?.lat) || !Number.isFinite(pt?.lng)) return null;
+  const near = places.filter((p) => (plain(p.name).trim() === n || matches(p).some((m) => n.includes(m))) && distanceM(pt, p) <= 150);
+  return near.sort((a, b) => distanceM(pt, a) - distanceM(pt, b))[0] ?? null;
+}
+
 /** Les grands lieux dont le nom contient tous les mots tapés (sans accents ; au moins 3 lettres en tout). */
 export function findArtPlaces(q, places = ART_PLACES) {
   const words = plain(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
@@ -623,6 +635,11 @@ export function atVenue(e, venue) {
   const words = (t) => ` ${artistKey(t)} `;
   const needle = words(venue);
   return needle.trim().length >= 3 && words(`${e?.place ?? ''} ${e?.org ?? ''}`).includes(needle);
+}
+/** v519 : la salle suivie qui porte le nom d'un de mes lieux (le même nom, accents et ponctuation ignorés), ou ''. */
+export function followedVenueOf(pt, venues) {
+  const k = artistKey(pt?.name ?? '');
+  return k.replace(/ /g, '').length >= 3 ? cleanVenues(venues).find((v) => artistKey(v) === k) ?? '' : '';
 }
 /** Les sorties de mes salles : [{ e, where }], la plus proche dans le temps d'abord, sans doublon. */
 export function venueEvents(events, venues, now = new Date()) {

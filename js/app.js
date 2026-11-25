@@ -25,7 +25,7 @@ import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLik
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
 import { ROBOT_URL, VELO_FILE, JARDINS_FILE, DELINQ_FILE, DMR_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
-import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
+import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, artPlaceForPoint, followedVenueOf, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (521)';
+const VERSION = '25 novembre 2026 (522)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3426,13 +3426,26 @@ function openDetail(id, back = null) {
       ficheShows('horaires') ? row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)) : null, /* v244 : une page avec les deux choix ; 2A : masquable (ouvert ou fermé reste en haut) */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, reviewsSub(catOf(p.cat)))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
-      uberRow(p)),
+      uberRow(p),
+      programmeRow(p, named(p.name, () => openDetail(id, back)), row)),
     back ? backBtn(back) : null,
   ), { name: `detail:${id}`, again: () => openDetail(id, back) });
   // v288 : le genre ne tient pas sur la ligne (grand texte, nom de catégorie long, « a pu fermer ») : on le retire de la ligne
   // plutôt que de la couper en deux, ce qui ferait descendre Y aller. Il reste dans Modifier et pour le lecteur d'écran.
   fitKick();
   showOpened(p, back);
+}
+
+/**
+ * v519 (mes choix 1A 2A 3A du 25 nov.) : « Au programme » (« cette semaine » dans la petite ligne : le titre tient sur une ligne en Très grand), dernière ligne de Pratique (rien ne bouge au-dessus),
+ * seulement pour un grand lieu (nom vérifié à la main, à moins de 150 m) ou une salle que je suis (même nom).
+ * Rien n'est téléchargé à l'ouverture de la fiche : l'agenda se lit à l'appui, sur la page qui s'ouvre.
+ * Jamais « rien cette semaine » ici : l'agenda de la Ville n'a pas tous les rendez-vous (le programme officiel fait foi).
+ */
+function programmeRow(p, here, row) {
+  const big = artPlaceForPoint(p);
+  if (big) return row('calendar-days', 'Au programme', 'Cette semaine, agenda de la Ville', () => openArtPlaces(big.name, here));
+  return followedVenueOf(p, state.venues) ? row('calendar-days', 'Au programme', 'Cette semaine, dans Mes salles', () => openVenues(here)) : null;
 }
 
 /** Arrondissement lu dans le code postal de l'adresse (« 75003 » → « 3e », « 75116 » → « 16e »), sinon null. Rien n'est envoyé. */
@@ -14627,6 +14640,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
     '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
     '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
@@ -14636,7 +14650,6 @@ const HELP = [
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
     '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
     '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
-    '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
