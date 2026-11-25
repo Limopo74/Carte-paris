@@ -64,6 +64,7 @@ test('la page et la pastille : six interrupteurs, la ligne dans Autres réglages
   const page = app.slice(app.indexOf("if (section === 'pastille') {"), app.indexOf("if (section === 'ouverture') {"));
   for (const k of WX_PARTS) assert.ok(page.includes(`sw('${k}'`), k);
   assert.ok(page.includes('backBtn'));
+  assert.ok(!page.includes("'calendar-days'"), 'v480 : l\'icône de Sorties n\'est pas celle de Dimanche ou férié');
   const autres = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
   assert.ok(autres.indexOf("row('thermometer-sun', 'Pastille météo'") > autres.indexOf("row('map-pinned', 'À mettre à jour sur place'"));
   assert.ok(autres.indexOf("row('thermometer-sun', 'Pastille météo'") < autres.indexOf("onOff('evThumbs'"), 'au-dessus des interrupteurs');
