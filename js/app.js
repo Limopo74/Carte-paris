@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (432)';
+const VERSION = '25 novembre 2026 (433)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -12149,8 +12149,8 @@ const HELP = [
     '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près).',
     '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
-    '**La colonne de boutons** : Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
-    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, et Fontaine et WC s\'il n\'est pas masqué.',
+    '**La colonne de boutons** : {camera} Vu en passant, Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
+    '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, Mon Paris, et Fontaine et WC s\'il n\'est pas masqué.',
     '{droplets} **Fontaine et WC** : la fontaine, les toilettes et le jardin ouvert les plus proches (le lieu frais quand il fait 28° ou plus). Ce qui est ouvert passe d\'abord. Chaque toilette dit s\'il faut un ticket.',
     '{map} **Toutes les fontaines et toilettes sur la carte** : bouton en bas de Fontaine et WC. On les voit en zoomant ; une toilette fermée en ce moment est en tirets.',
     '{bike} **Vélib\'** : les 3 stations les plus proches qui ont des vélos ou des places.',
@@ -12221,7 +12221,7 @@ const HELP = [
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
-    '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
+    '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
     '{signpost} **Mes circuits**, en haut de Circuits de visite : ceux que tu crées avec « **Nouveau circuit** », en bas de la page (touche la carte pour chaque étape, puis Enregistrer : titre, thème, textes), ceux faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien. En bas de leur page : Modifier, Partager (un lien, avec ou sans tes textes) et Supprimer.',
@@ -12244,7 +12244,6 @@ const HELP = [
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
-    '{map} **Mon Paris** (Autour de moi, ⋯ Plus de la colonne ou {settings}) : en haut, **Mon journal en calendrier**. Un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir. ‹ › changent de mois, « Liste » montre tout le journal.',
     '**Sous le calendrier**, chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés.',
     '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mon Paris.',
     '**Marche et air** : touche une barre pour le détail du jour.',
@@ -12256,7 +12255,7 @@ const HELP = [
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Range-la dans Vu en passant, Street art, Moments, Plats, Vues, Architecture ou Insolite ; tes lieux de la carte ne reçoivent une photo que par « Rattacher », sur la fiche de la photo.',
     '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
-    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : le bouton de leur catégorie (barre du haut ou Filtres), ou + Ajouter → Mes Vu en passant pour toutes tes photos. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, + Ajouter → Vu en passant.',
+    '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : le bouton de leur catégorie (barre du haut ou Filtres), ou + Ajouter → Mes Vu en passant pour toutes tes photos. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, {camera} Vu en passant en haut de la colonne, ou + Ajouter → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
     '{trash-2} **Supprimer des photos prises en passant** : une à une dans le diaporama (« Supprimer », sous la photo) ; d\'un coup dans {settings} → Autres réglages → Vu en passant → la catégorie, tout en bas. Une photo rattachée à un de tes lieux ne retire que son impression : le lieu reste. C\'est définitif.',
     '{link} **Rattacher à un de mes lieux** (fiche d\'une photo prise en passant, sous « Cette photo ») : la photo et ta ligne deviennent une impression du lieu choisi ; elle reste dans Mes Vu en passant. « Annuler » remet tout.',
@@ -12335,7 +12334,7 @@ const HELP = [
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
     '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le-toi aussi par courriel ou sur ton Drive : si tu perds le téléphone, Téléchargements part avec.',
-    '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques, et ta clé CARTO si « Avec ma clé CARTO » est cochée (Restaurer la remet si le téléphone n\'en a pas). Pas ta marche.',
+    '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques, et ta clé CARTO si « Avec ma clé CARTO » est cochée (Restaurer la remet si le téléphone n\'en a pas). Aussi tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). Pas « Ce que j\'utilise ».',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
     '{upload} **Retrouver tes lieux** : {settings} → Restaurer ou importer → Restaurer ma sauvegarde.',
     '{download} **Depuis Google Maps** : {settings} → Restaurer ou importer. Les étapes sont expliquées. Vérifie les lieux marqués « à vérifier ».',

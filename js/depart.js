@@ -4,7 +4,7 @@ import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChip
 import { cleanFicheHidden } from './reglages.js';
 import { SEEN_CAT } from './passage.js';
 
-export const DEPART_KEY = 'carte-paris.demarrages'; // mes préparations, sur mon téléphone (hors sauvegarde)
+export const DEPART_KEY = 'carte-paris.demarrages'; // mes préparations, sur mon téléphone ; dans ma sauvegarde depuis la v380, jamais chez un proche
 export const DEPART_MAX = 5;
 export const MSG_MAX = 120;
 export const NAME_MAX = 30;

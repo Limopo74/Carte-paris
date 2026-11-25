@@ -90,3 +90,13 @@ test('un proche : ses commentaires suivent avec ses commentaires (choix « notes
   const r4 = mergeFriend(vide(), envoi(lieu({ cafe: true, cafeNote: 'Salon de thé' })), 'Paul', sansNotes);
   assert.equal(r4.state.points[0].cafe, true); assert.equal('cafeNote' in r4.state.points[0], false);
 });
+
+// v431 : sans « Commentaires » cochés à l'envoi, mes lignes sur le café et la boutique ne partent pas dans le fichier
+test('envoi à un proche sans commentaires : ni la note, ni les lignes du café et de la boutique', () => {
+  const sans = JSON.parse(JSON.stringify(exportForFriend(lui(lieu({ note: 'Mon mot', cafe: true, cafeNote: 'Salon de thé', shop: true, shopNote: 'Beaux livres' })), { ...SEND_DEFAULT, notes: false })));
+  const p = sans.points[0];
+  assert.equal(p.note, ''); assert.equal(p.cafe, true); assert.equal(p.shop, true);
+  assert.equal('cafeNote' in p, false); assert.equal('shopNote' in p, false);
+  const avec = envoi(lieu({ cafe: true, cafeNote: 'Salon de thé' })).points[0];
+  assert.equal(avec.cafeNote, 'Salon de thé');
+});

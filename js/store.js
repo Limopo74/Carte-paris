@@ -481,7 +481,7 @@ export function exportForFriend(state, sel = SEND_DEFAULT, cats = null, lists = 
     const c = { ...p, owner: state.me || '' };
     delete c.ticket; // mes billets restent à moi
     delete c.fav; delete c.done; delete c.visited; // mes favoris et mes « Déjà visité » (avec leur date) restent à moi (audit du 18 nov., choix 2A) ; les étoiles partent
-    if (!sel.notes) c.note = '';
+    if (!sel.notes) { c.note = ''; delete c.cafeNote; delete c.shopNote; } // v431 : mes lignes sur le café et la boutique sont des commentaires (comme à l'arrivée, v422)
     if (!sel.photos) delete c.photos;
     if (!sel.passages) delete c.passages;
     else if (!sel.photos && c.passages) c.passages = c.passages.map(({ photo, ...x }) => x);
