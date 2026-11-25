@@ -1,6 +1,7 @@
 // Mon planning : jours proposés, moments de la journée, texte d'une sortie prévue, sorties passées à confirmer.
 // Fonctions sans interface, testées dans tests/planning.test.mjs.
 
+import { durText } from './geo.js';
 /** Moments de la journée : l'heure de début sert au tri, la fin à savoir quand le moment est passé. */
 export const PARTS = {
   matin: { label: 'Matin', from: 9, to: 12, today: 'ce matin', day: 'matin', when: 'le matin' },
@@ -192,7 +193,7 @@ export const outingOf = (plan) => cleanOutings([{ id: plan.id, at: plan.ticket.a
 /* ---------- v479 (mes choix 1A 2A 3A 4A du 25 nov.) : la marche entre les lieux de la liste du jour ----------
    Un bout : { m, min, exact } : `exact` = chemin par les rues (plan des rues sur le téléphone) ; sinon une estimation
    (ligne droite × détours), dite « ≈ » et sans distance (la ligne droite n'est pas la distance à marcher). */
-const minLabel = (n) => (n < 60 ? `${n} min` : `${Math.floor(n / 60)} h${n % 60 ? ` ${String(n % 60).padStart(2, '0')}` : ''}`);
+const minLabel = durText; // v498 : le même format partout (js/geo.js)
 /** La petite ligne d'un lieu : « 8 min du n° 1 » (par les rues), « ≈ 8 min du n° 1 » (estimation) ; '' sans bout lisible.
  *  Minutes seules : avec la distance et la catégorie, la ligne passait sur deux lignes à 360 px (mesuré le 25 nov.) ; la distance est dans le total. */
 export function legText(leg, rank) {

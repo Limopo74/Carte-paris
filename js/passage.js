@@ -1,6 +1,6 @@
 // « Vu en passant » (v157) : noter d'un geste ce qu'on croise dans la rue, et le retrouver en repassant.
 // Fonctions sans interface, testées dans tests/passage.test.mjs.
-import { distanceM, isRestoCat } from './geo.js';
+import { distanceM, isRestoCat, durText } from './geo.js';
 
 /** La catégorie des notes prises en passant : créée au premier usage, cachée de la barre du haut (le filtre est dans Filtres). */
 export const SEEN_CAT = { id: 'vu', name: 'Vu en passant', color: '#0c8599', icon: '🎞️' }; // v344 : photos empilées (comme Mes Vu en passant) ; l'appareil photo = prendre une photo
@@ -108,7 +108,7 @@ export function memoryHere(points, pos, shown = {}, now = Date.now(), maxM = MEM
 }
 
 /** Le titre du rappel (v214) : « ici » n'est vrai que jusqu'à 100 m ; au-delà, la distance réglée peut aller à 500 m, on donne les minutes à pied. */
-export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passée ici' : `Déjà passée · ${minutes} min à pied`);
+export const memoryTitle = (d, minutes) => (d <= MEMORY_M ? 'Tu es déjà passée ici' : `Déjà passée · ${durText(minutes)} à pied`);
 
 /** Le carnet des rappels : remis à zéro pour un lieu après 7 jours ; les vieux rappels (plus de 7 jours) sont oubliés. */
 export function markShown(shown, id, now = Date.now()) {

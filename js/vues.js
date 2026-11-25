@@ -6,6 +6,7 @@
 //
 // Positions : IGN (data.geopf.fr, adresse avec code postal) ou Wikidata (élément cité dans `q`), relues le 25 nov. 2026.
 // Esplanade du Trocadéro : Wikidata Q3367074 (parvis des droits de l'homme), OpenStreetMap à 32 m.
+import { durText } from './geo.js';
 export const VUES_CHECKED = '25 novembre 2026';
 export const VUES_CHECKED_ON = '2026-11-25';
 /** Au-delà, la liste est trop vieille pour qu'on affiche gratuit, payant, marches ou fermetures. */
@@ -67,7 +68,7 @@ export function vueFermeText(v, now = new Date()) {
 
 /** La petite ligne d'une ligne de liste : « 6 min · Gratuit », « Payant · sur réservation ». */
 export function vueSub(v, minutes = null, now = new Date()) {
-  const parts = [minutes != null ? `${minutes} min` : ''];
+  const parts = [minutes != null ? `${durText(minutes).replace(/ /g, '\u00a0')}` : ''];
   if (!vueStale(now)) parts.push(v.libre ? 'Gratuit' : `Payant${v.acces ? ` · ${v.acces}` : ''}`);
   return parts.filter(Boolean).join(' · ');
 }

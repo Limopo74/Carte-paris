@@ -19,6 +19,6 @@ test('la ligne du soir : de 21 h à 6 h, dans le bloc bus de Rentrer, sans heure
   assert.equal(at(14), false);
   const bus = app.slice(app.indexOf('const busBlock = !home.bus'), app.indexOf('await loadGares();'));
   assert.match(bus, /eveningBus\(\) \? el\('p', \{ class: 'help' \}[^\n]*Après 22 h, tu peux descendre entre deux arrêts : dis-le au conducteur au moins un arrêt avant\./);
-  assert.match(app, /'\{bus\} \*\*Rentrer en bus, le soir\*\*/, 'Nouveautés');
+  // v498 : sortie des Nouveautés (10 au plus), l'Aide garde la règle avec sa source.
   assert.match(app, /Noctilien compris \(Île-de-France Mobilités, RATP\)/, 'Aide, avec la source');
 });

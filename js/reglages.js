@@ -1,6 +1,7 @@
 // Réglages souples (v214) : les distances et les durées que l'appli gardait fixes, et les lignes de la fiche qu'on peut masquer.
 // Tout se règle par − et + : une valeur est toujours sur un cran, entre ses deux bornes. Rien n'est envoyé.
 
+import { durText } from './geo.js';
 /** Chaque valeur réglable : au départ, borne basse, borne haute, cran. Mètres, minutes à pied ou jours. */
 export const TUNING = Object.freeze({
   alertM: Object.freeze({ def: 100, min: 50, max: 500, step: 50, unit: 'm' }), // Ma position allumée : prévenir près d'un de mes lieux
@@ -37,6 +38,7 @@ export function stepTuning(tuning, key, dir) {
 /** La valeur écrite en clair : « 100 m », « 1,25 km », « 15 min », « 30 jours ». */
 export function tuningText(key, v) {
   const { unit } = TUNING[key];
+  if (unit === 'min') return durText(v); // v498 : « 1 h » plutôt que « 60 min »
   if (unit !== 'm') return `${v} ${unit}`;
   return v < 1000 ? `${v} m` : `${String(v / 1000).replace('.', ',')} km`;
 }

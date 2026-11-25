@@ -45,10 +45,20 @@ export function distText(m) {
   return `${m >= 10000 ? Math.round(m / 1000).toLocaleString('fr-FR') : (m / 1000).toFixed(1).replace('.', ',')} km`;
 }
 
-/** « ≈ 12 min à pied », ou « à 385 km » quand la marche dépasserait 3 h. */
+/** Une durée en minutes, écrite comme on la dit : « 45 min », puis en heures dès 60 min : « 1 h », « 1 h 05 », « 2 h 37 »
+ *  (à la minute près, rien d'arrondi ; v498, ma demande du 25 nov.). Une valeur qui n'est pas un nombre reste telle quelle. */
+export function durText(n) {
+  if (!Number.isFinite(n)) return `${n} min`;
+  const v = Math.round(n);
+  if (v < 60) return `${v} min`;
+  const h = Math.floor(v / 60); const mn = v % 60;
+  return `${h} h${mn ? ` ${String(mn).padStart(2, '0')}` : ''}`;
+}
+
+/** « ≈ 12 min à pied », « ≈ 1 h 10 à pied », ou « à 385 km » quand la marche dépasserait 3 h. */
 export function walkLabel(m) {
   const min = walkMinutes(m);
-  if (min <= FAR_WALK_MIN) return `≈ ${min} min à pied`;
+  if (min <= FAR_WALK_MIN) return `≈ ${durText(min)} à pied`;
   return `à ${distText(m)}`;
 }
 

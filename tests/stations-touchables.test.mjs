@@ -52,7 +52,7 @@ test('aller à la station : une ligne sous les 8 boutons, seulement autour d\'un
 test('aller à la station : Y aller vers la station, distance seulement depuis une position récente', () => {
   const b = body('stationGoRow');
   assert.match(b, /const me = freshHere\(\);/, 'position de moins de 10 min');
-  assert.match(b, /d == null \? null : walkGo\(d\) \? `\$\{fmtDist\(d\)\} · \$\{walkMinutes\(d\)\} min` : fmtDist\(d\)/, 'pas de minutes à pied hors de la distance de marche');
+  assert.match(b, /d == null \? null : walkGo\(d\) \? `\$\{fmtDist\(d\)\} · \$\{durText\(walkMinutes\(d\)\)\}` : fmtDist\(d\)/, 'pas de minutes à pied hors de la distance de marche');
   assert.match(b, /class: 'go', href: mapsUrl\(st, d \?\? 0\)/, 'Y aller : la station, jamais ma position dans le lien');
   assert.match(b, /compassOff\(\) \? null : el\('button'[^\n]*openCompass\(target\)/);
   assert.match(b, /stationBadges\(st\)/, 'ses lignes');

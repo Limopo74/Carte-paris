@@ -6,7 +6,7 @@ import { cleanTraces, keepTraces, tracesDue, searchBusLines, linesAtStop, passes
 import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
-import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
+import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, durText, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints, edgesInBox } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize, PIN_SIZES, cleanPinSize,
@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (497)';
+const VERSION = '25 novembre 2026 (498)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -336,7 +336,7 @@ const nearRings = () => (inMinutes() ? state.minuteRings.map(minutesToMeters) : 
 const ringText = (m) => {
   if (!inMinutes()) return fmtRing(m);
   const i = nearRings().indexOf(m);
-  return `${i >= 0 ? state.minuteRings[i] : walkMinutes(m)} min`;
+  return `${durText(i >= 0 ? state.minuteRings[i] : walkMinutes(m))}`;
 };
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 /** Pastille de catégorie : son icône sur sa couleur. */
@@ -1423,7 +1423,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
     state = setListMembers(state, listId, [...sel]); persist(); refresh(); if (back) back(); else openSettings('categories');
     toast(`« ${list.name} » : ${plural(sel.size, 'lieu', 'lieux')}`);
   } });
-  const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux').replace(' ', '\u00a0')})`; };
+  const count = () => { save.textContent = `Enregistrer (${plural(sel.size, 'lieu', 'lieux').replace(/ /g, '\u00a0')})`; };
   count();
   const search = el('input', { type: 'search', value: query, placeholder: 'Chercher un lieu', 'aria-label': 'Chercher un lieu', enterkeyhint: 'search' });
   let t = null;
@@ -1875,7 +1875,7 @@ function updateNow(force = false) {
       el('span', { class: 'now-kicker' }, isPart(tk.ticket.part) ? `Prévu ${planText(tk.ticket)}` : `Prévu · ${hmText(new Date(at))}`),
       el('span', { class: 'now-name' }, tk.name),
       el('span', { class: 'now-sub' }, shut || (leave
-        ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${travel} min ${how}`
+        ? `${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`} · ≈ ${durText(travel)} ${how}`
         : isPart(tk.ticket.part) ? (tk.ticket.with ? `Avec ${tk.ticket.with}` : 'Voir la fiche') : `Rendez-vous à ${hmText(new Date(at))}`)));
     if (leave && leave <= new Date()) buzzNow(`pars:${tk.name}:${at}`);
     card.querySelector('.now-open').onclick = () => openPlanned(tk);
@@ -1903,7 +1903,7 @@ function updateNow(force = false) {
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `C'est le moment · ${momentText(mo.p.moments)}`),
       el('span', { class: 'now-name' }, mo.p.name),
-      el('span', { class: 'now-sub' }, [`${walkMinutes(mo.d)} min à pied`, mo.p.note?.trim() ? mo.p.note.trim().slice(0, 60) : null].filter(Boolean).join(' · ')));
+      el('span', { class: 'now-sub' }, [`${durText(walkMinutes(mo.d))} à pied`, mo.p.note?.trim() ? mo.p.note.trim().slice(0, 60) : null].filter(Boolean).join(' · ')));
     buzzNow(`moment:${mo.p.id}`);
     card.querySelector('.now-open').onclick = () => openDetail(mo.p.id);
     return;
@@ -1933,7 +1933,7 @@ function updateNow(force = false) {
   if (street) {
     card.hidden = false;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, `${street.street ? 'Dans la rue' : 'Gratuit'} · ${walkMinutes(street.d)} min à pied`),
+      el('span', { class: 'now-kicker' }, `${street.street ? 'Dans la rue' : 'Gratuit'} · ${durText(walkMinutes(street.d))} à pied`),
       el('span', { class: 'now-name' }, street.title),
       el('span', { class: 'now-sub' }, [whenText(street).replace(/^à/, 'À').replace(/^j/, 'J'), street.place,
         !street.street && street.booking === 'advised' ? 'réservation conseillée' : null].filter(Boolean).join(' · ')));
@@ -1948,7 +1948,7 @@ function updateNow(force = false) {
   if (calm) {
     card.hidden = false;
     fill(card.querySelector('.now-text'),
-      el('span', { class: 'now-kicker' }, calm.d ? `Sans voitures · ${walkMinutes(calm.d)} min à pied` : 'Sans voitures · tu y es'),
+      el('span', { class: 'now-kicker' }, calm.d ? `Sans voitures · ${durText(walkMinutes(calm.d))} à pied` : 'Sans voitures · tu y es'),
       el('span', { class: 'now-name' }, calm.s.name),
       el('span', { class: 'now-sub' }, `Prévu jusqu'à ${hhText(calm.to)} · Paris Respire`));
     card.querySelector('.now-open').onclick = () => openRespire(named('Carte', () => closeSheet()));
@@ -1965,7 +1965,7 @@ function updateNow(force = false) {
       if (g && g.d > 0) {
         card.hidden = false;
         fill(card.querySelector('.now-text'),
-          el('span', { class: 'now-kicker' }, `Grand jardin · ${walkMinutes(g.d)} min à pied`),
+          el('span', { class: 'now-kicker' }, `Grand jardin · ${durText(walkMinutes(g.d))} à pied`),
           el('span', { class: 'now-name' }, g.j.name),
           el('span', { class: 'now-sub' }, hoursLine(null, g.hours)));
         buzzNow(`jardin:${g.j.id}`);
@@ -1986,7 +1986,7 @@ function updateNow(force = false) {
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, 'Gratuit aujourd\'hui'),
       el('span', { class: 'now-name' }, fd.name),
-      el('span', { class: 'now-sub' }, [`${walkMinutes(fd.d)} min à pied`, st?.open ? (st.until ? `jusqu'à ${hhText(st.until)}` : null) : st?.opensAt ? `dès ${hhText(st.opensAt)}` : 'horaires inconnus, vérifie',
+      el('span', { class: 'now-sub' }, [`${durText(walkMinutes(fd.d))} à pied`, st?.open ? (st.until ? `jusqu'à ${hhText(st.until)}` : null) : st?.opensAt ? `dès ${hhText(st.opensAt)}` : 'horaires inconnus, vérifie',
         /réservation/i.test(`${fd.note ?? ''} ${fd.when}`) ? 'sur réservation' : null].filter(Boolean).join(' · ')));
     card.querySelector('.now-open').onclick = () => openFreeDaySpot(fd, today, named('Carte', () => closeSheet()));
     return;
@@ -2023,7 +2023,7 @@ function updateNow(force = false) {
     fill(card.querySelector('.now-text'),
       el('span', { class: 'now-kicker' }, `${slot.label} · marché`),
       el('span', { class: 'now-name' }, mk.name),
-      el('span', { class: 'now-sub' }, [`${walkMinutes(mk.d)} min à pied`, hoursToday(mk)].filter(Boolean).join(' · ')));
+      el('span', { class: 'now-sub' }, [`${durText(walkMinutes(mk.d))} à pied`, hoursToday(mk)].filter(Boolean).join(' · ')));
     card.querySelector('.now-open').onclick = () => openMarket(mk);
     return;
   }
@@ -2032,7 +2032,7 @@ function updateNow(force = false) {
   fill(card.querySelector('.now-text'),
     el('span', { class: 'now-kicker' }, [fits(p) ? slot.label : 'Maintenant', p.fav ? 'ton favori' : null].filter(Boolean).join(' · ')),
     el('span', { class: 'now-name' }, p.name),
-    el('span', { class: 'now-sub' }, [`${walkMinutes(d)} min à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${hhText(st.until)}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
+    el('span', { class: 'now-sub' }, [`${durText(walkMinutes(d))} à pied`, st?.open ? (st.until ? `ouvert jusqu'à ${hhText(st.until)}` : 'ouvert') : null, !st && dayNote() ? 'horaires inconnus, vérifie' : null].filter(Boolean).join(' · ')));
   card.querySelector('.now-open').onclick = () => openDetail(p.id);
 }
 
@@ -3240,7 +3240,7 @@ function openDetail(id, back = null) {
       closedDaysText(hoursOf(p)) ? el('div', { class: 'fiche-s' }, closedDaysText(hoursOf(p))) : null,
       st && p.hours && hoursAge(p) ? el('div', { class: 'fiche-s' }, hoursAge(p)) : null,
       !p.hours && parkHoursById.has(p.id) ? el('div', { class: 'fiche-s' }, 'Horaires de la Ville, saison en cours') : null),
-    metroCell(metro, metro ? `${metro.exit ? `${metro.exit} · ` : ''}≈ ${metro.min} min${metro.exit ? '' : ' à pied'}` : '',
+    metroCell(metro, metro ? `${metro.exit ? `${metro.exit} · ` : ''}≈ ${durText(metro.min)}${metro.exit ? '' : ' à pied'}` : '',
       () => openPlaceStations(p, named(p.name, () => openDetail(p.id, back))))) : null;
 
   // Lignes d'information, séparées par des filets.
@@ -3718,7 +3718,7 @@ function hoursLine(p, h = hoursOf(p)) {
   const st = openState(h);
   if (!st) return null;
   const left = minutesLeft(h);
-  if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${left} min (${hhText(st.until)})`;
+  if (st.open && left != null && left <= 45) return `Ouvert · ferme dans ${durText(left)} (${hhText(st.until)})`;
   if (st.open) return st.until ? `Ouvert · ferme à ${hhText(st.until)}` : 'Ouvert toute la journée';
   return st.opensAt ? `Fermé · ouvre à ${hhText(st.opensAt)}` : 'Fermé pour aujourd\'hui';
 }
@@ -3731,7 +3731,7 @@ function stateTag(hours, walk = null) {
   if (!st) return null;
   const left = minutesLeft(hours);
   if (closedOnArrival(hours, walk)) return el('span', { class: 'tag soon' }, 'Fermé à ton arrivée');
-  if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${left} min`);
+  if (st.open && left != null && left <= 45) return el('span', { class: 'tag soon' }, `Ferme dans ${durText(left)}`);
   if (st.open) return el('span', { class: 'tag open' }, 'Ouvert');
   if (st.opensAt) return el('span', { class: 'tag soon' }, `Ouvre à ${hhText(st.opensAt)}`);
   // Fermé toute la journée, ou déjà fermé ce soir (le lieu a ouvert plus tôt) : on ne dit pas « aujourd'hui » à tort
@@ -3860,7 +3860,7 @@ function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { 
       if (p.plan) openPlanning(); else done();
       toast('Sortie retirée de Mon planning', false, { label: 'Annuler', fn: undo }); // v300 (mon choix 3A)
     } }, 'Retirer de Mon planning') : null,
-    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${tune('leaveMin')} min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
+    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${durText(tune('leaveMin'))} de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
     /* v440 (mon choix 1A du 25 nov.) : la marge se règle par un bouton, à la place du chemin écrit ; dans l'Aide, sous sa phrase ; le jour et le moment choisis sont gardés */
     el('p', { class: 'help tip' }, 'La marge se règle dans :',
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
@@ -4285,7 +4285,7 @@ function offerFallback(e) {
 
 function timeAgoShort(t) {
   const min = Math.round((Date.now() - t) / 60000);
-  return min < 1 ? 'à l\'instant' : min < 60 ? `il y a ${min} min` : `il y a ${Math.round(min / 60)} h`;
+  return min < 1 ? 'à l\'instant' : min < 60 ? `il y a ${durText(min)}` : `il y a ${Math.round(min / 60)} h`;
 }
 
 /** Choisir une station pour voir ce qu'il y a autour en sortant (sans GPS). */
@@ -4386,7 +4386,7 @@ function stationGoRow() {
   const st = stationByName(origin.label) ?? { n: origin.label, lat: origin.lat, lng: origin.lng, l: [] };
   const me = freshHere();
   const d = me ? distanceM(me, st) : null;
-  const sub = d == null ? null : walkGo(d) ? `${fmtDist(d)} · ${walkMinutes(d)} min` : fmtDist(d);
+  const sub = d == null ? null : walkGo(d) ? `${fmtDist(d)} · ${durText(walkMinutes(d))}` : fmtDist(d);
   const target = { name: `Ⓜ ${st.n}`, lat: st.lat, lng: st.lng };
   return el('ul', { class: 'items' }, el('li', { class: 'item' },
     el('div', { class: 'item-main' },
@@ -4451,7 +4451,7 @@ function renderNear(fit = false) {
       n ? el('button', { type: 'button', class: 'btn c-guide', 'aria-pressed': String(filt.covered), onclick: () => { filt.covered = !filt.covered; refresh(); renderNear(); } }, filt.covered ? 'Tout voir' : 'Abrités') : null));
     const arcs = arcadesNear(arcadesData ?? [], origin, tune('rainMin'));
     if (arcs.length) body.push(el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArcadeList(arcs, tune('rainMin'), named('Autour de moi', renderNear)) },
-      ico('door-open'), arcs.length === 1 ? `1 passage couvert à moins de ${tune('rainMin')} min` : `${arcs.length} passages couverts à moins de ${tune('rainMin')} min`));
+      ico('door-open'), arcs.length === 1 ? `1 passage couvert à moins de ${durText(tune('rainMin'))}` : `${arcs.length} passages couverts à moins de ${durText(tune('rainMin'))}`));
   }
   if (following) {
     body.push(el('p', { class: 'help' }, ico('footprints', { size: 15 }), ` Cette balade : ${walkText(walkSession)} · aujourd'hui : ${walkText(todayWalk())}`));
@@ -4476,7 +4476,7 @@ function renderNear(fit = false) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           nameFav(p),
-          el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${walkMinutes(d)}\u00a0min `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
+          el('span', { class: 'item-sub' }, photoMark(p), `${fmtDist(d)} · ${durText(walkMinutes(d)).replace(/ /g, '\u00a0')} `, starsText(p.stars), hoursTag(p, walkMinutes(d)), p.done || isPass(p) ? null : el('span', { class: 'tag' }, 'À faire')))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(p), 'aria-label': `Boussole vers ${p.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(goTarget(p, origin), d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))));
   }
@@ -4493,11 +4493,11 @@ function renderNear(fit = false) {
   if (state.showTtb && ttbList().length) {
     // Le guide, quand son calque est affiché : les 3 plus proches à moins de 15 min (réglable, v214), puis toute la liste
     const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(tune('ttbMin'))).sort((a, b) => a.d - b.d);
-    body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB${ttbOkWord(2)} à moins de ${tune('ttbMin')} min`), el('span', {}, String(ttbNear.length))));
+    body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB${ttbOkWord(2)} à moins de ${durText(tune('ttbMin'))}`), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => nearAgain())) },
         ttbDotFor(x.rub),
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${ttbKicker(x)}`))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
     body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => nearAgain())) }, ttbDotFor(''), 'Liste TTB'));
@@ -4511,7 +4511,7 @@ function renderNear(fit = false) {
       body.push(el('ul', { class: 'items' }, prized.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
         el('div', { class: 'item-main' },
           el('span', { class: 'cat-ico prized-ico', 'aria-hidden': 'true' }, ico('wheat')),
-          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${prizeText(x)}`))),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${prizeText(x)}`))),
         compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
         el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
       body.push(el('p', { class: 'help' }, 'Baguette : Grand Prix de la Ville de Paris. Croissant : concours des boulangers du Grand Paris. 2024 à 2026 ; une boulangerie a pu fermer depuis.'),
@@ -4526,7 +4526,7 @@ function renderNear(fit = false) {
       body.push(el('ul', { class: 'items' }, police.map(({ x, d }) => el('li', { class: 'item' },
         el('div', { class: 'item-main' },
           el('span', { class: 'cat-ico police-ico', 'aria-hidden': 'true' }, ico('shield')),
-          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${policeHours(x)}`))),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${policeHours(x)}`))),
         compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
         el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
       // v489 (mon choix 1A du 25 nov.) : le seul numéro que donne chaque fiche de la Préfecture de Police, le même pour tous
@@ -4738,7 +4738,7 @@ function renderWay(from, dest) {
         catDot(p.cat),
         el('span', { class: 'item-text' },
           nameFav(p),
-          el('span', { class: 'item-sub' }, photoMark(p), detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`))),
+          el('span', { class: 'item-sub' }, photoMark(p), detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${durText(walkMinutes(detour))}`))),
       el('a', { class: 'go', href: mapsUrl(goTarget(p, from), distanceM(from, goTarget(p, from))), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${p.name}` }, 'Y aller')))),
     found.length
       ? el('a', { class: 'btn primary', href: routeUrl([...found.slice(0, MAX_ROUTE - 1).map((x) => x.point), dest]), target: '_blank', rel: 'noopener' },
@@ -4775,7 +4775,7 @@ async function fillWayPauses(box, from, dest) {
   const row = (icon, { point: x, detour }) => el('li', { class: 'item' },
     el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.label, x.hours ? stateTag(x.hours, walkMinutes(distanceM(from, x))) : null),
-        el('span', { class: 'item-sub' }, [detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${walkMinutes(detour)} min`, x.short].filter(Boolean).join(' · ')))), // le détail (adresse, horaires bruts) reste dans Fontaine et WC ; « zone payante » reste
+        el('span', { class: 'item-sub' }, [detour < 30 ? 'Pile sur ton chemin' : `Détour ≈ ${durText(walkMinutes(detour))}`, x.short].filter(Boolean).join(' · ')))), // le détail (adresse, horaires bruts) reste dans Fontaine et WC ; « zone payante » reste
     el('a', { class: 'go', href: mapsUrl(x, distanceM(from, x)), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.label}` }, 'Y aller'));
   fill(box,
     el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Toilettes et fontaines sur ton chemin'), el('span', {}, '')),
@@ -4833,7 +4833,7 @@ async function downloadStreets() {
 }
 
 const routesBack = named('Mes parcours', () => openMyRoutes());
-const routeMin = (m) => { const n = routeMinutes(m); return `${n < 60 ? `${n} min` : minText(n)} à pied`; }; // à la minute près en dessous d'une heure
+const routeMin = (m) => { const n = routeMinutes(m); return `${n < 60 ? durText(n) : minText(n)} à pied`; }; // à la minute près en dessous d'une heure ; au-delà, minText (arrondi à 5 min) : un chemin long reste une estimation
 const legsTotal = (legs) => legs.reduce((s, l) => s + (l?.m ?? 0), 0);
 const legsFlags = (legs) => legs.reduce((f, l) => f | (l?.flags ?? 0), 0);
 /** « a, b et c » */
@@ -5529,7 +5529,7 @@ function previewGoogleImport({ list, items }) {
   listBox.addEventListener('change', () => { makeList = listBox.checked; });
   openSheet([ico('download'), ' Importer de Google Maps'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(items.length, 'lieu trouvé', 'lieux trouvés')}${list ? ` dans « ${list} »` : ''}.`),
-    el('p', { class: 'help' }, [located.length - outside ? `${located.length - outside} avec leur position.` : null, toFind.length ? `${toFind.length} à chercher par leur nom (environ ${Math.ceil(toFind.length * 1.1 / 60)} min).` : null, outside ? `${outside} hors de l'Île-de-France, ignorés.` : null].filter(Boolean).join(' ')),
+    el('p', { class: 'help' }, [located.length - outside ? `${located.length - outside} avec leur position.` : null, toFind.length ? `${toFind.length} à chercher par leur nom (environ ${durText(Math.ceil(toFind.length * 1.1 / 60))}).` : null, outside ? `${outside} hors de l'Île-de-France, ignorés.` : null].filter(Boolean).join(' ')),
     el('div', {}, el('div', { class: 'legend' }, 'Ranger dans la catégorie'), catSeg),
     list ? el('label', { class: 'item-main check-row' }, listBox, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Créer la liste « ${list} »`), el('span', { class: 'item-sub' }, 'Pour les retrouver ensemble avec le bouton Filtres'))) : null,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: () => runGoogleImport([...located.filter(inRegion), ...toFind].slice(0, 500), cat, makeList ? list : '') }, ico('download'), 'Importer'),
@@ -5617,7 +5617,7 @@ async function showVelib(at = null) {
     list.length ? el('ul', { class: 'items' }, list.map((s) => el('li', { class: 'item' },
       el('div', { class: 'item-main' }, el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bike', { size: 18 })),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name),
-          el('span', { class: 'item-sub' }, `${fmtDist(s.d)} · ${walkMinutes(s.d)} min · `,
+          el('span', { class: 'item-sub' }, `${fmtDist(s.d)} · ${durText(walkMinutes(s.d))} · `,
             velibNeed === 'bike' ? `${plural(s.bikes, 'vélo', 'vélos')} (${s.mech} méca., ${s.ebike} élec.)` : plural(s.docks, 'place libre', 'places libres')))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(s, s.d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${s.name}` }, 'Y aller'))))
@@ -5634,7 +5634,7 @@ async function showVelib(at = null) {
   if (!following) listMeMarker(from.lat, from.lng);
   // v415 : un rond touché ouvre le bandeau ; un appui sur le bandeau, la boussole (la ligne n'a pas de page)
   const vItems = list.map((s) => ({ name: s.name, lat: s.lat, lng: s.lng,
-    sub: `${walkMinutes(s.d)}\u00a0min · ${velibNeed === 'bike' ? plural(s.bikes, 'vélo', 'vélos') : plural(s.docks, 'place libre', 'places libres')}` }));
+    sub: `${durText(walkMinutes(s.d)).replace(/ /g, '\u00a0')} · ${velibNeed === 'bike' ? plural(s.bikes, 'vélo', 'vélos') : plural(s.docks, 'place libre', 'places libres')}` }));
   tapRounds(nearLayer, list.map((s) => ({ lat: s.lat, lng: s.lng, style: { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
     (k) => showPeek({ kicker: 'Vélib\'', items: vItems, icon: 'bike', open: (x) => openCompass({ name: x.name, lat: x.lat, lng: x.lng }), back: () => showVelib(from), from, start: k, stay: true }));
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
@@ -6430,7 +6430,7 @@ function planInfo(p) {
   if (!isPart(p.ticket.part) && daysUntil(p.ticket.at) === 0 && p.ticket.at > Date.now()) {
     const from = startHere();
     const { leave, travel, how } = departureFor(p, from);
-    if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`}${from?.kind === 'home' ? ' de chez toi' : ''} · ≈ ${travel} min ${how}`));
+    if (leave) out.push(el('span', { class: 'plan-note' }, ico('footprints'), ` ${leave <= new Date() ? 'Pars maintenant' : `Pars à ${hmText(leave)}`}${from?.kind === 'home' ? ' de chez toi' : ''} · ≈ ${durText(travel)} ${how}`));
   }
   const w = planWeather(forecast?.days?.[dayKey(at)], p.covered);
   if (w) out.push(el('span', { class: 'plan-note' }, ico(w.startsWith('Pluie') ? 'cloud-rain' : 'thermometer-sun'), ` ${w}`));
@@ -6780,13 +6780,13 @@ function myStats() {
   const svgEl = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
   const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'stats-svg', role: 'group', 'aria-label': `Minutes de marche par jour sur ${statsDays} jours : ${minOf(t.m)} minutes au total.` });
   svg.append(svgEl('line', { x1: 0, x2: W, y1: base + 0.5, y2: base + 0.5, class: 'stats-axis' }));
-  const cap = svgEl('text', { x: 0, y: 10, class: 'stats-tick' }); cap.textContent = `${maxMin} min`; svg.append(cap);
+  const cap = svgEl('text', { x: 0, y: 10, class: 'stats-tick' }); cap.textContent = `${durText(maxMin)}`; svg.append(cap);
   svg.append(svgEl('line', { x1: 0, x2: W, y1: top + 0.5, y2: top + 0.5, class: 'stats-grid' }));
   days.forEach((d, i) => {
     const x = i * slot + (slot - bw) / 2;
     let y = base;
     const parts = order.map((b) => [b, minOf(d.air[b] ?? 0)]).filter(([, v]) => v > 0);
-    const detail = `${dayName(d.date)} : ${minOf(d.m)} min de marche${parts.length ? ` (${parts.map(([b, v]) => `${AIR_LABEL[b].toLowerCase()} ${v} min`).join(', ')})` : ''}.`;
+    const detail = `${dayName(d.date)} : ${durText(minOf(d.m))} de marche${parts.length ? ` (${parts.map(([b, v]) => `${AIR_LABEL[b].toLowerCase()} ${durText(v)}`).join(', ')})` : ''}.`;
     const g = svgEl('g', { class: 'stats-bar', tabindex: '0', role: 'button', 'aria-label': detail });
     g.append(svgEl('rect', { x: i * slot, y: 0, width: slot, height: H, fill: 'transparent' })); // zone de toucher plus grande que la barre
     parts.forEach(([b, v], k) => {
@@ -6802,10 +6802,10 @@ function myStats() {
   for (const [i, txt] of [[0, dayName(days[0].date)], [days.length - 1, 'aujourd\'hui']]) {
     const tx = svgEl('text', { x: i ? W : 0, y: H - 4, class: 'stats-tick', 'text-anchor': i ? 'end' : 'start' }); tx.textContent = txt; svg.append(tx);
   }
-  const legend = el('div', { class: 'stats-legend' }, order.filter((b) => t.air[b] > 0 || b !== 'inconnu').map((b) => el('span', {}, el('i', { class: `air-key air-${b}`, 'aria-hidden': 'true' }), `${AIR_LABEL[b]} · ${minOf(t.air[b])} min`)));
+  const legend = el('div', { class: 'stats-legend' }, order.filter((b) => t.air[b] > 0 || b !== 'inconnu').map((b) => el('span', {}, el('i', { class: `air-key air-${b}`, 'aria-hidden': 'true' }), `${AIR_LABEL[b]} · ${durText(minOf(t.air[b]))}`)));
   const table = el('details', { class: 'stats-table' }, el('summary', {}, 'Voir en tableau'),
     el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Jour'), el('th', {}, 'Marche'), ...order.map((b) => el('th', {}, AIR_LABEL[b].replace('Air ', ''))))),
-      el('tbody', {}, days.filter((d) => d.m > 0).reverse().map((d) => el('tr', {}, el('td', {}, dayName(d.date)), el('td', {}, `${minOf(d.m)} min`), ...order.map((b) => el('td', {}, d.air[b] ? `${minOf(d.air[b])}` : '–')))))));
+      el('tbody', {}, days.filter((d) => d.m > 0).reverse().map((d) => el('tr', {}, el('td', {}, dayName(d.date)), el('td', {}, `${durText(minOf(d.m))}`), ...order.map((b) => el('td', {}, d.air[b] ? `${minOf(d.air[b])}` : '–')))))));
 
   // Barres horizontales (une seule série : pas de légende, la valeur est écrite)
   const hbars = (rows, label) => {
@@ -6851,7 +6851,7 @@ function myStats() {
   return [
     seg,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Marche et air'), el('span', {}, '')),
-    el('div', { class: 'stat-tiles' }, tile(`${minOf(t.m)} min`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
+    el('div', { class: 'stat-tiles' }, tile(`${durText(minOf(t.m))}`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
     svg, readout, legend, table,
     el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position. L\'air : une estimation du quartier, pas une mesure sur toi.'),
     el('p', { class: 'help tip' }, 'La marche est comptée avec Ma position et direction ou une balade guidée ; l\'air, heure par heure.'),
@@ -6922,7 +6922,7 @@ function receiveMeet(m) {
   const ago = m.time ? Math.round((Date.now() - m.time) / 60000) : null;
   const target = { name: m.name ? `${m.name}` : 'Point de rendez-vous', lat: m.lat, lng: m.lng };
   openSheet([ico('send'), ' Rejoindre'], el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, `${m.name || 'Quelqu\'un'} t'attend ici${ago != null && ago >= 0 ? ` (position envoyée il y a ${ago < 1 ? 'moins d\'une minute' : ago < 120 ? `${ago} min` : `${Math.round(ago / 60)} h`})` : ''}.`),
+    el('p', { class: 'summary' }, `${m.name || 'Quelqu\'un'} t'attend ici${ago != null && ago >= 0 ? ` (position envoyée il y a ${ago < 1 ? 'moins d\'une minute' : ago < 120 ? `${durText(ago)}` : `${Math.round(ago / 60)} h`})` : ''}.`),
     // v416 (4A) : boussole éteinte, Y aller par Google Maps à pied, seule plaque pleine
     compassOff() ? el('a', { class: 'btn primary go-bar', href: mapsUrl(target, 0), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller')
       : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheetThen(() => openCompass(target)) }, ico('compass'), 'Y aller avec la boussole'),
@@ -7089,8 +7089,8 @@ function openJeRentre(at, back = null) {
   openSheet([ico('house'), ' Je rentre'], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `« ${text} »`),
     !home ? el('p', { class: 'help' }, 'Pour l\'heure d\'arrivée : règle ton adresse dans Chez moi.')
-      : !arrivalText(min) ? el('p', { class: 'help' }, `Chez moi est trop loin pour une heure à pied (plus de ${90} min) : le message part sans heure.`)
-      : el('p', { class: 'help' }, `Environ ${min} min à pied jusqu'à Chez moi, détours compris : l'heure est arrondie, c'est une estimation.`),
+      : !arrivalText(min) ? el('p', { class: 'help' }, `Chez moi est trop loin pour une heure à pied (plus de ${durText(90)}) : le message part sans heure.`)
+      : el('p', { class: 'help' }, `Environ ${durText(min)} à pied jusqu'à Chez moi, détours compris : l'heure est arrondie, c'est une estimation.`),
     ...(people.length
       ? people.map((c, i) => el('a', { class: `btn${i === 0 ? ' primary go-bar' : ''}`, href: smsHref(c.tel, text), 'aria-label': `Prévenir ${c.name || c.tel} par SMS` }, ico('send'), `Prévenir ${c.name || c.tel}`))
       : [el('button', { type: 'button', class: 'btn', onclick: () => openAlertContacts(self) }, ico('users'), 'Choisir mes proches à prévenir')]),
@@ -7211,8 +7211,8 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
   // v327 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
   // sans photo de l'agenda, ou si elle ne se charge pas, ma photo de la salle ; sinon la vignette lettrine (même taille).
   // v445 (mon choix 2A du 25 nov.) : à plus de 3 h à pied (règle de la v217), la distance seule, sans minutes (« 10206 min » loin de Paris)
-  const dist = d == null ? el('span', { class: 'ev-dist' }) : isFar(d) ? el('span', { class: 'ev-dist' }, fmtDist(d).replace(' ', '\u00a0'))
-    : el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0')));
+  const dist = d == null ? el('span', { class: 'ev-dist' }) : isFar(d) ? el('span', { class: 'ev-dist' }, fmtDist(d).replace(/ /g, '\u00a0'))
+    : el('span', { class: 'ev-dist' }, `${durText(walkMinutes(d)).replace(/ /g, '\u00a0')}`, el('small', {}, fmtDist(d).replace(/ /g, '\u00a0')));
   const tiled = state.evThumbs === true && !badge && genre !== 'circuit';
   const none = () => (tiled ? letterTile(genre) : icon());
   const thumb = tiled ? (photo || venuePhoto ? evThumb(photo, venuePhoto, none) : none()) : null;
@@ -7784,7 +7784,7 @@ async function openArtist(name, back = null) {
   const follow = () => { state.artists = cleanArtists([...cleanArtists(state.artists), n]); persist(); again(); toast(`${n} est dans Mes artistes`); };
   const site = link ? link.u.replace(/^https:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
   const head = (t, c) => el('h3', { class: 'ring-title' }, el('span', {}, t), el('span', {}, String(c)));
-  const minTxt = (d) => (d != null ? `${walkMinutes(d)} min` : '');
+  const minTxt = (d) => (d != null ? `${durText(walkMinutes(d)).replace(/ /g, '\u00a0')}` : '');
   const rowOf = (icon, title, sub, onclick) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(icon, { size: 18 })),
     el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, title), el('span', { class: 'item-sub' }, sub))));
@@ -8742,7 +8742,7 @@ async function openGalleryWalk(from = null) {
   openSheet([ico('palette'), ' Parcours galeries'], el('div', { class: 'stack' },
     el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice),
     plan.route.length
-      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'galerie', 'galeries')} ouvertes à ton arrivée, retour au départ : ${plan.walk} min de marche + 15 min par galerie = ${plan.total} min.`)
+      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'galerie', 'galeries')} ouvertes à ton arrivée, retour au départ : ${durText(plan.walk)} de marche + 15 min par galerie = ${durText(plan.total)}.`)
       : el('p', { class: 'empty' }, cands.length ? 'Aucune galerie ouverte sur ce temps. Essaie plus long, ou un autre jour (beaucoup ferment le dimanche et le lundi).' : 'Aucune galerie aux horaires connus à moins de 2 km.'),
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
     plan.route.length ? compassOff() ? null : el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => startGuide([...plan.route, { name: 'Retour au départ', lat: origin0.lat, lng: origin0.lng }], 'Parcours galeries') }, ico('navigation'), 'Balade guidée') : null,
@@ -8886,7 +8886,7 @@ async function openHomePlan(home) {
             el('span', { class: 'item-text' },
               el('span', { class: 'item-name' }, o.stop[2]),
               el('span', { class: 'lines' }, o.lines.map((l) => el('span', { class: 'bus-line' }, l))),
-              el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop), several ? `jusqu'à ${o.to[2]}` : ''].filter(Boolean).join(' · ')))))))
+              el('span', { class: 'item-sub' }, [`${durText(walkMinutes(o.d))} à pied`, busPlace(busData, o.stop), several ? `jusqu'à ${o.to[2]}` : ''].filter(Boolean).join(' · ')))))))
           : el('p', { class: 'empty' }, `Aucun bus vers ${busTo} à moins de 8 min à pied.`),
     ...goneStops.map((b) => el('p', { class: 'help' }, `L'arrêt ${b.n} n'existe plus dans la liste : choisis-le à nouveau dans Mes stations.`)),
     // v483 (mon choix 1 du 25 nov.) : le soir, la descente entre deux arrêts (IDFM, RATP : tous les bus après 22 h, Noctilien compris)
@@ -8907,10 +8907,10 @@ async function openHomePlan(home) {
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, lineBadges(o.st), o === lead && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
-          el('span', { class: 'item-sub' }, o.st === home.st ? `${walkMinutes(o.d)} min à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${walkMinutes(o.d)} min à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`}`))),
+          el('span', { class: 'item-sub' }, o.st === home.st ? `${durText(walkMinutes(o.d))} à pied · c'est ta station ${home.label}` /* v368 : pas de faux temps en métro */ : `${durText(walkMinutes(o.d))} à pied · ${o.plan.noMetro ? 'pas de trajet simple en métro d\'ici' : o.plan.type === 'walk' ? 'puis à pied' : `≈ ${durText(o.plan.minutes)} jusqu'à ${home.label}`}`))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }), 'aria-label': `Boussole vers la station ${o.st.n}` }, ico('compass'))))) 
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 1,5 km.'),
-    (best ? walk <= best.plan.minutes : homeNear) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min.`) : null,
+    (best ? walk <= best.plan.minutes : homeNear) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${durText(walk)}.`) : null,
     ...busBlock,
     el('p', { class: 'help' }, `Métro et RER : estimation sans horaires.${home.bus ? ' Bus : sans horaires ni sens ; vérifie le sens à l\'arrêt.' : ''}`),
     el('p', { class: 'help tip' }, `Le RER compte là où il croise le métro.${home.bus ? ` Bus : les lignes qui vont jusqu'à ${several ? 'tes arrêts' : 'ton arrêt'}. Touche un arrêt pour ${compassOff() ? 'y aller (Google Maps à pied)' : 'la boussole'}.` : ''} « Google Maps » : le trajet en transports, avec les horaires et les correspondances.`),
@@ -8956,22 +8956,22 @@ async function openPlaceStations(p, back = null) {
   const badges = stationBadges;
   const homeText = (o) => (o.st === home.st ? `c'est ta station ${home.label}`
     : o.plan.noMetro ? 'pas de trajet simple en métro d\'ici'
-      : o.plan.type === 'walk' ? `${home.label} à ≈ ${o.plan.minutes} min à pied`
-        : `≈ ${o.plan.minutes} min jusqu'à ${home.label}`);
+      : o.plan.type === 'walk' ? `${home.label} à ≈ ${durText(o.plan.minutes)} à pied`
+        : `≈ ${durText(o.plan.minutes)} jusqu'à ${home.label}`);
   const open = (o) => (dest && o.st !== home.st ? renderMetroPlan(dest, place, self, o.st, place) : openCompass({ name: `Ⓜ ${o.st.n}`, lat: o.st.lat, lng: o.st.lng }));
   openSheet(`Stations proches`, el('div', { class: 'stack' },
     el('p', { class: 'help' }, dest ? `Autour de ${p.name}. Pour rentrer vers ${home.st.n} (${home.label})\u00a0:` : `Autour de ${p.name}\u00a0:`),
     opts.length ? el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => open(o),
-        'aria-label': `${o.st.n}, ${o.walkIn} min à pied${dest ? `, ${homeText(o)}` : ''}${o === lead && opts.length > 1 ? ', le plus rapide' : ''}. ${dest && o.st !== home.st ? 'Voir le trajet' : 'Boussole vers la station'}` },
+        'aria-label': `${o.st.n}, ${durText(o.walkIn)} à pied${dest ? `, ${homeText(o)}` : ''}${o === lead && opts.length > 1 ? ', le plus rapide' : ''}. ${dest && o.st !== home.st ? 'Voir le trajet' : 'Boussole vers la station'}` },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, dest && o.st !== home.st ? ico('route', { size: 18 }) : ico('compass', { size: 18 })),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, badges(o.st), o === lead && opts.length > 1 ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
-          el('span', { class: 'item-sub' }, dest ? `${o.walkIn} min à pied · ${homeText(o)}` : `${o.walkIn} min à pied`), // comme Rentrer
+          el('span', { class: 'item-sub' }, dest ? `${durText(o.walkIn)} à pied · ${homeText(o)}` : `${durText(o.walkIn)} à pied`), // comme Rentrer
           o.exit ? el('span', { class: 'item-sub' }, o.exit) : null)))))
       : el('p', { class: 'empty' }, 'Aucune station de métro à moins de 2 km de ce lieu.'),
-    dest && (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${walk} min jusqu'à ${home.label}.`) : null,
+    dest && (best ? walk <= best.plan.minutes : opts.some((o) => o.st === home.st)) ? el('p', { class: 'summary' }, `À pied, c'est aussi rapide : ≈ ${durText(walk)} jusqu'à ${home.label}.`) : null,
     dest ? null : el('p', { class: 'help' }, 'Avec ta station Maison, l\'appli te dit par laquelle rentrer le plus vite.'),
     dest ? null : el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false, self) }, ico('house'), 'Choisir ma station Maison'),
     el('p', { class: 'help' }, dest ? 'Estimation sans horaires, en partant du lieu.' : compassOff() ? 'Un appui : Google Maps à pied jusqu\'à la station.' : 'Un appui : la boussole vers la station.'), // v416
@@ -9843,7 +9843,7 @@ function openTtbPlace(x, back = null) {
         el('div', { class: 'fiche-k' }, 'Aujourd\'hui'),
         today ? el('div', { class: 'fiche-v' }, today.charAt(0).toUpperCase() + today.slice(1)) : el('div', { class: 'fiche-v muted' }, 'Horaires inconnus'),
         el('div', { class: 'fiche-s' }, 'selon TTB')),
-      metroCell(metro, metro ? `≈ ${metro.min} min à pied` : '', () => openPlaceStations({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)))),
+      metroCell(metro, metro ? `≈ ${durText(metro.min)} à pied` : '', () => openPlaceStations({ name: x.name, lat: x.lat, lng: x.lng, id: `ttb:${x.lat},${x.lng}` }, named(x.name, again)))),
     el('a', { class: 'btn primary go-bar', href: mapsUrl(x, d ?? Infinity), target: '_blank', rel: 'noopener' }, el('span', { 'aria-hidden': 'true' }, '→'), 'Y aller'),
     el('div', { class: 'row3' },
       compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass({ name: x.name, lat: x.lat, lng: x.lng }) }, ico('compass'), 'Boussole'),
@@ -10008,10 +10008,10 @@ function openFreeTime() {
         el('span', { class: 'item-sub' }, photoMark(p), `${fmtWalk(leg)} `, starsText(p.stars), hoursTag(p)))));
   });
   openSheet([ico('hourglass'), ' Temps libre'], el('div', { class: 'stack' },
-    el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice([30, 60, 90, 120, 180], freeMin, (v) => (v < 60 ? `${v} min` : `${v / 60} h`.replace('.5', ' h 30').replace(' h h', ' h')), (v) => { freeMin = v; })),
-    el('div', {}, el('div', { class: 'legend' }, 'Temps sur place, par lieu'), choice([5, 15, 30], freeDwell, (v) => `${v} min`, (v) => { freeDwell = v; })),
+    el('div', {}, el('div', { class: 'legend' }, 'J\'ai devant moi'), choice([30, 60, 90, 120, 180], freeMin, (v) => durText(v), (v) => { freeMin = v; })),
+    el('div', {}, el('div', { class: 'legend' }, 'Temps sur place, par lieu'), choice([5, 15, 30], freeDwell, (v) => `${durText(v)}`, (v) => { freeDwell = v; })),
     plan.route.length
-      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')}, retour au départ : ${plan.walk} min de marche + ${plan.route.length * freeDwell} min sur place = ${plan.total} min.`)
+      ? el('p', { class: 'summary' }, `${plural(plan.route.length, 'lieu', 'lieux')}, retour au départ : ${durText(plan.walk)} de marche + ${durText(plan.route.length * freeDwell)} sur place = ${durText(plan.total)}.`)
       : el('p', { class: 'empty' }, todo.length ? 'Aucun lieu assez proche pour ce temps. Essaie plus long ou moins de temps sur place.' : 'Aucun lieu avec les filtres actuels.'),
     plan.route.length ? nightLine(plan.total) : null,
     plan.route.length ? el('ol', { class: 'items' }, steps) : null,
@@ -10044,7 +10044,7 @@ function surprise() {
   if (!pool.length) { toast('Aucun de tes lieux à moins de 15 min (avec les filtres actuels).', true); return; }
   const p = pool[Math.floor(Math.random() * pool.length)];
   openDetail(p.id, named('Autour de moi', () => nearAgain()));
-  toast(`Surprise : ${p.name}, à ${walkMinutes(distanceM(origin, p))} min à pied`);
+  toast(`Surprise : ${p.name}, à ${durText(walkMinutes(distanceM(origin, p)))} à pied`);
 }
 
 /* ---------- Curiosités : articles Wikipédia autour (position arrondie à 100 m environ) ---------- */
@@ -10069,7 +10069,7 @@ function openPlaque(p, back = null) {
 const plaqueRow = (x, back) => el('li', { class: 'item' },
   el('button', { type: 'button', class: 'item-main', onclick: () => openPlaque(x.plaque, back) },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('scroll-text', { size: 18 })),
-    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.plaque.t), el('span', { class: 'item-sub' }, `${walkMinutes(x.d)}\u00a0min · ${plaqueStart(x.plaque, 60)}`))));
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.plaque.t), el('span', { class: 'item-sub' }, `${durText(walkMinutes(x.d)).replace(/ /g, '\u00a0')} · ${plaqueStart(x.plaque, 60)}`))));
 
 /** Toutes les plaques à moins de 5 min, de la plus proche. */
 function openAllPlaques(near) {
@@ -10104,12 +10104,12 @@ async function openCuriosities() {
       : near.length ? el('ul', { class: 'items' }, near.slice(0, 3).map((x) => plaqueRow(x, back)))
         : el('p', { class: 'help' }, 'Aucune plaque commémorative à moins de 5 min à pied.'),
     near.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openAllPlaques(near) }, `Toutes les plaques (${near.length})`) : null,
-    arcs.length ? el('h3', { class: 'ring-title' }, `Passages couverts à moins de ${ARCADE_NEAR_MIN} min`) : null,
+    arcs.length ? el('h3', { class: 'ring-title' }, `Passages couverts à moins de ${durText(ARCADE_NEAR_MIN)}`) : null,
     arcs.length ? el('ul', { class: 'items' }, arcs.slice(0, 3).map((x) => arcadeRow(x, back))) : null,
     arcs.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openArcadeList(arcs, ARCADE_NEAR_MIN, back) }, `Tous les passages (${arcs.length})`) : null,
     // v452 (mon choix 2A du 25 nov.) : les points de vue avant Wikipédia (une liste souvent longue), 3 au plus, et toujours « Tous »
-    el('h3', { class: 'ring-title' }, `Points de vue à moins de ${VUES_NEAR_MIN} min`),
-    vues.length ? el('ul', { class: 'items' }, vues.map((x) => vueRow(x, back))) : el('p', { class: 'help' }, `Aucun point de vue à moins de ${VUES_NEAR_MIN} min à pied.`),
+    el('h3', { class: 'ring-title' }, `Points de vue à moins de ${durText(VUES_NEAR_MIN)}`),
+    vues.length ? el('ul', { class: 'items' }, vues.map((x) => vueRow(x, back))) : el('p', { class: 'help' }, `Aucun point de vue à moins de ${durText(VUES_NEAR_MIN)} à pied.`),
     el('button', { type: 'button', class: 'btn', onclick: () => openVueList(back) }, `Tous les points de vue (${VUES.length})`),
     el('h3', { class: 'ring-title' }, 'Wikipédia à moins de 1 km'),
     !list ? el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.')
@@ -10117,7 +10117,7 @@ async function openCuriosities() {
     list ? el('ul', { class: 'items' }, items.map((w) => el('li', { class: 'item' },
       el('a', { class: 'item-main', href: wikiPage(w.title), target: '_blank', rel: 'noopener' },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('book-open-text', { size: 18 })),
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, w.title), el('span', { class: 'item-sub' }, `${fmtDist(w.d)} · ${walkMinutes(w.d)} min · lire l'article`))),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, w.title), el('span', { class: 'item-sub' }, `${fmtDist(w.d)} · ${durText(walkMinutes(w.d))} · lire l'article`))),
       have(w) ? el('span', { class: 'tag' }, 'Déjà là')
         : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))) : null,
     el('p', { class: 'help' }, 'Wikipédia : seule une position arrondie à 100 m est envoyée.'),
@@ -10256,7 +10256,7 @@ async function openCircuits(back = null) {
       : el('p', { class: 'empty' }, 'Aucun circuit pour ce choix. Touche une puce allumée pour l\'éteindre.'),
     notes.length ? ficheRow('triangle-alert', 'Problèmes notés', `${plural(notes.length, 'signalement', 'signalements')} · Copier pour Claude`, () => openCircuitNotes(null, self)) : null,
     hidden.size ? ficheRow('eye-off', plural(list.filter((c) => hidden.has(c.id)).length, 'circuit masqué', 'circuits masqués'), 'Les voir et les remettre', () => openHiddenCircuits(list, self)) : null,
-    el('p', { class: 'help' }, `Durées à ton pas, ${STOP_MIN} min par étape comprises ; les visites de musée sont en plus.`),
+    el('p', { class: 'help' }, `Durées à ton pas, ${durText(STOP_MIN)} par étape comprises ; les visites de musée sont en plus.`),
     el('p', { class: 'help tip' }, 'Le temps à droite : pour aller au départ.'),
     // v253 (mon choix A1) : « Nouveau circuit » dans la barre du bas, toujours sous le pouce ; la liste ne bouge pas
     foot(el('div', { class: `row${back ? ' row-big' : ''}` }, back ? backBtn(back) : null,
@@ -10304,12 +10304,12 @@ function openCircuit(c, back) {
     el('ol', { class: 'items' }, c.etapes.map((e, i) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCircuitStep(c, i, self) },
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, e.n), e.t ? el('span', { class: 'item-sub' }, e.t) : null))))),
-    mine.length ? el('h3', { class: 'fiche-sec' }, `Mes lieux à ${tune('traceMin')} min du tracé`) : null,
+    mine.length ? el('h3', { class: 'fiche-sec' }, `Mes lieux à ${durText(tune('traceMin'))} du tracé`) : null,
     mine.length ? el('ul', { class: 'items' }, mineShown.map(({ p, d }) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, self) },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name), el('span', { class: 'item-sub' }, `${catOf(p.cat).name} · à ${Math.max(10, Math.round(d / 10) * 10)} m du tracé`)))))) : null,
     mineShown.length < mine.length ? el('button', { type: 'button', class: 'ev-more', onclick: () => { openCircuit.all = c.id; again(); } }, `Tous mes lieux près du tracé (${mine.length})`, ico('chevron-down')) : null,
-    arcs.length ? el('h3', { class: 'fiche-sec' }, `Autres passages à ${ARCADE_TRACE_MIN} min du tracé`) : null,
-    arcs.length ? el('ul', { class: 'items' }, arcs.map((x) => arcadeRow(x, self, `${walkMinutes(x.d)} min du tracé · ${x.a.rues}`))) : null,
+    arcs.length ? el('h3', { class: 'fiche-sec' }, `Autres passages à ${durText(ARCADE_TRACE_MIN)} du tracé`) : null,
+    arcs.length ? el('ul', { class: 'items' }, arcs.map((x) => arcadeRow(x, self, `${durText(walkMinutes(x.d)).replace(/ /g, '\u00a0')} du tracé · ${x.a.rues}`))) : null,
     c.mine ? null : el('h3', { class: 'fiche-sec' }, 'Un souci sur ce circuit ?'),
     c.mine ? null : pbs.length ? ficheRow('triangle-alert', plural(pbs.length, 'problème noté', 'problèmes notés'), `Le dernier le ${dayText(pbs[0].at)} · les voir, les copier`, () => openCircuitNotes(c, self)) : null,
     c.mine ? null : ficheRow('triangle-alert', 'Signaler un problème sur le chemin', 'Pour une étape : ouvre l\'étape, puis « Signaler un problème »', () => openProblem(c, null, self)),
@@ -10620,7 +10620,7 @@ async function openCimetiere(j, back = null) {
     lines: [
       windy() ? el('p', { class: 'warn' }, `Grand vent (rafales à ${meteo.gust} km/h) : la Ville ferme alors ses cimetières. Vérifie à l'entrée.`) : null,
       st ? el('p', { class: 'summary' }, st) : el('p', { class: 'help' }, 'Horaires inconnus'),
-      hours ? el('p', { class: 'help' }, `On n'entre plus ${EVACUATION_MIN} min avant la fermeture.`) : null,
+      hours ? el('p', { class: 'help' }, `On n'entre plus ${durText(EVACUATION_MIN)} avant la fermeture.`) : null,
       el('p', { class: 'where' }, ico('map-pin'), `${gate.name}, ${gate.address}`),
       note ? el('p', { class: 'help' }, note) : null,
       el('p', { class: 'help tip' }, `Horaires et portes : pages de la Ville de Paris (paris.fr), relevés le 25 novembre 2026, pour l'hiver (du 6 novembre au 15 mars) ; hors de cette saison, l'appli ne dit plus s'il est ouvert, jusqu'au prochain relevé. Y aller mène à la porte la plus proche ouverte à cette heure. Par grand vent, la Ville ferme ses cimetières comme ses jardins.`),
@@ -10646,7 +10646,7 @@ function openTombes(j, back, q = '') {
     const rows = f ? all.filter(({ t }) => fold(t.name).includes(f) || fold(t.what).includes(f)) : all;
     fill(list, ...(rows.length ? rows.map(({ t, d }) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openTombe(j, t, again) },
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, t.name),
-        el('span', { class: 'item-sub' }, [shortWhat(t), `division ${t.div}`, d != null ? `${walkMinutes(d)} min` : ''].filter(Boolean).join(' · '))))))
+        el('span', { class: 'item-sub' }, [shortWhat(t), `division ${t.div}`, d != null ? `${durText(walkMinutes(d)).replace(/ /g, '\u00a0')}` : ''].filter(Boolean).join(' · '))))))
       : [el('li', {}, el('p', { class: 'help' }, 'Aucun nom ne correspond.'))]));
   };
   input.addEventListener('input', draw);
@@ -10694,7 +10694,7 @@ function openTombPlaques(t, plq, from, back) {
     el('ul', { class: 'items' }, plq.map((x) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openPlaque(x.plaque, again) },
       el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('scroll-text', { size: 18 })),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.plaque.t),
-        el('span', { class: 'item-sub' }, [from ? `${walkMinutes(x.d)} min` : '', plaqueStart(x.plaque, 60)].filter(Boolean).join(' · '))))))),
+        el('span', { class: 'item-sub' }, [from ? `${durText(walkMinutes(x.d)).replace(/ /g, '\u00a0')}` : '', plaqueStart(x.plaque, 60)].filter(Boolean).join(' · '))))))),
     el('p', { class: 'help tip' }, 'Plaques commémoratives de la Ville de Paris (Direction des Affaires Culturelles) dont le titre porte ce nom ; une plaque qui le cite seulement dans son texte n\'est pas comptée.'),
     foot(backBtn(back)),
   ), { tall: true, name: 'tombeplaques', again });
@@ -10865,7 +10865,7 @@ function showArcadeOnMap(a, back) {
 const arcadeRow = (x, back, sub = '') => el('li', { class: 'item' },
   el('button', { type: 'button', class: 'item-main', onclick: () => openArcade(x.a, back) },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('door-open', { size: 18 })),
-    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a.nom), el('span', { class: 'item-sub' }, sub || `${walkMinutes(x.d)} min · ${x.a.rues}`))));
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a.nom), el('span', { class: 'item-sub' }, sub || `${durText(walkMinutes(x.d)).replace(/ /g, '\u00a0')} · ${x.a.rues}`))));
 
 /* ---------- v452 : points de vue sur Paris (js/vues.js ; mes choix 1B 2A 3A puis 1A 2A 3A 4A du 25 nov.) ----------
    Un bloc dans Curiosités, une liste (gratuits d'abord), une page par lieu au geste des passages couverts (ma photo). */
@@ -10940,7 +10940,7 @@ function vuePhoto(v, back, add, done = null) { // v467 : `done` = À mettre à j
 /** Les passages couverts à moins de N min, du plus proche. */
 function openArcadeList(near, min, back) {
   const self = named('Passages', () => openArcadeList(near, min, back));
-  openSheet([ico('door-open'), ` Passages à moins de ${min} min`], el('div', { class: 'stack' },
+  openSheet([ico('door-open'), ` Passages à moins de ${durText(min)}`], el('div', { class: 'stack' },
     el('p', { class: 'help' }, `${plural(near.length, 'passage couvert', 'passages couverts')}, du plus proche. ${ARCADE_HOURS}`),
     el('ul', { class: 'items' }, near.map((x) => arcadeRow(x, self))),
     back ? foot(backBtn(back)) : null,
@@ -11036,7 +11036,7 @@ async function openMonuments() {
       el('div', { class: 'item-row wrap' },
         el('div', { class: 'item-main' },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
-          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a), el('span', { class: 'item-sub' }, `${fmtDist(x.d)} · ${walkMinutes(x.d)} min`), txt)),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a), el('span', { class: 'item-sub' }, `${fmtDist(x.d)} · ${durText(walkMinutes(x.d))}`), txt)),
         ...rowBtns(m)),
       short ? el('div', { class: 'links' },
         el('button', { type: 'button', class: 'mini-link', 'aria-expanded': 'false', onclick: (e) => {
@@ -11058,7 +11058,7 @@ async function openMonuments() {
       el('div', { class: 'item-row wrap' },
         el('div', { class: 'item-main' },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('landmark', { size: 18 })),
-          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${walkMinutes(m.d)} min`),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, m.name), el('span', { class: 'item-sub' }, `${fmtDist(m.d)} · ${durText(walkMinutes(m.d))}`),
             ...(m.acr ? [acrLabel(m.acr), archLine({ a: m.acr.a, d: m.acr.y })] : [merimeeLine(info(m)), museumLine(info(m)), archLine(archMap?.get(m.merimee))]).filter(Boolean).map((t) => el('span', { class: 'item-sub small' }, t)))),
         ...rowBtns(m)),
       el('div', { class: 'links' },
@@ -11696,14 +11696,14 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'legend' }, 'Vitesse de chaque mode'),
       ...PACES.map((m) => el('div', { class: 'cat-row pace-row' },
         el('span', { class: 'pace-text' }, el('span', { class: 'cat-name' }, PACE_NAME[m]),
-          el('span', { class: 'menu-sub' }, `${kmhText(pace.kmh[m])} km/h · ${perKm(pace.kmh[m])} min par km`)),
+          el('span', { class: 'menu-sub' }, `${kmhText(pace.kmh[m])} km/h · ${durText(perKm(pace.kmh[m]))} par km`)),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:-0.5`, 'aria-label': `${PACE_NAME[m]} : moins vite`, onclick: () => step(m, -0.5) }, ico('minus')),
         el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${m}:0.5`, 'aria-label': `${PACE_NAME[m]} : plus vite`, onclick: () => step(m, 0.5) }, ico('plus')))),
       el('p', { class: 'legend' }, 'Mesurer ma vitesse'),
       el('div', { class: 'row duo row-big' }, // v320 : Normal et Rapide seulement (mon choix 1A du 20 nov.)
         ...['normal', 'rapide'].map((m) => el('button', { type: 'button', class: 'btn c-guide', 'data-measure': m, onclick: () => openMesurePas(m) }, `Mesurer ${PACE_NAME[m]}`))),
       el('p', { class: 'help tip' }, 'Mesurer : l\'appli lance un chrono et s\'arrête seule au bout de 1 km, compté comme partout dans l\'appli (la ligne droite × 1,3). Elle ne garde que ton point de départ, le temps de la mesure. Sans l\'appli : chronomètre 1 km dans la rue, feux compris, puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
-      el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied.`),
+      el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${durText(walkMinutes(1000))} à pied.`),
       el('p', { class: 'help tip' }, 'Les rues font environ 1,3 fois la ligne droite. De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.'),
       JSON.stringify(pace) === JSON.stringify(cleanPace(undefined)) ? null : el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'), /* 6A : seulement quand il a changé */
       backBtn,
@@ -11760,7 +11760,7 @@ function openSettings(section = null, from = null) {
         el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
           state.rings = normalizeRings(rings.value);
           state.minuteRings = normalizeMinuteRings(minRings.value);
-          if (persist()) { toast(`Cercles : ${state.rings.map(fmtRing).join(', ')} · ${state.minuteRings.map((m) => `${m} min`).join(', ')}`); openSettings('distances'); }
+          if (persist()) { toast(`Cercles : ${state.rings.map(fmtRing).join(', ')} · ${state.minuteRings.map((m) => `${durText(m)}`).join(', ')}`); openSettings('distances'); }
         } }, 'Enregistrer'))),
     ), { tall: true, name: 'settings:cercles', again: () => openSettings('cercles') });
     return;
@@ -12030,7 +12030,7 @@ function openSettings(section = null, from = null) {
     requestAnimationFrame(() => document.querySelector(`[data-step="${key}:${dir}"]`)?.focus());
   };
   const tuneRow = (key, label, sub) => el('div', { class: 'cat-row pace-row' },
-    el('span', { class: 'pace-text' }, el('span', { class: 'cat-name' }, label(tuningText(key, tune(key)).replace(' ', '\u00a0'))), el('span', { class: 'menu-sub' }, sub)), /* espace insécable : « 100 m » ne se coupe pas en Très grand */
+    el('span', { class: 'pace-text' }, el('span', { class: 'cat-name' }, label(tuningText(key, tune(key)).replace(/ /g, '\u00a0'))), el('span', { class: 'menu-sub' }, sub)), /* espace insécable : « 100 m » ne se coupe pas en Très grand */
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, 'aria-label': `${label(tuningText(key, tune(key)))} : moins`, onclick: () => tuneStep(key, -1, label) }, ico('minus')),
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, 'aria-label': `${label(tuningText(key, tune(key)))} : plus`, onclick: () => tuneStep(key, 1, label) }, ico('plus')));
 
@@ -13149,18 +13149,18 @@ function otherStartsBlock(p, from, back) {
   const lead = clearFastest(opts, null, Infinity);
   const self = named('Métro', () => renderMetroPlan(p, from, back));
   const text = (o) => (o.plan.noMetro ? 'pas de trajet simple en métro d\'ici'
-    : o.plan.type === 'walk' ? `le lieu à ≈ ${o.plan.minutes} min à pied`
-      : `≈ ${o.plan.minutes} min jusqu'au lieu`);
+    : o.plan.type === 'walk' ? `le lieu à ≈ ${durText(o.plan.minutes)} à pied`
+      : `≈ ${durText(o.plan.minutes)} jusqu'au lieu`);
   return [
     el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Autres stations près de toi'), el('span', {}, '')),
     el('ul', { class: 'items' }, opts.map((o) => el('li', { class: 'item' },
       el('button', { type: 'button', class: 'item-main', onclick: () => renderMetroPlan(p, from, self, o.st),
-        'aria-label': `${o.st.n}, ${walkMinutes(o.d)} min à pied, ${text(o)}${o === lead ? ', le plus rapide' : ''}. Voir le trajet` },
+        'aria-label': `${o.st.n}, ${durText(walkMinutes(o.d))} à pied, ${text(o)}${o === lead ? ', le plus rapide' : ''}. Voir le trajet` },
         el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('route', { size: 18 })),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, o.st.n),
           el('span', { class: 'lines' }, stationBadges(o.st), o === lead ? el('span', { class: 'tag open' }, 'Le plus rapide') : null),
-          el('span', { class: 'item-sub' }, `${walkMinutes(o.d)} min à pied · ${text(o)}`)))))),
+          el('span', { class: 'item-sub' }, `${durText(walkMinutes(o.d))} à pied · ${text(o)}`)))))),
   ];
 }
 
@@ -13178,19 +13178,19 @@ function renderMetroPlan(p, from, back, start = null, fromPlace = null) {
   if (none) {
     steps = [step(el('b', { class: 'm-badge', 'aria-hidden': 'true' }), noMetroText(plan, start))];
   } else if (onFoot) {
-    steps = [step(ico('footprints'), `À pied, c'est le plus simple : ≈ ${plan.minutes} min.`)];
+    steps = [step(ico('footprints'), `À pied, c'est le plus simple : ≈ ${durText(plan.minutes)}.`)];
   } else {
     firstTarget = { name: `Ⓜ ${plan.start.n}`, lat: plan.start.lat, lng: plan.start.lng };
     steps = [
-      step(ico('footprints'), `${plan.walkIn} min à pied jusqu'à Ⓜ ${plan.start.n}`),
+      step(ico('footprints'), `${durText(plan.walkIn)} à pied jusqu'à Ⓜ ${plan.start.n}`),
       plan.type === 'direct'
         ? step(el('b', { class: 'm-badge', 'aria-hidden': 'true' }), `Prends ${ln(plan.line)} jusqu'à ${plan.end.n}`)
         : step(el('b', { class: 'm-badge', 'aria-hidden': 'true' }), `Prends ${ln(plan.line1)} jusqu'à ${plan.via.n}, puis ${ln(plan.line2)} jusqu'à ${plan.end.n}`),
-      step(ico('footprints'), `${plan.walkOut} min à pied jusqu'à ${p.name}`),
+      step(ico('footprints'), `${durText(plan.walkOut)} à pied jusqu'à ${p.name}`),
     ];
   }
   openSheet(`Vers ${p.name}`, el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, none ? 'Pas de trajet simple en métro' : onFoot ? 'À pied' : `En métro · ≈ ${plan.minutes} min au total`),
+    el('p', { class: 'summary' }, none ? 'Pas de trajet simple en métro' : onFoot ? 'À pied' : `En métro · ≈ ${durText(plan.minutes)} au total`),
     fromPlace ? el('p', { class: 'help' }, `Depuis ${fromPlace.name}.`) : null,
     el('ol', { class: 'plan' }, steps),
     onFoot || none ? null : el('p', { class: 'help' }, 'Estimation sans horaires : vérifie la direction sur le quai.'),
@@ -13278,13 +13278,13 @@ function showNearestMetro(from, note = null) {
     el('ul', { class: 'items' }, others.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${stationLabel(o)}`))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${stationLabel(o)}`))),
       el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))),
     rail.length ? el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'RER et tram proches'), el('span', {}, '')) : null,
     rail.length ? el('ul', { class: 'items' }, rail.map(({ station: o, d }) => el('li', { class: 'item' },
       el('span', { class: 'item-main' }, el('span', { class: `metro-mini${o.m === 'R' ? ' rer' : ' tram'}`, 'aria-hidden': 'true' }, o.m === 'R' ? 'R' : 'T'),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
-          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${gareLines(o)}`))),
+          el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${gareLines(o)}`))),
       el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}, ${gareLines(o)}` }, 'Y aller')))) : null,
   ), { name: 'metro', again: () => showNearestMetro(from, note) });
   nearLayer.clearLayers();
@@ -13376,7 +13376,7 @@ function showPratique(from, fs, ts, cs = [], last = 'cool') {
         const target = { name: item.label, lat: item.lat, lng: item.lng };
         return el('li', { class: 'item' },
           el('span', { class: 'item-main' }, el('span', { class: 'pr-ico', 'aria-hidden': 'true' }, ico(icon)),
-            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${walkMinutes(d)} min`, item.hours ? stateTag(item.hours, walkMinutes(d)) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
+            el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `${item.label} · ${fmtDist(d)} · ${durText(walkMinutes(d))}`, item.hours ? stateTag(item.hours, walkMinutes(d)) : null, item.extra ? el('span', { class: 'tag open' }, item.extra) : null),
               item.detail ? el('span', { class: 'item-sub' }, item.detail) : null)),
           compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(target), 'aria-label': `Boussole vers ${item.label}` }, ico('compass')),
           el('a', { class: 'go', href: mapsUrl(item, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${item.label}` }, 'Y aller'));
@@ -13992,6 +13992,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
     '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
     '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
@@ -14001,7 +14002,6 @@ const HELP = [
     '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
     '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
     '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
-    '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

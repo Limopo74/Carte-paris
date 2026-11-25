@@ -80,7 +80,7 @@ test('plus de 13 mois sans revue : plus de gratuit, payant, fermeture', () => {
 });
 
 test('dans l\'appli : bloc de Curiosités, liste, page, fichier gardé hors ligne, aide', () => {
-  assert.match(app, /Points de vue à moins de \$\{VUES_NEAR_MIN\} min/);
+  assert.match(app, /Points de vue à moins de \$\{durText\(VUES_NEAR_MIN\)\}/);
   assert.ok(app.indexOf('Points de vue à moins de') < app.indexOf("'Wikipédia à moins de 1 km'"), 'avant Wikipédia (choix 2A)');
   assert.match(app, /Tous les points de vue \(\$\{VUES\.length\}\)/);
   assert.match(app, /function openVue\(/);

@@ -103,7 +103,7 @@ test('walkLabel (v217) : plus de « 5984 min à pied » quand le téléphone est
   const { walkLabel, setWalkSpeed } = await import('../js/geo.js');
   setWalkSpeed(5);
   assert.equal(walkLabel(500), '≈ 8 min à pied');
-  assert.equal(walkLabel(11000), '≈ 172 min à pied'); // 2 h 52 : on garde la durée
+  assert.equal(walkLabel(11000), '≈ 2 h 52 à pied'); // 172 min : on garde la durée, en heures (v498)
   assert.equal(walkLabel(12000), 'à 12 km');
   assert.equal(walkLabel(384600), 'à 385 km');
 });
