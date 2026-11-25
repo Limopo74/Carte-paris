@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (465)';
+const VERSION = '25 novembre 2026 (466)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10518,7 +10518,7 @@ const SETTINGS_FIND = [
   ['panel-top', 'Barre du haut', R, 'boutons du haut categories icones seules plus masquer ordre', (b) => openSettings('barre', b)],
   ['arrow-up-down', 'Boutons de la carte', R, 'colonne boutons ordre cote gauche droite gaucher noms masquer plus renommer', (b) => openSettings('outils', b)],
   ['check', 'L\'essentiel', `${R} → Boutons de la carte`, 'essentiel boutons garder', (b) => openSettings('essentiel', b)],
-  ['save', 'Enregistrer mes réglages de référence', R, 'reference defaut configuration revenir', () => openSettings()],
+  ['save', 'Réglages de référence', R, 'reference defaut configuration revenir enregistrer mes reglages', (b) => openSettings('reference', b)],
   ['bus', 'Mes lignes de bus', RA, 'bus ligne trajet', () => openMyBusLines()],
   ['message-square-text', 'Mots tout prêts', RA, 'mots impression serie phrases', (b) => openWordSeries(b)],
   ['heart', 'Favoris', RA, 'favori etoile coeur couleur', () => openFavStyle()],
@@ -11294,6 +11294,10 @@ function openSettings(section = null, from = null) {
     ));
     return;
   }
+  if (section === 'reference') { // 3A (25 nov.) : Réglages → Réglages de référence (avant : bouton plein et texte en bas de Réglages)
+    openSheet([ico('save'), ' Réglages de référence'], el('div', { class: 'stack' }, mySettingsBlock(), backBtn), { tall: true, name: 'settings:reference', again: () => openSettings('reference') });
+    return;
+  }
   if (section === 'look') section = 'apparence'; // ancien nom (v452 à v462)
   if (section === 'apparence') { // 1A (25 nov.) : v452 Style de l'appli (Papier ou Verre, le jour) + v280 Mode sombre (clair, sombre, comme le téléphone)
     const cur = cleanLook(state.look);
@@ -11574,7 +11578,8 @@ function openSettings(section = null, from = null) {
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('x')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Terminer l\'essai'), el('span', { class: 'menu-sub' }, 'Tes lieux et tes réglages reviennent, intacts')))
       : null,
-    mySettingsBlock(),
+    // 3A (25 nov.) : une ligne à la place du bouton plein et de son texte ; la page garde « Enregistrer » et « Revenir aux miens »
+    row('save', 'Réglages de référence', mySettingsSub(), () => openSettings('reference'), false, 'c-add'),
   ), { name: 'settings', again: () => openSettings(), tall: true });
 }
 
@@ -12876,15 +12881,22 @@ document.getElementById('btnParis').addEventListener('click', () => {
 /* ---------- Mes réglages par défaut ---------- */
 
 function applyAllSettings() { setMasculin(state.masculin === true); /* v286 */ setWalkSpeed(paceKmh(state.pace)); setWalkLimit(tune('walkM')); applyTextSize(); applyTheme(); applyMapStyle(); applyToolOrder(); drawArrNums(); scalePins(); /* v397 : noms des lieux */ refresh(); }
+/** 3A (25 nov.) : la petite ligne de « Réglages de référence » dans Réglages : leur état. */
+function mySettingsSub() {
+  const ms = state.mySettings;
+  if (!ms) return 'Pas encore enregistrés';
+  const when = new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  return sameAsMySettings(state) ? `Enregistrés le ${when}` : `Changés depuis le ${when}`;
+}
 function mySettingsBlock() {
   const ms = state.mySettings;
   const when = ms ? new Date(ms.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
-  const save = () => { state = saveMySettings(state); persist(); openSettings(); toast('Réglages de référence enregistrés'); };
-  const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); openSettings(); toast('Tes réglages de référence sont remis'); }; /* v294 : « Seulement les vérifiées » peut changer les ronds TTB */
+  const save = () => { state = saveMySettings(state); persist(); openSettings('reference'); toast('Réglages de référence enregistrés'); };
+  const restore = () => { state = applyMySettings(state); persist(); applyAllSettings(); drawTtb(); drawLayerNote(); openSettings('reference'); toast('Tes réglages de référence sont remis'); }; /* v294 : « Seulement les vérifiées » peut changer les ronds TTB */
   return el('div', { class: 'my-settings' },
     !ms ? [
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer mes réglages de référence'),
-      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons, filtres, style de la carte, mode sombre, style de l\'appli) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
+      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons, filtres, style de la carte, apparence) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
     ] : sameAsMySettings(state) ? [
       el('p', { class: 'ok-line' }, ico('check'), ` Réglages de référence enregistrés le ${when}, sans tes lieux.`),
       el('button', { type: 'button', class: 'btn c-info', onclick: save }, 'Les enregistrer à nouveau'),
@@ -13145,7 +13157,7 @@ const HELP = [
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
     '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
-    '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages de référence », en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
+    '**Tes réglages** sont gardés à chaque changement. {settings} → Réglages de référence, en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
@@ -13187,6 +13199,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
@@ -13196,7 +13209,6 @@ const HELP = [
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
-    '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -67,7 +67,7 @@ test('dans l\'appli : porte-voix caché au départ, sous la barre du haut, au-de
   assert.ok(link > 0 && link < app.indexOf('runLaunchAction();\n'), 'lu avant que runLaunchAction n\'efface l\'adresse');
   // Réglages : tout en bas, juste avant mes réglages par défaut
   const sw = app.indexOf("onOff('test', 'megaphone', 'Période de test'");
-  assert.ok(sw > app.indexOf("row('camera', 'Vu en passant'") && sw < app.indexOf('mySettingsBlock(),', sw));
+  assert.ok(sw > app.indexOf("row('camera', 'Vu en passant'") && sw < app.indexOf("row('save', 'Réglages de référence'", sw)); // 3A (25 nov.) : la ligne remplace le bloc
   assert.match(app, /'Part avec : la version, cet écran, la taille du texte, Android et Chrome\. Jamais ta position\.'/);
   assert.doesNotMatch(app.slice(app.indexOf('function openRemark()'), app.indexOf('function openRemarks(')), /myPos|lastFix|coords|getCurrentPosition/, 'aucune position dans une remarque');
 });

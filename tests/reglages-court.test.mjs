@@ -24,3 +24,16 @@ test('1A : plus les anciennes petites lignes trop longues', () => {
     assert.ok(!app.includes(old), old);
   }
 });
+
+test('3A : une ligne « Réglages de référence » à la place du bouton plein, en bas de Réglages ; sa page garde les deux boutons', () => {
+  assert.ok(!main.includes('mySettingsBlock()'), 'plus le bloc dans Réglages');
+  const i = main.indexOf("row('save', 'Réglages de référence', mySettingsSub(), () => openSettings('reference')");
+  assert.ok(i > main.indexOf("'Autres réglages', 'Distances"), 'sous Autres réglages, à la place du bloc');
+  const page = app.slice(app.indexOf("if (section === 'reference') {"), app.indexOf("name: 'settings:reference'"));
+  assert.match(page, /mySettingsBlock\(\), backBtn\)/);
+  const f = app.slice(app.indexOf('function mySettingsSub()'), app.indexOf('function mySettingsBlock()'));
+  for (const t of ["'Pas encore enregistrés'", '`Enregistrés le ${when}`', '`Changés depuis le ${when}`']) assert.ok(f.includes(t), t);
+  const block = app.slice(app.indexOf('function mySettingsBlock()'), app.indexOf('/* ---------- Aide ----------'));
+  assert.equal((block.match(/openSettings\('reference'\)/g) ?? []).length, 2, 'Enregistrer et Revenir aux miens restent sur la page');
+  assert.ok(!block.includes('mode sombre'), 'l\'aide dit « apparence »');
+});
