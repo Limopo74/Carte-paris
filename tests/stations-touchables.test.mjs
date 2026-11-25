@@ -41,7 +41,7 @@ test('stations touchables : un appui ouvre Autour de moi depuis la station, comm
 
 test('stations touchables : l\'aide le dit', () => {
   assert.match(app, /\*\*Lignes\*\* : [^\n]*touche-la : ce qu\\'il y a autour/);
-  assert.match(app, /\*\*Les stations se touchent\*\*/);
+  // v439 : sa ligne des Nouveautés est sortie (10 au plus) ; l'aide des Lignes le dit toujours
 });
 
 // v428 (mon choix A du 25 nov.) : la page « Autour de Ⓜ … » propose d'aller jusqu'à la station.

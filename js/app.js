@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (438)';
+const VERSION = '25 novembre 2026 (439)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4905,6 +4905,7 @@ function showTrace(fit = false) {
       el('p', { class: 'summary' }, `Étape ${t.sel + 1} : ${picked.name}`),
       el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { t.sel = null; showTrace(); } }, 'Garder'),
         el('button', { type: 'button', class: 'btn danger', onclick: () => removeStep(t.sel) }, ico('trash-2'), 'Retirer cette étape'))) : null,
+    !n && !cm && !nc ? el('button', { type: 'button', class: 'btn', onclick: traceFromHere }, ico('locate-fixed'), 'Partir de ma position') : null, // v439 : sous les boutons, rien ne bouge au-dessus ; parti dès la 1re étape
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: () => { if (!traceAsk('leave')) leave(); } }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))), // toujours actif : « Pose au moins 2 étapes » sinon
   ), { name: 'trace', again: () => showTrace() });
@@ -4932,6 +4933,21 @@ function bestOrder() {
   const before = legsTotal(t.legs); t.steps = order; t.legs = legs; t.sel = null;
   showTrace(true);
   toast(legsTotal(legs) < before - 5 ? `Dans le meilleur ordre : ${fmtDist(legsTotal(legs))}` : 'C\'était déjà le meilleur ordre');
+}
+/** v439 (mon choix A du 25 nov.) : « Partir de ma position », tant que le parcours n'a aucune étape : l'étape 1 sur la rue la plus
+ *  proche de moi (ou mon lieu à moins de 20 m, comme un appui). Rien d'automatique : préparer chez moi ne pose pas ma rue d'office.
+ *  La position ne part nulle part (plan des rues sur le téléphone). La carte se place sur l'étape posée (geste demandé). */
+async function traceFromHere() {
+  const t = trace; if (!t || t.steps.length) return;
+  waitToast('Recherche de ta position…');
+  let pos;
+  try { pos = await locate(); } catch (e) { if (trace === t && view === 'trace') toast(e.message, true); else hideToast(); return; }
+  if (trace !== t || view !== 'trace' || t.steps.length) { hideToast(); return; } // tracé fermé, ou une étape touchée pendant la recherche
+  if (!onPlan(streets, pos)) { toast('Tu es hors de Paris : le plan des rues ne couvre que Paris.'); return; }
+  if (!snap(streets, pos)) { toast(`Pas de rue à pied à moins de ${SNAP_MAX_M} m de toi : touche la carte pour ta première étape.`); return; }
+  hideToast();
+  traceTap(pos.lat, pos.lng);
+  if (t.steps.length) map.setView([t.steps[0].lat, t.steps[0].lng], Math.max(map.getZoom(), 16));
 }
 /** Un appui sur la carte pendant le tracé : une étape de plus (sur la rue la plus proche, ou un de mes lieux). */
 function traceTap(lat, lng, lieu = null) {
@@ -12283,7 +12299,7 @@ const HELP = [
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet ; dessous, les toilettes publiques et les fontaines à moins de 2 min de détour, sans celles fermées à ton arrivée (horaires publiés par la Ville).',
-    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation. Sous le chemin, « monte de 40 m » quand il monte de 15 m ou plus.',
+    '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; avant la première, « Partir de ma position » la pose là où tu es ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation. Sous le chemin, « monte de 40 m » quand il monte de 15 m ou plus.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
@@ -12459,6 +12475,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
@@ -12468,7 +12485,6 @@ const HELP = [
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
-    '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
