@@ -849,7 +849,8 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 /* Badge météo et air, sous la barre du haut */
 .wx-badge b { font-size: var(--t16); }
 .wx-badge .wx-sep { color: var(--muted); }
-.wx-badge .wx-home { display: inline-flex; } /* Chez moi allumé (v222) : le canapé à la place de l'arrondissement */
+.wx-badge.wx-tight .wx-air-word { display: none; } /* v479 : trop d'éléments allumés pour la largeur : le point de l'air reste, ses mots s'effacent */
+.wx-badge .wx-home, .wx-badge .wx-sun, .sun-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; margin: 0; } /* Chez moi allumé (v222) : le canapé à la place de l'arrondissement ; v479 : lever ou coucher du soleil, dans la pastille et la page Météo et air */
 /* Numéros des arrondissements (v193) : de loin seulement (zoom 14 et moins), gris, sous tout le reste ; limites en trait fin */
 #map:not(.z-far) .leaflet-arrNums-pane, #map.arr-nums-off .leaflet-arrNums-pane { display: none; }
 .leaflet-arrNums-pane { pointer-events: none; }

@@ -13,7 +13,7 @@ import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote,
-  cleanLook, LOOKS,
+  cleanLook, LOOKS, WX_PARTS, WX_DEFAULT, cleanWx, wxPart,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo, looksLikeAddress } from './adresse.js';
@@ -27,7 +27,7 @@ import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, 
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
-import { nightNote } from './soleil.js';
+import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
 import { cleanAcces, exitFor, entryFor } from './acces.js';
@@ -81,7 +81,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (478)';
+const VERSION = '25 novembre 2026 (479)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8825,22 +8825,46 @@ let air = null;
 const wxBadge = document.getElementById('wxBadge');
 /** Arrondissement où je suis, seulement s'il est sûr (position de moins de 10 min, assez précise, loin d'une limite). */
 const arrHere = () => (arrData ? arrSure(here, arrData) : null);
+/* v479 (mes choix 7 bis A et 7 ter du 25 nov.) : la pastille montre ce que j'allume dans Réglages → Autres réglages →
+   Pastille météo ; au départ, seulement la température et l'air. Le canapé de Chez moi reste visible dès que Chez moi est
+   allumé (un mode allumé dit toujours son état), même si l'arrondissement est éteint. */
+const wxOn = (k) => wxPart(state, k);
+const WX_NAME = { arr: 'arrondissement', day: 'dimanche', temp: 'température', rain: 'pluie', air: 'air', sun: 'soleil' };
+/** La petite ligne de « Pastille météo » dans Autres réglages : ce qui est allumé. */
+function wxSub() {
+  const on = WX_PARTS.filter(wxOn);
+  if (!on.length) return 'Tout éteint : pas de pastille';
+  if (on.length === WX_PARTS.length) return 'Tout est allumé';
+  const t = on.map((k) => WX_NAME[k]).join(', ');
+  return t[0].toUpperCase() + t.slice(1);
+}
 function drawWx() {
-  const day = dayNote();
+  const day = wxOn('day') ? dayNote() : null;
   const h = homeOn(); // v222 : Chez moi allumé, le canapé prend la place de l'arrondissement
-  const a = h ? null : arrHere();
-  if (!meteo && !air && !day && !a && !h) { wxBadge.hidden = true; return; }
+  const a = h || !wxOn('arr') ? null : arrHere();
+  const t = wxOn('temp') && meteo?.temp != null ? meteo.temp : null;
+  const rain = wxOn('rain') && meteo?.rain;
+  const aq = wxOn('air') ? air : null;
+  const sun = wxOn('sun') ? nextSun() : null;
+  if (t == null && !rain && !aq && !day && !a && !h && !sun) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
+  const rest = Boolean(day || t != null || rain || aq || sun);
   fill(wxBadge,
     h ? el('b', { class: 'wx-arr wx-home' }, ico('sofa', { size: 16 })) : null,
     a ? el('b', { class: 'wx-arr' }, arrOrd(a)) : null,
-    (a || h) && (day || meteo || air) ? el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·') : null,
+    (a || h) && rest ? el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·') : null,
     day ? el('span', { class: 'day-tag' }, day.short) : null,
-    meteo?.temp != null ? el('b', {}, `${meteo.temp}°`) : null,
-    meteo?.rain ? ico('cloud-rain', { size: 15 }) : null,
-    air ? el('span', { class: `air-dot air-${air.level}`, 'aria-hidden': 'true' }) : null,
-    air ? `Air ${air.label.toLowerCase()}` : null);
-  wxBadge.setAttribute('aria-label', h ? `Distances depuis chez toi. ${meteo?.temp != null ? `${meteo.temp} degrés. ` : ''}Détails` : [a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', meteo?.temp != null ? `${meteo.temp} degrés` : '', meteo?.rain ? 'pluie' : '', air ? `qualité de l'air : ${air.label}` : ''].filter(Boolean).join(', ') + '. Détails');
+    t != null ? el('b', {}, `${t}°`) : null,
+    rain ? ico('cloud-rain', { size: 15 }) : null,
+    aq ? el('span', { class: `air-dot air-${aq.level}`, 'aria-hidden': 'true' }) : null,
+    aq ? el('span', { class: 'wx-air-word' }, `Air ${aq.label.toLowerCase()}`) : null,
+    sun ? el('span', { class: 'wx-sun' }, ico(sun.kind === 'rise' ? 'sunrise' : 'sunset', { size: 15 }), sunText(sun.min)) : null);
+  // v479 : tout allumé, un dimanche, en Très grand, la pastille dépasserait l'écran : les mots « Air … » s'effacent, le point
+  // de couleur reste (TalkBack lit toujours le niveau)
+  wxBadge.classList.remove('wx-tight');
+  if (aq && wxBadge.getBoundingClientRect().right > innerWidth - 6) wxBadge.classList.add('wx-tight');
+  const sunSay = sun ? `${sun.kind === 'rise' ? 'lever du soleil' : 'coucher du soleil'} à ${sunText(sun.min)}` : '';
+  wxBadge.setAttribute('aria-label', [h ? 'Distances depuis chez toi' : a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', t != null ? `${t} degrés` : '', rain ? 'pluie' : '', aq ? `qualité de l'air : ${aq.label}` : '', sunSay].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -8883,6 +8907,8 @@ function openWeather(redraw = false) {
     z !== null ? el('p', { class: 'alt-here' }, `Altitude : environ ${z} m`) : null,
     day ? el('p', { class: 'warn day-note' }, day.long) : null,
     meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
+    // v479 : lever et coucher du soleil, calculés sur le téléphone (aucun réseau)
+    el('p', { class: 'sun-line' }, ico('sunrise', { size: 17 }), `Lever ${sunText(sunriseMin(new Date()))}`, el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·'), ico('sunset', { size: 17 }), `coucher ${sunText(sunsetMin(new Date()))}`),
     air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
     air ? el('p', {}, AIR_ADVICE[air.level]) : null,
     meteo?.rain && state.points.some((p) => p.covered) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
@@ -8891,7 +8917,10 @@ function openWeather(redraw = false) {
     air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
     meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
     el('p', { class: 'help' }, 'Valeurs du quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
-    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''}.`),
+    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('pastille', named('Météo et air', () => openWeather())) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sliders-horizontal')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
+    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
 wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
@@ -10793,7 +10822,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture']; // 1A : Apparence revient à Réglages
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'pastille']; // 1A : Apparence revient à Réglages
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
@@ -10847,6 +10876,7 @@ const SETTINGS_FIND = [
   ['spell-check', 'Écrire au masculin', RA, 'masculin feminin homme accord', () => openSettings('autres')],
   ['signpost', 'Circuits de visite', RA, 'circuits visites eteindre', () => openSettings('autres')],
   ['compass', 'Boussole', RA, 'boussole direction eteindre', () => openSettings('autres')],
+  ['thermometer-sun', 'Pastille météo', RA, 'meteo temperature air pluie soleil lever coucher arrondissement dimanche ferie pastille', (b) => openSettings('pastille', b)],
   ['info', 'Mise à jour et confidentialité', RA, 'mise a jour version confidentialite donnees partager appli robot', (b) => openSettings('appli', b)],
   ['database', 'Données de l\'appli', `${RA} → Mise à jour et confidentialité`, 'donnees mettre a jour robot dates', (b) => openSettings('donnees', b)],
   ['chart-no-axes-column', 'Ce que j\'utilise', RA, 'utilise comptes statistiques boutons touches', () => openUsage()],
@@ -11592,6 +11622,23 @@ function openSettings(section = null, from = null) {
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:-1`, 'aria-label': `${label(tuningText(key, tune(key)))} : moins`, onclick: () => tuneStep(key, -1, label) }, ico('minus')),
     el('button', { type: 'button', class: 'btn c-guide pace-step', 'data-step': `${key}:1`, 'aria-label': `${label(tuningText(key, tune(key)))} : plus`, onclick: () => tuneStep(key, 1, label) }, ico('plus')));
 
+  if (section === 'pastille') { // v479 (mes choix 7 bis A et 7 ter du 25 nov.) : Réglages → Autres réglages → Pastille météo
+    const sw = (k, icon, title, sub) => onOff(`wx-${k}`, icon, title, sub, wxOn(k), () => {
+      state.wx = cleanWx({ ...(cleanWx(state.wx) ?? WX_DEFAULT), [k]: !wxOn(k) }); drawWx();
+    });
+    openSheet([ico('thermometer-sun'), ' Pastille météo'], el('div', { class: 'stack' },
+      el('div', { class: 'menu' },
+        sw('arr', 'map', 'Arrondissement', 'Seulement s\'il est sûr'),
+        sw('day', 'calendar-days', 'Dimanche ou férié', 'Le mot, ces jours-là'),
+        sw('temp', 'thermometer-sun', 'Température', 'Celle du quartier'),
+        sw('rain', 'cloud-rain', 'Pluie', 'Le nuage, quand il pleut'),
+        sw('air', 'wind', 'Qualité de l\'air', 'Point de couleur et mot'),
+        sw('sun', 'sunrise', 'Soleil', 'Lever ou coucher')),
+      el('p', { class: 'help tip' }, 'Le canapé de Chez moi reste dans la pastille tant que Chez moi est allumé. Tout éteint : la pastille disparaît, et la page Météo et air avec elle ; rallume un élément ici pour la retrouver.'),
+      backBtn,
+    ), { tall: true, name: 'settings:pastille', again: () => openSettings('pastille') });
+    return;
+  }
   if (section === 'ouverture') { // v328 : où la carte s'ouvre (Réglages → Autres réglages → La carte)
     const cur = startViewOf(state);
     const hasHome = Boolean(cleanHome(state.home));
@@ -11805,6 +11852,8 @@ function openSettings(section = null, from = null) {
     // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     row('map-pinned', 'À mettre à jour sur place', 'Les 5 lieux à vérifier près de toi', () => openToCheck(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'), // v467 (mon choix A du 25 nov.)
+    // v479 (mes choix 7 bis A et 7 ter du 25 nov.) : la dernière ligne de « Ce qui s'affiche », au-dessus de ses interrupteurs (v359 : ils restent ensemble, en bas)
+    row('thermometer-sun', 'Pastille météo', wxSub(), () => openSettings('pastille'), false, 'c-guide'),
     // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
     onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
       state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
@@ -13265,8 +13314,8 @@ const HELP = [
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom ; touche-la : ce qu\'il y a autour (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
-    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail et un conseil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près).',
-    '**« 3e · 12° »** : devant la température, l\'arrondissement où tu es, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
+    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail, un conseil, le lever et le coucher du soleil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près). {settings} → Autres réglages → Pastille météo y ajoute, si tu veux, l\'arrondissement, dimanche ou férié, la pluie, le prochain lever ou coucher du soleil.',
+    '**« 3e · 12° »** : allumé dans Pastille météo, l\'arrondissement où tu es s\'écrit devant la température, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
     '**La colonne de boutons** : {camera} Vu en passant, Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, Mon Paris, et Fontaine et WC s\'il n\'est pas masqué.',
@@ -13518,6 +13567,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
     '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
     '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
@@ -13527,7 +13577,6 @@ const HELP = [
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
-    '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
