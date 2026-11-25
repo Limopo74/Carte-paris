@@ -1266,7 +1266,19 @@ a.menu-row .menu-chev { font-size: 20px; }
 .ev-from-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 .ev-from-text b { color: var(--ink); }
 .ev-mapbtn { flex: none; min-height: var(--h-s); padding: 0 14px; }
-.ev-findrow { width: 100%; min-height: var(--h-s); } /* v212 : Chercher, sous le point de départ */
+.ev-findrow { width: 100%; min-height: var(--h-s); }
+.ev-findline { display: flex; gap: 8px; align-items: stretch; }
+.ev-findline .ev-findrow { flex: 1; width: auto; min-width: 0; min-height: var(--h); }
+.ev-wherebox { display: flex; gap: 8px; flex: none; }
+.ev-findline .ev-findrow { padding: 0 10px; white-space: nowrap; }
+.chip.ev-where { min-width: var(--h); padding: 0; box-shadow: none; }
+.ev-where-label { display: none; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-findline { flex-wrap: wrap; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-findline .ev-findrow { flex-basis: 100%; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .chip.ev-where { padding: 0 10px; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-where-label { display: inline; }
+.chip.ev-where .ico svg { width: 22px; height: 22px; }
+.ev-wherenote { margin: 0; font-weight: 700; display: flex; align-items: center; gap: 4px; } /* v212 : Chercher, sous le point de départ */
 .chips-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
 .chips-scroll::-webkit-scrollbar { display: none; }
 .chips-scroll .chip { flex: none; }

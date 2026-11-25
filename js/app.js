@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (446)';
+const VERSION = '25 novembre 2026 (447)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7446,7 +7446,7 @@ async function openEvents(start = null) {
   let filters = null; // une seule rangée de puces sous le point de départ
   if (mode === 'all' || mode === 'free') {
     filters = [['out', 'sun', 'Dehors'], ['in', 'umbrella', 'À l\'abri']].map(([w, icon, label]) =>
-      el('button', { type: 'button', class: 'chip', 'aria-pressed': String(evWhere === w), onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), ` ${label}`));
+      el('button', { type: 'button', class: 'chip icon-only ev-where', 'aria-pressed': String(evWhere === w), 'aria-label': `${label}${evWhere === w ? ' : allumé. Tout voir' : ''}`, title: label, onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), el('span', { class: 'ev-where-label' }, label)));
     notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est masquée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosque Théâtre comptent à l\'abri.');
   }
 
@@ -7563,8 +7563,11 @@ async function openEvents(start = null) {
     seg, // les onglets restent toujours à la même place
     ctx,
     /* v212 : Chercher, sous le point de départ et Carte, seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) */
-    FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', onclick: () => openFindOutings('', mode) }, ico('search'), FIND_LABEL[mode]) : null,
-    filters ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': mode === 'navigo' ? 'Disciplines' : 'Dehors ou à l\'abri' }, ...filters) : null,
+    el('div', { class: 'ev-findline' },
+      FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', onclick: () => openFindOutings('', mode) }, ico('search'), FIND_LABEL[mode]) : null,
+      filters && mode !== 'navigo' ? el('div', { class: 'ev-wherebox', role: 'group', 'aria-label': 'Dehors ou à l\'abri' }, ...filters) : null),
+    filters && mode === 'navigo' ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Disciplines' }, ...filters) : null,
+    whereOn ? el('p', { class: 'ev-wherenote' }, ico(whereOn === 'out' ? 'sun' : 'umbrella'), whereOn === 'out' ? ' Seulement les sorties dehors' : ' Seulement les sorties à l\'abri') : null,
     ...body,
     // Les sites utiles (v164) : visibles en bas de Sorties, et non plus cachés dans l'aide ; le nom du site est écrit en clair
     el('h3', { class: 'fiche-sec' }, 'Pour aller plus loin'),
@@ -12516,6 +12519,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
     '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter. Réglages → Aide de l\'appli → Prise en main.',
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
@@ -12525,7 +12529,6 @@ const HELP = [
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
-    '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
