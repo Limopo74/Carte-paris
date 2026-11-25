@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (449)';
+const VERSION = '25 novembre 2026 (450)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1330,7 +1330,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
   const list = (state.lists ?? []).find((l) => l.id === listId);
   if (!list) { openSettings('categories'); return; }
   const sel = picked ?? new Set(state.points.filter((p) => p.lists?.includes(listId)).map((p) => p.id));
-  const from = startHere() ?? origin;
+  const from = startHere() ?? (evStale(origin) ? null : origin); // v450 : jamais une position de plus de 10 min
   const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const q = norm(query.trim());
   // Ceux de la liste d'abord, puis les plus proches (ou par nom sans position)
@@ -4144,6 +4144,8 @@ async function openNear() {
 /** v250 : en revenant sur Autour de moi (← après la page météo), la liste suit l'interrupteur « Partir de chez moi ».
  *  Une station choisie reste. Avant : la liste gardait son ancien point de départ jusqu'à sa réouverture. */
 function nearAgain() {
+  // v450 : la position d'Autour de moi a plus de 10 min (appli restée en mémoire) : la dernière position connue, sinon elle est redemandée
+  if (!homeOn() && evStale(origin) && !following) { const fix = freshHere(); if (fix) { origin = { ...fix, kind: 'gps' }; renderNear(true); } else openNear(); return; }
   if (homeOn() && (origin?.kind === 'gps' || origin?.kind === 'last')) { origin = atHome(); renderNear(true); return; }
   if (!homeOn() && origin?.kind === 'home') {
     const fix = freshHere();
@@ -4305,7 +4307,7 @@ function renderNear(fit = false) {
   // 8 outils en 2 rangées de 4 (v176) : Où suis-je et Mon Paris rejoignent la grille, la liste commence plus haut.
   // v224 : les 8 boutons ne changent jamais ; Où suis-je ? reste à la 7e place (avant : « Autre station », doublon de
   // Station, ou « Réessayer », qui passe sous la grille, avec la phrase sur la dernière position).
-  const pickStation = () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => renderNear() });
+  const pickStation = () => openStationPicker(undefined, { name: 'Autour de moi', fn: () => nearAgain() });
   body.push(el('div', { class: 'tools' },
     tool('route', 'Itinéraire', () => openRoutes()),
     tool('calendar-days', 'Sorties', () => openEvents('near'), null, 'c-disc'),
@@ -4356,7 +4358,7 @@ function renderNear(fit = false) {
       el('span', {}, from === 0 ? `Moins de ${ringText(g.ring)}` : `De ${ringText(from)} à ${ringText(g.ring)}`),
       el('span', {}, String(g.items.length))));
     body.push(el('ul', { class: 'items' }, g.items.map(({ point: p, d }) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Autour de moi', () => renderNear())) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDetail(p.id, named('Autour de moi', () => nearAgain())) },
         catDot(p.cat),
         el('span', { class: 'item-text' },
           nameFav(p),
@@ -4379,12 +4381,12 @@ function renderNear(fit = false) {
     const ttbNear = ttbShown().map((x) => ({ x, d: distanceM(origin, x) })).filter((t) => t.d <= minutesToMeters(tune('ttbMin'))).sort((a, b) => a.d - b.d);
     body.push(el('h3', { class: 'ring-title' }, el('span', {}, `TTB${ttbOkWord(2)} à moins de ${tune('ttbMin')} min`), el('span', {}, String(ttbNear.length))));
     if (ttbNear.length) body.push(el('ul', { class: 'items' }, ttbNear.slice(0, 3).map(({ x, d }) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => renderNear())) },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openTtbPlace(x, named('Autour de moi', () => nearAgain())) },
         ttbDotFor(x.rub),
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.name), el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${walkMinutes(d)} min · ${ttbKicker(x)}`))),
       compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass(x), 'aria-label': `Boussole vers ${x.name}` }, ico('compass')),
       el('a', { class: 'go', href: mapsUrl(x, d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${x.name}` }, 'Y aller')))));
-    body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => renderNear())) }, ttbDotFor(''), 'Liste TTB'));
+    body.push(el('button', { type: 'button', class: 'btn c-disc', style: 'width:100%', onclick: () => openTtbList(named('Autour de moi', () => nearAgain())) }, ttbDotFor(''), 'Liste TTB'));
   }
 
   { /* v265 (mes choix du 20 nov. : bas d'Autour de moi, 10 premiers sur 3 ans, la ligne ne s'ouvre pas, croissant ajouté) :
@@ -5911,7 +5913,7 @@ async function openMyParis(from = null) {
       row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
       row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats())),
     foot(myParisBack === 'near' && origin
-      ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
+      ? el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')
       : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
@@ -6518,7 +6520,7 @@ async function openWhereAmI() {
     quarter,
     el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
     el('p', { class: 'help tip' }, 'L\'IGN tient la Géoplateforme, un service public. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   );
   // v437 (mon choix 2A du 25 nov.) : Écouter lit ce qui est arrivé au moment de l'appui (adresse, arrondissement, nom de la rue, quartier)
   const listen = () => sayJoin([addrText, arrLine.textContent, origLine.hidden ? '' : origLine.textContent, quarter.querySelector('.quarter-text')?.textContent]);
@@ -6867,7 +6869,7 @@ function openFreeDaySpot(f, date, back) {
 /** La page d'un jour gratuit à venir (Sorties → Gratuit → Bientôt gratuit, ou le bandeau « Maintenant ») : du plus proche au plus loin. */
 function openFreeDay(date, back = named('Gratuit', () => { eventsMode = 'free'; openEvents(); })) {
   const again = () => openFreeDay(date, back);
-  const o = evFrom ?? origin ?? (() => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng, kind: 'map' }; })(); // jamais de GPS demandé ici
+  const o = (evStale(evFrom) ? null : evFrom) ?? startHere() ?? (evStale(origin) ? null : origin) ?? mapPoint(); // jamais de GPS demandé ici ; v450 : jamais une position de plus de 10 min
   const list = freeToday(date).filter((f) => f.rule !== 'always').map((f) => ({ ...f, d: distanceM(o, f) })).sort((a, b) => a.d - b.d);
   const here = named(`Gratuit ${date.toLocaleDateString('fr-FR', { weekday: 'long' })}`, again);
   openSheet([ico('landmark'), ` Gratuit ${dayTitle(date)}`], el('div', { class: 'stack' },
@@ -6930,7 +6932,7 @@ function openFindOutings(initial = '', tab = 'all') {
   const title = FIND_LABEL[tab] ?? FIND_LABEL.all;
   const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: tab === 'art' ? 'Un titre, un musée, un artiste…' : 'Un titre, un lieu, un artiste…', value: initial, 'aria-label': title });
   const box = el('div', { class: 'stack' });
-  const from = () => evFrom ?? startHere() ?? map.getCenter();
+  const from = () => (evStale(evFrom) ? null : evFrom) ?? startHere() ?? map.getCenter(); // v450 : jamais une position de plus de 10 min
   const run = async () => {
     const q = input.value.trim();
     if (q.replace(/\s/g, '').length < 3) { fill(box, el('p', { class: 'help' }, 'Tape au moins 3 lettres.')); return; }
@@ -6964,23 +6966,23 @@ async function openWeekExpos() {
       return;
     }
   }
-  const o = evFrom;
+  const o = await evPoint(); // v450 : jamais une position de plus de 10 min
   const now = new Date();
   const until = new Date(now); until.setDate(until.getDate() + 7);
-  const groups = weekExpos(weekCache.items.map((e) => ({ ...e, d: o ? distanceM(o, e) : null })), now);
+  const groups = weekExpos(weekCache.items.map((e) => ({ ...e, d: distanceM(o, e) })), now);
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const arrName = (a) => (a == null ? 'Hors Paris ou sans adresse' : a === 1 ? '1er' : `${a}e`);
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'summary' }, `${plural(total, 'expo', 'expos')} jusqu'au ${until.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}, tout Paris.`),
     el('p', { class: 'help tip' }, 'Touche un arrondissement pour l\'ouvrir. Dans chacun, celles qui ferment le plus tôt d\'abord.'),
     total ? el('div', { class: 'help-list' }, groups.map((g) => {
-      const near = o ? Math.min(...g.items.map((e) => e.d)) : null;
+      const near = Math.min(...g.items.map((e) => e.d));
       return el('details', { class: 'help-item week-arr' },
         el('summary', {}, el('span', { class: 'week-arr-name' }, arrName(g.arr)),
           el('span', { class: 'week-arr-sub' }, [plural(g.items.length, 'expo', 'expos'), near != null ? `${g.items.length > 1 ? 'la plus proche ' : ''}à ${fmtDist(near)}` : ''].filter(Boolean).join(' · '))),
         el('ul', { class: 'items week-items ev-list' }, g.items.slice(0, 40).map((e) => eventRow(e, openWeekExpos, { week: true }))));
     })) : el('p', { class: 'empty' }, 'Aucune expo trouvée dans l\'agenda cette semaine.'),
-    el('p', { class: 'help' }, `Les galeries privées ne sont souvent pas dans l'agenda de la Ville.${o ? (o.kind === 'map' ? ' Distances depuis le centre de la carte.' : ' Distances depuis toi.') : ''}`),
+    el('p', { class: 'help' }, `Les galeries privées ne sont souvent pas dans l'agenda de la Ville. Distances depuis ${o.kind === 'map' ? 'le centre de la carte' : o.kind === 'home' ? 'chez toi' : o.kind === 'station' && o.label ? o.label : 'toi'}.`),
     el('p', { class: 'help tip' }, 'Source : agenda « Que faire à Paris ? » de la Ville de Paris, téléchargé pour tout Paris (ta position n\'est pas envoyée).'),
     back,
   ), { tall: true, name: 'week', again: openWeekExpos });
@@ -6999,8 +7001,9 @@ async function openArtPlaces(focus = '', from = null) {
       return;
     }
   }
-  const o = evFrom;
-  const places = artPlacesWith(weekCache.items).map((p) => ({ ...p, d: o ? distanceM(o, p) : null }));
+  const o = await evPoint(); // v450 : les distances partent d'un point dit en haut (« Autour de toi ▾ »), jamais d'une position de plus de 10 min
+  const again = named('Grands lieux', () => openArtPlaces(focus, from));
+  const places = artPlacesWith(weekCache.items).map((p) => ({ ...p, d: distanceM(o, p) }));
   const block = (p) => el('details', { class: 'help-item week-arr', open: p.name === focus },
     el('summary', {}, el('span', { class: 'week-arr-name' }, p.name),
       // v361 (mes choix 1A 2A du 21 nov.) : l'adresse, puis « 5 rendez-vous · 3,0 km » sur sa propre ligne
@@ -7012,13 +7015,14 @@ async function openArtPlaces(focus = '', from = null) {
         el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
         favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique', scene: 'theatre' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167, v300 : scene
       followButton(p.name, () => openArtPlaces(p.name, from)), // v170
-      p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, openArtPlaces, { week: true }))) : null));
+      p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: distanceM(o, e) }, openArtPlaces, { week: true }))) : null));
   const group = (kind) => places.filter((p) => p.kind === kind).sort((a, b) => (b.events.length > 0) - (a.events.length > 0)); // ceux qui ont un rendez-vous d'abord
   const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique'], ['scene', 'Théâtre et danse']]; // v300 : scene
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Les grands musées et fondations, les grandes salles de concert et les grandes scènes de théâtre et de danse, où que tu sois. Touche un lieu pour voir ce que l\'agenda de la Ville annonce cette semaine, et son programme officiel.'),
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
-      open: (x) => openArtPlaces(x.name), back: () => openArtPlaces() }) }, ico('map'), 'Voir sur la carte'),
+      open: (x) => openArtPlaces(x.name), back: () => openArtPlaces(), from: o }) }, ico('map'), 'Voir sur la carte'),
+    evFromBtn(o, again), // v450 : sous « Voir sur la carte », rien ne bouge
     ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
     el('p', { class: 'help' }, 'Le Centre Pompidou est fermé jusqu\'en 2030 (ses expositions au Grand Palais) ; le musée Maillol rouvre le 13 janvier 2027. L\'agenda n\'a pas tous les rendez-vous : le programme officiel fait foi.'),
     el('p', { class: 'help tip' }, `Lieux vérifiés le ${ART_PLACES_CHECKED}, salles de concert le ${ART_MUSIC_CHECKED}, théâtre et danse le ${ART_SCENE_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
@@ -7037,9 +7041,9 @@ function lateLine(p) {
  * Ouvert tard (v158) : les nocturnes habituelles des grands lieux, ce soir puis toute la semaine.
  * Liste fixe vérifiée sur le site de chaque lieu ; un jour férié, rien n'est annoncé (horaires changés).
  */
-function openLate() {
+async function openLate() {
   track('Ouvert tard');
-  const o = evFrom;
+  const o = await evPoint(); // v450 : jamais une position de plus de 10 min
   const now = new Date();
   const holiday = holidayOn(now);
   const tonight = lateTonight(now, ART_PLACES, holiday);
@@ -7079,7 +7083,7 @@ function openArtist(name, back = null) {
   const k = artistKey(n);
   const again = () => openArtist(n, back);
   const here = named(n, again);
-  const pos = startHere() ?? origin;
+  const pos = startHere() ?? (evStale(origin) ? null : origin); // v450 : jamais une position de plus de 10 min
   const works = artistWorks(state.points, n, pos);
   const museums = museumsWith(museesInfo.items, n, pos); // v231 : toute l'année dans les musées
   const openMuseum = (m) => openSpot({ mark: true, icon: 'landmark', title: m.n, kicker: `${n} dans ses collections`, lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
@@ -7139,7 +7143,7 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
     openSheet(title, el('p', { class: 'help' }, names.length ? 'Recherche du programme de tes salles dans l\'agenda de la Ville de Paris (7 jours)…' : 'Recherche des salles dans l\'agenda de la Ville de Paris (7 jours)…'), { name: 'salles' });
     try { await weekEvents(); } catch { failed = true; }
   }
-  const o = evFrom;
+  const o = await freshEvFrom(); // v450 : jamais une position de plus de 10 min
   const found = names.length && !failed ? venueEvents(weekCache?.items ?? [], names) : [];
   const input = el('input', { type: 'text', maxlength: '80', autocomplete: 'off', placeholder: 'Ex. : Philharmonie de Paris', 'aria-label': 'Nom d\'une salle' });
   const add = () => {
@@ -7160,8 +7164,8 @@ async function openVenues(back = named('Sorties', () => { eventsMode = 'all'; op
   }
   const follow = (n) => { state.venues = cleanVenues([...cleanVenues(state.venues), n]); persist(); again(); toast(`${n} : dans Mes salles`); };
   // Salles près de moi (v296) : les lieux de l'agenda qui ont un concert ou un spectacle cette semaine, triés sur le téléphone
-  const from = o ?? (() => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng, kind: 'map' }; })();
-  const fromWords = from.kind === 'map' ? 'du centre de la carte' : from.kind === 'home' ? 'de chez toi' : from.kind === 'station' && from.label ? `de ${from.label}` : 'de toi';
+  const from = o ?? mapPoint();
+  const fromWords = evFromWords(from);
   const nearTitle = from.kind === 'map' ? 'Près du centre de la carte' : from.kind === 'station' ? 'Près de la station' : `Salles près ${fromWords}`; // une ligne à 360 px, même en Très grand (mesuré)
   const nearM = tune('eventsM');
   const isShow = (e) => ['musique', 'scene'].includes(tagGenre(e.tags) ?? genreOf(e));
@@ -7205,7 +7209,7 @@ async function openArtists() {
     openSheet(title, el('p', { class: 'help' }, 'Recherche dans l\'agenda de la Ville de Paris (tout Paris, sur 7 jours)…'), { name: 'artistes' });
     try { await weekEvents(); } catch { failed = true; }
   }
-  const o = evFrom;
+  const o = await freshEvFrom(); // v450 : jamais une position de plus de 10 min
   const found = names.length && !failed ? artistEvents(weekCache?.items ?? [], names) : [];
   const input = el('input', { type: 'text', maxlength: '60', autocomplete: 'off', placeholder: 'Ex. : David Hockney', 'aria-label': 'Nom d\'un artiste' });
   const add = () => {
@@ -7371,21 +7375,71 @@ function venueBox(back, todayRow = () => null) {
 }
 
 const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), le temps de la session
-/** Sorties → « Autour de … ▾ » : d'où partent les distances. */
-function openEventsFrom() {
+/** Sorties → « Autour de … ▾ » : d'où partent les distances. again (v450) : la page de Sorties à rouvrir (Grands lieux…), sinon Sorties. */
+function openEventsFrom(again = null) {
   const o = evFrom;
+  const go = (start) => { if (again) { setEvFrom(start); again(); } else openEvents(start); };
   const opt = (on, icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', 'aria-pressed': String(on), onclick },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
   openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
     el('div', { class: 'menu' },
-      opt(o?.kind === 'map', 'map', 'Le centre de la carte', 'Sans ta position', () => openEvents('map')),
-      opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', eventsFromMe),
-      cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); openEvents('home'); }) : null,
-      opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', pickEventsArea)),
-    foot(backBtn(openEvents))), { name: 'events-from' });
+      opt(o?.kind === 'map', 'map', 'Le centre de la carte', 'Sans ta position', () => go('map')),
+      opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', () => eventsFromMe(again)),
+      cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); go('home'); }) : null,
+      opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', () => pickEventsArea(again))),
+    foot(backBtn(again ?? openEvents))), { name: 'events-from' });
 }
 let evFrom = null; // point de départ des Sorties : ma position (Autour de moi) ou le centre de la carte (bouton de la colonne)
+const mapPoint = () => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng, kind: 'map' }; };
+/** Le point de départ choisi (« map », « home », « near », une position) : les premières lignes de Sorties, aussi pour ses pages (v450). */
+function setEvFrom(start = null) {
+  if (start === 'map') evFrom = mapPoint();
+  else if (start === 'home' && homeOn()) evFrom = atHome(); // v222
+  else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
+  else if (start === 'near' || !evFrom) evFrom = homeOn() && (!origin || ['gps', 'last', 'home'].includes(origin.kind)) ? atHome() : origin;
+  else if (homeOn() && (evFrom.kind === 'gps' || evFrom.kind === 'last')) evFrom = atHome(); // Chez moi allumé depuis : il remplace ma position
+  if (evFrom?.kind === 'home' && !homeOn()) evFrom = origin?.kind === 'home' ? null : origin; // Chez moi éteint depuis
+}
+/**
+ * v450 (ma demande du 25 nov. : « géolocaliser les Grands lieux ») : une position de plus de 10 min (FRESH_MS) ne sert plus aux
+ * distances de Sorties et de ses pages. Avant, la position du point de départ restait la même toute la session (l'appli restée
+ * en mémoire : « Autour de toi » montrait les distances de la veille). La dernière position connue la remplace si elle a
+ * moins de 10 min ; sinon (ask) elle est redemandée ; refusée : le centre de la carte, que la page dit. Sans ask (« jamais
+ * de GPS demandé ici ») : plus de point. Loin de Paris : le centre de la carte (v217). Rien n'est envoyé.
+ */
+const evStale = (o) => (o?.kind === 'gps' || o?.kind === 'here') && !(Date.now() - (o.time ?? 0) < FRESH_MS);
+async function freshEvFrom({ ask = true } = {}) {
+  if (evStale(evFrom)) {
+    const h = freshHere();
+    if (h) evFrom = { ...h, kind: 'gps' };
+    else if (!ask) evFrom = null;
+    else {
+      waitToast('Recherche de ta position…');
+      try { const pos = await locate(); hideToast(); evFrom = { ...pos, kind: 'here' }; } catch (e) { hideToast(); toast(e.message, true); evFrom = mapPoint(); }
+    }
+  }
+  if (evFrom && evFrom.kind !== 'map' && !nearParis(evFrom)) evFrom = mapPoint();
+  return evFrom;
+}
+/** Le point de départ des pages de Sorties (Grands lieux…) : celui de Sorties, sinon chez moi ou ma position, demandée (v450). */
+async function evPoint() {
+  if (!evFrom) setEvFrom('near'); // ouverte sans passer par Sorties (loupe, Réglages) : chez moi, ou la position d'Autour de moi
+  if (!evFrom) {
+    waitToast('Recherche de ta position…');
+    try { const pos = await locate(); hideToast(); evFrom = { ...pos, kind: 'here' }; } catch (e) { hideToast(); toast(e.message, true); evFrom = mapPoint(); }
+  }
+  return freshEvFrom();
+}
+/** « Autour de toi ▾ » : d'où partent les distances, le même bouton qu'en haut de Sorties ; again rouvre la page (v450). */
+/** « de toi », « de chez toi », « du centre de la carte », « de Châtelet » : la fin de « Distances depuis … » (v450). */
+const evFromWords = (o) => (o.kind === 'map' ? 'du centre de la carte' : o.kind === 'home' ? 'de chez toi' : o.kind === 'station' && o.label ? `de ${o.label}` : 'de toi');
+function evFromLabel(o) { return o.kind === 'map' ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi']; }
+function evFromBtn(o, again) {
+  const label = evFromLabel(o);
+  return el('button', { type: 'button', class: 'ev-from', onclick: () => openEventsFrom(again), 'aria-label': `Point de départ des distances : ${label.join('')}. Changer` },
+    ico(o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, label[0], el('b', {}, label[1])), ico('chevron-down'));
+}
 /** Les onglets de Sorties, soulignés, toujours à la même place (aussi quand l'agenda ne répond pas, v298). */
 function evTabs(mode) {
   return el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
@@ -7395,17 +7449,12 @@ function evTabs(mode) {
 
 async function openEvents(start = null) {
   track('Sorties');
-  if (start === 'map') { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; }
-  else if (start === 'home' && homeOn()) evFrom = atHome(); // v222
-  else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
-  else if (start === 'near' || !evFrom) evFrom = homeOn() && (!origin || ['gps', 'last', 'home'].includes(origin.kind)) ? atHome() : origin;
-  else if (homeOn() && (evFrom.kind === 'gps' || evFrom.kind === 'last')) evFrom = atHome(); // Chez moi allumé depuis : il remplace ma position
-  if (evFrom?.kind === 'home' && !homeOn()) evFrom = origin?.kind === 'home' ? null : origin; // Chez moi éteint depuis
-  if (evFrom && evFrom.kind !== 'map' && !nearParis(evFrom)) { const c = map.getCenter(); evFrom = { lat: c.lat, lng: c.lng, kind: 'map' }; } // loin de Paris : le centre de la carte (v217)
+  setEvFrom(start);
+  await freshEvFrom(); // v450 : une position de plus de 10 min est redemandée ; loin de Paris : le centre de la carte (v217)
   if (!evFrom) { openNear(); return; }
   const o = evFrom;
   const fromMap = o.kind === 'map';
-  const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'));
+  const backNear = () => (fromMap || o.via === 'now' ? null : /* v187 : ouvert depuis « Maintenant », rien à rouvrir */ el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi'));
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties'];
   // v377 (mes choix 1A 2A du 21 nov., puis A du 23 nov.) : la roue vient au bout du titre, après l'image « Photos dans Sorties » (v370) qui ne bouge pas
@@ -7622,27 +7671,28 @@ let peekOff = null; // ce qu'un « Voir sur la carte » doit défaire en partant
 function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; peekOff?.(); peekOff = null; document.querySelector('.area-cross')?.remove(); }
 
 /** Sorties → « Autre quartier » : la page se ferme, une croix marque le centre ; on déplace la carte puis on touche le bandeau. */
-function pickEventsArea() {
+function pickEventsArea(again = null) {
   closeSheet();
   endPeek();
   const box = document.getElementById('map');
   box.append(el('span', { class: 'area-cross', 'aria-hidden': 'true' }, ico('plus')));
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Choisir le quartier des sorties' },
-    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); openEvents('map'); } },
-      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, 'La croix au centre, puis touche ici : sorties autour de la croix')),
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (again) { setEvFrom('map'); again(); } else openEvents('map'); } },
+      el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, again ? backLabel(again) : 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, again ? 'La croix au centre, puis touche ici : distances depuis la croix' : 'La croix au centre, puis touche ici : sorties autour de la croix')),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Annuler', onclick: endPeek }, ico('x')));
   document.body.append(peekCard);
 }
 
 /** Sorties → « Ma position » : la position n'est demandée qu'à cet appui (rien n'est envoyé : tout est trié sur le téléphone). */
-async function eventsFromMe() {
+async function eventsFromMe(again = null) {
   setHomeOn(false, { quiet: true }); // v222 : demander ma position, c'est ne plus partir de chez moi
   waitToast('Recherche de ta position…');
   try {
     const pos = await locate();
     hideToast();
-    openEvents({ lat: pos.lat, lng: pos.lng, kind: 'here' });
+    const here0 = { lat: pos.lat, lng: pos.lng, time: pos.time, kind: 'here' }; // v450 : son heure, pour la redemander après 10 min
+    if (again) { setEvFrom(here0); again(); } else openEvents(here0);
   } catch (e) { toast(e.message, true); }
 }
 /** Le bandeau de « Voir sur la carte » : ce qui est montré, un appui pour revenir, la croix pour tout retirer. */
@@ -7783,8 +7833,7 @@ async function openStreetArt() {
   track('Art dans la rue');
   const title = [ico('shapes'), ' Art dans la rue'];
   const backExpos = foot(backBtn(named('Expos', () => { eventsMode = 'art'; openEvents(); })));
-  const o = evFrom ?? origin;
-  if (!o) { openNear(); return; }
+  const o = await evPoint(); // v450 : avant, evFrom ?? origin, même vieux de la veille
   if (!streetArt) {
     openSheet(title, el('p', { class: 'help' }, 'Lecture de la liste des œuvres de Paris…'), { name: 'art-rue' });
     try { await loadStreetArt(); } catch (e) {
@@ -7795,7 +7844,7 @@ async function openStreetArt() {
   const near = streetArtNear(streetArt, o, 1000, state.artists).slice(0, 30);
   const back = named('Art dans la rue', () => openStreetArt());
   openSheet(title, el('div', { class: 'stack' },
-    el('p', { class: 'summary' }, near.length ? `${plural(near.length, 'œuvre', 'œuvres')} à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.` : `Aucune œuvre connue à moins de 1 km ${o.kind === 'map' ? 'du centre de la carte' : 'de toi'}.`),
+    el('p', { class: 'summary' }, near.length ? `${plural(near.length, 'œuvre', 'œuvres')} à moins de 1 km ${evFromWords(o)}.` : `Aucune œuvre connue à moins de 1 km ${evFromWords(o)}.`),
     near.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Art dans la rue', label: plural(near.length, 'œuvre', 'œuvres'), items: near, icon: 'shapes',
       open: (x, b) => openStreetArtCard(x, b), back: () => openStreetArt(), from: o }) }, ico('map'), 'Voir sur la carte') : null,
     near.length ? el('ul', { class: 'items ev-list' }, near.map((a) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, back), sub: [a.type, a.artist], d: a.d,
@@ -7819,7 +7868,7 @@ let galBack = null; // d'où l'on vient : Sorties ou Itinéraire
 async function openGalleryWalk(from = null) {
   if (from) galBack = from;
   track('Parcours galeries');
-  const origin0 = galBack === openEvents && evFrom ? evFrom : origin; // depuis Sorties : le même point de départ
+  const origin0 = galBack === openEvents ? await freshEvFrom() ?? origin : origin; // depuis Sorties : le même point de départ ; v450 : jamais une position de plus de 10 min
   if (!origin0) { openNear(); return; }
   if (!galleries) {
     openSheet([ico('palette'), ' Parcours galeries'], el('p', { class: 'help' }, 'Chargement de la liste des galeries…'), { name: 'galwalk' });
@@ -9080,7 +9129,7 @@ function openFreeTime() {
       el('a', { class: 'btn', href: loopUrl(origin, plan.route), target: '_blank', rel: 'noopener' }, 'Google Maps'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => shareRoute(plan.route, 'Ma balade') }, ico('share-2'), 'Partager')) : null,
     el('p', { class: 'help' }, 'Les lieux les mieux notés et les favoris passent en priorité. Les filtres en haut s\'appliquent.'),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   ), { tall: true, name: 'freetime', again: openFreeTime });
   nearLayer.clearLayers();
   if (!following) listMeMarker(origin.lat, origin.lng);
@@ -9102,7 +9151,7 @@ function surprise() {
   const pool = offered().filter((p) => distanceM(origin, p) <= max);
   if (!pool.length) { toast('Aucun de tes lieux à moins de 15 min (avec les filtres actuels).', true); return; }
   const p = pool[Math.floor(Math.random() * pool.length)];
-  openDetail(p.id, named('Autour de moi', () => renderNear()));
+  openDetail(p.id, named('Autour de moi', () => nearAgain()));
   toast(`Surprise : ${p.name}, à ${walkMinutes(distanceM(origin, p))} min à pied`);
 }
 
@@ -9172,7 +9221,7 @@ async function openCuriosities() {
         : el('button', { type: 'button', class: 'go-compass add', 'aria-label': `Ajouter ${w.title} à ma carte`, onclick: () => openForm({ name: w.title, lat: w.lat, lng: w.lng, acc: null }) }, ico('plus'))))) : null,
     el('p', { class: 'help' }, 'Wikipédia : seule une position arrondie à 100 m est envoyée.'),
     el('p', { class: 'help tip' }, 'Plaques : Ville de Paris (licence ODbL), triées sur ton téléphone. Wikipédia : licence CC BY-SA.'),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   ), { tall: true, name: 'wiki', again: openCuriosities });
   nearLayer.clearLayers();
   listRingsAt(here);
@@ -9203,7 +9252,7 @@ function openRoutes() {
     row('palette', 'Parcours galeries', 'Une boucle par les galeries d\'art ouvertes à ton arrivée', () => openGalleryWalk(openRoutes)),
     circuitsOff() ? null : row('signpost', 'Circuits de visite', 'Des visites à suivre étape par étape, avec leurs textes', () => openCircuits(openRoutes)), // v390 : éteints dans Autres réglages
     row('footprints', 'Rues sans voitures', 'Les secteurs « Paris Respire » prévus aujourd\'hui ou ce week-end', () => openRespire(openRoutes)),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   ), { name: 'routes', again: openRoutes });
 }
 
@@ -9272,7 +9321,7 @@ function openCircuitsOff(back) {
   openSheet([ico('signpost'), ' Circuits'], el('div', { class: 'stack' },
     el('p', { class: 'warn' }, 'Les circuits sont éteints sur ce téléphone. Rien n\'est effacé : tes circuits reviennent en les rallumant.'),
     el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.circuitsOn = true; persist(); applyToolOrder(); toast('Circuits de retour : bouton, Itinéraire, + Ajouter'); openCircuits(back); } }, ico('signpost'), 'Rallumer les circuits'),
-    foot(back ? backBtn(back) : el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(back ? backBtn(back) : el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   ), { name: 'circuits', again: () => openCircuits(back) });
 }
 async function openCircuits(back = null) {
@@ -9802,7 +9851,7 @@ async function openMonuments() {
   try { all = await monuments(); await Promise.all([loadMerimee(), loadArch(), loadPvp(), loadAcr()]); } catch {
     openSheet(title, el('div', { class: 'stack' },
       el('p', { class: 'warn' }, 'La base des monuments ne répond pas. Réessaie dans un moment.'),
-      foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi'))), { name: 'hist' });
+      foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi'))), { name: 'hist' });
     return;
   }
   // v245 : les édifices labellisés « Architecture contemporaine remarquable » se rangent avec les monuments, à leur distance
@@ -9861,7 +9910,7 @@ async function openMonuments() {
         m.acr ? link(merimeeUrl(m.acr.r), 'landmark', 'Fiche Culture', `Fiche du ministère de la Culture : ${m.name}`) : sameBtn(m),
         m.wiki ? link(m.wiki, 'book-open-text', 'Wikipédia', `Article Wikipédia : ${m.name}`) : null)))),
     el('p', { class: 'help tip' }, `Billets et horaires : sur le site officiel quand il existe. « Façade seulement » : seul l'extérieur est protégé, l'intérieur ne se visite en général pas. Sources : Wikidata (CC0), base Mérimée du ministère de la Culture${merimeeInfo?.updated ? ` (${frenchDate(merimeeInfo.updated)})` : ''}, liste des musées de la Région Île-de-France, label « Architecture contemporaine remarquable » du ministère de la Culture (Licence Ouverte 2.0) et protections patrimoniales du plan d'urbanisme de la Ville de Paris (ODbL, sans valeur réglementaire). La liste de Paris est téléchargée une fois par mois ; ta position n'est pas envoyée.`),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')),
   ), { tall: true, name: 'hist', again: openMonuments });
   nearLayer.clearLayers();
   listRingsAt(origin);
@@ -12577,6 +12626,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
     '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
     '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
     '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
@@ -12586,7 +12636,6 @@ const HELP = [
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
     '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
-    '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

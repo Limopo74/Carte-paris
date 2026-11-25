@@ -70,6 +70,6 @@ test('Nouveautés : la ligne en tête, 10 au plus ; l\'Aide de Chemin à pied ci
   const block = app.slice(i, app.indexOf(']],', i));
   const news = block.split('\n').filter((l) => l.trim().startsWith("'{"));
   assert.equal(news.length, 10);
-  assert.ok(news[0].includes('**Des boutons à la place des chemins**'));
+  assert.ok(news.slice(0, 2).some((l) => l.includes('**Des boutons à la place des chemins**'))); // v450 : « Grands lieux, depuis toi » au-dessus
   assert.ok(app.includes('touche le bandeau pour revenir à la fiche, la petite roue après « Chemin à pied » pour régler Mon pas'));
 });

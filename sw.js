@@ -1,7 +1,7 @@
 // Garde l'appli elle-même en cache pour qu'elle s'ouvre vite.
 // Garde aussi les fonds de carte OpenStreetMap déjà regardés, pour le métro sans réseau
 // (seulement ce que tu as vu : pas de téléchargement en masse, règle d'usage d'OpenStreetMap).
-const CACHE = 'carte-paris-v449';
+const CACHE = 'carte-paris-v450';
 const TILES = 'carte-paris-tuiles';
 const RUES = 'carte-paris-rues'; // plan des rues de Mes parcours : rangé par l'appli elle-même, gardé d'une version à l'autre
 const MAX_TILES = 3000; // environ 50 Mo
