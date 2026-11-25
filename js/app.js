@@ -34,6 +34,7 @@ import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as p
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
 import { FICHES, FICHES_CHECKED, ficheOf } from './fiches.js';
+import { KIT, KIT_IDS, KIT_SOURCE, KIT_URL, cleanKit, waterText } from './kit.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
@@ -88,7 +89,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (509)';
+const VERSION = '25 novembre 2026 (510)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5889,6 +5890,7 @@ function crisisBlock() {
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('phone')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Appeler ${c.name || c.tel}`), el('span', { class: 'menu-sub' }, 'Le téléphone s\'ouvre')))),
       row('volume-x', 'Alerter en silence', 'SMS au 114, proches, sans bruit', () => (pos ? openSilentAlert(pos, () => '', () => nearAgain(), 'Autour de moi') : openWhereAmI())),
+      kitRow(back), // v510 (17 A)
       row('heart-pulse', 'Urgences à l\'hôpital', 'AP-HP, 24 h/24 · pharmacie de garde', () => openUrgences(pos, back)), // v508 (12 bis A, 13 A)
       offlineRow(() => { if (view === 'near') renderNear(); }), // v493 (réponse 21)
       row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
@@ -6013,6 +6015,51 @@ function openCrisisPoint(k, back) {
 const OFFLINE_KEY = 'carte-paris.horsligne';
 let offlineBusy = false;
 const offlineAt = () => { try { return Number(storage.getItem(OFFLINE_KEY)) || 0; } catch { return 0; } };
+/* v510 (ma réponse 17 A, maquette validée) : mon kit 72 h à cocher (guide « Tous responsables ») ; rien n'est rappelé tout seul */
+const kitNow = () => cleanKit(state.kit) ?? { ok: [], at: null, n: 2 };
+const kitDay = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+const kitSub = () => { const k = kitNow(); return k.ok.length || k.at ? `${k.ok.length} sur ${KIT_IDS.length}${k.at ? ` · vérifié le ${kitDay(k.at)}` : ''}` : 'Rien de coché'; };
+const kitRow = (back, family = 'c-guide') => el('button', { type: 'button', class: `menu-row ${family}`, onclick: () => openKit(back) },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('backpack')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon kit 72 h'), el('span', { class: 'menu-sub' }, kitSub())),
+  el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+function openKit(back) {
+  track('Kit 72 h');
+  const self = () => openKit(back);
+  const k = kitNow();
+  const set = (v) => { state.kit = cleanKit({ ...kitNow(), ...v }); persist(); };
+  const top = el('p', { class: 'summary' });
+  const drawTop = () => { const c = kitNow(); fill(top, `${c.ok.length} sur ${KIT_IDS.length}${c.at ? ` · vérifié le ${kitDay(c.at)}` : ' · jamais vérifié'}`); };
+  drawTop();
+  const groups = KIT.flatMap(([title, items]) => {
+    const count = el('span', {});
+    const drawCount = () => fill(count, `${items.filter(([id]) => kitNow().ok.includes(id)).length} sur ${items.length}`);
+    drawCount();
+    return [el('h3', { class: 'ring-title' }, el('span', {}, title), count),
+      el('ul', { class: 'items' }, items.map(([id, name, sub]) => {
+        const box = el('input', { type: 'checkbox', class: 'check', 'aria-label': name });
+        box.checked = k.ok.includes(id);
+        box.addEventListener('change', () => {
+          const ok = new Set(kitNow().ok); if (box.checked) ok.add(id); else ok.delete(id);
+          set({ ok: [...ok] }); drawCount(); drawTop();
+        });
+        const line = id === 'eau' ? waterText(kitNow().n) : sub;
+        return el('li', { class: 'item' }, el('label', { class: 'item-main check-row' }, box,
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, name), line ? el('span', { class: 'item-sub' }, line) : null)),
+          id === 'eau' ? el('div', { class: 'seg', role: 'group', 'aria-label': 'Nombre de personnes' },
+            el('button', { type: 'button', 'aria-label': 'Une personne de moins', onclick: () => { set({ n: Math.max(1, kitNow().n - 1) }); self(); } }, '−'),
+            el('button', { type: 'button', 'aria-label': 'Une personne de plus', onclick: () => { set({ n: Math.min(9, kitNow().n + 1) }); self(); } }, '+')) : null);
+      }))];
+  });
+  openSheet([ico('backpack'), ' Mon kit 72 h'], el('div', { class: 'stack' },
+    top,
+    el('button', { type: 'button', class: 'btn', onclick: () => { set({ at: Date.now() }); drawTop(); toast('Kit vérifié aujourd\'hui'); } }, ico('circle-check'), 'Je l\'ai vérifié aujourd\'hui'),
+    ...groups,
+    el('a', { class: 'btn', href: KIT_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Le guide « Tous responsables »'),
+    el('p', { class: 'help tip' }, `Liste du ${KIT_SOURCE}, objet par objet. Rien n'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.`),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'kit', again: self });
+}
 const offlineSub = () => (offlineBusy ? 'Téléchargement en cours…' : offlineAt() ? `Prêt · vérifié le ${new Date(offlineAt()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : 'Pas encore fait');
 async function prepareOffline(again = null) {
   if (offlineBusy) return;
@@ -6472,7 +6519,7 @@ async function openMyParis(from = null) {
     el('div', { class: 'menu' },
       row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
       row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats())),
-    el('div', { class: 'menu' }, offlineRow(() => { if (view === 'myparis') openMyParis(); }, 'c-disc')), // v493 (réponse 21) : tout en bas, il ne pousse rien
+    el('div', { class: 'menu' }, offlineRow(() => { if (view === 'myparis') openMyParis(); }, 'c-disc'), kitRow(named('Mon Paris', () => openMyParis()), 'c-disc')), // v493 (réponse 21) : tout en bas, il ne pousse rien ; v510 : mon kit 72 h (17 A)
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')
       : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
@@ -14280,6 +14327,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
@@ -14289,7 +14337,6 @@ const HELP = [
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
     '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
     '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
-    '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
