@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (430)';
+const VERSION = '25 novembre 2026 (431)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6319,6 +6319,13 @@ function receiveMeet(m) {
 }
 
 /* ---------- Où suis-je ? ---------- */
+/** v430 (mon « 2 oui » du 25 nov.) : appeler les secours sous l'adresse. Un lien `tel:` ouvre le clavier du téléphone avec le numéro,
+   rien n'est appelé sans un second appui. Numéros : service-public.gouv.fr, fiche F33954 (vérifiée le 25 août 2026, lue le 25 nov. 2026). */
+const SECOURS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale']];
+function secoursRow() {
+  return el('div', { class: 'row duo secours' }, ...SECOURS.map(([n, label, aria]) =>
+    el('a', { class: 'btn', href: `tel:${n}`, 'aria-label': `Appeler le ${n} : ${aria}` }, ico('phone'), label)));
+}
 
 async function openWhereAmI() {
   let at = freshHere();
@@ -6340,6 +6347,7 @@ async function openWhereAmI() {
     el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · ${coords}`), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
+    secoursRow(),
     quarter,
     el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
     el('p', { class: 'help tip' }, 'L\'IGN tient la Géoplateforme, un service public. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
@@ -12174,6 +12182,7 @@ const HELP = [
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
+    '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons : tes 20 arrondissements, ta marche du jour et Mon planning.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -12350,6 +12359,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
@@ -12359,7 +12369,6 @@ const HELP = [
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
     '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
     '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
-    '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
