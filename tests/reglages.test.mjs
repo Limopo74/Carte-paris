@@ -22,10 +22,11 @@ const SPEC = {
   traceMin: [1, 5, 1, 2], // circuits : 1 à 5 min par 1
   askDays: [15, 90, 15, 30], // « Tu y es allée ? » : 15 à 90 jours par 15
   leaveMin: [15, 60, 5, 20], // v365 : marge de « Pars à », 15 à 60 min par 5, 20 au départ (ma demande du 21 nov., 15 au plus bas)
+  tipsMax: [0, 40, 5, 20], // v512 : 0 = astuces éteintes
 };
 
 test('valeurs au départ : celles d\'aujourd\'hui, sauf Sorties à 3 km', () => {
-  assert.deepEqual(cleanTuning(), { alertM: 100, memoryM: 100, walkM: 1000, eventsM: 3000, ttbMin: 15, rainMin: 10, villeM: 150, traceMin: 2, askDays: 30, leaveMin: 20 });
+  assert.deepEqual(cleanTuning(), { alertM: 100, memoryM: 100, walkM: 1000, eventsM: 3000, ttbMin: 15, rainMin: 10, villeM: 150, traceMin: 2, askDays: 30, leaveMin: 20, tipsMax: 20 }); // v512 : astuces au démarrage, 20 au plus
   assert.deepEqual(Object.keys(TUNING).sort(), Object.keys(SPEC).sort());
 });
 

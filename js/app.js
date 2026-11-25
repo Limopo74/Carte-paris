@@ -67,6 +67,7 @@ import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, ven
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, searchArtists, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { TIPS, TIPS_KEY, readTips, pickTip, markTip } from './astuces.js';
 import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
 import qrcode from '../vendor/qrcode.mjs';
@@ -90,7 +91,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (511)';
+const VERSION = '25 novembre 2026 (512)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11610,7 +11611,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'pastille']; // 1A : Apparence revient à Réglages
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'pastille', 'astuces']; // 1A : Apparence revient à Réglages
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
@@ -11669,6 +11670,7 @@ const SETTINGS_FIND = [
   ['database', 'Données de l\'appli', `${RA} → Mise à jour et confidentialité`, 'donnees mettre a jour robot dates', (b) => openSettings('donnees', b)],
   ['chart-no-axes-column', 'Ce que j\'utilise', RA, 'utilise comptes statistiques boutons touches', () => openUsage()],
   ['hand', 'Essayer le premier lancement', RA, 'premier lancement essai bienvenue', () => openSettings('autres')],
+  ['hand', 'Astuces au démarrage', RA, 'astuces demarrage decouvrir fonctions montre-moi', (b) => openSettings('astuces', b)],
   ['users', 'Préparer le démarrage d\'un proche', RA, 'proche demarrage preparer lien qr', () => openPrepList()],
   ['megaphone', 'Période de test', RA, 'test remarques porte-voix', () => openSettings('autres')],
   ['users', 'Proches à prévenir', RA, 'proches prevenir alerter silence urgence sms numeros securite', () => openAlertContacts()],
@@ -12591,6 +12593,21 @@ function openSettings(section = null, from = null) {
     return;
   }
 
+  if (section === 'astuces') { // v512 (mes choix 5A et 4B du 25 nov.) : Réglages → Autres réglages → Astuces au démarrage
+    const seen = readTipsNow().seen.length;
+    const label = (v) => (/^aucune/.test(v) ? 'Astuces éteintes' : `${v} au plus`);
+    openSheet([ico('hand'), ' Astuces au démarrage'], el('div', { class: 'stack' },
+      tuneRow('tipsMax', label, 'Une par jour, en bas de la carte'),
+      el('p', { class: 'help' }, seen ? `${plural(seen, 'astuce vue', 'astuces vues')} sur ce téléphone.` : 'Aucune astuce vue sur ce téléphone.'),
+      el('p', { class: 'help tip' }, 'Une astuce présente une fonction que tu n\'as encore jamais touchée (d\'après Ce que j\'utilise), une seule par jour, jamais pendant le mode crise ni quand l\'appli s\'ouvre par un lien. « Montre-moi » ouvre l\'écran et entoure le bouton. Les astuces vues restent sur ce téléphone.'),
+      seen ? el('button', { type: 'button', class: 'btn', onclick: () => {
+        const before = readTipsNow(); saveTips({ seen: [], day: '' }); openSettings('astuces');
+        toast('Les astuces repartent du début', false, { label: 'Annuler', fn: () => { saveTips(before); if (view === 'settings:astuces') openSettings('astuces'); } });
+      } }, ico('rotate-ccw'), 'Revoir les astuces') : null,
+      backBtn,
+    ), { name: 'settings:astuces', again: () => openSettings('astuces') });
+    return;
+  }
   if (section === 'distances') {
     const PAGE_KEYS = ['walkM', 'eventsM', 'ttbMin', 'rainMin', 'villeM', 'traceMin', 'askDays', 'leaveMin']; /* les deux distances des alertes se règlent sur leur page */
     openSheet([ico('ruler'), ' Distances et durées'], el('div', { class: 'stack' },
@@ -12700,6 +12717,8 @@ function openSettings(section = null, from = null) {
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
     testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · envoyer, supprimer` : 'Aucune pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
+    // v512 (mes choix 5A du 25 nov.) : réglé une fois, tout en bas du groupe Appli ; il ne pousse rien
+    row('hand', 'Astuces au démarrage', tune('tipsMax') ? `${tune('tipsMax')} au plus · une par jour` : 'Éteintes', () => openSettings('astuces'), false, 'c-guide'),
     // v482 (mes choix du 25 nov.) : réglé une fois, tout en bas d'Autres réglages, dans son groupe ; il ne pousse rien
     el('h3', { class: 'ring-title menu-group' }, 'En cas d\'urgence'),
     row('users', 'Proches à prévenir', (() => { const c = cleanAlertContacts(state.alertContacts); return c.length ? `${c.map((x) => x.name || x.tel).join(', ')} · Alerter en silence` : 'Pour Alerter en silence, 2 au plus'; })(), () => openAlertContacts(), false, 'c-info'),
@@ -14344,6 +14363,7 @@ const HELP = [
     '{footprints} **Mon allure en courant** : Réglages → Autres réglages → Mon pas, sous Mesurer ma vitesse. De 4 à 10 min par km. Elle donne la durée en courant de la Boucle à courir et de Mes parcours ; sans elle, rien en courant ne s\'affiche.',
     '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Taille du texte.',
     '{chart-no-axes-column} **Ce que j\'utilise** : {settings} → Autres réglages, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
+    '{hand} **Astuces au démarrage** : une par jour au plus, en bas de la carte, sur une fonction jamais touchée (d\'après Ce que j\'utilise) ; touche-la pour « Montre-moi ». Combien au plus, 0 pour les éteindre, Revoir les astuces : {settings} → Autres réglages → Astuces au démarrage. Les astuces vues restent sur ce téléphone.',
     '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles partent dans ta sauvegarde, jamais chez un proche.',
     '**Ranger les boutons du haut** : {settings} → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. La page suit l\'écran : « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Carte, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe.',
@@ -14394,6 +14414,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
     '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
@@ -14403,7 +14424,6 @@ const HELP = [
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
-    '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -14995,6 +15015,79 @@ if (!launched && state.ok && backupDue(state)) {
     remindBackup();
   }
 }
+
+/* ---------- Astuces au démarrage (v512, claude/idee-astuces.md ; mes choix 1B 2B 3B 4B 5A 6A puis 1A 2A 3A 4B 5A du 25 nov.) ----------
+   Au plus une par jour, dans la carte du bas (forme et place de « Maintenant », jamais en même temps qu'elle). Seulement une fonction
+   que « Ce que j'utilise » n'a jamais vu toucher. Rien n'est envoyé ; les astuces vues restent sur ce téléphone, hors sauvegarde. */
+const tipCard = document.getElementById('tipCard');
+const readTipsNow = () => { try { return readTips(storage.getItem(TIPS_KEY)); } catch { return readTips(null); } };
+const saveTips = (p) => { try { storage.setItem(TIPS_KEY, JSON.stringify(p)); } catch { /* facultatif */ } };
+/** L'astuce peut-elle se montrer sur ce téléphone ? (circuits éteints, bouton du haut masqué, pastille éteinte : non) */
+function tipOk(t) {
+  const g = t.go;
+  if ((g.tool === 'circuits' || g.open === 'circuits') && circuitsOff()) return false;
+  if (g.tool) return Boolean(TOOL_INFO[g.tool] && document.getElementById(TOOL_INFO[g.tool].el));
+  if (g.chip) return chipPlace()(g.chip) !== 'hidden';
+  if (g.el) { const b = document.getElementById(g.el); return Boolean(b && !b.hidden && b.getClientRects().length); } // un bouton fixe n'a pas d'offsetParent
+  return true;
+}
+/** Le vrai bouton, entouré de bleu (il palpite trois fois, sauf animations coupées), ramené à l'écran. */
+function tipRing(b) {
+  if (!b) return false;
+  b.scrollIntoView({ block: 'center', behavior: 'instant' });
+  b.classList.remove('tip-ring'); void b.offsetWidth; b.classList.add('tip-ring');
+  setTimeout(() => b.classList.remove('tip-ring'), 3000);
+  return true;
+}
+const tipBtn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.getClientRects().length && cleanLabel(usageText(b)) === cleanLabel(text)); // « Mon kit 72 h » se lit « Mon kit »
+/** Attend que l'écran ouvert montre le bouton (Autour de moi attend la position : 20 s au plus). */
+function tipRingSoon(text, root = sheetBody, ms = 20000) {
+  const t0 = Date.now();
+  const tick = () => { if (!tipRing(tipBtn(root, text)) && Date.now() - t0 < ms) setTimeout(tick, 250); };
+  tick();
+}
+function tipShowMe(t) {
+  tipCard.hidden = true;
+  const g = t.go;
+  if (g.tool) {
+    const info = TOOL_INFO[g.tool];
+    const b = document.getElementById(info.el);
+    if (b.getClientRects().length) { tipRing(b); return; }
+    if (moreList().includes(g.tool)) { openMore(); tipRingSoon(toolName(g.tool), morePanel, 2000); return; }
+    b.click(); return; // masqué : la fonction s'ouvre directement
+  }
+  if (g.chip) {
+    const name = chipItems().find((x) => x.key === g.chip)?.name;
+    if (chipPlace()(g.chip) === 'bar') { tipRing([...document.querySelectorAll('#chips button')].find((b) => (b.getAttribute('aria-label') ?? '').startsWith(name))); return; }
+    openChipsMore(); tipRingSoon(name, sheetBody, 2000); return;
+  }
+  if (g.el) { tipRing(document.getElementById(g.el)); return; }
+  if (g.open === 'myparis') openMyParis('map');
+  else if (g.open === 'near') openNear();
+  else if (g.open === 'circuits') openCircuits();
+  else if (g.open === 'autres') openSettings('autres');
+  tipRingSoon(g.find);
+}
+function showTip() {
+  if (ESSAI || crisis || !firstDone() || !state.ok || !sheet.hidden || !document.getElementById('toast').hidden || !document.getElementById('nowCard').hidden) return;
+  const progress = readTipsNow();
+  const r = pickTip(progress, usage, tune('tipsMax'), Date.now(), tipOk);
+  if (!r) return;
+  const { tip, n, total } = r;
+  const tool = tip.go.tool ? TOOL_INFO[tip.go.tool] : null;
+  const icon = tool ? tool.icon : tip.icon;
+  fill(tipCard.querySelector('.tip-ico'), ICON_NAMES.has(icon) ? ico(icon, { size: 24 }) : icon);
+  fill(tipCard.querySelector('.now-text'),
+    el('span', { class: 'now-kicker' }, `Astuce · ${n} sur ${total}`),
+    el('span', { class: 'now-name' }, tip.title),
+    el('span', { class: 'now-sub' }, tip.sub));
+  tipCard.querySelector('.now-open').setAttribute('aria-label', `Astuce : ${tip.title}. Montre-moi`);
+  tipCard.querySelector('.now-open').onclick = () => tipShowMe(tip);
+  tipCard.hidden = false;
+  saveTips(markTip(progress, tip.id)); // vue dès qu'elle s'affiche : elle ne revient pas
+}
+tipCard.querySelector('.now-close').addEventListener('click', () => { tipCard.hidden = true; });
+if (!launched && !departCode) setTimeout(showTip, 5000); // après les messages du démarrage ; pas par-dessus un lien reçu
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

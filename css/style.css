@@ -1185,6 +1185,17 @@ body:has(.map-tools.left) .now-card { left: 72px; right: 10px; }
 .now-sub { font-size: var(--t13); color: var(--muted); }
 .now-chev { font-size: 22px; color: var(--disc); }
 .now-close { width: 44px; background: none; border: 0; border-left: 1px solid var(--line); font-size: 22px; color: var(--muted); }
+/* Astuces au démarrage (v512, idee-astuces.md) : la forme et la place de la carte « Maintenant », contour gris ; jamais en même temps qu'elle */
+.tip-card { border-color: var(--info-bd); }
+.tip-card .now-kicker { color: var(--muted); }
+.tip-card .now-chev { color: var(--ink); }
+.tip-card .now-name { white-space: normal; } /* un titre ne se coupe jamais (Très grand : « Zones inondables ») */
+:root:is([data-text="tresgrand"]) .tip-ico { display: none; } /* Très grand : la place du titre, la carte reste sous le bouton des fonds */
+.tip-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; color: var(--ink); font-family: var(--display); font-weight: 800; }
+#nowCard:not([hidden]) ~ #tipCard { display: none; }
+/* « Montre-moi » : le vrai bouton, entouré de bleu ; il palpite trois fois si le téléphone garde les animations */
+.tip-ring { outline: 4px solid var(--focus) !important; outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) { .tip-ring { animation: tip-ring .7s ease-in-out 3; } @keyframes tip-ring { 50% { outline-offset: 9px; } } }
 .now-gear { position: absolute; z-index: 1; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: none; color: var(--muted); } /* v443 (mon choix 1A du 25 nov.) : la petite roue de Chemin à pied, au bout du petit titre, sans colonne ; placée par showPeekCard */
 .now-gear .ico svg { width: 18px; height: 18px; }
 .peek-card.deck { flex-direction: column; } /* v213 : « Voir sur la carte » se parcourt, un lieu à la fois */
