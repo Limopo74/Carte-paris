@@ -85,6 +85,7 @@ const COMPASS_WORDS = [
   ['Rentrer, M, la boussole, Où suis-je ?', 'Rentrer, M, Où suis-je ?'],
   ["(Vélib' et Monuments : la boussole)", "(Vélib' et Monuments : Google Maps à pied)"], // v418 : un rond touché, puis le bandeau
   ['**Voix** : la boussole et le suivi parlent.', '**Voix** : le suivi parle.'],
+  ['avec Ma position et direction ou la boussole, l\'appli', 'avec Ma position et direction, l\'appli'], // v522 : ligne « Ta marche »
 ];
 export function helpWithoutCompass(lines) {
   const out = [];

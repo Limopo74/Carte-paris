@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (526)';
+const VERSION = '25 novembre 2026 (527)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6697,7 +6697,7 @@ async function openMyParis(from = null) {
     journalCalendar(), // v426 (mon choix 3A) : à la place de la ligne « Mon journal », qui reste en « Liste »
     el('div', { class: 'menu' },
       row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
-      row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats())),
+      row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats(toMyParis))),
     el('div', { class: 'menu' }, offlineRow(() => { if (view === 'myparis') openMyParis(); }, 'c-disc'), kitRow(named('Mon Paris', () => openMyParis()), 'c-disc')), // v493 (réponse 21) : tout en bas, il ne pousse rien ; v510 : mon kit 72 h (17 A)
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')
@@ -6732,11 +6732,13 @@ async function openMyArr() {
   ), { tall: true, name: 'myarr', again: openMyArr });
 }
 
-/** Mes chiffres (v445) : leur page, sous Mon Paris. */
-function openMyStats() {
+/** Mes chiffres (v445) : leur page, sous Mon Paris. v522 : aussi depuis Mise à jour et confidentialité (bloc Marche), « ← » ramène là d'où l'on vient. */
+let statsBack = null;
+function openMyStats(back) {
+  if (back) statsBack = back;
   openSheet([ico('timer'), ' Mes chiffres'], el('div', { class: 'stack' },
     ...myStats(),
-    foot(backBtn(toMyParis)),
+    foot(backBtn(statsBack ?? toMyParis)),
   ), { tall: true, name: 'mystats', again: openMyStats });
 }
 
@@ -7216,7 +7218,7 @@ function myStats() {
     el('div', { class: 'stat-tiles' }, tile(`${durText(minOf(t.m))}`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(walked ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
     ...(walked ? [svg, readout, legend, table] : [el('p', { class: 'help' }, `Aucune marche comptée sur les ${statsDays} derniers jours.`)]), // v515 : pas de graphique vide
     el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position. L\'air : une estimation du quartier, pas une mesure sur toi.'),
-    el('p', { class: 'help tip' }, 'La marche est comptée avec Ma position et direction ou une balade guidée ; l\'air, heure par heure.'),
+    el('p', { class: 'help tip' }, `La marche est comptée avec Ma position et direction${compassOff() ? '' : ' ou la boussole'} ; l'air, heure par heure.`), // v522 : « une balade guidée » passe par la boussole
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
     // v445 (mon choix 3B) : seulement ce qui suit la période ; « 1 ajouté », pas « 1 ajoutés »
     el('div', { class: 'stat-tiles' }, tile(String(ps.added), ps.added > 1 ? 'ajoutés' : 'ajouté'), tile(String(ps.visited), ps.visited > 1 ? 'visités' : 'visité')),
@@ -12645,7 +12647,9 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'help' }, PRIVACY_LINES.join(' ')))),
       el('p', { class: 'help' }, USAGE_PRIVACY),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Marche'), el('span', {}, '')),
-      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement quand le suivi en direct${compassOff() ? '' : ' ou la boussole'} est ouvert à l'écran.`),
+      el('p', { class: 'help' }, `Aujourd'hui : ${walkText(todayWalk())}. Compté seulement avec Ma position et direction${compassOff() ? '' : ' ou la boussole'}, l'appli ouverte à l'écran.`), // v522 : le vrai nom du bouton (avant : un ancien nom)
+      // v522 (mon choix A du 25 nov.) : sous la phrase, il ne pousse rien ; la marche jour par jour est dans Mes chiffres
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => openMyStats(named('Mise à jour et confidentialité', () => openSettings('appli'))) }, ico('timer'), 'Mes chiffres'),
       el('p', { class: 'help tip' }, 'Une appli web n\'a pas accès au podomètre. Le nombre de pas est calculé avec 70 cm par pas.'),
       el('p', { class: 'help tip' }, `Carte © OpenStreetMap. Adresses : IGN. Annuaire et horaires : OpenStreetMap. Fontaines et toilettes : Ville de Paris. Chemin des bus : Île-de-France Mobilités (ODbL), © OpenStreetMap. Immeubles protégés : Ville de Paris (ODbL). Monuments et architecture contemporaine : ministère de la Culture.${stationsSource ? ` Stations ${stationsSource}.` : ''}`),
       backBtn,
@@ -14535,6 +14539,7 @@ const HELP = [
     '**Mes arrondissements** (Mon Paris, sous le calendrier) : chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés. Touche une case : tes lieux de l\'arrondissement.',
     '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mes arrondissements.',
     '**Marche et air** : touche une barre pour le détail du jour.',
+    '{footprints} **Ta marche** se compte seulement avec Ma position et direction ou la boussole, l\'appli ouverte à l\'écran. Les pas sont calculés à 70 cm par pas (une appli web n\'a pas le podomètre). Celle du jour : {settings} → Autres réglages → Mise à jour et confidentialité, en bas, avec un bouton vers Mes chiffres.',
     '**« Remettre à zéro… »**, tout en bas de Mes chiffres, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
     '{map-pinned} **Les ronds de la carte se touchent**, dans Sorties, Vélib\', Rentrer, Curiosités et Monuments : le bandeau montre ce lieu, un appui l\'ouvre (Vélib\' et Monuments : la boussole). Ces listes gardent les cercles d\'Autour de moi, sauf depuis « Centre de la carte ».',
   ]],
@@ -14664,7 +14669,7 @@ const HELP = [
     '{database} **Données de l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité. Chaque donnée a sa date.',
     '**En direct** : fontaines, toilettes, agenda, marchés, Vélib\' et météo se rechargent seuls.',
     '**Un robot** refait le 1er de chaque mois les listes rangées dans l\'appli : lignes et gares, Navigo, toilettes RATP, arrondissements, arrêts et chemin des bus, plaques, œuvres dans la rue, galeries, rues sans voitures, noms des rues, auteurs des monuments, immeubles protégés par la Ville, architecture contemporaine, sorties du métro, RER et tram. Le plan des rues de Mes parcours, le 2 du mois. Quand une source manque ou a trop changé, la liste d\'avant reste.',
-    '{rotate-cw} **Le lancer tout de suite** : Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ». Ensuite : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
+    '{rotate-cw} **Le lancer tout de suite** : {settings} → Autres réglages → Mise à jour et confidentialité → Lancer le robot (GitHub), puis « Run workflow ». 2 à 5 minutes plus tard, sur la même page : Mettre à jour l\'appli.',
     '**Monuments, marchés couverts et listes d\'expos** se refont avec Claude. Touche la ligne pour savoir quoi faire.',
     '**Un rappel** s\'affiche, une fois par semaine au plus, quand une donnée est en retard.',
     '{info} **Sorties → « Aide »**, tout en bas : d\'où viennent les sorties. L\'agenda se recharge chaque jour, les marchés chaque semaine, les galeries chaque mois.',
@@ -14691,11 +14696,12 @@ const HELP = [
     '**Copier ne marche pas** : le texte s\'affiche dans une fenêtre. Sélectionne-le et copie-le à la main.',
     '**TTB : « ce fichier ne contient pas d\'adresses »** : la page n\'a pas été enregistrée en entier. Ouvre-la depuis {settings} → TTB, attends la fin du chargement, puis Télécharger.',
     '**Boussole « indisponible »** : le téléphone ne donne pas son orientation. La flèche montre la direction, nord en haut.',
-    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Autres réglages → Mise à jour et confidentialité → Données de l\'appli → Lancer le robot maintenant, puis « Run workflow ».',
+    '{bus} **« Les arrêts de bus ne sont pas encore chargés »** : le robot les ajoute le 1er du mois. Tout de suite : {settings} → Autres réglages → Mise à jour et confidentialité → Lancer le robot (GitHub), puis « Run workflow ».',
     '**Puis, quelques minutes après** : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
     '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
     '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
@@ -14705,7 +14711,6 @@ const HELP = [
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
-    '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
