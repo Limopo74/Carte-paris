@@ -1559,6 +1559,14 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="verre"] .tool { letter-spacing: -.03em; }
 :root[data-look="verre"] .ev-letter { border-radius: 0; } /* v464 : la grande lettre touchait le coin arrondi de 14 px */ /* v464 : Inter n'a pas de largeur réglable ; « Monuments » tient dans sa tuile */
 :root[data-look="verre"] .big-btn { padding: 0 8px; gap: 6px; letter-spacing: -.02em; }
+/* v459 : Code couleur des boutons (Réglages) : Verre retire la bande de 10 px ; la puce prend la couleur de texte de sa famille, comme les vrais boutons de Verre (avant : encre partout, aucune couleur) */
+:root[data-look="verre"] .legend-colors .btn.primary { border-left-width: 2px; } /* la plaque en dégradé, sans la bande de Papier */
+:root[data-look="verre"] .legend-colors .btn.c-metro { color: var(--metro); }
+:root[data-look="verre"] .legend-colors .btn.c-guide { color: var(--guide); }
+:root[data-look="verre"] .legend-colors .btn.c-add { color: var(--add); }
+:root[data-look="verre"] .legend-colors .btn.c-fav { color: var(--fav); }
+:root[data-look="verre"] .legend-colors .btn.c-info { color: var(--info); }
+:root[data-look="verre"] .legend-colors .btn.danger { color: var(--danger); }
 
 /* ---- Style « Signalétique » (le mode sombre, v452, mon choix 2A du 25 nov. ; CHARTE.md § 10.2) ----
    Fond nuit, plaques jaunes (--strong, --guide), boutons en pilule, filets forts jaunes, titres en pleine largeur. */
