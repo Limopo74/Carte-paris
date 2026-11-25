@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (527)';
+const VERSION = '25 novembre 2026 (528)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -14381,7 +14381,7 @@ function mySettingsBlock() {
   return el('div', { class: 'my-settings' },
     !ms ? [
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer mes réglages de référence'),
-      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons, filtres, style de la carte, apparence) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
+      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons du haut et de la carte, filtres masqués, TTB « Seulement les vérifiées », style de la carte, apparence) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
     ] : sameAsMySettings(state) ? [
       el('p', { class: 'ok-line' }, ico('check'), ` Réglages de référence enregistrés le ${when}, sans tes lieux.`),
       el('button', { type: 'button', class: 'btn c-info', onclick: save }, 'Les enregistrer à nouveau'),
@@ -14432,8 +14432,9 @@ const HELP = [
     '{lines} **Lignes** : le métro et le RER. En zoomant, chaque station montre ses lignes, puis son nom ; touche-la : ce qu\'il y a autour (raccourci : appui long sur M).',
     '{bus} **Mes lignes de bus** : choisis tes lignes dans {settings} → Autres réglages → Mes lignes de bus (8 au plus), puis montre-les avec ⋯ Plus → Mes lignes de bus. Le chemin de chaque ligne, aller et retour, dans sa couleur ; en zoomant, ses arrêts (un point de chaque côté de la rue), puis leur nom. Ni horaires ni sens, et une déviation pour travaux ne se voit pas. Pour savoir quelles lignes passent près de toi, ouvre Mes lignes de bus (« Près de toi », quand l\'appli connaît ta position depuis moins de 10 min, à Paris : touche d\'abord Ma position si besoin) ; près d\'un autre lieu : place la carte dessus, puis ouvre Mes lignes de bus (« Près du centre de la carte »). La loupe trouve aussi une ligne par son numéro et la montre sur la carte sans l\'ajouter.',
     '{ellipsis} **⋯ en haut** : les boutons rangés dans Plus. {settings} → Barre du haut dit lesquels (sur un nouveau téléphone : aussi tes catégories et Vu en passant ; Favoris y est masqué, et TTB n\'apparaît qu\'avec sa liste importée). Touche-en un pour l\'allumer ; allumé, il apparaît aussi dans la barre.',
-    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail, un conseil, le lever et le coucher du soleil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près). {settings} → Autres réglages → Pastille météo y ajoute, si tu veux, l\'arrondissement, dimanche ou férié, la pluie, le prochain lever ou coucher du soleil.',
+    '**Sous la barre** : la température et la qualité de l\'air. Touche-les pour le détail, un conseil, le lever et le coucher du soleil ; avec le plan des rues téléchargé et une position précise, aussi ton altitude (le sol d\'après l\'IGN, à 5 m près). {settings} → Autres réglages → Pastille météo y ajoute, si tu veux, l\'arrondissement, dimanche ou férié, la pluie, le prochain lever ou coucher du soleil, la hauteur de la Seine.',
     '**« 3e · 12° »** : allumé dans Pastille météo, l\'arrondissement où tu es s\'écrit devant la température, seulement s\'il est sûr. Il faut une position de moins de 10 min (Ma position, Autour de moi, ouverture sur toi), assez précise et pas trop près d\'une limite. Sinon, rien ne s\'affiche. Le GPS n\'est jamais demandé pour ça.',
+    '{triangle-alert} **Vigilance Météo-France** : touche la pastille → Clé Météo-France (gratuite, à ton nom, les étapes sont écrites). La pastille montre alors la vigilance orange ou rouge à Paris et le danger ; vert et jaune : rien. La clé reste sur ce téléphone, hors sauvegarde.',
     '{map} **De loin, les numéros des arrondissements** sont écrits sur la carte, avec leurs limites en trait fin. Ils disparaissent en zoomant sur une rue. Pour les masquer : {settings} → Autres réglages → Numéros des arrondissements.',
     '**La colonne de boutons** : {camera} Vu en passant, Ma position, Paris, M, {calendar-days} Sorties, {alarm-clock} Mon planning et {ellipsis} Plus. {settings} → Boutons de la carte dit leur ordre et leur place.',
     '{ellipsis} **Plus** ouvre les autres boutons, avec leur nom : Rentrer, Circuits, Vélib\' (la station la plus proche de toi), Note du jour, Mon Paris, et Fontaine et WC s\'il n\'est pas masqué.',
@@ -14490,6 +14491,8 @@ const HELP = [
     '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
     `**Gratuités** : liste vérifiée le ${FREE_CHECKED} ; **temps forts** : le ${HIGHLIGHTS_CHECKED} ; **Kiosque Théâtre** : le ${KIOSQUE_CHECKED}. Vérifie aussi sur le site du lieu.`,
+    '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
+    '{image} **Photos dans Sorties** : {settings} → Autres réglages → Photos dans Sorties, éteint au départ. Allumé, chaque sortie montre à gauche la photo de l\'agenda ; sans elle, ta photo de la salle si tu en as pris une ({settings} → Autres réglages → Photos des salles).',
   ]],
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
@@ -14507,6 +14510,12 @@ const HELP = [
     '{download} **Préparer hors ligne** : en bas de Mon Paris, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
     '{triangle-alert} **Plan de secours** : en mode crise, quand le fond de carte ne se charge plus (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent à l\'encre, à partir d\'un zoom de quartier. Avec du réseau, la vraie carte reste. Les noms des rues n\'y sont pas : Où suis-je ? donne ton adresse quand le réseau revient.',
     '{waves} **Crue** : en mode crise Crue, la hauteur de la Seine à Austerlitz (Hub\'Eau ; rien si la mesure a plus de 2 h) et la zone inondable de la crue de 1910 (PPRI de Paris, en gris) s\'allument seules. Autour de moi dit si tu es dans la zone, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied le plus court jusqu\'à une rue à 50 m au moins hors zone, calculé sur le téléphone (il faut le plan des rues : Préparer hors ligne). La zone ne dit pas où est l\'eau maintenant : suis les consignes des secours et Vigicrues.',
+    '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
+    '{message-square-text} **Je vais bien** : en mode crise, dans Autour de moi. Un SMS par proche (il part sans internet) ; « Autre appli (WhatsApp…) » ouvre le menu de partage d\'Android avec le message écrit. Ta position part seulement si tu la coches.',
+    '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, dans Autour de moi. Les urgences adultes de l\'AP-HP dans Paris, la plus proche d\'abord, avec Appeler et Y aller ; dessous, la pharmacie de garde (32 37, 0,35 € la minute, ou 3237.fr). Danger immédiat : 15 ou 112.',
+    '{list} **Les bons gestes** : en mode crise, la fiche de la crise, lisible sans réseau, avec sa source. En bas, **Mes documents** : tes PDF (20 Mo au plus, sur ce téléphone) et tes liens. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
+    '{backpack} **Mon kit 72 h** : en mode crise dans Autour de moi, et en bas de Mon Paris. La liste du guide officiel « Tous responsables », à cocher ; l\'eau se compte selon le nombre de personnes. « Je l\'ai vérifié aujourd\'hui » note la date. Rien n\'est rappelé tout seul.',
+    '{radio} **Coupure et abri** : en Coupure, les fréquences de franceinfo et de France Inter (radio à piles) ; en Abri, le lien du niveau Vigipirate sur info.gouv.fr, jamais le niveau lui-même.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures, Boucle à courir.',
@@ -14559,6 +14568,7 @@ const HELP = [
     '{user} **L\'artiste** d\'une œuvre : Modifier → Artiste (le champ n\'apparaît que pour ta catégorie Street art et Vu en passant). Dans la fiche, son nom ouvre sa page : ses œuvres dans tes lieux, son site ou son Instagram (que tu recopies une fois), et « Suivre ses expos ».',
     '{store} **Fermé définitivement** : dans la fiche, Sur ce lieu → Rangement, pour un resto ou une boutique qui a fermé (vu sur place, ou « Définitivement fermé » dans Avis Google). Gris sur la carte, plus proposé ; « De nouveau ouvert » annule. Pour une adresse TTB : Rangement de sa fiche, « Fermé définitivement » ou « Masquer cette adresse » ; les remettre : {settings} → TTB.',
     '{eye} **A pu fermer** : un resto ou un commerce sans nouvelles depuis plus d\'un an (ni visite, ni impression, ni horaires notés) : sa fiche le dit en haut, à côté de sa catégorie (« Restos · 9e · a pu fermer »). Vu ouvert sur place : Rangement → « Toujours ouvert ». Fermé : « Fermé définitivement ». La date d\'ajout du lieu est en bas de sa fiche.',
+    '{map-pinned} **À mettre à jour sur place** : {settings} → Autres réglages. Les 5 choses les plus proches de toi qui ne se vérifient que sur place : un lieu qui a pu fermer, des horaires notés il y a plus d\'un an, la photo d\'une salle, d\'un point de vue ou d\'une tombe (une au plus). Trié sur le téléphone.',
     '{eye-off} **Disparue ou recouverte** : pour une œuvre, dans la fiche, Sur ce lieu (ou Cette photo) → Rangement. Elle devient grise sur la carte, reste dans ton journal, et l\'appli ne la propose plus. La fiche dit le dernier jour où tu l\'as vue, jamais « toujours là ».',
     '**Ou laisse le doigt appuyé** sur la carte, là où tu veux : la page « Ce point » donne l\'adresse, Y aller, Boussole, Métro et Ajouter.',
     '**La recherche** commence dans la zone que montre la carte : zoome sur le quartier avant de chercher.',
@@ -14659,7 +14669,7 @@ const HELP = [
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois ; pour la donner à un proche : Clé CARTO → Envoyer ma clé.',
     '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. Plus vite : le petit point en haut à droite change de style à chaque appui. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
-    '**Tes réglages** sont gardés à chaque changement. {settings} → Réglages de référence, en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
+    '**Tes réglages** sont gardés à chaque changement. {settings} → Réglages de référence, en bas des Réglages, permet d\'y revenir d\'un appui : tous tes réglages, boutons du haut et de la carte, filtres masqués et TTB « Seulement les vérifiées » compris. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
     '{vibrate} **Vibrer quand « Maintenant » a du nouveau** : éteint au départ ; {settings} → Autres réglages → Alertes et bandeau pour l\'allumer. Une courte vibration, une fois par suggestion, seulement appli ouverte et écran allumé : ce n\'est pas un réveil.',
@@ -14677,9 +14687,13 @@ const HELP = [
     '**Les couleurs** : ardoise pour y aller, bleu pour le métro, terre cuite pour découvrir.',
     '**Et aussi** : vert pour ajouter, or pour les favoris, zinc pour les réglages, brique pour supprimer.',
     '**Les formes** : plaque pleine = l\'action principale ; contour = une autre action ; tampon = un état (ouvert, à faire).',
+    '{landmark} **Dessins des monuments** : 19 monuments dessinés sur la carte vue de loin ; un dessin qui toucherait un bouton ou un de tes lieux se cache. Pour les retirer : {settings} → Autres réglages → Dessins des monuments.',
+    '{spell-check} **Écrire au masculin** : {settings} → Autres réglages. L\'appli s\'adresse à toi au féminin (« Tu y es allée ? ») ; allumé, au masculin. Ce réglage ne passe pas d\'un téléphone à l\'autre.',
+    '{hand} **Essayer le premier lancement** : {settings} → Autres réglages. L\'appli redémarre comme neuve, le temps de l\'essai ; tes lieux restent. « Essai en cours · Terminer », en haut, la remet comme avant.',
+    '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages. Choisis ses réglages de départ, puis envoie un lien ou montre un QR code : son appli démarre avec tes choix. Jamais tes lieux ni ta liste TTB ; ta clé CARTO seulement si tu la coches.',
   ]],
   ['wrench', 'Ça ne marche pas ?', [
-    '**Position refusée** : Chrome ⋮ → Paramètres → Paramètres des sites → Position. Autorise limopo74.github.io et allume la Position du téléphone.',
+    '**Position refusée** : appli installée, appui long sur son icône → Infos sur l\'appli → Autorisations → Position → Autoriser. Dans Chrome : ⋮ → Paramètres → Paramètres des sites → Position, autorise limopo74.github.io. Allume aussi la Position du téléphone.',
     '**Carte grise** : vérifie internet, puis {settings} → Autres réglages → Mise à jour et confidentialité → Recharger la carte.',
     '{rotate-cw} **Une nouvelle version** : quand tu reviens sur l\'appli, « Mettre à jour l\'appli » s\'affiche en haut à gauche de la carte, seulement quand une version plus récente est publiée. Touche-le. Tes lieux ne bougent pas.',
     '**Une nouveauté n\'apparaît pas** : {settings} → Autres réglages → Mise à jour et confidentialité → Mettre à jour l\'appli.',
@@ -14701,6 +14715,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
     '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
     '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
@@ -14710,7 +14725,6 @@ const HELP = [
     '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
-    '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

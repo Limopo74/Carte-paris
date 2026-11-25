@@ -32,3 +32,17 @@ test('Aide : une ligne sur la marche, et le robot se lance depuis Mise à jour e
   const off = helpWithoutCompass(lines).find((l) => l.startsWith('{footprints} **Ta marche**'));
   assert.ok(off && !off.includes('oussole'), 'boussole éteinte : la ligne ne la cite plus');
 });
+
+// v528 : chaque ligne de Réglages et d'Autres réglages est citée dans l'Aide (avant : 7 n'y étaient pas, dont Photos des salles,
+// À mettre à jour sur place, Préparer le démarrage d'un proche) ; « Position refusée » donne aussi le chemin de l'appli installée.
+test('Aide : chaque ligne de Réglages et d\'Autres réglages y est citée', () => {
+  const s = app.replace(/\\'/g, '\'');
+  const help = s.slice(s.indexOf('const HELP = ['), s.indexOf('\n];', s.indexOf('const HELP = [')));
+  const autres = s.slice(s.indexOf("if (section === 'autres') {"), s.indexOf("), { name: 'settings:autres'"));
+  const main = s.slice(s.indexOf("openSheet([ico('settings'), ' Réglages'"), s.indexOf("), { name: 'settings', again: () => openSettings(), tall: true });"));
+  const titles = [...[...autres.matchAll(/row\('[^']*', '([^']+)'/g)], ...[...autres.matchAll(/onOff\('[^']*', '[^']*', '([^']+)'/g)], ...[...main.matchAll(/row\('[^']*', '([^']+)'/g)]].map((m) => m[1]);
+  assert.ok(titles.length > 30, String(titles.length));
+  const missing = titles.filter((t) => !help.toLowerCase().includes(t.toLowerCase()) && !t.startsWith('Aide de l'));
+  assert.deepEqual(missing, []);
+  assert.ok(lines.some((l) => l.startsWith('**Position refusée**') && l.includes('Infos sur l\'appli') && l.includes('Paramètres des sites')));
+});
