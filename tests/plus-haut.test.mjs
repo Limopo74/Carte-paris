@@ -7,12 +7,12 @@ import { loadState, saveState, exportJSON, readSettings, KEY, cleanChips, cleanM
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 
 test('Plus du haut : au départ Vélib\', Mes lignes de bus, Fontaines et toilettes, Passages couverts, Pistes à vélo, Jardins publics, Mes artistes, rien d\'autre ne bouge', () => {
-  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes']);
-  assert.deepEqual(loadState(memStorage()).moreChips, ['fav', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes', 'cat:resto', 'cat:boutique', 'cat:culture', 'cat:vu'], 'v442 : un nouveau venu a Favoris, TTB et toutes ses catégories sous ⋯ Plus, Vu en passant compris');
+  assert.deepEqual(DEFAULT_MORE_CHIPS, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes', 'dansmarue']);
+  assert.deepEqual(loadState(memStorage()).moreChips, ['fav', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes', 'dansmarue', 'cat:resto', 'cat:boutique', 'cat:culture', 'cat:vu'], 'v442 : un nouveau venu a Favoris, TTB et toutes ses catégories sous ⋯ Plus, Vu en passant compris');
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], hiddenChips: ['fav'] })); // appli d'avant la v151
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes']);
+  assert.deepEqual(s.moreChips, ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes', 'dansmarue']);
   assert.deepEqual(s.hiddenChips, ['fav']);
 });
 
@@ -20,11 +20,11 @@ test('Plus du haut (v168) : Passages couverts arrive sous ⋯ Plus, pas dans la 
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [] })); // réglages de la v167
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'passages', 'buslines', 'velo', 'jardins', 'artistes']);
+  assert.deepEqual(s.moreChips, ['velib', 'passages', 'buslines', 'velo', 'jardins', 'artistes', 'dansmarue']);
   assert.equal(s.showPassages, false, 'calque éteint au départ');
   const st2 = memStorage();
   st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['passages'], chipsV: 1 }));
-  assert.deepEqual(loadState(st2).moreChips, ['buslines', 'velo', 'jardins', 'artistes'], 'caché : pas aussi dans Plus (Mes lignes de bus, v228, Pistes à vélo et Jardins publics arrivent seuls)');
+  assert.deepEqual(loadState(st2).moreChips, ['buslines', 'velo', 'jardins', 'artistes', 'dansmarue'], 'caché : pas aussi dans Plus (Mes lignes de bus, v228, Pistes à vélo et Jardins publics arrivent seuls)');
   saveState(st, { ...s, moreChips: ['velib'], showPassages: true }); // remis dans la barre, calque allumé
   const r = loadState(st);
   assert.deepEqual(r.moreChips, ['velib'], 'la migration ne se refait pas');
@@ -32,7 +32,7 @@ test('Plus du haut (v168) : Passages couverts arrive sous ⋯ Plus, pas dans la 
   const back = readSettings(JSON.parse(exportJSON(r)));
   assert.deepEqual(back.moreChips, ['velib']);
   assert.equal(back.showPassages, true);
-  assert.deepEqual(readSettings({ settings: { moreChips: ['lines'] } }).moreChips, ['lines', 'passages', 'buslines', 'velo', 'jardins', 'artistes'], 'une sauvegarde d\'avant la v167 aussi');
+  assert.deepEqual(readSettings({ settings: { moreChips: ['lines'] } }).moreChips, ['lines', 'passages', 'buslines', 'velo', 'jardins', 'artistes', 'dansmarue'], 'une sauvegarde d\'avant la v167 aussi');
 });
 
 test('Plus du haut : nettoyé, gardé, jamais en même temps caché', () => {
@@ -69,7 +69,7 @@ test('Plus du haut (v228) : Mes lignes de bus arrive sous ⋯ Plus une seule foi
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [], chipsV: 2 })); // Passages couverts remis dans la barre
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'buslines', 'velo', 'jardins', 'artistes']);
+  assert.deepEqual(s.moreChips, ['velib', 'buslines', 'velo', 'jardins', 'artistes', 'dansmarue']);
   assert.equal(s.showBusLines, false);
   saveState(st, { ...s, moreChips: ['velib'] }); // remis dans la barre
   assert.deepEqual(loadState(st).moreChips, ['velib'], 'la migration ne se refait pas');
@@ -79,7 +79,7 @@ test('Plus du haut (Pistes à vélo) : arrive sous ⋯ Plus une seule fois, calq
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['passages'], hiddenChips: [], chipsV: 3 })); // réglages de la v256
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['passages', 'velo', 'jardins', 'artistes'], 'sous ⋯ Plus, rien ne bouge dans la barre');
+  assert.deepEqual(s.moreChips, ['passages', 'velo', 'jardins', 'artistes', 'dansmarue'], 'sous ⋯ Plus, rien ne bouge dans la barre');
   assert.equal(s.showVelo, false, 'éteint au départ');
   saveState(st, { ...s, moreChips: ['passages'], showVelo: true }); // remis dans la barre, calque allumé
   const r = loadState(st);
@@ -89,14 +89,14 @@ test('Plus du haut (Pistes à vélo) : arrive sous ⋯ Plus une seule fois, calq
   assert.equal(back.showVelo, true);
   const st2 = memStorage();
   st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['velo'], chipsV: 3 }));
-  assert.deepEqual(loadState(st2).moreChips, ['jardins', 'artistes'], 'caché : pas aussi dans Plus (Jardins publics, v261, arrive seul)');
+  assert.deepEqual(loadState(st2).moreChips, ['jardins', 'artistes', 'dansmarue'], 'caché : pas aussi dans Plus (Jardins publics, v261, arrive seul)');
 });
 
 test('Plus du haut (v261) : Jardins publics arrive sous ⋯ Plus une seule fois, sans pousser les catégories de la barre', () => {
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [], chipsV: 4 })); // Pistes à vélo remis dans la barre
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'jardins', 'artistes']);
+  assert.deepEqual(s.moreChips, ['velib', 'jardins', 'artistes', 'dansmarue']);
   assert.equal(s.showJardins, false, 'calque éteint au départ');
   assert.equal(s.jardinsNow, false, 'grand jardin dans « Maintenant » : éteint au départ');
   saveState(st, { ...s, moreChips: ['velib'], showJardins: true, jardinsNow: true }); // remis dans la barre, allumés
@@ -125,13 +125,13 @@ test('Plus du haut (v372) : Mes artistes arrive sous ⋯ Plus une seule fois, ou
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], moreChips: ['velib'], hiddenChips: [], chipsV: 5 })); // réglages de la v371
   const s = loadState(st);
-  assert.deepEqual(s.moreChips, ['velib', 'artistes'], 'sous ⋯ Plus, rien ne bouge dans la barre');
+  assert.deepEqual(s.moreChips, ['velib', 'artistes', 'dansmarue'], 'sous ⋯ Plus, rien ne bouge dans la barre');
   saveState(st, { ...s, moreChips: ['velib'] }); // remis dans la barre
   assert.deepEqual(loadState(st).moreChips, ['velib'], 'la migration ne se refait pas');
   const st2 = memStorage();
-  st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['artistes'], chipsV: 5 }));
+  st2.setItem(KEY, JSON.stringify({ points: [], moreChips: [], hiddenChips: ['artistes', 'dansmarue'], chipsV: 5 }));
   assert.deepEqual(loadState(st2).moreChips, [], 'masqué : pas aussi dans Plus');
-  assert.deepEqual(cleanChips(['artistes']), ['artistes']);
+  assert.deepEqual(cleanChips(['artistes', 'dansmarue']), ['artistes', 'dansmarue']);
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /key: 'artistes', name: 'Mes artistes', icon: ico\('user'\), active: false/, 'jamais « allumé » : il ne reste pas dans la barre');
   assert.match(app, /x\.key === 'artistes'; \/\/ v372/, 'dans Plus, une flèche (ouvre une page), pas un interrupteur');

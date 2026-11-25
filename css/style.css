@@ -1549,6 +1549,10 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 .dq-fill { display: block; height: 100%; background: var(--ink); border-radius: var(--r); }
 .dq-bar.paris .dq-fill { background: var(--muted); }
 .dq-words { margin: 0; font-family: var(--display); font-weight: 800; font-size: var(--t16); }
+.dmr-legend { display: flex; flex-direction: column; gap: 8px; } /* v471 : les trois teintes des carrés Dans ma rue, comme sur la carte */
+.dmr-key { display: grid; grid-template-columns: 34px 6.5em 1fr; align-items: center; gap: 10px; font-size: var(--t16); }
+.dmr-sw { width: 34px; height: 24px; border-radius: var(--r); background: var(--ink); }
+.dmr-sw.l0 { background: transparent; border: 2px solid var(--line); } .dmr-sw.l1 { opacity: .2; } .dmr-sw.l2 { opacity: .42; } /* « Peu » : pas de carré sur la carte */
 
 /* ---- Style « Verre » (le jour, v452, mon choix 1B du 25 nov. ; CHARTE.md § 10.1) ----
    Seulement dans l'appli posée sur la carte (barres, colonne, bandeaux, feuille) ; la boussole et la photo en grand gardent les leurs.

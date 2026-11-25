@@ -18,7 +18,7 @@ test('Mémoire vide : le départ d\'un nouveau venu (v440, d\'après mes capture
   assert.equal(s.chipIcons, true);
   // ⋯ Plus du haut, dans cet ordre (Mes artistes toujours en tête) ; v442 (mon choix 2B) : TTB dès le départ
   const more = barOrderOf(s.chipOrder, s.categories.map((c) => c.id)).filter((k) => s.moreChips.includes(k));
-  assert.deepEqual(more, ['cat:vu', 'fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes']);
+  assert.deepEqual(more, ['cat:vu', 'fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes', 'dansmarue']);
   assert.deepEqual(s.hiddenChips, ['buslines', 'velo'], 'ce qui ne se voit pas est masqué');
   assert.deepEqual(s.hiddenFilters, ['buslines', 'velo'], 'Filtres : les mêmes lignes masquées');
   // Colonne : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; ⋯ Plus : Mon Paris, Métro, Centre de Paris, Note du jour, Vélib', Fontaine et WC ; Circuits masqué

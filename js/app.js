@@ -22,7 +22,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, VELO_FILE, JARDINS_FILE, DELINQ_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, VELO_FILE, JARDINS_FILE, DELINQ_FILE, DMR_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -71,6 +71,7 @@ import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
 import { cleanCimetieres, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
+import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
 import { cleanDelinq, delinqRows } from './delinquance.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
@@ -80,7 +81,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (475)';
+const VERSION = '25 novembre 2026 (476)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -248,7 +249,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(delinqData?.updated ? { delinquance: delinqData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(delinqData?.updated ? { delinquance: delinqData.updated } : {}), ...(dmrUpdated ? { dansmarue: dmrUpdated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON, primes: BAGUETTES_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -1167,6 +1168,7 @@ function chipItems(chip = null, catChip = null) {
   const togglePrat = () => { setPratLayer(!state.showPratique); refresh(); toast(state.showPratique ? 'Fontaines et toilettes sur la carte (en zoomant)' : 'Fontaines et toilettes : masquées'); };
   const toggleArc = () => { setArcadeLayer(!state.showPassages); refresh(); toast(state.showPassages ? 'Passages couverts sur la carte (le trait en zoomant)' : 'Passages couverts : masqués'); };
   const toggleVelo = async () => { await setVeloLayer(!state.showVelo); refresh(); if (!state.showVelo) toast('Pistes à vélo : masquées'); else if (veloData) toast('Pistes à vélo : trait plein, sans voitures ; pointillé, rue calme'); };
+  const toggleDmr = () => setDmrLayer(!dmrOn).then(refresh); // v471 : le temps de la session, comme Vélib'
   const toggleJardins = () => { setJardinLayer(!state.showJardins); refresh(); toast(state.showJardins ? 'Jardins publics sur la carte, en zoomant : vert clair, ouvert maintenant' : 'Jardins publics : masqués'); };
   const busOn = () => Boolean(state.showBusLines && (state.busLines ?? []).length);
   const fixed = [
@@ -1202,6 +1204,9 @@ function chipItems(chip = null, catChip = null) {
     // v372 (mon choix A du 21 nov.) : Mes artistes à un ou deux appuis ; ouvre sa page (jamais « allumé ») ; rangé sous ⋯ Plus au départ
     { key: 'artistes', name: 'Mes artistes', icon: ico('user'), active: false, act: () => openArtists(),
       make: () => chip(ico('user'), false, () => openArtists(), { class: 'artistes icon-only', aria: 'Mes artistes' }) },
+    // v471 (mes choix 6 du 25 nov.) : la couche des signalements DansMaRue, rangée sous ⋯ Plus, éteinte au départ, le temps de la session
+    { key: 'dansmarue', name: 'Signalements Dans ma rue', icon: ico('message-square-warning'), active: dmrOn, act: toggleDmr,
+      make: () => chip(ico('message-square-warning'), dmrOn, toggleDmr, { class: 'pratique', aria: 'Signalements Dans ma rue sur la carte' }) },
   ];
   // v268 (mes choix 2A, 3A, 4A) : les boutons dans mon ordre ; Tout et Filtres toujours en tête.
   // v304 (une seule file) : une catégorie peut se ranger parmi les boutons de l'appli ; sinon au bout, dans l'ordre de mes catégories.
@@ -1217,7 +1222,7 @@ function openChipsMore() {
   // v375 (mon choix 1A du 21 nov.) : Mes artistes ouvre une page ; il passe en tête de Plus, au-dessus des interrupteurs, séparé par un filet fort
   const list = chipItems().filter((x) => where(x.key) === 'more').sort((a, b) => (b.key === 'artistes') - (a.key === 'artistes'));
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', dansmarue: 'Propreté signalée, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
   openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
     el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
     list.map((x) => {
@@ -5623,6 +5628,43 @@ function drawPratLayer() {
   }
 }
 
+/* ---------- v471 : Signalements Dans ma rue (js/dansmarue.js) : carrés d'environ 100 m, trois teintes d'encre, vus de près ----------
+   Fichier rangé par le robot (rien n'est demandé depuis le téléphone). Pas touchables : l'étiquette du haut ouvre la légende. */
+map.createPane('dmr').style.zIndex = 395; // sous le contour des jardins (400) et les gouttes
+const dmrLayer = L.layerGroup().addTo(map);
+let dmrOn = false;
+let dmrData = null;
+let dmrUpdated = '';
+const loadDmr = async () => (dmrData ??= await fetch('data/dansmarue.json').then((r) => (r.ok ? r.json() : null)).then((j) => { dmrUpdated = typeof j?.updated === 'string' ? j.updated : ''; return cleanDmr(j); }).catch(() => null));
+async function setDmrLayer(on) {
+  if (on && !(await loadDmr())) { toast('Les signalements Dans ma rue arrivent avec le prochain passage du robot des données.'); return; }
+  dmrOn = on; drawDmrLayer(); drawLayerNote();
+  if (on) toast(map.getZoom() < DMR_ZOOM ? 'Signalements Dans ma rue : zoome pour voir les carrés' : 'Signalements Dans ma rue : plus le carré est foncé, plus il y en a');
+  else toast('Signalements Dans ma rue : masqués');
+}
+function drawDmrLayer() {
+  dmrLayer.clearLayers();
+  if (!dmrOn || !dmrData || map.getZoom() < DMR_ZOOM) return;
+  const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#1b1b1b';
+  for (const c of dmrInBox(dmrData, boxNow()).filter((x) => x.level > 0)) { // « Peu » : rien de dessiné, la carte reste lisible
+    L.rectangle([[c.s, c.w], [c.n, c.e]], { pane: 'dmr', interactive: false, stroke: false, fillColor: ink, fillOpacity: [0, 0.2, 0.42][c.level] }).addTo(dmrLayer);
+  }
+}
+const dmrNote = () => (!dmrOn ? null : map.getZoom() < DMR_ZOOM ? { text: 'Zoome pour voir les signalements', act: 'zoom' } : { text: 'Signalements · Légende', act: 'dmr' });
+/** La légende : les trois teintes, la période, ce que ça veut dire et ce que ça ne dit pas. */
+function openDmrInfo() {
+  const d = dmrData; if (!d) return;
+  const words = dmrLegend(d);
+  openSheet([ico('message-square-warning'), ' Signalements Dans ma rue'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `Propreté et objets abandonnés signalés par les habitants dans l'appli de la Ville, ${dmrPeriod(d)}, par carré d'environ 100 m.`),
+    el('div', { class: 'dmr-legend', role: 'list' }, ...DMR_LEVELS.map((l, i) => el('div', { class: 'dmr-key', role: 'listitem' },
+      el('span', { class: `dmr-sw l${i}`, 'aria-hidden': 'true' }), el('b', {}, l), el('span', {}, `${words[i]} ${words[i] === '1' ? 'signalement' : 'signalements'}${i ? '' : ' : rien de dessiné'}`)))),
+    el('p', { class: 'help tip' }, 'Ce sont des signalements, pas une mesure de la saleté : un quartier où l\'on signale beaucoup n\'est pas forcément plus sale. Traité ou non : la Ville ne le dit pas. La Ville publie avec environ 3 mois de retard.'),
+    el('p', { class: 'help tip' }, 'Source : « Dans Ma Rue - Anomalies signalées », Paris Data (Ville de Paris). Rangé dans l\'appli par le robot : ta position n\'est envoyée nulle part.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => { closeSheet(); setDmrLayer(false).then(() => { renderChips(); }); } }, ico('eye-off'), 'Masquer les signalements'),
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => closeSheet() }, '← Carte'))), { name: 'dmr-info', again: openDmrInfo });
+}
+
 function openPratSpot(x) {
   const wc = x.kind === 'wc';
   openSpot({ icon: wc ? 'toilet' : 'glass-water', title: x.label, kicker: wc ? 'Toilettes publiques' : 'Fontaine à boire',
@@ -5648,12 +5690,12 @@ const ttbNote = () => {
 };
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote() ?? rueNoteNow();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? dmrNote() ?? busNote() ?? veloNote() ?? rueNoteNow();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'rues' ? 'git-commit-horizontal' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'dmr' ? 'message-square-warning' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'rues' ? 'git-commit-horizontal' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
@@ -5666,6 +5708,7 @@ layerNoteBtn.addEventListener('click', () => {
   else if (n?.act === 'zoom') map.setZoom(LAYER_ZOOM);
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
+  else if (n?.act === 'dmr') openDmrInfo(); // v471
   else if (n?.act === 'velo') openFilters();
   else if (n?.act === 'rues') { const ls = onMap().filter((p) => p.line).flatMap((p) => p.line); if (ls.length) map.fitBounds(L.latLngBounds(ls).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 17, animate: false }); } // v429 : comme « Voir les 12 » des passages
   else if (n?.act === 'ttb') { // v287 : toutes les rubriques et tous les budgets, comme en ouvrant l'appli ; « Annuler » remet le tri
@@ -5676,7 +5719,7 @@ layerNoteBtn.addEventListener('click', () => {
   }
   else if (n?.act === 'arcades' && arcadesData?.length) map.fitBounds(L.latLngBounds(arcadesData.map((a) => [a.lat, a.lng])).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 16, animate: false }); // v275 : les 12, ni sous la barre ni sous la colonne
 });
-map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawLayerNote(); });
+map.on('moveend', () => { drawVelibLayer(); drawPratLayer(); drawDmrLayer(); drawLayerNote(); });
 // v333 (mes choix 1A 3A du 20 nov.) : au retour sur l'appli, une nouvelle version publiée se dit sous la barre du haut.
 // On relit sw.js sur le site de l'appli (rien de toi n'est envoyé), au plus tous les quarts d'heure (js/nouvelle-version.js).
 async function checkNewVersion() {
@@ -11297,6 +11340,7 @@ function openSettings(section = null, from = null) {
     if (id === 'respire' && !respireData && !openSettings.respireTried) { openSettings.respireTried = true; loadRespire().then(() => openSettings(section)); return; }
     if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
     if (id === 'velo' && !veloData && !openSettings.veloTried) { openSettings.veloTried = true; loadVelo().then(() => openSettings(section)); return; }
+    if (id === 'dansmarue' && !dmrData && !openSettings.dmrTried) { openSettings.dmrTried = true; loadDmr().then(() => openSettings(section)); return; }
     if (id === 'delinquance' && !delinqData && !openSettings.delinqTried) { openSettings.delinqTried = true; loadDelinq().then(() => openSettings(section)); return; }
     if (id === 'jardins' && !jardinsData && !openSettings.jardinsTried) { openSettings.jardinsTried = true; loadJardins().then(() => openSettings(section)); return; }
     // Œuvres et galeries : lues une fois pour connaître leur date (une liste encore vide ne relance pas la lecture)
@@ -11390,6 +11434,10 @@ function openSettings(section = null, from = null) {
         el('p', { class: 'help tip' }, 'Sert à la couche « Pistes à vélo » de la carte : les pistes, voies vertes et chemins des bois (trait plein), les voies piétonnes, vélorues et voies fermées aux voitures (pointillé). Bandes, couloirs de bus et contresens ne sont pas gardés. Les travaux n\'y sont pas. Direction de la Voirie et des Déplacements, d\'après OpenStreetMap, licence ODbL.'),
         el('div', { class: 'menu' }, link(VELO_FILE)),
         say('Mets à jour les pistes à vélo', 'tools/maj-velo.py')],
+      dansmarue: () => [
+        el('p', { class: 'help tip' }, 'Sert à la couche « Signalements Dans ma rue » (⋯ Plus) : propreté et objets abandonnés signalés dans l\'appli de la Ville, comptés par carré de 100 m sur les 12 derniers mois publiés.'),
+        el('div', { class: 'menu' }, link(DMR_FILE)),
+        say('Mets à jour les signalements Dans ma rue', 'tools/maj-dansmarue.py')],
       delinquance: () => [
         el('p', { class: 'help tip' }, 'Sert à Où suis-je ? : les vols enregistrés dans l\'arrondissement, à côté de la moyenne de Paris, une fois par an (le ministère publie chaque été les chiffres de l\'année d\'avant). Rien de plus fin que l\'arrondissement n\'est publié.'),
         el('div', { class: 'menu' }, link(DELINQ_FILE)),
@@ -13316,6 +13364,7 @@ const HELP = [
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Autres réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
+    '{message-square-warning} **Signalements Dans ma rue** (⋯ Plus en haut) : en zoomant, des carrés de 100 m plus ou moins foncés selon le nombre de signalements propreté et objets abandonnés faits par les habitants sur 12 mois. L\'étiquette du haut ouvre la légende. Ce sont des signalements, pas une mesure de la saleté.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, et les cimetières du Père-Lachaise, du Montparnasse et de Montmartre, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
     '{flower-2} **Cimetières** (dans Jardins publics) : le Père-Lachaise, le Montparnasse et Montmartre. Touche un cimetière : ouvert ou fermé (horaires de l\'hiver relevés sur paris.fr ; on n\'entre plus 15 min avant la fermeture), la porte la plus proche, « Tombes célèbres » (plans officiels de la Ville, recoupés avec Wikidata) et « Plan officiel des tombes ». Une tombe : sa division, et le chemin jusqu\'au milieu de la division, jamais jusqu\'à la tombe ; « Prendre une photo », « Ses plaques dans Paris », « Article Wikipédia ».',
@@ -13416,17 +13465,16 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
     '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
     '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
-    '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). Chacun a ses puces, ses icônes et le contour de tes gouttes. En sombre, toujours Signalétique. Les boutons restent à leur place.',
-    '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

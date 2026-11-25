@@ -31,7 +31,7 @@ test('Barre du haut (v400) : Mes artistes reste en tête de Plus, personne n\'é
   assert.equal(group('artistes'), 'lead');
   const avant = barOrderOf(null, cats);
   assert.deepEqual(barOrderOf(moveChipIn({ chipOrder: null }, 'artistes', -1, cats, group).chipOrder, cats), avant);
-  const s = moveChipIn({ chipOrder: null }, 'jardins', 1, cats, group); // le dernier de Plus avant Mes artistes
+  const s = moveChipIn({ chipOrder: null }, 'dansmarue', 1, cats, group); // le dernier de Plus (v471 : Signalements Dans ma rue, après Mes artistes)
   assert.deepEqual(barOrderOf(s.chipOrder, cats), avant);
   // rangé dans la barre, il se range comme les autres
   const bar = chipGroupOf(() => 'bar');

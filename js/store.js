@@ -212,14 +212,14 @@ export const seenSettings = (o) => ({ seenKeep: o?.seenKeep !== false, seenStart
 export const cleanSeenLast = (x) => (x && typeof x.cat === 'string' && /^[\w-]{1,64}$/.test(x.cat) ? { cat: x.cat, sub: typeof x.sub === 'string' && /^[\w-]{1,64}$/.test(x.sub) ? x.sub : '' } : null);
 
 /** Boutons masqués de la barre du haut : 'all', 'filters', 'fav' ou 'cat:<id>'. */
-export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|buslines|velib|pratique|passages|velo|jardins|artistes|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
+export const cleanChips = (list) => [...new Set((Array.isArray(list) ? list : []).filter((x) => typeof x === 'string' && /^(all|filters|fav|street|ttb|lines|buslines|velib|pratique|passages|velo|jardins|artistes|dansmarue|cat:[\w-]{1,40})$/.test(x)))].slice(0, 60);
 /** Boutons du haut rangés sous ⋯ Plus (v151). Au départ : Vélib', Mes lignes de bus (v228), Fontaines et toilettes, Passages couverts. Un bouton masqué n'est pas aussi dans Plus. */
-export const DEFAULT_MORE_CHIPS = ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes'];
+export const DEFAULT_MORE_CHIPS = ['velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes', 'dansmarue'];
 export const cleanMoreChips = (list, hidden = []) => (list === undefined ? [...DEFAULT_MORE_CHIPS] : cleanChips(list)).filter((k) => !hidden.includes(k));
 /** Un bouton du haut ajouté après coup arrive sous ⋯ Plus, pas dans la barre, une seule fois : par version de la barre
  * (chipsV 2, v168 : Passages couverts ; chipsV 3, v228 : Mes lignes de bus ; chipsV 4 : Pistes à vélo ; chipsV 5, v261 : Jardins publics ; chipsV 6, v372 : Mes artistes). Un bouton déjà rangé ailleurs ne bouge pas. */
-export const NEW_MORE_CHIPS = { 2: ['passages'], 3: ['buslines'], 4: ['velo'], 5: ['jardins'], 6: ['artistes'] };
-export const CHIPS_V = 6;
+export const NEW_MORE_CHIPS = { 2: ['passages'], 3: ['buslines'], 4: ['velo'], 5: ['jardins'], 6: ['artistes'], 7: ['dansmarue'] }; // v471 : chipsV 7, Signalements Dans ma rue
+export const CHIPS_V = 7;
 export function withNewChips(list, v) {
   if (list === undefined || v >= CHIPS_V) return list;
   const have = cleanChips(list);
@@ -231,7 +231,7 @@ export function withNewChips(list, v) {
  * restent toujours en tête (3A). v304 (mon choix « une seule file » du 20 nov.) : une catégorie (`cat:<id>`) peut aussi s'y
  * ranger, parmi les boutons de l'appli ; une catégorie absente de la liste va au bout, dans l'ordre de mes catégories.
  * null = l'ordre de départ, qu'un bouton ajouté plus tard suit tout seul. */
-export const MOVABLE_CHIPS = ['fav', 'street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes'];
+export const MOVABLE_CHIPS = ['fav', 'street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'artistes', 'dansmarue'];
 const isCatKey = (k) => typeof k === 'string' && /^cat:[\w-]{1,40}$/.test(k);
 export function cleanChipOrder(list) {
   if (!Array.isArray(list)) return null;
@@ -291,8 +291,8 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
 // 380 px). ⋯ Plus : Mes artistes, Vu en passant, Favoris, Boutiques, Culture, Restos, Fontaines et WC, Jardins, TTB (dès le départ,
 // même sans liste), Vélib', Passages couverts. Ce qui ne s'y voit pas est masqué : Mes lignes de bus, Pistes à vélo (aussi dans Filtres).
 export const FRESH_HIDDEN_CHIPS = ['buslines', 'velo'];
-export const FRESH_MORE_CHIPS = ['fav', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes']; // et toutes mes catégories, Vu en passant compris
-export const FRESH_CHIP_ORDER = ['street', 'lines', 'cat:vu', 'fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'buslines', 'velo', 'artistes'];
+export const FRESH_MORE_CHIPS = ['fav', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes', 'dansmarue']; // et toutes mes catégories, Vu en passant compris
+export const FRESH_CHIP_ORDER = ['street', 'lines', 'cat:vu', 'fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'buslines', 'velo', 'artistes', 'dansmarue'];
 export const FRESH_HIDDEN_FILTERS = ['buslines', 'velo'];
 /** La barre du haut du départ, pour mes catégories (`catIds`). */
 export function freshChips(catIds = []) {

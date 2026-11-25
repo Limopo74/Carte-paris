@@ -42,6 +42,8 @@ export const ACR_FILE = { name: 'Liste des édifices labellisés Architecture co
 /** Pistes à vélo (data/velo.json, refait par le robot avec tools/maj-velo.py, v259). */
 export const VELO_FILE = { name: 'Linéaires d\'aménagement cyclable', file: 'amenagements-cyclables.json', url: 'https://opendata.paris.fr/explore/dataset/amenagements-cyclables/export/' };
 /** Contours des jardins publics (data/jardins.json, refait par le robot avec tools/maj-jardins.py, v261). */
+/** Signalements DansMaRue (data/dansmarue.json, refait par le robot avec tools/maj-dansmarue.py, v471). */
+export const DMR_FILE = { name: 'Dans Ma Rue - Anomalies signalées', file: 'dans-ma-rue.csv', url: 'https://opendata.paris.fr/explore/dataset/dans-ma-rue/export/' };
 /** Vols enregistrés par arrondissement (data/delinquance.json, refait par le robot avec tools/maj-delinquance.py, v470). */
 export const DELINQ_FILE = { name: 'Base statistique communale de la délinquance enregistrée (SSMSI)', file: 'api-tabulaire.json', url: 'https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales' };
 export const JARDINS_FILE = { name: 'Îlots de fraîcheur – Espaces verts frais', file: 'ilots-de-fraicheur-espaces-verts-frais.json', url: 'https://opendata.paris.fr/explore/dataset/ilots-de-fraicheur-espaces-verts-frais/export/' };
@@ -78,6 +80,7 @@ export const FIXED_DATA = [
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
   { id: 'velo', name: 'Pistes à vélo (carte)', every: 45, robot: true, lazy: true }, // v259 ; Ville de Paris d'après OpenStreetMap, licence ODbL
   { id: 'jardins', name: 'Jardins publics (carte)', every: 45, robot: true, lazy: true },
+  { id: 'dansmarue', name: 'Signalements Dans ma rue (carte)', every: 45, robot: true, lazy: true }, // v471 ; Ville de Paris
   { id: 'delinquance', name: 'Vols enregistrés (Où suis-je ?)', every: 400, robot: true, lazy: true }, // v470 ; SSMSI, une fois par an, Licence Ouverte 2.0 // v261 ; contours seulement, Ville de Paris, licence ODbL
   { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
