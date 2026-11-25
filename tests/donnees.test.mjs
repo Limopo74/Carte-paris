@@ -41,7 +41,7 @@ test('data/merimee.json : monuments de Paris, date, musées', async () => {
 
 test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel ne compte que celles en retard', async () => {
   const { FIXED_DATA, dataDue, everyText } = await import('../js/donnees.js');
-  assert.deepEqual(FIXED_DATA.map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements', 'bus', 'plaques', 'oeuvres', 'galeries', 'respire', 'voies', 'architectes', 'patrimoine', 'acr', 'acces', 'gares', 'velo', 'jardins', 'merimee', 'marches', 'listes', 'primes']);
+  assert.deepEqual(FIXED_DATA.map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements', 'bus', 'plaques', 'oeuvres', 'galeries', 'respire', 'voies', 'architectes', 'patrimoine', 'acr', 'acces', 'gares', 'velo', 'jardins', 'delinquance', 'merimee', 'marches', 'listes', 'primes']);
   assert.equal(everyText(183), 'tous les 6 mois');
   assert.equal(everyText(365), 'tous les ans');
   const now = Date.parse('2027-06-01');
@@ -53,7 +53,7 @@ test('données de l\'appli : chaque donnée figée a sa fréquence ; le rappel n
 
 test('robot des données : lignes, Navigo et toilettes RATP chaque mois, rappel seulement s\'il échoue', async () => {
   const { FIXED_DATA, dataDue, everyText, ROBOT_URL } = await import('../js/donnees.js');
-  assert.deepEqual(FIXED_DATA.filter((d) => d.robot).map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements', 'bus', 'plaques', 'oeuvres', 'galeries', 'respire', 'voies', 'architectes', 'patrimoine', 'acr', 'acces', 'gares', 'velo', 'jardins']);
+  assert.deepEqual(FIXED_DATA.filter((d) => d.robot).map((d) => d.id), ['lignes', 'navigo', 'ratp', 'arrondissements', 'bus', 'plaques', 'oeuvres', 'galeries', 'respire', 'voies', 'architectes', 'patrimoine', 'acr', 'acces', 'gares', 'velo', 'jardins', 'delinquance']); // v470 : vols enregistrés, une fois par an
   assert.equal(everyText(45), 'chaque mois');
   const now = Date.parse('2026-12-20');
   const dates = { lignes: '2026-12-01', navigo: '2026-11-10', ratp: '2026-10-01', merimee: '2026-11-16', marches: '2026-11-16', listes: '2026-11-16', primes: '2026-11-16' };

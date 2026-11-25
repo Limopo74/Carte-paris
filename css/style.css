@@ -1541,6 +1541,14 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 .mesure-mid { margin: 0; text-align: center; font-size: var(--t18); }
 .mesure-res { margin: 8px 0 0; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: var(--t26); }
 .mesure-state { margin: 0; padding: 8px 10px; border-left: 4px solid var(--ink); border-radius: var(--r); background: var(--info-bg); font-size: var(--t16); }
+/* v470 : Où suis-je ?, vols enregistrés dans l'arrondissement à côté de Paris : deux barres par ligne, la plus longue pleine largeur */
+.dq-row { display: flex; flex-direction: column; gap: 4px; }
+.dq-label { margin: 0; font-weight: 700; font-size: var(--t16); }
+.dq-bar { display: grid; grid-template-columns: 3.2em 1fr; align-items: center; gap: 8px; font-size: var(--t15); }
+.dq-track { height: 14px; border-radius: var(--r); background: var(--soft); overflow: hidden; }
+.dq-fill { display: block; height: 100%; background: var(--ink); border-radius: var(--r); }
+.dq-bar.paris .dq-fill { background: var(--muted); }
+.dq-words { margin: 0; font-family: var(--display); font-weight: 800; font-size: var(--t16); }
 
 /* ---- Style « Verre » (le jour, v452, mon choix 1B du 25 nov. ; CHARTE.md § 10.1) ----
    Seulement dans l'appli posée sur la carte (barres, colonne, bandeaux, feuille) ; la boussole et la photo en grand gardent les leurs.

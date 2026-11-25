@@ -22,7 +22,7 @@ import { searchPlaces, viewBox } from './annuaire.js';
 import { parseShared } from './share.js';
 import { exportUrl, parseRecords, nearestOf, parseRatpToilets, parkFor, looksLikePark } from './pratique.js';
 import { parseNavigo, navigoNear, navigoFor, navigoGenre, navigoGroup, navigoPass, NAVIGO_GROUPS, NAVIGO_SOURCE } from './navigo.js';
-import { ROBOT_URL, VELO_FILE, JARDINS_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
+import { ROBOT_URL, VELO_FILE, JARDINS_FILE, DELINQ_FILE, ARR_FILE, BUS_FILE, PLAQUES_FILE, RESPIRE_FILE, VOIES_FILE, ARCH_FILE, PVP_FILES, ACR_FILE, ACCES_FILE, GARES_FILE, COVERED_SOURCE, TRANSPORT_FILES, COLORS_FILE, RATP_TOILETS_FILE, MERIMEE_FILES, TRAFFIC_URL, IDFM_SITE, frenchDate, FIXED_DATA, everyText, dataDue } from './donnees.js';
 import { openState, minutesLeft, closedOnArrival, closedDaysText, opensThatDay, simpleHours, writeHours } from './hours.js';
 import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galleriesNear, freeToday, nextFreeFor, freeNear, freeDayNear, freeSoon, freeBanner, cleanArtists, artistEvents, artistKey, cleanArtist, artistWorks, knownArtists, linkFrom, cleanArtistLinks, cleanVenues, venueEvents, venuesNear, topVenues, atVenue, favCategory, artistSuggest, artistSearchUrl, lateOn, lateTonight, lateHour, lateBefore, LATE_CHECKED, LAST_CHECKED, parseStreetArt, streetArtNear, textMatch, FIND_LABEL, findOutings, KIOSQUES, KIOSQUE_SOURCE, KIOSQUE_CHECKED, ART_PLACES, ART_PLACES_CHECKED, ART_MUSIC_CHECKED, ART_SCENE_CHECKED, artPlacesWith, findArtPlaces, FREE_CHECKED, FREE_CHECKED_ON, FREE_SOURCE, highlightsSoon, highlightText, HIGHLIGHTS_CHECKED, listsStale, quarterSearchUrl, pickQuarter, extractUrl, readExtract, leaveAt, ticketToday, spotHours, spotRank, parseMusees, museumsWith } from './art.js';
 import { holidayOn } from './holidays.js';
@@ -71,6 +71,7 @@ import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
 import { cleanCimetieres, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
+import { cleanDelinq, delinqRows } from './delinquance.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
@@ -79,7 +80,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (474)';
+const VERSION = '25 novembre 2026 (475)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -247,7 +248,7 @@ function net(url, opts = {}) {
 /** Dates des données figées dans l'appli (AAAA-MM-JJ). */
 let ratpUpdated = '';
 function dataDates() {
-  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
+  return { lignes: transportsUpdated, navigo: navigoUpdated, ratp: ratpUpdated, ...(arrData ? { arrondissements: arrUpdated } : {}), ...(busData?.updated ? { bus: busData.updated } : {}), ...(plaquesData?.updated ? { plaques: plaquesData.updated } : {}), ...(respireData?.updated ? { respire: respireData.updated } : {}), ...(voiesData?.updated ? { voies: voiesData.updated } : {}), ...(archData?.updated ? { architectes: archData.updated } : {}), ...(pvpInfo?.updated ? { patrimoine: pvpInfo.updated } : {}), ...(acrInfo?.updated ? { acr: acrInfo.updated } : {}), ...(accesData?.updated ? { acces: accesData.updated } : {}), ...(garesData?.updated ? { gares: garesData.updated } : {}), ...(veloData?.updated ? { velo: veloData.updated } : {}), ...(jardinsDate ? { jardins: jardinsDate } : {}), ...(delinqData?.updated ? { delinquance: delinqData.updated } : {}), ...(streetArtUpdated ? { oeuvres: streetArtUpdated } : {}), ...(galleriesUpdated ? { galeries: galleriesUpdated } : {}), // arrondissements : seulement une fois le fichier lu
     merimee: merimeeInfo?.updated ?? '', marches: COVERED_CHECKED_ON, listes: FREE_CHECKED_ON, primes: BAGUETTES_CHECKED_ON };
 }
 /** Données figées à refaire : un seul message groupé à l'ouverture, au plus une fois par semaine (jamais de notification). */
@@ -6554,6 +6555,24 @@ function secoursRow() {
     el('a', { class: 'btn', href: `tel:${n}`, 'aria-label': `Appeler le ${n} : ${aria}` }, ico('phone'), label)));
 }
 
+/* v470 (mes choix 1A 2A 3A du 25 nov., « uniquement visuel et comparatif ») : vols enregistrés dans l'arrondissement, à côté de Paris */
+let delinqData = null;
+const loadDelinq = async () => (delinqData ??= await fetch('data/delinquance.json').then((r) => (r.ok ? r.json() : null)).then(cleanDelinq).catch(() => null));
+const arrName = (a) => (a === 1 ? '1er' : `${a}e`);
+async function fillDelinq(box, a) {
+  const d = await loadDelinq();
+  const rows = d ? delinqRows(d, a) : [];
+  if (!rows.length) { fill(box); return; }
+  fill(box,
+    el('h3', { class: 'ring-title' }, el('span', {}, `Vols enregistrés · ${arrName(a)}`), el('span', {}, String(d.year))),
+    ...rows.map((r) => el('div', { class: 'dq-row', role: 'img', 'aria-label': r.aria },
+      el('p', { class: 'dq-label' }, r.label),
+      el('div', { class: 'dq-bar' }, el('span', { class: 'dq-name' }, arrName(a)), el('span', { class: 'dq-track' }, el('span', { class: 'dq-fill', style: `width:${r.here}%` }))),
+      el('div', { class: 'dq-bar paris' }, el('span', { class: 'dq-name' }, 'Paris'), el('span', { class: 'dq-track' }, el('span', { class: 'dq-fill', style: `width:${r.paris}%` }))),
+      el('p', { class: 'dq-words' }, r.words))),
+    el('p', { class: 'help tip' }, `Faits enregistrés par la police et la gendarmerie en ${d.year}, comparés par habitant. Le 1er, le 2e et le 8e reçoivent beaucoup de visiteurs pour peu d'habitants : leurs barres sont gonflées. Rien ne dit ce qui se passe dans une rue. Source : SSMSI, ministère de l'Intérieur (data.gouv.fr).`));
+}
+
 async function openWhereAmI() {
   let at = freshHere();
   if (!at) { waitToast('Recherche de ta position…'); try { at = await locate(); hideToast(); } catch (e) { toast(e.message, true); return; } }
@@ -6564,6 +6583,9 @@ async function openWhereAmI() {
   const arrLine = el('p', { class: 'help' }, '');
   const origLine = el('p', { class: 'help', hidden: true }, ''); /* v198 : l'origine du nom de la rue, quand la Ville la donne */
   const quarter = el('div', { class: 'quarter', 'aria-live': 'polite' }, el('p', { class: 'help' }, 'Le quartier : recherche dans Wikipédia…'));
+  const delinq = el('div', { class: 'stack delinq' }); // v470 : sous les boutons (ils ne bougent pas), au-dessus du quartier
+  let delinqFor = 0;
+  const showDelinq = (a) => { if (a && a !== delinqFor) { delinqFor = a; fillDelinq(delinq, a); } };
   const coords = `${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`;
   let addrText = '';
   fill(body,
@@ -6575,6 +6597,7 @@ async function openWhereAmI() {
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
     secoursRow(),
+    delinq,
     quarter,
     el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
     el('p', { class: 'help tip' }, 'L\'IGN tient la Géoplateforme, un service public. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
@@ -6583,6 +6606,7 @@ async function openWhereAmI() {
   // v437 (mon choix 2A du 25 nov.) : Écouter lit ce qui est arrivé au moment de l'appui (adresse, arrondissement, nom de la rue, quartier)
   const listen = () => sayJoin([addrText, arrLine.textContent, origLine.hidden ? '' : origLine.textContent, quarter.querySelector('.quarter-text')?.textContent]);
   openSheet([ico('locate'), ' Où suis-je ?'], body, { name: 'where', again: openWhereAmI, listen });
+  showDelinq(arrOfPoint(at)); // calculé sur le téléphone (contours des arrondissements) ; sinon, l'arrondissement de l'adresse ci-dessous
   // Le quartier en 3 lignes : l'article Wikipédia le plus proche décrit comme un quartier (position arrondie à 100 m)
   (async () => {
     try {
@@ -6604,6 +6628,7 @@ async function openWhereAmI() {
     addr.textContent = r?.label ?? 'Adresse introuvable';
     addrText = r?.label ?? '';
     arrLine.textContent = a ? `${a === 1 ? '1er' : `${a}e`} arrondissement` : '';
+    showDelinq(a);
     if (r?.street) loadVoies().then((d) => { const o = voieOrigin(d, r.street); if (o) { fill(origLine, el('b', {}, `${r.street} : `), o); origLine.hidden = false; } });
   } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
 }
@@ -11272,6 +11297,7 @@ function openSettings(section = null, from = null) {
     if (id === 'respire' && !respireData && !openSettings.respireTried) { openSettings.respireTried = true; loadRespire().then(() => openSettings(section)); return; }
     if (id === 'bus' && !busData) { loadBus().then(() => openSettings(section)); return; }
     if (id === 'velo' && !veloData && !openSettings.veloTried) { openSettings.veloTried = true; loadVelo().then(() => openSettings(section)); return; }
+    if (id === 'delinquance' && !delinqData && !openSettings.delinqTried) { openSettings.delinqTried = true; loadDelinq().then(() => openSettings(section)); return; }
     if (id === 'jardins' && !jardinsData && !openSettings.jardinsTried) { openSettings.jardinsTried = true; loadJardins().then(() => openSettings(section)); return; }
     // Œuvres et galeries : lues une fois pour connaître leur date (une liste encore vide ne relance pas la lecture)
     if (id === 'oeuvres' && !streetArt && !artFilesRead.has(id)) { artFilesRead.add(id); loadStreetArt().catch(() => {}).finally(() => openSettings(section)); return; }
@@ -11364,6 +11390,10 @@ function openSettings(section = null, from = null) {
         el('p', { class: 'help tip' }, 'Sert à la couche « Pistes à vélo » de la carte : les pistes, voies vertes et chemins des bois (trait plein), les voies piétonnes, vélorues et voies fermées aux voitures (pointillé). Bandes, couloirs de bus et contresens ne sont pas gardés. Les travaux n\'y sont pas. Direction de la Voirie et des Déplacements, d\'après OpenStreetMap, licence ODbL.'),
         el('div', { class: 'menu' }, link(VELO_FILE)),
         say('Mets à jour les pistes à vélo', 'tools/maj-velo.py')],
+      delinquance: () => [
+        el('p', { class: 'help tip' }, 'Sert à Où suis-je ? : les vols enregistrés dans l\'arrondissement, à côté de la moyenne de Paris, une fois par an (le ministère publie chaque été les chiffres de l\'année d\'avant). Rien de plus fin que l\'arrondissement n\'est publié.'),
+        el('div', { class: 'menu' }, link(DELINQ_FILE)),
+        say('Mets à jour les vols enregistrés', 'tools/maj-delinquance.py')],
       jardins: () => [
         el('p', { class: 'help tip' }, 'Sert à la couche « Jardins publics » de la carte et au grand jardin du bandeau « Maintenant » : les contours des squares, jardins, parcs et bois. Les horaires ne viennent pas de ce fichier : l\'appli lit ceux de la saison chaque jour dans le même jeu de la Ville. Licence ODbL.'),
         el('div', { class: 'menu' }, link(JARDINS_FILE)),
@@ -13195,7 +13225,7 @@ const HELP = [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
-    '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
+    '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
@@ -13386,6 +13416,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
     '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
@@ -13396,7 +13427,6 @@ const HELP = [
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). Chacun a ses puces, ses icônes et le contour de tes gouttes. En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
-    '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

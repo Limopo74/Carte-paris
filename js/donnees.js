@@ -42,6 +42,8 @@ export const ACR_FILE = { name: 'Liste des édifices labellisés Architecture co
 /** Pistes à vélo (data/velo.json, refait par le robot avec tools/maj-velo.py, v259). */
 export const VELO_FILE = { name: 'Linéaires d\'aménagement cyclable', file: 'amenagements-cyclables.json', url: 'https://opendata.paris.fr/explore/dataset/amenagements-cyclables/export/' };
 /** Contours des jardins publics (data/jardins.json, refait par le robot avec tools/maj-jardins.py, v261). */
+/** Vols enregistrés par arrondissement (data/delinquance.json, refait par le robot avec tools/maj-delinquance.py, v470). */
+export const DELINQ_FILE = { name: 'Base statistique communale de la délinquance enregistrée (SSMSI)', file: 'api-tabulaire.json', url: 'https://www.data.gouv.fr/datasets/bases-statistiques-communale-departementale-et-regionale-de-la-delinquance-enregistree-par-la-police-et-la-gendarmerie-nationales' };
 export const JARDINS_FILE = { name: 'Îlots de fraîcheur – Espaces verts frais', file: 'ilots-de-fraicheur-espaces-verts-frais.json', url: 'https://opendata.paris.fr/explore/dataset/ilots-de-fraicheur-espaces-verts-frais/export/' };
 /** Origine du nom des voies (data/voies.json, refait par le robot avec tools/maj-voies.py, v198). */
 export const VOIES_FILE = { name: 'Dénominations des emprises des voies actuelles', file: 'denominations-emprises-voies-actuelles.json', url: 'https://opendata.paris.fr/explore/dataset/denominations-emprises-voies-actuelles/export/' };
@@ -75,7 +77,8 @@ export const FIXED_DATA = [
   { id: 'acces', name: 'Sorties du métro (fiche d\'un lieu)', every: 45, robot: true, lazy: true }, // v199 ; IDFM, Licence Ouverte 2.0
   { id: 'gares', name: 'Gares de RER et arrêts de tram (Station, Rentrer)', every: 45, robot: true, lazy: true }, // v200 ; IDFM, ODbL
   { id: 'velo', name: 'Pistes à vélo (carte)', every: 45, robot: true, lazy: true }, // v259 ; Ville de Paris d'après OpenStreetMap, licence ODbL
-  { id: 'jardins', name: 'Jardins publics (carte)', every: 45, robot: true, lazy: true }, // v261 ; contours seulement, Ville de Paris, licence ODbL
+  { id: 'jardins', name: 'Jardins publics (carte)', every: 45, robot: true, lazy: true },
+  { id: 'delinquance', name: 'Vols enregistrés (Où suis-je ?)', every: 400, robot: true, lazy: true }, // v470 ; SSMSI, une fois par an, Licence Ouverte 2.0 // v261 ; contours seulement, Ville de Paris, licence ODbL
   { id: 'merimee', name: 'Monuments et musées (protection, artistes)', every: 365 },
   { id: 'marches', name: 'Horaires des marchés couverts', every: 365 },
   { id: 'listes', name: 'Gratuités, Kiosques, grands lieux, temps forts', every: 365 }, // tâches programmées Claude chaque 1er mars et chaque 1er septembre (v225)

@@ -85,6 +85,16 @@ jobs:
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/jardins.json "$PARIS/ilots-de-fraicheur-espaces-verts-frais/exports/json" \
             --data-urlencode 'select=identifiant,nsq_espace_vert,nom,type,id_dicom,geo_point_2d,geo_shape' || rm -f /tmp/src/jardins.json # v273 : id_dicom, numéro de la page paris.fr
           # Origine du nom des voies (v198) : deux champs seulement, jamais bloquant
+          # v470 : vols enregistrés par arrondissement (SSMSI, API tabulaire de data.gouv.fr) ; l'année passée, sinon celle d'avant ; jamais bloquant
+          DQ="https://tabular-api.data.gouv.fr/api/resources/44ef4323-1097-48d5-8719-3c544b55d294/data/"
+          DQC="columns=CODGEO_2026,annee,indicateur,nombre,est_diffuse,insee_pop"
+          DQI="indicateur__in=Vols violents sans arme,Vols sans violence contre des personnes"
+          for Y in $(( $(date +%Y) - 1 )) $(( $(date +%Y) - 2 )); do
+            if curl -fsSL --retry 3 --retry-delay 20 --max-time 120 -G -o /tmp/src/dq-arr.json "$DQ" --data-urlencode "CODGEO_2026__greater=75100" --data-urlencode "CODGEO_2026__less=75121" --data-urlencode "annee__exact=$Y" --data-urlencode "$DQI" --data-urlencode "$DQC" --data-urlencode "page_size=50" \
+              && curl -fsSL --retry 3 --retry-delay 20 --max-time 120 -G -o /tmp/src/dq-paris.json "$DQ" --data-urlencode "CODGEO_2026__exact=75056" --data-urlencode "annee__exact=$Y" --data-urlencode "$DQI" --data-urlencode "$DQC" \
+              && grep -q '"total": 40' /tmp/src/dq-arr.json; then break; fi
+            rm -f /tmp/src/dq-arr.json /tmp/src/dq-paris.json
+          done
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/voies.json "$PARIS/denominations-emprises-voies-actuelles/exports/json" \
             --data-urlencode 'select=typo_min,orig' --data-urlencode 'where=orig is not null' || rm -f /tmp/src/voies.json
           # Arrêts de bus de Paris et de la petite couronne, avec leurs lignes (environ 21 000 couples arrêt-ligne)
@@ -178,6 +188,7 @@ jobs:
           if [ -s /tmp/src/respire.json ]; then python3 -I tools/maj-respire.py /tmp/src/respire.json "$TODAY" || echo "Paris Respire : fichier d'avant gardé"; else echo "Paris Respire : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/acces.json ]; then python3 -I tools/maj-acces.py /tmp/src/acces.json "$TODAY" || echo "Sorties du métro : fichier d'avant gardé"; else echo "Sorties du métro : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/arch ]; then python3 -I tools/maj-architectes.py /tmp/src/arch "$TODAY" || echo "Auteurs des monuments : fichier d'avant gardé"; else echo "Auteurs des monuments : pas de réponse, fichier d'avant gardé"; fi
+          if [ -s /tmp/src/dq-arr.json ] && [ -s /tmp/src/dq-paris.json ]; then python3 -I tools/maj-delinquance.py /tmp/src/dq-arr.json /tmp/src/dq-paris.json "$TODAY" || echo "Vols enregistrés : fichier d'avant gardé"; else echo "Vols enregistrés : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/voies.json ]; then python3 -I tools/maj-voies.py /tmp/src/voies.json "$TODAY" || echo "Voies : fichier d'avant gardé"; else echo "Voies : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/pvp.json ] && [ -s /tmp/src/pvp-geos.json ] && [ -s /tmp/src/pvp-surf.json ]; then python3 -I tools/maj-patrimoine.py /tmp/src/pvp.json /tmp/src/pvp-geos.json /tmp/src/pvp-surf.json "$TODAY" || echo "Immeubles protégés par la Ville : fichier d'avant gardé"; else echo "Immeubles protégés par la Ville : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/acr ]; then python3 -I tools/maj-acr.py /tmp/src/acr "$TODAY" || echo "Architecture contemporaine remarquable : fichier d'avant gardé"; else echo "Architecture contemporaine remarquable : pas de réponse, fichier d'avant gardé"; fi
@@ -197,7 +208,7 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json data/jardins.json data/jardins-liens.json"
+          FILES="data/delinquance.json data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json data/jardins.json data/jardins-liens.json"
           MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo, jardins publics et leurs pages paris.fr (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.
