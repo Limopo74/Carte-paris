@@ -648,6 +648,7 @@ ol.items { padding: 0; }
 #sheetTitle .title-maj { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: -10px 0 -10px 2px; padding: 0; border: 0; border-radius: var(--r); background: transparent; color: var(--muted); vertical-align: middle; cursor: pointer; } /* v342 : petite icône, zone d'appui 44 px (--h-s) ; marges négatives : la barre du titre ne grandit pas */
 #sheetTitle .title-tail { white-space: nowrap; } /* v342 : « v342 ↻ » restent ensemble */
 #sheetTitle .title-maj:active { background: var(--line); }
+#sheetTitle .title-maj.maj-go { color: var(--ink); } /* v457 (mon choix A du 25 nov.) : la flèche de mise à jour se voit, même place */
 #sheetTitle .title-photo { color: var(--ink); } /* v369 : Photos dans Sorties, à droite du titre ; image pleine = allumé, vide = éteint */
 #sheetTitle .title-back { margin-right: -14px; color: var(--ink); } /* v362 : retour d'Autres réglages, à droite du titre ; zone d'appui 44 px qui déborde dans le vide à droite : la flèche tient sur la ligne du titre */
 .tool-prev .ico svg { width: 20px; height: 20px; }

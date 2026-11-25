@@ -77,7 +77,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (456)';
+const VERSION = '25 novembre 2026 (457)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10966,6 +10966,9 @@ function openSettings(section = null, from = null) {
       el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
         dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte (si elle reste grise)'),
+      // v457 (mes choix 2B puis A du 25 nov.) : le robot des données en 3 appuis (avant : 4, par Données de l'appli) ; la page GitHub s'ouvre,
+      // « Run workflow » se touche là-bas, avec mon compte GitHub ouvert dans Chrome. Aucune clé dans l'appli, rien n'est envoyé.
+      el('a', { class: 'btn c-info', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Lancer le robot (GitHub)'),
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Partager l\'appli'), el('span', {}, '')),
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer'),
@@ -11253,7 +11256,7 @@ function openSettings(section = null, from = null) {
   const due = state.ok && backupDue(state); // la pastille du bouton Réglages (v163) : « Sauvegarder maintenant » en premier
   openSheet([ico('settings'), ' Réglages', ' ', el('span', { class: 'title-tail' }, VERSION_NUM ? el('span', { class: 'title-ver' }, `v${VERSION_NUM}`) : null,
     /* v342 (ma demande du 21 nov.) : Mettre à jour l'appli en 1 appui, sans passer par Autres réglages. Icône discrète, zone d'appui 44 px (charte) */
-    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 18 })),
+    el('button', { type: 'button', class: 'title-maj maj-go', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 22, stroke: 2.4 })), // v457 (A) : plus grande, à l'encre
     /* v360 (ma demande du 21 nov., mon choix B) : Autres réglages en 1 appui, sans descendre en bas de Réglages ; ⋯ comme « Plus » de la barre (la suite, cachée), après la flèche */
     el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Autres réglages', title: 'Autres réglages', onclick: () => openSettings('autres') }, ico('ellipsis', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
@@ -12912,6 +12915,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
     '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
     '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place. Le soir, ⌄ à côté a le même contour.',
@@ -12921,7 +12925,6 @@ const HELP = [
     '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
     '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
     '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
-    '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
