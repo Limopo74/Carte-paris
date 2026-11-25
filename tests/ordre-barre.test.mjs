@@ -7,6 +7,8 @@ import { loadState, saveState, exportJSON, readSettings, KEY, MOVABLE_CHIPS, cle
 
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+/** Une mémoire déjà là (mon téléphone) : pas le départ d'un nouveau venu (v440 : il a son propre ordre). */
+const oldStorage = () => { const st = memStorage(); st.setItem(KEY, JSON.stringify({ points: [] })); return st; };
 
 test('Ordre du haut : les boutons déplaçables sont tous ceux de la barre, sauf Tout et Filtres', () => {
   const body = app.slice(app.indexOf('function chipItems('), app.indexOf('/** ⋯ Plus de la barre du haut'));
@@ -17,7 +19,7 @@ test('Ordre du haut : les boutons déplaçables sont tous ceux de la barre, sauf
 });
 
 test('Ordre du haut : rien de changé = null ; un ordre faux ou vide = null', () => {
-  assert.equal(cleanChipOrder(loadState(memStorage()).chipOrder), null);
+  assert.equal(cleanChipOrder(loadState(oldStorage()).chipOrder), null);
   assert.deepEqual(chipOrderOf(null), MOVABLE_CHIPS);
   assert.equal(cleanChipOrder(undefined), null);
   assert.equal(cleanChipOrder('ttb'), null);
@@ -49,7 +51,7 @@ test('Ordre du haut : ↑ ↓ échangent deux voisins ; rien au bout ; revenir �
 });
 
 test('Ordre du haut : gardé d\'un jour à l\'autre et dans les réglages de la sauvegarde', () => {
-  const st = memStorage();
+  const st = oldStorage();
   const s = moveChip(loadState(st), 'artistes', -1);
   saveState(st, s);
   assert.equal(JSON.parse(st.getItem(KEY)).chipOrder.at(-1), 'jardins');
@@ -62,6 +64,7 @@ test('Ordre du haut : gardé d\'un jour à l\'autre et dans les réglages de la 
 });
 
 test('Ordre du haut : « Barre du haut comme au début » remet aussi l\'ordre', () => {
-  assert.match(app, /state\.moreChips = \[\.\.\.DEFAULT_MORE_CHIPS\]; state\.chipOrder = null;/);
-  assert.match(app, /const asStart = [^;]*!cleanChipOrder\(state\.chipOrder\)/);
+  // v440 : « comme au début » remet le départ de mes captures (cachés, Plus, ordre, icônes seules)
+  assert.match(app, /onclick: \(\) => \{ Object\.assign\(state, freshChips\(catIds, ttbList\(\)\.length > 0\)\); persist\(\);/);
+  assert.match(app, /const asStart = chipsAsFresh\(state, catIds, ttbList\(\)\.length > 0\);/);
 });

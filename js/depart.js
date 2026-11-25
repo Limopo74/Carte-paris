@@ -1,6 +1,6 @@
 // v321 (mes choix du 20 nov.) : préparer le démarrage d'un proche. Ce que je choisis pour lui voyage dans le lien
 // (…/Carte-paris/#depart=…), compressé ; jamais mes lieux, ma liste TTB, ma clé CARTO, ni le nom de la préparation.
-import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, withNewInMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, FRESH_HIDDEN_CHIPS, FRESH_TOOLS, DEFAULT_MORE_CHIPS, DEFAULT_CATEGORIES } from './store.js';
+import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, withNewInMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, freshChips, FRESH_TOOLS, DEFAULT_CATEGORIES } from './store.js';
 import { cleanFicheHidden } from './reglages.js';
 import { SEEN_CAT } from './passage.js';
 
@@ -25,9 +25,9 @@ export function defaultPreset(me = '') {
   return {
     de: str(me, NAME_MAX), msg: '', steps: { taille: true, pourtoi: true, rentrer: true, position: true },
     textSize: 'normal', masculin: false, pace: 'normal', side: 'right', labels: false, navigo: true,
-    hiddenChips: [...FRESH_HIDDEN_CHIPS], moreChips: [...DEFAULT_MORE_CHIPS, ...DEFAULT_CATEGORIES.map((c) => `cat:${c.id}`), `cat:${SEEN_CAT.id}`],
+    ...(({ hiddenChips, moreChips }) => ({ hiddenChips, moreChips }))(freshChips([...DEFAULT_CATEGORIES.map((c) => c.id), SEEN_CAT.id])), // v440 : le départ de mes captures
     mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools],
-    mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: null, chipIcons: false, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
+    mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: freshChips().chipOrder, chipIcons: true, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
     ficheHidden: [], voice: true, vibrateNow: false, suggestNow: true, alertNear: true,
   };
 }

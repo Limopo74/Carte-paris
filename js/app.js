@@ -9,7 +9,7 @@ import { startOk as mesureStartOk, progress as mesureProgress, result as mesureR
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
-import { cleanMore, DEFAULT_MORE, cleanChips, cleanMoreChips, DEFAULT_MORE_CHIPS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
+import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote
@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (439)';
+const VERSION = '25 novembre 2026 (440)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8919,10 +8919,11 @@ async function importTtbFile(file, back) {
   toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
 }
 
-/** v314 : le bouton TTB, masqué au départ d'un nouveau venu, revient dans la barre du haut avec la première liste importée. */
+/** v314 : le bouton TTB, masqué au départ d'un nouveau venu, revient avec la première liste importée ; v440 : dans ⋯ Plus, comme sur ma capture. */
 function ttbChipBack() {
   if (!cleanChips(state.hiddenChips).includes('ttb')) return;
   state.hiddenChips = cleanChips(state.hiddenChips).filter((k) => k !== 'ttb');
+  state.moreChips = [...cleanMoreChips(state.moreChips ?? [], state.hiddenChips).filter((k) => k !== 'ttb'), 'ttb'];
   renderChips();
 }
 
@@ -10052,8 +10053,7 @@ function openSettings(section = null, from = null) {
       const items = chipItems();
       const order = barOrderOf(state.chipOrder, catIds);
       const groupOf = chipGroupOf(placeOf);
-      const moreNow = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips));
-      const asStart = !cleanChips(state.hiddenChips).length && !cleanChipOrder(state.chipOrder) && moreNow.length === DEFAULT_MORE_CHIPS.length && DEFAULT_MORE_CHIPS.every((k) => moreNow.includes(k));
+      const asStart = chipsAsFresh(state, catIds, ttbList().length > 0); // v440 : « comme au début » = le départ de mes captures
       const moveTop = (key, delta) => { state = moveChipIn(state, key, delta, catIds, groupOf); persist(); refresh(); openSettings('barre');
         requestAnimationFrame(() => document.querySelector(`[data-move="${key}:${delta}"]`)?.focus()); };
       const rowOf = (x, movable) => {
@@ -10091,7 +10091,7 @@ function openSettings(section = null, from = null) {
         el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
         groups,
         // v400 (mon choix 5A) : comme « Boutons comme au début » : bouton simple, seulement si quelque chose a changé
-        asStart ? null : el('button', { type: 'button', class: 'btn', onclick: () => { state.hiddenChips = []; state.moreChips = [...DEFAULT_MORE_CHIPS]; state.chipOrder = null; persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
+        asStart ? null : el('button', { type: 'button', class: 'btn', onclick: () => { Object.assign(state, freshChips(catIds, ttbList().length > 0)); persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
         backBtn,
       ), { tall: true, name: 'settings:barre', again: () => openSettings('barre') });
       return;
@@ -10219,7 +10219,7 @@ function openSettings(section = null, from = null) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'L\'essentiel'), el('span', { class: 'menu-sub' }, 'Les boutons à garder sur la carte')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
       state.layoutBefore ? el('button', { type: 'button', class: 'btn', onclick: restoreLayout }, ico('rotate-ccw'), 'Remettre mes boutons d\'avant') : null,
-      toolsAsStart() ? null : el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = normalizeTools([]); state.hiddenTools = []; state.moreTools = [...DEFAULT_MORE]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris ; le côté de l\'écran ne change pas'); } }, 'Boutons comme au début'), /* v283 (comme « Barre du haut comme au début ») : « Tout » était faux, le côté et l'essentiel restent */
+      toolsAsStart() ? null : el('button', { type: 'button', class: 'btn', onclick: () => { state.mapTools = [...FRESH_TOOLS.mapTools]; state.hiddenTools = [...FRESH_TOOLS.hiddenTools]; state.moreTools = [...FRESH_TOOLS.moreTools]; state.toolNames = {}; state.toolLabels = false; persist(); applyToolOrder(); setLocateBtn(); openSettings('outils'); toast('Boutons d\'origine remis, noms compris ; le côté de l\'écran ne change pas'); } }, 'Boutons comme au début'), /* v283 (comme « Barre du haut comme au début ») : « Tout » était faux, le côté et l'essentiel restent */
       backBtn,
     ), { tall: true, name: 'settings:outils', again: () => openSettings('outils') });
     return;
@@ -12095,8 +12095,8 @@ document.body.append(morePanel);
 const hiddenNow = () => { const h = cleanHidden(state.hiddenTools); return circuitsOff() && !h.includes('circuits') ? [...h, 'circuits'] : h; };
 const moreList = () => cleanMore(state.moreTools, hiddenNow());
 /** v400 (mon choix 5A) : les boutons de la carte sont-ils comme « Boutons comme au début » les remet ? (le côté de l'écran n'en fait pas partie) */
-const toolsAsStart = () => normalizeTools(state.mapTools).join() === normalizeTools([]).join() && !cleanHidden(state.hiddenTools).length
-  && cleanMore(state.moreTools, []).join() === cleanMore(DEFAULT_MORE, []).join() && !Object.keys(state.toolNames ?? {}).length && state.toolLabels !== true;
+const toolsAsStart = () => normalizeTools(state.mapTools).join() === FRESH_TOOLS.mapTools.join() && cleanHidden(state.hiddenTools).join() === cleanHidden(FRESH_TOOLS.hiddenTools).join() // v440 : le départ de ma capture
+  && cleanMore(state.moreTools, []).join() === cleanMore(FRESH_TOOLS.moreTools, []).join() && !Object.keys(state.toolNames ?? {}).length && state.toolLabels !== true;
 function openMore() {
   fill(morePanel, normalizeTools(state.mapTools).filter((t) => moreList().includes(t)).map((t) => {
     const info = TOOL_INFO[t];
@@ -12475,6 +12475,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue, Lignes et Vu en passant ; Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
@@ -12484,7 +12485,6 @@ const HELP = [
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
-    '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

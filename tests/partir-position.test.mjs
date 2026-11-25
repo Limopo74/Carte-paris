@@ -34,5 +34,5 @@ test('Nouveautés : la ligne en tête, 10 au plus', () => {
   const block = app.slice(i, app.indexOf(']],', i));
   const lines = block.split('\n').filter((l) => l.trim().startsWith("'{"));
   assert.equal(lines.length, 10);
-  assert.ok(lines[0].includes('**Partir de ma position**'));
+  assert.ok(lines[1].includes('**Partir de ma position**')); // v440 : « Les boutons comme au début » en tête
 });

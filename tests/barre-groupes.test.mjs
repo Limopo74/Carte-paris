@@ -53,7 +53,7 @@ test('« … comme au début » (v400, 5A) : même aspect, seulement si quelque 
   assert.ok(barre.includes("asStart ? null : el('button', { type: 'button', class: 'btn', onclick"), 'Barre du haut : bouton simple');
   assert.ok(!barre.includes("'btn c-guide', onclick: () => { state.hiddenChips = []"));
   assert.ok(outils.includes("toolsAsStart() ? null : el('button', { type: 'button', class: 'btn', onclick"), 'Boutons de la carte');
-  assert.match(app, /const toolsAsStart = \(\) => normalizeTools\(state\.mapTools\)\.join\(\) === normalizeTools\(\[\]\)\.join\(\)/);
+  assert.match(app, /const toolsAsStart = \(\) => normalizeTools\(state\.mapTools\)\.join\(\) === FRESH_TOOLS\.mapTools\.join\(\)/); // v440
 });
 
 test('Mes proches (v400, 4A) : étapes 5 et 6 en trois groupes, ↑ ↓ dans le groupe', () => {

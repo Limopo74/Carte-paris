@@ -463,7 +463,7 @@ test('boutons Paris et Zoom cachés au départ, une seule fois pour les anciens 
   const { loadState, saveState, DEFAULT_HIDDEN } = await import('../js/store.js');
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   assert.deepEqual(DEFAULT_HIDDEN, ['paris']);
-  assert.deepEqual(loadState(mem(null)).hiddenTools, ['pratique']); // depuis la v124, Paris est affiché ; v314 : Fontaine et WC masqué chez un nouveau venu
+  assert.deepEqual(loadState(mem(null)).hiddenTools, ['circuits']); // depuis la v124, Paris est affiché ; v440 : Circuits masqué chez un nouveau venu (v314 : Fontaine et WC)
   const old = mem(JSON.stringify({ points: [], hiddenTools: ['velib'] }));
   const st = loadState(old);
   assert.deepEqual(st.hiddenTools, ['velib']);
@@ -491,14 +491,16 @@ test('barre du haut : boutons masqués gardés, valeurs inconnues écartées', (
   assert.deepEqual(s.hiddenChips, ['fav', 'cat:resto', 'all', 'street', 'lines']);
   saveState(st, { ...s, hiddenChips: ['filters'] });
   assert.deepEqual(loadState(st).hiddenChips, ['filters']);
-  assert.deepEqual(loadState(memStorage()).hiddenChips, ['ttb', 'fav'], 'v314 : TTB et Favoris masqués au départ d\'un nouveau venu');
+  assert.deepEqual(loadState(memStorage()).hiddenChips, ['ttb', 'buslines', 'velo'], 'v440 : TTB (sans liste), Mes lignes de bus et Pistes à vélo masqués au départ d\'un nouveau venu');
 });
 
 test('feuille Filtres : lignes masquées gardées, inconnues écartées', () => {
   const st = memStorage();
   st.setItem(KEY, JSON.stringify({ points: [], hiddenFilters: ['top', 'xx', 'people', 'top'] }));
   assert.deepEqual(loadState(st).hiddenFilters, ['top', 'people']);
-  assert.deepEqual(loadState(memStorage()).hiddenFilters, []);
+  assert.deepEqual(loadState(memStorage()).hiddenFilters, ['buslines', 'velo'], 'v440 : nouveau venu, comme la barre du haut');
+  const old = memStorage(); old.setItem(KEY, JSON.stringify({ points: [] }));
+  assert.deepEqual(loadState(old).hiddenFilters, [], 'une mémoire déjà là ne change pas');
 });
 
 test('setListMembers : ajoute et retire d\'un coup', async () => {
@@ -567,8 +569,8 @@ test('boutons de la carte (v124) : Paris à la place de Fontaine, et « Plus » 
   const { loadState, saveState, layoutV4, cleanMore, cleanSettings } = await import('../js/store.js');
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   const fresh = loadState(mem(null));
-  assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t) && !fresh.hiddenTools.includes(t)), ['vu', 'locate', 'paris', 'metro', 'sorties', 'planning'], 'v381 : Vu en passant en tête ; v314 : la colonne d\'un nouveau venu (3e capture)');
-  assert.deepEqual(fresh.moreTools, ['home', 'circuits', 'velib', 'notes', 'myparis']);
+  assert.deepEqual(fresh.mapTools.filter((t) => !fresh.moreTools.includes(t) && !fresh.hiddenTools.includes(t)), ['locate', 'sorties', 'planning', 'vu', 'home'], 'v440 : la colonne d\'un nouveau venu (ma capture de 6 h 29)');
+  assert.deepEqual(fresh.mapTools.filter((t) => fresh.moreTools.includes(t)), ['myparis', 'metro', 'paris', 'notes', 'velib', 'pratique']);
   // Mes réglages de la v123 : Paris caché en 5e place, Fontaine en tête
   const v3 = mem(JSON.stringify({ points: [], layoutV: 3, mapTools: ['pratique', 'metro', 'velib', 'home', 'paris', 'sorties', 'planning', 'locate'], hiddenTools: ['paris', 'velib'] }));
   const st = loadState(v3);

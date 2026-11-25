@@ -2,26 +2,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { loadState, saveState, freshStart, cleanSettings } from '../js/store.js';
+import { loadState, saveState, freshStart, cleanSettings, barOrderOf, freshChips, chipsAsFresh, FRESH_TOOLS } from '../js/store.js';
+import { defaultPreset } from '../js/depart.js';
 
 const KEY = 'carte-paris.v1';
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 
-test('Mémoire vide : le départ d\'un nouveau venu (d\'après ma capture)', () => {
+test('Mémoire vide : le départ d\'un nouveau venu (v440, d\'après mes captures de 6 h 29 et 6 h 31)', () => {
   const s = loadState(memStorage());
   assert.equal(s.fresh, true);
-  assert.deepEqual(s.hiddenChips, ['ttb', 'fav'], 'TTB masqué tant qu\'aucune liste n\'est importée ; Favoris masqué (2e capture)');
-  assert.ok(!s.moreChips.includes('fav'));
-  for (const id of ['resto', 'boutique', 'culture', 'vu']) assert.ok(s.moreChips.includes(`cat:${id}`), `catégorie ${id} sous ⋯ Plus`);
+  // Barre du haut : Dans la rue, Lignes, Vu en passant, en icônes seules
+  const bar = barOrderOf(s.chipOrder, s.categories.map((c) => c.id)).filter((k) => !s.hiddenChips.includes(k) && !s.moreChips.includes(k));
+  assert.deepEqual(bar, ['street', 'lines', 'cat:vu']);
+  assert.equal(s.chipIcons, true);
+  // ⋯ Plus du haut, dans cet ordre (Mes artistes toujours en tête) ; TTB y arrive avec la première liste
+  const more = barOrderOf(s.chipOrder, s.categories.map((c) => c.id)).filter((k) => s.moreChips.includes(k));
+  assert.deepEqual(more, ['fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'velib', 'passages', 'artistes']);
+  assert.deepEqual(s.hiddenChips, ['ttb', 'buslines', 'velo'], 'ce qui ne se voit pas est masqué ; TTB tant qu\'aucune liste n\'est importée');
+  assert.deepEqual(s.hiddenFilters, ['buslines', 'velo'], 'Filtres : les mêmes lignes masquées');
+  // Colonne : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; ⋯ Plus : Mon Paris, Métro, Centre de Paris, Note du jour, Vélib', Fontaine et WC ; Circuits masqué
+  assert.deepEqual(s.mapTools.filter((t) => !s.moreTools.includes(t) && !s.hiddenTools.includes(t)), ['locate', 'sorties', 'planning', 'vu', 'home']);
+  assert.deepEqual(s.mapTools.filter((t) => s.moreTools.includes(t)), ['myparis', 'metro', 'paris', 'notes', 'velib', 'pratique']);
+  assert.deepEqual(s.hiddenTools, ['circuits']);
   assert.ok(s.categories.some((c) => c.id === 'vu'), 'Vu en passant existe dès le départ');
-  for (const k of ['street', 'lines']) assert.ok(!s.moreChips.includes(k) && !s.hiddenChips.includes(k), `${k} dans la barre`);
-  // Colonne (3e capture, 18 h 53) : Ma position en tête, puis Paris, M, Sorties, Mon planning ; ⋯ Plus : Rentrer, Circuits, Vélib', Note du jour ; Fontaine et WC masqué
-  assert.deepEqual(s.mapTools.filter((t) => !s.moreTools.includes(t) && !s.hiddenTools.includes(t)), ['vu', 'locate', 'paris', 'metro', 'sorties', 'planning']); // v381 : Vu en passant en tête
-  assert.deepEqual(s.mapTools.filter((t) => s.moreTools.includes(t)), ['home', 'circuits', 'velib', 'notes', 'myparis']); // v426 : Mon Paris
-  assert.deepEqual(s.hiddenTools, ['pratique']);
   assert.deepEqual(s.categories.filter((c) => c.id !== 'vu').map((c) => c.id), ['resto', 'boutique', 'culture']);
   assert.deepEqual(s.lists, []);
+});
+
+test('v440 : avec une liste TTB, « comme au début » range TTB dans ⋯ Plus ; une catégorie à moi va dans Plus', () => {
+  const f = freshChips(['resto', 'theatre', 'vu'], true);
+  assert.ok(!f.hiddenChips.includes('ttb') && f.moreChips.includes('ttb'));
+  assert.ok(f.moreChips.includes('cat:theatre') && !f.moreChips.includes('cat:vu'));
+  assert.ok(chipsAsFresh({ ...f }, ['resto', 'theatre', 'vu'], true));
+  assert.ok(!chipsAsFresh({ ...f, chipIcons: false }, ['resto', 'theatre', 'vu'], true), 'icônes et noms : pas comme au début');
+  assert.ok(!chipsAsFresh({ hiddenChips: [], moreChips: undefined, chipOrder: null }, ['resto'], false), 'l\'ancien départ n\'est plus « comme au début »');
+  // Le bouton TTB, revenu avec la première liste, va dans ⋯ Plus (v314 : la barre)
+  const back = app.slice(app.indexOf('function ttbChipBack('), app.indexOf('function ttbChipBack(') + 500);
+  assert.match(back, /state\.moreChips = \[\.\.\.cleanMoreChips\(state\.moreChips \?\? \[\], state\.hiddenChips\)\.filter\(\(k\) => k !== 'ttb'\), 'ttb'\];/);
+  // Boutons de la carte comme au début = la colonne du départ
+  assert.match(app, /state\.mapTools = \[\.\.\.FRESH_TOOLS\.mapTools\]; state\.hiddenTools = \[\.\.\.FRESH_TOOLS\.hiddenTools\]; state\.moreTools = \[\.\.\.FRESH_TOOLS\.moreTools\];/);
+});
+
+test('v440 : Nouveautés, la ligne en tête', () => {
+  const i = app.indexOf("['sparkles', 'Nouveautés', [");
+  const first = app.slice(i, app.indexOf(']],', i)).split('\n').find((l) => l.trim().startsWith("'{"));
+  assert.ok(first.includes('**Les boutons comme au début**'));
+});
+
+test('v440 : la préparation d\'un proche part du même départ', () => {
+  const p = defaultPreset();
+  assert.deepEqual(p.hiddenChips, ['ttb', 'buslines', 'velo']);
+  assert.ok(p.moreChips.includes('fav') && !p.moreChips.includes('cat:vu'));
+  assert.equal(p.chipIcons, true);
+  assert.deepEqual(p.chipOrder.slice(0, 3), ['street', 'lines', 'cat:vu']);
+  assert.deepEqual([p.mapTools, p.hiddenTools, p.moreTools].map((x) => x.join()), [FRESH_TOOLS.mapTools, FRESH_TOOLS.hiddenTools, FRESH_TOOLS.moreTools].map((x) => x.join()));
 });
 
 test('Une mémoire déjà là ne change pas (mon téléphone, l\'autre personne)', () => {
@@ -38,10 +73,13 @@ test('Une mémoire déjà là ne change pas (mon téléphone, l\'autre personne)
   saveState(st2, f);
   const again = loadState(st2);
   assert.equal(again.fresh, undefined);
-  assert.deepEqual(again.hiddenChips, ['ttb', 'fav']);
+  assert.deepEqual(again.hiddenChips, ['ttb', 'buslines', 'velo']);
+  assert.deepEqual(again.chipOrder, f.chipOrder);
+  assert.equal(again.chipIcons, true);
+  assert.deepEqual(again.hiddenFilters, ['buslines', 'velo']);
   assert.deepEqual(again.moreChips, f.moreChips);
   assert.ok(!JSON.parse(st2.getItem(KEY)).fresh);
-  assert.deepEqual(cleanSettings(again).hiddenChips, ['ttb', 'fav']);
+  assert.deepEqual(cleanSettings(again).hiddenChips, ['ttb', 'buslines', 'velo']);
 });
 
 test('freshStart : ne double pas Vu en passant', () => {
