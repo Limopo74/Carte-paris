@@ -563,6 +563,7 @@ ol.items { padding: 0; }
 
 .tool-prev { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; background: var(--surface); }
 .tool-prev.txt { font-size: 11.5px; font-weight: 700; }
+.arr-more-n { flex: none; margin-left: auto; padding-left: 8px; font-weight: 800; } /* v438 : le nombre au bout de la ligne, comme le titre d'une rubrique */
 
 /* Bouton masqué : icône pâlie, texte en gris lisible (contraste 4,5:1 gardé) */
 .cat-row.off .tool-prev, .cat-row.off .cat-ico { opacity: .45; }

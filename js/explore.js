@@ -259,6 +259,15 @@ export function arrGroups(points, categories) {
   return order.map((cat) => ({ cat, rows: points.filter((p) => p.cat === cat).sort(byName) })).filter((g) => g.rows.length);
 }
 
+/** « Aussi dans le 9e » (v438, mon choix 1A du 25 nov.) : les éléments d'une liste rangée dans l'appli qui sont dans l'arrondissement
+ * `n`, par ordre alphabétique de `name(x)`. `points(x)` donne ses positions (un circuit : ses étapes) ; un seul point dedans suffit.
+ * Calculé sur le téléphone : rien n'est envoyé. La liste reçue n'est pas modifiée. */
+export function arrMore(items, n, data, name, points = (x) => [x]) {
+  const inArr = (x) => (points(x) ?? []).some((p) => arrAt(p?.lat, p?.lng, data) === n);
+  return (Array.isArray(items) ? items : []).filter((x) => x && String(name(x) ?? '').trim() && inArr(x))
+    .sort((a, b) => String(name(a)).localeCompare(String(name(b)), 'fr', { sensitivity: 'base' }));
+}
+
 /** Un appui sur la carte pendant qu'un arrondissement est choisi (v202) : le numéro de l'autre arrondissement touché, ou null
  * (aucun arrondissement choisi, même arrondissement, hors de Paris, contours pas lus). */
 export function arrTap(lat, lng, current, data) {

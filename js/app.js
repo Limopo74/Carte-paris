@@ -67,14 +67,14 @@ import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
-import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
+import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
   orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (437)';
+const VERSION = '25 novembre 2026 (438)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5764,9 +5764,66 @@ function openArrList(n) {
     ...arrGroups(pts, state.categories).flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, catOf(g.cat).name), el('span', {}, String(g.rows.length))),
       el('ul', { class: 'items' }, g.rows.map(row))]),
+    arrMoreBlock(n, back),
     foot(backBtn(openFilters)),
   ), { name: 'arrlist', again: () => openArrList(n) });
 }
+/* ---------- « Aussi dans le 9e » (v438, mon choix 1A du 25 nov., visuel A) ----------
+   En bas de « Mes lieux du 9e » (rien ne bouge au-dessus) : ce que les listes rangées dans l'appli ont dans l'arrondissement,
+   avec leur nombre ; un appui ouvre leur liste dans l'arrondissement, puis la page habituelle. Sans réseau, rien n'est envoyé.
+   Pas de monuments : leur liste complète vient de Wikidata, en ligne ; un nombre hors ligne serait faux. Une ligne à 0 ne s'affiche pas. */
+const museumPage = (m, back) => openSpot({ mark: true, icon: 'landmark', title: m.n, kicker: 'Musée', lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
+  link: m.url ? [m.url, 'Site officiel du musée'] : null, back, key: `musee:${m.id}`, fav: 'musee' });
+const ARR_MORE = [
+  { k: 'jardins', icon: 'trees', title: 'Jardins publics', load: () => loadJardins(), name: (x) => x.name, sub: (x) => jardinKind(x), open: (x, b) => openJardin(x, b) },
+  { k: 'passages', icon: 'door-open', title: 'Passages couverts', load: () => loadArcades(), name: (x) => x.nom, sub: (x) => x.rues, open: (x, b) => openArcade(x, b) },
+  { k: 'musees', icon: 'landmark', title: 'Musées', load: async () => (await loadMusees())?.items, name: (x) => x.n, sub: (x) => x.a, open: (x, b) => museumPage(x, b) },
+  { k: 'circuits', icon: 'signpost', title: 'Circuits qui y passent', load: () => loadCircuits(), name: (x) => x.titre, sub: (x) => plural(x.etapes.length, 'étape', 'étapes'), open: (x, b) => openCircuit(x, b), points: (x) => x.etapes },
+  { k: 'plaques', icon: 'scroll-text', title: 'Plaques commémoratives', load: async () => (await loadPlaques())?.items, name: (x) => x.t, sub: (x) => plaqueStart(x, 60), open: (x, b) => openPlaque(x, b) },
+  { k: 'oeuvres', icon: 'shapes', title: 'Art dans la rue', load: () => loadStreetArt(), name: (x) => x.name, sub: (x) => [x.type, x.artist].filter(Boolean).join(' · '), open: (x, b) => openStreetArtCard(x, b) },
+  { k: 'galeries', icon: 'palette', title: 'Galeries', load: () => loadGalleries(), name: (x) => x.name, sub: (x) => x.kind, open: (x, b) => openGalleryCard(x, b) },
+];
+const arrMoreCache = new Map(); // `${k}:${n}` → la liste de l'arrondissement (les fichiers ne changent pas pendant la session)
+async function arrMoreList(def, n) {
+  const key = `${def.k}:${n}`;
+  if (!arrMoreCache.has(key)) {
+    let items = null;
+    try { items = await def.load(); } catch { items = null; }
+    if (!items) return null; // fichier pas lu : la ligne ne s'affiche pas (et on réessaiera)
+    arrMoreCache.set(key, arrMore(items, n, arrData, def.name, def.points));
+  }
+  return arrMoreCache.get(key);
+}
+function arrMoreBlock(n, back) {
+  const box = el('div', { class: 'stack' });
+  (async () => {
+    await loadArr();
+    const found = (await Promise.all(ARR_MORE.map(async (def) => [def, await arrMoreList(def, n)]))).filter(([, l]) => l?.length);
+    if (!found.length || filt.arr !== n || !box.isConnected) return;
+    fill(box,
+      el('h3', { class: 'ring-title' }, el('span', {}, `Aussi dans le ${arrOrd(n)}`), el('span', {}, '')),
+      el('ul', { class: 'items' }, found.map(([def, l]) => el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => openArrMore(def, n, back) },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(def.icon, { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, def.title)),
+          el('span', { class: 'arr-more-n' }, String(l.length)))))),
+      el('p', { class: 'help tip' }, `Rangés dans l'appli, sans réseau. Touche une ligne : leur liste dans le ${arrOrd(n)}.`));
+  })();
+  return box;
+}
+async function openArrMore(def, n, back) {
+  const l = await arrMoreList(def, n);
+  if (!l) { toast('Liste indisponible pour l\'instant.', true); return; }
+  const self = named(`${def.title} du ${arrOrd(n)}`, () => openArrMore(def, n, back));
+  openSheet([ico(def.icon), ` ${def.title} du ${arrOrd(n)}`], el('div', { class: 'stack' },
+    el('ul', { class: 'items' }, l.map((x) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => def.open(x, self) },
+        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(def.icon, { size: 18 })),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, def.name(x)), def.sub(x) ? el('span', { class: 'item-sub' }, def.sub(x)) : null))))),
+    foot(backBtn(back)),
+  ), { name: `arrmore:${def.k}:${n}`, again: () => openArrMore(def, n, back) });
+}
+
 /* Liste d'un arrondissement affichée (même réduite) : toucher un autre arrondissement sur la carte ouvre le sien.
    Sans arrondissement choisi, un appui sur la carte ne fait toujours rien. Un lieu ou un calque touché garde son propre rôle. */
 map.on('click', (e) => {
@@ -12297,6 +12354,7 @@ const HELP = [
     '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Autres réglages → Favoris.',
     '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
+    '{trees} **Aussi dans l\'arrondissement** : en bas de la liste de tes lieux d\'un arrondissement, ce que l\'appli connaît là (jardins, passages, musées, circuits, plaques, art dans la rue, galeries) avec leur nombre. Touche une ligne : leur liste. Pas les monuments : leur liste complète est en ligne.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
@@ -12401,6 +12459,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
@@ -12410,7 +12469,6 @@ const HELP = [
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
-    '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
