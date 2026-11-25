@@ -30,7 +30,7 @@ import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, 
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
 import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
-import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText } from './crise.js';
+import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
 import { cleanAcces, exitFor, entryFor } from './acces.js';
@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (490)';
+const VERSION = '25 novembre 2026 (491)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2619,7 +2619,9 @@ const unmarkSpot = () => { marked = null; pointLayer.clearLayers(); };
 function openPointAt(lat, lng) {
   track('Ce point');
   const show = (label) => openSpot({ icon: 'map-pin', title: label || 'Ce point', kicker: 'Point de la carte', place: { lat, lng, address: label || '' },
-    key: 'point', add: { name: '' }, pin: true });
+    key: 'point', add: { name: '' }, pin: true,
+    // v491 (mon choix 30 B du 25 nov.) : sous les boutons de la page (rien ne bouge) ; en faire mon point de repli ou un rendez-vous
+    extra: el('button', { type: 'button', class: 'btn', onclick: () => openCrisisPointPick({ lat, lng, label }, named(label || 'Ce point', () => show(label))) }, ico('triangle-alert'), 'Point de crise…') });
   show('');
   reverseAddress(lat, lng).then((label) => { if (label && view === 'point' && pointLayer.getLayers().length) show(label); }).catch(() => {});
 }
@@ -5833,6 +5835,11 @@ function crisisBlock() {
     home
       ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
+    // v491 (mes réponses 15 et 22, choix 30 B) : mon point de repli et nos deux rendez-vous, sous Rentrer à pied
+    el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => {
+      const p = (cleanCrisisPoints(state.crisisPoints) ?? {})[c.k];
+      return row(c.icon, c.name, p ? (p.label || 'Point de la carte') : 'Pas encore choisi : comment faire', () => openCrisisPoint(c.k, back));
+    })),
     el('div', { class: 'menu' },
       row('message-square-text', 'Je vais bien', people.length ? `SMS à ${people.map((c) => c.name || c.tel).join(', ')}` : 'Choisis d\'abord tes proches', () => openImOk(back)),
       ...people.map((c) => el('a', { class: 'menu-row c-guide', href: `tel:${c.tel}` },
@@ -5867,6 +5874,56 @@ function openImOk(back) {
     el('p', { class: 'help' }, 'L\'appli SMS s\'ouvre avec « Je vais bien. » ; c\'est toi qui touches Envoyer.'),
     el('div', { class: 'menu' }, box), list,
     foot(backBtn(back))), { tall: true, name: 'imok', again: self });
+}
+
+/** v491 (mon choix 30 B) : « Ce point » → « Point de crise… » : en faire mon point de repli ou un de nos deux rendez-vous. */
+function openCrisisPointPick(pt, back) {
+  const pts = cleanCrisisPoints(state.crisisPoints) ?? {};
+  openSheet([ico('triangle-alert'), ' Point de crise'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${pt.label || 'Ce point'} devient :`),
+    el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => el('button', { type: 'button', class: 'menu-row c-guide', 'data-cpoint': c.k, onclick: () => {
+      const before = pts[c.k] ?? null;
+      state.crisisPoints = cleanCrisisPoints({ ...pts, [c.k]: { lat: pt.lat, lng: pt.lng, label: pt.label } }); persist();
+      toast(`${c.name} : enregistré`, false, before ? { label: 'Annuler', fn: () => { state.crisisPoints = cleanCrisisPoints({ ...(cleanCrisisPoints(state.crisisPoints) ?? {}), [c.k]: before }); persist(); } } : null);
+      back();
+    } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(c.icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, pts[c.k] ? `Remplace : ${pts[c.k].label || 'un point de la carte'}` : c.sub))))),
+    el('p', { class: 'help tip' }, 'En mode crise, Autour de moi les donne en tête, avec Y aller et « Envoyer à un proche ». Ils restent sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.'),
+    foot(backBtn(back))), { name: 'cpoint', again: () => openCrisisPointPick(pt, back) });
+}
+/** v491 : la page d'un point de crise : Y aller, Chemin à pied (dans Paris), Envoyer à un proche, Retirer. */
+function openCrisisPoint(k, back) {
+  const c = CRISIS_POINTS.find((x) => x.k === k);
+  const p = (cleanCrisisPoints(state.crisisPoints) ?? {})[k];
+  const self = () => openCrisisPoint(k, back);
+  if (!p) {
+    openSheet([ico(c.icon), ` ${c.name}`], el('div', { class: 'stack' },
+      el('p', {}, `${c.sub}.`),
+      el('p', { class: 'alert-steps' }, el('b', {}, '1. Appui long'), ' sur la carte, à l\'endroit choisi.', el('br'), el('b', {}, '2. « Point de crise… »'), ', en bas de la page « Ce point ».', el('br'), el('b', {}, `3. « ${c.name} »`), '.'),
+      el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => closeSheet() }, ico('map'), 'Voir la carte'),
+      foot(backBtn(back))), { name: 'cpoint-show', again: self });
+    return;
+  }
+  const people = cleanAlertContacts(state.alertContacts);
+  const pos = freshHere();
+  const d = pos ? distanceM(pos, p) : null;
+  // dans Paris (contours des arrondissements) ; contours pas encore lus : le cadre de Paris, le plan des rues dira le reste
+  const inParis = arrData ? Boolean(arrOfPoint(p)) : p.lat > 48.815 && p.lat < 48.903 && p.lng > 2.224 && p.lng < 2.47;
+  openSheet([ico(c.icon), ` ${c.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, [p.label || 'Point de la carte', d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
+    el('a', { class: 'btn primary go-bar', href: mapsUrl(p, d ?? Infinity), target: '_blank', rel: 'noopener' }, ico('arrow-right'), 'Y aller'),
+    inParis && pos ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => showWalkRoute({ name: c.name, lat: p.lat, lng: p.lng }, pos, named(c.name, self)) }, ico('route'), 'Chemin à pied') : null,
+    ...people.map((x) => el('a', { class: 'btn', href: smsHref(x.tel, smsPointText(k, p)) }, ico('send'), `Envoyer à ${x.name || x.tel}`)),
+    people.length ? null : el('button', { type: 'button', class: 'btn', onclick: () => openAlertContacts(self) }, ico('users'), 'Choisir mes proches'),
+    inParis ? null : el('p', { class: 'help' }, 'Hors de Paris : pas de chemin calculé sur le téléphone ; « Y aller » ouvre Google Maps.'),
+    el('p', { class: 'help tip' }, 'Pour le changer : appui long sur la carte, puis « Point de crise… ».'),
+    foot(el('button', { type: 'button', class: 'btn danger', onclick: () => {
+      const all = cleanCrisisPoints(state.crisisPoints) ?? {}; const before = all[k]; delete all[k];
+      state.crisisPoints = cleanCrisisPoints(all); persist();
+      toast(`${c.name} retiré`, false, { label: 'Annuler', fn: () => { state.crisisPoints = cleanCrisisPoints({ ...(cleanCrisisPoints(state.crisisPoints) ?? {}), [k]: before }); persist(); } });
+      back();
+    } }, 'Retirer'), backBtn(back))), { tall: true, name: 'cpoint-show', again: self });
 }
 
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
@@ -13637,6 +13694,7 @@ const HELP = [
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, Je vais bien, Appeler un proche, Alerter en silence. Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
+    '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13827,6 +13885,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
     '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
     '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
     '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
@@ -13836,7 +13895,6 @@ const HELP = [
     '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
     '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et au 31177 dans le métro, le RER ou le bus, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
     '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
-    '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

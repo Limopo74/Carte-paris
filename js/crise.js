@@ -26,3 +26,33 @@ export function smsOkText(at = null) {
   const p = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`;
   return `Je vais bien. Je suis ici : https://www.google.com/maps/search/?api=1&query=${p}`;
 }
+
+/* Points de crise (mes réponses 15 et 22, mon choix 30 B du 25 nov. 2026) : choisis par un appui long sur la carte (« Ce point »).
+   Mon point de repli peut être loin de Paris (chez un proche) ; les deux rendez-vous sont pour moi et un proche.
+   Sur le téléphone et dans ma sauvegarde (ajoutés à la restauration seulement s'il n'y en a pas), jamais dans le fichier pour un proche. */
+export const CRISIS_POINTS = [
+  { k: 'repli', name: 'Mon point de repli', icon: 'map-pin', sub: 'Chez un proche, même loin' },
+  { k: 'pres', name: 'Près de chez nous', icon: 'users', sub: 'Dans le quartier' },
+  { k: 'hors', name: 'Hors du quartier', icon: 'users', sub: 'Si le quartier est bloqué' },
+];
+const cleanPt = (p) => {
+  const lat = Number(p?.lat); const lng = Number(p?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const label = typeof p.label === 'string' ? p.label.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, label };
+};
+/** { repli?, pres?, hors? } ; null s'il n'y en a aucun. */
+export function cleanCrisisPoints(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  for (const { k } of CRISIS_POINTS) { const p = cleanPt(o[k]); if (p) out[k] = p; }
+  return Object.keys(out).length ? out : null;
+}
+/** Ceux du téléphone gardés ; ceux de ma sauvegarde ajoutés seulement là où il n'y a rien. */
+export const mergeCrisisPoints = (mine, file) => cleanCrisisPoints({ ...(cleanCrisisPoints(file) ?? {}), ...(cleanCrisisPoints(mine) ?? {}) });
+/** Le SMS pour un proche : le nom du point, l'adresse si connue, le lien de la carte. */
+export function smsPointText(kind, p) {
+  const c = CRISIS_POINTS.find((x) => x.k === kind);
+  const what = kind === 'repli' ? 'Mon point de repli' : `Notre rendez-vous (${c ? c.name.toLowerCase() : ''})`;
+  return `${what} : ${p.label ? `${p.label}. ` : ''}https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+}

@@ -45,7 +45,7 @@ test('gardé à part : jamais dans la sauvegarde (ni donc chez un proche)', () =
   const s = loadState({ getItem: () => null, setItem: () => {} });
   const o = JSON.parse(exportJSON(s));
   assert.ok(!('crisis' in o) && !('crisis' in (o.settings ?? {})), 'aucun état de crise dans le fichier');
-  assert.ok(!/state\.crisis|crisis:/.test(readFileSync(new URL('../js/store.js', import.meta.url), 'utf8')), 'le store ne le connaît pas');
+  assert.ok(!/state\.crisis(?!Points)|\bcrisis:/.test(readFileSync(new URL('../js/store.js', import.meta.url), 'utf8')), 'le store ne le connaît pas');
 });
 
 test('l\'étiquette, Où suis-je ?, Autour de moi', () => {
@@ -61,4 +61,28 @@ test('l\'étiquette, Où suis-je ?, Autour de moi', () => {
   const block = app.slice(app.indexOf('function crisisBlock()'), app.indexOf('function openImOk('));
   assert.ok((block.match(/class: 'btn primary/g) ?? []).length === 1, 'une seule plaque pleine : Rentrer à pied chez moi');
   assert.match(block, /showWalkRoute\(homeOrigin\(home\), pos, back\)/, 'part de ma vraie position, pas de Chez moi');
+});
+
+import { CRISIS_POINTS, cleanCrisisPoints, mergeCrisisPoints, smsPointText } from '../js/crise.js';
+import { saveState, readSettings, mergeImport, backupHash, exportForFriend } from '../js/store.js';
+
+test('v491 : points de crise : nettoyés, gardés, dans ma sauvegarde, jamais chez un proche (réponses 15 et 22, choix 30 B)', () => {
+  assert.deepEqual(CRISIS_POINTS.map((c) => c.k), ['repli', 'pres', 'hors']);
+  assert.equal(cleanCrisisPoints({ repli: { lat: 'x' } }), null);
+  assert.deepEqual(cleanCrisisPoints({ repli: { lat: 45.1234567, lng: 5.7, label: ' Chez  Anne ' }, pirate: { lat: 1, lng: 1 } }), { repli: { lat: 45.123457, lng: 5.7, label: 'Chez Anne' } });
+  assert.deepEqual(mergeCrisisPoints({ pres: { lat: 48.85, lng: 2.35 } }, { pres: { lat: 1, lng: 1 }, hors: { lat: 48.9, lng: 2.3 } }), { pres: { lat: 48.85, lng: 2.35, label: '' }, hors: { lat: 48.9, lng: 2.3, label: '' } }, 'le téléphone garde les siens, la sauvegarde complète');
+  let raw = null; const st = { getItem: () => raw, setItem: (_k, v) => { raw = v; } };
+  const s0 = loadState(st);
+  const pts = { repli: { lat: 45.18, lng: 5.72, label: 'Chez Anne, Grenoble' } };
+  saveState(st, { ...s0, crisisPoints: pts });
+  const s1 = loadState(st);
+  assert.deepEqual(s1.crisisPoints, pts);
+  assert.deepEqual(JSON.parse(exportJSON(s1)).crisisPoints, pts);
+  assert.notEqual(backupHash(s1), backupHash(s0), 'un point change l\'empreinte de la sauvegarde');
+  assert.ok(!JSON.stringify(exportForFriend(s1)).includes('Grenoble'), 'jamais dans le fichier pour un proche');
+  const back = mergeImport(s0, exportJSON(s1));
+  assert.deepEqual(back.state.crisisPoints, pts, 'ma sauvegarde les remet');
+  assert.match(smsPointText('repli', pts.repli), /^Mon point de repli : Chez Anne, Grenoble\. https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=45\.18000,5\.72000$/);
+  assert.match(smsPointText('hors', { lat: 48.9, lng: 2.3, label: '' }), /^Notre rendez-vous \(hors du quartier\) : https/);
+  assert.match(app, /'Point de crise…'\) \}\);/, 'dans « Ce point », par extra (sous les boutons)');
 });
