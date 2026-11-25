@@ -244,6 +244,20 @@ const ECRANS = {
   boutons: async (p) => { await reglage(p, 'Boutons de la carte'); await p.waitForTimeout(300); },
   texte: async (p) => { await reglage(p, 'Taille du texte'); await p.waitForTimeout(300); },
   pas: async (p) => { await reglage(p, 'Mon pas'); await p.waitForTimeout(300); },
+  // v505 : mon allure réglée (un appui sur +), la Boucle à courir (plan des rues téléchargé depuis l'appli servie), et un parcours gardé avec sa durée en courant
+  pasallure: async (p) => { await ECRANS.pas(p); await feuille(p).locator('button[data-step="run:-1"]').click(); await p.waitForTimeout(300); },
+  boucle: async (p) => {
+    await ECRANS.itineraire(p); await feuille(p).locator('.menu-row', { hasText: 'Boucle à courir' }).click(); await p.waitForTimeout(300);
+    const get = feuille(p).locator('button', { hasText: 'Télécharger le plan des rues' });
+    if (await get.count()) await get.click();
+    await p.waitForSelector('#sheet .summary, #sheet .empty', { timeout: 30000 }); await p.waitForTimeout(800);
+  },
+  boucleallure: async (p) => { await ECRANS.pasallure(p); await p.locator('#sheetClose').click(); await p.waitForTimeout(300); await ECRANS.boucle(p); },
+  boucleparcours: async (p) => {
+    await ECRANS.boucleallure(p); await feuille(p).locator('button', { hasText: 'Dans Mes parcours' }).click(); await p.waitForTimeout(300);
+    await p.locator('#sheetClose').click(); await p.waitForTimeout(300); await ECRANS.itineraire(p); await feuille(p).locator('.menu-row', { hasText: 'Mes parcours' }).click(); await p.waitForTimeout(600);
+    await feuille(p).locator('.item-main', { hasText: 'Boucle de 5 km' }).first().click(); await p.waitForTimeout(600);
+  },
   // v320 : Mesurer mon pas. Position simulée précise (départ possible), puis 800 m plus au nord après 12 min 40 s (horloge simulée).
   mesure: async (p) => { await ECRANS.pas(p); await feuille(p).locator('button[data-measure="normal"]').click(); await p.waitForSelector('#sheet button:has-text("Partir"):not([disabled])'); await p.waitForTimeout(200); },
   mesuremarche: async (p) => { await p.clock.install(); await ECRANS.mesure(p); await feuille(p).locator('button', { hasText: 'Partir' }).click(); await p.clock.runFor(312e3); await p.context().setGeolocation({ latitude: 48.8812 + 450 / 1.3 / 111195, longitude: 2.3361, accuracy: 8 }); await p.waitForTimeout(400); },
