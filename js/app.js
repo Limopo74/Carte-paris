@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (436)';
+const VERSION = '25 novembre 2026 (437)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1547,6 +1547,8 @@ document.getElementById('sheetClose').before(sheetMin);
    de la page (synthèse vocale du téléphone, rien n'est envoyé). Pendant la lecture : carré « Arrêter la lecture ». Il ne s'affiche
    que pour une page qui le demande (`listen`) et si le téléphone sait lire ; un appui le fait lire même avec la Voix coupée
    (la Voix règle ce que l'appli dit d'elle-même). Changer de page ou fermer arrête la lecture. Rien ne bouge sous l'en-tête. */
+/** Les morceaux d'un texte à lire, joints par un point, sans doubler un point déjà là (v437). */
+const sayJoin = (parts) => parts.map((t) => String(t ?? '').trim().replace(/[.\s]+$/, '')).filter(Boolean).join('. ');
 const canListen = () => 'speechSynthesis' in window && typeof SpeechSynthesisUtterance === 'function';
 let listenText = null;
 let listenUtter = null;
@@ -1559,16 +1561,17 @@ function drawListen(on) {
 }
 function setListen(text) {
   if (sheetListen.getAttribute('aria-pressed') === 'true') silence();
-  listenText = text && canListen() ? String(text) : null;
+  listenText = text && canListen() ? (typeof text === 'function' ? text : String(text)) : null; // une fonction : le texte se lit au moment de l'appui (Où suis-je ? : adresse arrivée après)
   sheetListen.hidden = !listenText;
   drawListen(false);
 }
 function toggleListen() {
   if (sheetListen.getAttribute('aria-pressed') === 'true') { silence(); drawListen(false); return; }
-  if (!listenText) return;
+  const said = typeof listenText === 'function' ? listenText() : listenText;
+  if (!said) { toast('Rien à lire pour l\'instant.'); return; }
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(listenText);
+    const u = new SpeechSynthesisUtterance(said);
     u.lang = 'fr-FR';
     listenUtter = u; // la fin d'une lecture arrêtée arrive parfois après le début de la suivante : seule la dernière compte
     const done = () => { if (u === listenUtter) drawListen(false); };
@@ -6389,7 +6392,9 @@ async function openWhereAmI() {
     el('p', { class: 'help tip' }, 'L\'IGN tient la Géoplateforme, un service public. « Envoyer ma position » ne la transmet qu\'à la personne que tu choisis.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')),
   );
-  openSheet([ico('locate'), ' Où suis-je ?'], body, { name: 'where', again: openWhereAmI });
+  // v437 (mon choix 2A du 25 nov.) : Écouter lit ce qui est arrivé au moment de l'appui (adresse, arrondissement, nom de la rue, quartier)
+  const listen = () => sayJoin([addrText, arrLine.textContent, origLine.hidden ? '' : origLine.textContent, quarter.querySelector('.quarter-text')?.textContent]);
+  openSheet([ico('locate'), ' Où suis-je ?'], body, { name: 'where', again: openWhereAmI, listen });
   // Le quartier en 3 lignes : l'article Wikipédia le plus proche décrit comme un quartier (position arrondie à 100 m)
   (async () => {
     try {
@@ -8959,7 +8964,8 @@ function openPlaque(p, back = null) {
       p.a ? el('p', { class: 'where' }, ico('map-pin'), p.a) : null,
       el('p', { class: 'help' }, 'Une plaque peut avoir été déplacée ou retirée.'),
       el('p', { class: 'help tip' }, 'Texte relevé par la Ville de Paris (Direction des Affaires Culturelles, licence ODbL).')],
-    add: { note: p.x }, back, key: `plaque:${p.lat},${p.lng}` });
+    add: { note: p.x }, back, key: `plaque:${p.lat},${p.lng}`,
+    listen: sayJoin([p.t, p.x, p.o ? `Où regarder : ${p.o}` : '']) }); // v437 (mon choix 2A du 25 nov.)
 }
 const plaqueRow = (x, back) => el('li', { class: 'item' },
   el('button', { type: 'button', class: 'item-main', onclick: () => openPlaque(x.plaque, back) },
@@ -9222,7 +9228,7 @@ function openCircuitStep(c, i, back) {
   openSpot({ icon: e.m ? 'train-front' : 'signpost', title: e.n, kicker: `Étape ${i + 1} sur ${c.etapes.length} · ${c.titre}`, lines: [e.t], place: e,
     extra: c.mine ? null : el('button', { type: 'button', class: 'btn c-info', onclick: () => openProblem(c, i, self) }, ico('triangle-alert'), 'Signaler un problème'),
     link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}`,
-    listen: e.t ? `${e.n}. ${e.t}` : null }); // v432 : « Écouter » lit le nom de l'étape puis son texte
+    listen: e.t ? sayJoin([e.n, e.t]) : null }); // v432 : « Écouter » lit le nom de l'étape puis son texte
 }
 
 /** Le tracé et les étapes numérotées sur la carte ; le bandeau ramène au circuit. Rien n'est demandé au GPS. */
@@ -9513,7 +9519,8 @@ function openArcade(a, back = null) {
     extra: el('button', { type: 'button', class: 'btn c-disc', onclick: () => showArcadeOnMap(a, back) }, ico('map'), 'Voir sur la carte'),
     link: a.s ? [a.s, `Source : ${siteName(a.s)}`] : null, add, back, key: `passage:${a.id}`,
     mine: myArcadePlace(state.points, a), // v237 : le passage est dans mes lieux → « Ma fiche » et ma photo
-    snap: () => arcadePhoto(a, back, add) }); // v238 : une photo d'un appui, le passage s'ajoute seul à mes lieux
+    snap: () => arcadePhoto(a, back, add), // v238
+    listen: sayJoin([a.nom, a.t, a.rues ? `Entrées : ${a.rues}` : '']) }); // v437 (mon choix 2A du 25 nov.) ; v238 : une photo d'un appui, le passage s'ajoute seul à mes lieux
 }
 
 /** v238 (mes choix 1A 2A) : « Prendre une photo » sur la page d'un passage. L'appareil s'ouvre ; la photo va sur ma fiche
@@ -12223,7 +12230,7 @@ const HELP = [
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
-    '{volume-2} **Écouter une étape** : sur la page d\'une étape de circuit, le haut-parleur en haut, à gauche de ⌄, lit son nom et son texte. Le carré arrête. La lecture s\'arrête aussi quand tu changes de page.',
+    '{volume-2} **Écouter** : sur la page d\'une étape de circuit, d\'une plaque, d\'un passage couvert et dans Où suis-je ?, le haut-parleur en haut, à gauche de ⌄, lit le texte de la page. Le carré arrête. La lecture s\'arrête aussi quand tu changes de page.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
@@ -12394,6 +12401,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
@@ -12403,7 +12411,6 @@ const HELP = [
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
-    '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

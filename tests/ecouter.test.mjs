@@ -35,17 +35,33 @@ test('écouter : deux états par l\'icône (haut-parleur / carré), sans rien en
   assert.match(icons, /^"square": /m);
   assert.match(css, /#sheetListen\[aria-pressed="true"\] \{ background: var\(--info-bg\); \}/);
   const t = body('toggleListen');
-  assert.match(t, /new SpeechSynthesisUtterance\(listenText\)/);
+  assert.match(t, /new SpeechSynthesisUtterance\(said\)/);
   assert.doesNotMatch(t, /fetch|net\(|state\.voice/, 'rien envoyé ; un appui lit même Voix coupée');
 });
 
-test('écouter : seulement la page d\'une étape de circuit pour l\'instant (nom puis texte)', () => {
-  assert.match(body('openCircuitStep'), /listen: e\.t \? `\$\{e\.n\}\. \$\{e\.t\}` : null/);
+test('écouter : étape de circuit (nom puis texte)', () => {
+  assert.match(body('openCircuitStep'), /listen: e\.t \? sayJoin\(\[e\.n, e\.t\]\) : null/);
   assert.match(body('openSpot'), /onClose: closing, listen \}\);/);
-  assert.equal((app.match(/listen: /g) ?? []).length, 1, 'une seule page lit pour l\'instant');
+});
+
+test('écouter (v437, mon choix 2A) : plaque, passage couvert, Où suis-je ? ; rien d\'autre', () => {
+  assert.match(body('openPlaque'), /listen: sayJoin\(\[p\.t, p\.x, /);
+  assert.match(body('openArcade'), /listen: sayJoin\(\[a\.nom, a\.t, /);
+  const w = body('openWhereAmI');
+  assert.match(w, /const listen = \(\) => sayJoin\(\[addrText, arrLine\.textContent/, 'lu au moment de l\'appui : l\'adresse arrive après');
+  assert.match(w, /\{ name: 'where', again: openWhereAmI, listen \}/);
+  assert.match(body('toggleListen'), /typeof listenText === 'function' \? listenText\(\) : listenText/);
+  assert.equal((app.match(/\blisten: /g) ?? []).length, 3, 'étape, plaque, passage (Où suis-je ? passe par openSheet)');
 });
 
 test('écouter : la fin d\'une lecture arrêtée ne remet pas « Écouter » pendant la suivante', () => {
   assert.match(body('toggleListen'), /listenUtter = u;/);
   assert.match(body('toggleListen'), /if \(u === listenUtter\) drawListen\(false\)/);
+});
+
+test('écouter : jamais deux points de suite', () => {
+  const src = app.match(/const sayJoin = (\(parts\) => [^\n]+);/)?.[1];
+  assert.ok(src, 'sayJoin existe');
+  const sayJoin = eval(src);
+  assert.equal(sayJoin(['Passage Choiseul', 'Céline y a passé son enfance.', '', null, 'Entrées : rue X']), 'Passage Choiseul. Céline y a passé son enfance. Entrées : rue X');
 });
