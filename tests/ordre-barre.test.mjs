@@ -65,6 +65,6 @@ test('Ordre du haut : gardé d\'un jour à l\'autre et dans les réglages de la 
 
 test('Ordre du haut : « Barre du haut comme au début » remet aussi l\'ordre', () => {
   // v440 : « comme au début » remet le départ de mes captures (cachés, Plus, ordre, icônes seules)
-  assert.match(app, /onclick: \(\) => \{ Object\.assign\(state, freshChips\(catIds, ttbList\(\)\.length > 0\)\); persist\(\);/);
-  assert.match(app, /const asStart = chipsAsFresh\(state, catIds, ttbList\(\)\.length > 0\);/);
+  assert.match(app, /onclick: \(\) => \{ Object\.assign\(state, freshChips\(catIds\)\); persist\(\);/);
+  assert.match(app, /const asStart = chipsAsFresh\(state, catIds\);/);
 });

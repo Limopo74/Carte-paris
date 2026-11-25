@@ -491,7 +491,7 @@ test('barre du haut : boutons masqués gardés, valeurs inconnues écartées', (
   assert.deepEqual(s.hiddenChips, ['fav', 'cat:resto', 'all', 'street', 'lines']);
   saveState(st, { ...s, hiddenChips: ['filters'] });
   assert.deepEqual(loadState(st).hiddenChips, ['filters']);
-  assert.deepEqual(loadState(memStorage()).hiddenChips, ['ttb', 'buslines', 'velo'], 'v440 : TTB (sans liste), Mes lignes de bus et Pistes à vélo masqués au départ d\'un nouveau venu');
+  assert.deepEqual(loadState(memStorage()).hiddenChips, ['buslines', 'velo'], 'v442 : Mes lignes de bus et Pistes à vélo masqués au départ d\'un nouveau venu (TTB dans ⋯ Plus)');
 });
 
 test('feuille Filtres : lignes masquées gardées, inconnues écartées', () => {

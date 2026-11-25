@@ -25,7 +25,7 @@ export function defaultPreset(me = '') {
   return {
     de: str(me, NAME_MAX), msg: '', steps: { taille: true, pourtoi: true, rentrer: true, position: true },
     textSize: 'normal', masculin: false, pace: 'normal', side: 'right', labels: false, navigo: true,
-    ...(({ hiddenChips, moreChips }) => ({ hiddenChips, moreChips }))(freshChips([...DEFAULT_CATEGORIES.map((c) => c.id), SEEN_CAT.id])), // v440 : le départ de mes captures
+    ...(({ hiddenChips, moreChips }) => ({ hiddenChips, moreChips }))(freshChips([...DEFAULT_CATEGORIES.map((c) => c.id), SEEN_CAT.id])), // v440, v442 : le départ de mes captures
     mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools],
     mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: freshChips().chipOrder, chipIcons: true, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
     ficheHidden: [], voice: true, vibrateNow: false, suggestNow: true, alertNear: true,

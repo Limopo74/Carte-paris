@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (441)';
+const VERSION = '25 novembre 2026 (442)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8920,7 +8920,7 @@ async function importTtbFile(file, back) {
   toast(`${plural(res.items.length, 'adresse', 'adresses')} à Paris importées${before ? ` (avant : ${before})` : ''}. Elles sont sur la carte.`);
 }
 
-/** v314 : le bouton TTB, masqué au départ d'un nouveau venu, revient avec la première liste importée ; v440 : dans ⋯ Plus, comme sur ma capture. */
+/** v314 : le bouton TTB, masqué au départ d'un nouveau venu, revient avec la première liste importée (téléphones d'avant la v442) ; v440 : dans ⋯ Plus, comme sur ma capture. */
 function ttbChipBack() {
   if (!cleanChips(state.hiddenChips).includes('ttb')) return;
   state.hiddenChips = cleanChips(state.hiddenChips).filter((k) => k !== 'ttb');
@@ -10054,7 +10054,7 @@ function openSettings(section = null, from = null) {
       const items = chipItems();
       const order = barOrderOf(state.chipOrder, catIds);
       const groupOf = chipGroupOf(placeOf);
-      const asStart = chipsAsFresh(state, catIds, ttbList().length > 0); // v440 : « comme au début » = le départ de mes captures
+      const asStart = chipsAsFresh(state, catIds); // v440, v442 : « comme au début » = le départ de mes captures
       const moveTop = (key, delta) => { state = moveChipIn(state, key, delta, catIds, groupOf); persist(); refresh(); openSettings('barre');
         requestAnimationFrame(() => document.querySelector(`[data-move="${key}:${delta}"]`)?.focus()); };
       const rowOf = (x, movable) => {
@@ -10092,7 +10092,7 @@ function openSettings(section = null, from = null) {
         el('span', { class: `switch${state.chipIcons ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
         groups,
         // v400 (mon choix 5A) : comme « Boutons comme au début » : bouton simple, seulement si quelque chose a changé
-        asStart ? null : el('button', { type: 'button', class: 'btn', onclick: () => { Object.assign(state, freshChips(catIds, ttbList().length > 0)); persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
+        asStart ? null : el('button', { type: 'button', class: 'btn', onclick: () => { Object.assign(state, freshChips(catIds)); persist(); refresh(); openSettings('barre'); toast('Barre du haut remise comme au début'); } }, 'Barre du haut comme au début'),
         backBtn,
       ), { tall: true, name: 'settings:barre', again: () => openSettings('barre') });
       return;
@@ -12477,7 +12477,7 @@ const HELP = [
   ]],
   ['sparkles', 'Nouveautés', [
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
-    '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue, Lignes et Vu en passant ; Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
+    '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',

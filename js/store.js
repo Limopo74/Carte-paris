@@ -286,25 +286,25 @@ export const cleanFilterKeys = (list) => FILTER_KEYS.filter((k) => Array.isArray
  * Barre du haut : Dans la rue et Lignes ; les catégories et Vu en passant sous ⋯ Plus (2e capture, 18 h 50) ; Favoris masqué,
  * TTB aussi tant qu'aucune liste n'est importée. Colonne : FRESH_TOOLS. Mon téléphone ne change pas tout seul ; depuis la v440, « Barre du haut
  * comme au début » et « Boutons comme au début » remettent ce départ (avant : DEFAULT_MORE_CHIPS et MAP_TOOLS). */
-// v440 (ma demande du 25 nov., d'après mes deux captures de 6 h 29 et 6 h 31) : le départ devient le mien. Barre : Dans la rue,
-// Lignes, Vu en passant, en icônes seules. ⋯ Plus : Mes artistes, Favoris, Boutiques, Culture, Restos, Fontaines et WC, Jardins,
-// TTB, Vélib', Passages couverts. Ce qui ne s'y voit pas est masqué : Mes lignes de bus, Pistes à vélo (aussi dans Filtres).
-// TTB reste masqué tant qu'aucune liste n'est importée, puis revient dans ⋯ Plus (`ttbChipBack`).
-export const FRESH_HIDDEN_CHIPS = ['ttb', 'buslines', 'velo'];
-export const FRESH_MORE_CHIPS = ['fav', 'pratique', 'jardins', 'velib', 'passages', 'artistes']; // et mes catégories, sauf Vu en passant
+// v440 (ma demande du 25 nov., d'après mes deux captures de 6 h 29 et 6 h 31) : le départ devient le mien.
+// v442 (mes choix 2B et 4B du 25 nov.) : barre : Dans la rue et Lignes, en icônes seules (trois boutons faisaient sortir ⋯ sous
+// 380 px). ⋯ Plus : Mes artistes, Vu en passant, Favoris, Boutiques, Culture, Restos, Fontaines et WC, Jardins, TTB (dès le départ,
+// même sans liste), Vélib', Passages couverts. Ce qui ne s'y voit pas est masqué : Mes lignes de bus, Pistes à vélo (aussi dans Filtres).
+export const FRESH_HIDDEN_CHIPS = ['buslines', 'velo'];
+export const FRESH_MORE_CHIPS = ['fav', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'artistes']; // et toutes mes catégories, Vu en passant compris
 export const FRESH_CHIP_ORDER = ['street', 'lines', 'cat:vu', 'fav', 'cat:boutique', 'cat:culture', 'cat:resto', 'pratique', 'jardins', 'ttb', 'velib', 'passages', 'buslines', 'velo', 'artistes'];
 export const FRESH_HIDDEN_FILTERS = ['buslines', 'velo'];
-/** La barre du haut du départ, pour mes catégories (`catIds`) ; `hasTtb` : une liste TTB est là (TTB dans ⋯ Plus, pas masqué). */
-export function freshChips(catIds = [], hasTtb = false) {
+/** La barre du haut du départ, pour mes catégories (`catIds`). */
+export function freshChips(catIds = []) {
   return {
-    hiddenChips: FRESH_HIDDEN_CHIPS.filter((k) => k !== 'ttb' || !hasTtb),
-    moreChips: [...FRESH_MORE_CHIPS, ...(hasTtb ? ['ttb'] : []), ...catIds.filter((id) => id !== SEEN_CAT.id).map((id) => `cat:${id}`)],
+    hiddenChips: [...FRESH_HIDDEN_CHIPS],
+    moreChips: [...FRESH_MORE_CHIPS, ...catIds.map((id) => `cat:${id}`)],
     chipOrder: cleanChipOrder(FRESH_CHIP_ORDER), chipIcons: true,
   };
 }
 /** La barre du haut est-elle comme `freshChips` la met ? (pour cacher « Barre du haut comme au début ») */
-export function chipsAsFresh(st, catIds = [], hasTtb = false) {
-  const f = freshChips(catIds, hasTtb);
+export function chipsAsFresh(st, catIds = []) {
+  const f = freshChips(catIds);
   const same = (a, b) => a.length === b.length && a.every((k) => b.includes(k));
   const hidden = cleanChips(st.hiddenChips);
   return same(hidden, f.hiddenChips) && same(cleanMoreChips(st.moreChips ?? [], hidden), f.moreChips)
@@ -318,7 +318,7 @@ export const FRESH_FICHE_HIDDEN = ['uber'];
 export const FRESH_TOOLS = { mapTools: ['locate', 'sorties', 'planning', 'vu', 'home', 'myparis', 'metro', 'paris', 'notes', 'velib', 'pratique', 'circuits'], hiddenTools: ['circuits'], moreTools: ['myparis', 'metro', 'paris', 'notes', 'velib', 'pratique'] };
 export function freshStart(st) {
   const categories = st.categories.some((c) => c.id === SEEN_CAT.id) ? st.categories : [...st.categories, { ...SEEN_CAT }];
-  const chips = freshChips(categories.map((c) => c.id)); // v440 : Vu en passant dans la barre, mes autres catégories dans ⋯ Plus
+  const chips = freshChips(categories.map((c) => c.id)); // v442 : toutes mes catégories dans ⋯ Plus, Vu en passant compris
   return { ...st, categories, ...chips, hiddenFilters: [...FRESH_HIDDEN_FILTERS], mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools], mapStyle: 'eclairci', ficheHidden: [...FRESH_FICHE_HIDDEN] }; // v323 : Uber masqué dans la fiche (mon choix 2a) // v316 : le fond « Éclairci », sans clé
 }
 
