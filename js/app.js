@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (461)';
+const VERSION = '25 novembre 2026 (462)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -10496,6 +10496,98 @@ const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
 let settingsFrom = null;
+/* ---------- Chercher un réglage (ma demande du 25 nov.) : la loupe du titre de Réglages ----------
+   Chaque ligne : icône, nom écrit sur la page, chemin (sans nom de groupe), mots qui y mènent aussi, ouverture.
+   `back` ramène à la recherche, avec le mot tapé ; la ligne trouvée est mise sous le doigt sur la page ouverte. */
+const R = 'Réglages'; const RA = 'Réglages → Autres réglages';
+const SETTINGS_FIND = [
+  ['circle-help', 'Aide de l\'appli', R, 'aide comment nouveautes probleme', () => openHelp()],
+  ['save', 'Sauvegarde', R, 'sauvegarder exporter fichier drive perdre telephone prenom', (b) => openSettings('sauvegarde', b)],
+  ['upload', 'Restaurer ou importer', R, 'restaurer importer google maps proche fichier reglages', (b) => openSettings('importer', b)],
+  ['map', 'Mon Paris', R, 'journal planning arrondissements marche chiffres', () => openMyParis('settings')],
+  ['house', 'Mes stations', R, 'maison travail rentrer station metro bus', () => openMyStations()],
+  ['tags', 'Catégories et listes', R, 'categorie liste couleur icone sous-categorie', (b) => openSettings('categories', b)],
+  ['sofa', 'Chez moi', R, 'adresse maison domicile distances depuis', () => openHomeSettings()],
+  ['list', 'TTB', R, 'ttb guide adresses verifiees', (b) => openTtb(b)],
+  ['moon', 'Mode sombre', R, 'sombre nuit clair theme soir signaletique comme le telephone', () => openSettings()],
+  ['a-large-small', 'Taille du texte', R, 'texte police lettres grand tres grand lunettes lire', (b) => openSettings('texte', b)],
+  ['a-large-small', 'Gouttes de mes lieux sur la carte', `${R} → Taille du texte`, 'gouttes epingles taille grandes toucher', (b) => openSettings('texte', b)],
+  ['panel-top', 'Barre du haut', R, 'boutons du haut categories icones seules plus masquer ordre', (b) => openSettings('barre', b)],
+  ['arrow-up-down', 'Boutons de la carte', R, 'colonne boutons ordre cote gauche droite gaucher noms masquer plus renommer', (b) => openSettings('outils', b)],
+  ['check', 'L\'essentiel', `${R} → Boutons de la carte`, 'essentiel boutons garder', (b) => openSettings('essentiel', b)],
+  ['save', 'Enregistrer mes réglages de référence', R, 'reference defaut configuration revenir', () => openSettings()],
+  ['bus', 'Mes lignes de bus', RA, 'bus ligne trajet', () => openMyBusLines()],
+  ['message-square-text', 'Mots tout prêts', RA, 'mots impression serie phrases', (b) => openWordSeries(b)],
+  ['heart', 'Favoris', RA, 'favori etoile coeur couleur', () => openFavStyle()],
+  ['camera', 'Vu en passant', RA, 'photo appareil categorie ranger garder', (b) => openSettings('vu', b)],
+  ['images', 'Mes Vu en passant', `${RA} → Vu en passant`, 'mosaique diaporama export photos', (b) => openSeenPhotos(b)],
+  ['locate', 'À l\'ouverture, la carte montre', RA, 'ouverture demarrage ouvrir position depart lancement', (b) => openSettings('ouverture', b)],
+  ['ruler', 'Distances et durées', RA, 'distance duree y aller a pied km sorties passages couverts circuits marge pars a tu y es allee immeubles', (b) => openSettings('distances', b)],
+  ['target', 'Cercles', `${RA} → Distances et durées`, 'cercles rayons metres minutes', (b) => openSettings('cercles', b)],
+  ['footprints', 'Mon pas', RA, 'vitesse marche km/h lent rapide tranquille mesurer minutes a pied', (b) => openSettings('pas', b)],
+  ['palette', 'Style de la carte', RA, 'fond carte plan ign aerienne photo pastel nuit eclairci carto cle', (b) => openSettings('style', b)],
+  ['vibrate', 'Alertes et bandeau', RA, 'alerte bandeau maintenant', (b) => openSettings('alertes', b)],
+  ['sparkles', 'Suggestions autour de moi', `${RA} → Alertes et bandeau`, 'suggestions bandeau maintenant gratuit', (b) => openSettings('alertes', b)],
+  ['volume-2', 'Voix', `${RA} → Alertes et bandeau`, 'voix parler son audio', (b) => openSettings('alertes', b)],
+  ['vibrate', 'Vibrer quand « Maintenant » a du nouveau', `${RA} → Alertes et bandeau`, 'vibration vibrer', (b) => openSettings('alertes', b)],
+  ['map-pin', 'Prévenir près d\'un de mes lieux', `${RA} → Alertes et bandeau`, 'prevenir alerte proche lieux 100 m deja passee', (b) => openSettings('alertes', b)],
+  ['trees', 'Signaler un grand jardin ouvert', `${RA} → Alertes et bandeau`, 'jardin parc grand', (b) => openSettings('alertes', b)],
+  ['map', 'Numéros des arrondissements', RA, 'arrondissements numeros limites', () => openSettings('autres')],
+  ['landmark', 'Dessins des monuments', RA, 'monuments dessins', () => openSettings('autres')],
+  ['map-pin', 'Noms de mes lieux', RA, 'noms gouttes ecrits', () => openSettings('autres')],
+  ['sliders-horizontal', 'Filtres affichés', RA, 'filtres lignes masquer', (b) => openFilterChoice(b)],
+  ['file-text', 'Fiche d\'un lieu', RA, 'fiche qr code avis google uber etoiles chemin a pied horaires partager masquer', (b) => openSettings('fiche', b)],
+  ['camera', 'Photos des salles', RA, 'photos salles concerts theatre', (b) => openVenuePhotos(b)],
+  ['image', 'Photos dans Sorties', RA, 'photos sorties agenda vignette', () => openSettings('autres')],
+  ['badge-percent', 'J\'ai un passe Navigo', RA, 'navigo avantages passe', () => openSettings('autres')],
+  ['spell-check', 'Écrire au masculin', RA, 'masculin feminin homme accord', () => openSettings('autres')],
+  ['signpost', 'Circuits de visite', RA, 'circuits visites eteindre', () => openSettings('autres')],
+  ['compass', 'Boussole', RA, 'boussole direction eteindre', () => openSettings('autres')],
+  ['palette', 'Style de l\'appli', RA, 'style appli papier verre apparence', (b) => openSettings('look', b)],
+  ['info', 'Mise à jour et confidentialité', RA, 'mise a jour version confidentialite donnees partager appli robot', (b) => openSettings('appli', b)],
+  ['database', 'Données de l\'appli', `${RA} → Mise à jour et confidentialité`, 'donnees mettre a jour robot dates', (b) => openSettings('donnees', b)],
+  ['chart-no-axes-column', 'Ce que j\'utilise', RA, 'utilise comptes statistiques boutons touches', () => openUsage()],
+  ['hand', 'Essayer le premier lancement', RA, 'premier lancement essai bienvenue', () => openSettings('autres')],
+  ['users', 'Préparer le démarrage d\'un proche', RA, 'proche demarrage preparer lien qr', () => openPrepList()],
+  ['megaphone', 'Période de test', RA, 'test remarques porte-voix', () => openSettings('autres')],
+];
+/** Les lignes qui contiennent chaque mot tapé (accents et majuscules ignorés) ; celles dont le nom commence par le premier mot d'abord. */
+function findSettings(q) {
+  const words = foldName(q).split(/[\s'’-]+/).filter(Boolean);
+  if (!words.length) return [];
+  const hits = SETTINGS_FIND.filter(([, title, path, kw]) => { const hay = foldName(`${title} ${kw} ${path.split(' → ').pop()}`); return words.every((w) => hay.includes(w)); });
+  return [...hits.filter((x) => foldName(x[1]).startsWith(words[0])), ...hits.filter((x) => !foldName(x[1]).startsWith(words[0]))];
+}
+function openSettingsSearch(q = '') {
+  const input = el('input', { type: 'search', value: q, placeholder: 'Voix, gouttes, Navigo, sombre…', 'aria-label': 'Chercher un réglage', autocomplete: 'off', enterkeyhint: 'search' });
+  const out = el('div', {});
+  const show = () => {
+    const v = input.value.trim();
+    const hits = findSettings(v);
+    const here = named('Recherche', () => openSettingsSearch(input.value)); /* comme la recherche de mes lieux */
+    fill(out, !v ? el('p', { class: 'help' }, 'Tape un mot : le réglage et son chemin s\'affichent ; touche-le pour l\'ouvrir.')
+      : !hits.length ? el('p', { class: 'help' }, `Aucun réglage pour « ${v} ».`)
+        : el('div', { class: 'menu' }, hits.map(([icon, title, path, , go]) => el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => {
+          go(here);
+          requestAnimationFrame(() => { /* la ligne trouvée, au milieu de l'écran */
+            const t = [...document.querySelectorAll('#sheetBody .menu-title, #sheetBody .cat-name, #sheetBody .legend, #sheetBody .fiche-sec')].find((x) => x.textContent.trim().startsWith(title));
+            const r = t?.closest('button, .cat-row, .menu-row') ?? t;
+            if (r && r !== document.querySelector('#sheetBody .menu-row')) { r.scrollIntoView({ block: 'center' }); if (r.focus) r.focus({ preventScroll: true }); }
+          });
+        } },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, path)),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))));
+  };
+  input.addEventListener('input', show);
+  show();
+  openSheet([ico('search'), ' Recherche'], el('div', { class: 'stack' }, /* « Chercher un réglage » passait sur deux lignes à 360 px */
+    input, out,
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+  ), { tall: true, name: 'settings:chercher', again: () => openSettingsSearch(input.value) });
+  requestAnimationFrame(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
+}
+
 /** 6A (25 nov.) : la page Alertes et bandeau est-elle comme au départ ? */
 function alertsAtStart() {
   return state.suggestNow !== false && state.vibrateNow !== true && state.alertNear !== false && state.voice !== false && state.jardinsNow !== true
@@ -11425,7 +11517,9 @@ function openSettings(section = null, from = null) {
     /* v342 (ma demande du 21 nov.) : Mettre à jour l'appli en 1 appui, sans passer par Autres réglages. Icône discrète, zone d'appui 44 px (charte) */
     el('button', { type: 'button', class: 'title-maj maj-go', 'aria-label': 'Mettre à jour l\'appli', title: 'Mettre à jour l\'appli', onclick: updateApp }, ico('rotate-cw', { size: 22, stroke: 2.4 })), // v457 (A) : plus grande, à l'encre
     /* v360 (ma demande du 21 nov., mon choix B) : Autres réglages en 1 appui, sans descendre en bas de Réglages ; ⋯ comme « Plus » de la barre (la suite, cachée), après la flèche */
-    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Autres réglages', title: 'Autres réglages', onclick: () => openSettings('autres') }, ico('ellipsis', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Autres réglages', title: 'Autres réglages', onclick: () => openSettings('autres') }, ico('ellipsis', { size: 18 })),
+    /* ma demande du 25 nov. : chercher un réglage, après ⋯ (rien ne bouge) */
+    el('button', { type: 'button', class: 'title-maj', 'aria-label': 'Chercher un réglage', title: 'Chercher un réglage', onclick: () => openSettingsSearch() }, ico('search', { size: 18 })))], el('div', { class: 'menu' }, /* v342 : numéro et flèche passent ensemble à la ligne en Très grand */
     !state.ok ? el('p', { class: 'warn' }, 'Le stockage de ce téléphone n\'a pas pu être lu. Sauvegarde régulièrement pour ne rien perdre.') : null,
     due ? el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(true).then(() => openSettings()) }, ico('download'), 'Sauvegarder maintenant') : null, // le nombre de changements est sur la ligne Sauvegarde, juste dessous
     row('circle-help', 'Aide de l\'appli', 'Comment utiliser l\'appli, nouveautés, problèmes fréquents', openHelp), // v303 : « ⓘ Aide », en bas, explique seulement Réglages
@@ -13084,6 +13178,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
@@ -13093,7 +13188,6 @@ const HELP = [
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
     '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
     '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place. Le soir, ⌄ à côté a le même contour.',
-    '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

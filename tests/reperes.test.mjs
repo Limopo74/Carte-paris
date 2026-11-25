@@ -68,7 +68,7 @@ test('réglage : allumé au départ, gardé, dans la sauvegarde et les réglages
 });
 
 test('Autres réglages → La carte : l\'interrupteur, sous les numéros des arrondissements ; Nouveautés ; fichier gardé hors ligne', () => {
-  const i = app.indexOf('arrNumsSwitch,\n'); const j = app.indexOf('\'Dessins des monuments\''); const k = app.indexOf('\'Ce qui s\\\'affiche\'', i);
+  const i = app.indexOf('arrNumsSwitch,\n'); const j = app.indexOf('\'Dessins des monuments\'', i); /* Chercher un réglage (25 nov.) le cite plus haut */ const k = app.indexOf('\'Ce qui s\\\'affiche\'', i);
   assert.ok(i > 0 && j > i && j < k, 'entre les numéros et « Ce qui s\'affiche »');
   // v396 : la ligne des Nouveautés est sortie (10 au plus) ; l'aide de la carte garde le réglage
   assert.match(app, /Dessins des monuments/);
