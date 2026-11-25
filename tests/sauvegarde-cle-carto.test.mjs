@@ -48,8 +48,8 @@ test('sauvegarde : la clé seulement si la case est cochée ; case cochée au d�
   assert.match(fn('backupText'), /if \(withKey && cleanCartoKey\(cartoKey\(\)\)\) obj\.carto = cleanCartoKey\(cartoKey\(\)\);/);
   assert.match(app, /const withKey = el\('input', \{ type: 'checkbox', class: 'check', checked: true \}\);/);
   assert.match(app, /cartoKey\(\) \? el\('label', \{ class: 'item-main check-row' \}, withKey,/);
-  assert.match(app, /saveBackup\(withPhotos\.checked, withTtb\.checked, withKey\.checked\)/);
-  assert.match(app, /sendBackup\(withPhotos\.checked, withTtb\.checked, withKey\.checked\)/);
+  assert.match(app, /saveBackup\(withPhotos\.checked, withTtb\.checked, withKey\.checked, withPdf\.checked\)/ );
+  assert.match(app, /sendBackup\(withPhotos\.checked, withTtb\.checked, withKey\.checked, withPdf\.checked\)/ );
   const i = store.indexOf('export function exportForFriend('); assert.ok(i > 0);
   assert.doesNotMatch(store.slice(i, store.indexOf('\n}\n', i)), /carto/, 'jamais dans le fichier pour un proche');
 });

@@ -34,6 +34,7 @@ import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as p
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
 import { FICHES, FICHES_CHECKED, ficheOf } from './fiches.js';
+import { DOC_MAX_BYTES, cleanDocs, cleanUrl, newDocId, sizeText, hostOf, pdfDataUrlToBlob, looksLikePdf } from './docs.js';
 import { VIGI_URL, VIGI_PAGE, VIGI_PORTAL, VIGI_KEY, validVigiKey, readVigi, vigiShort, vigiText, COLOR_NAME } from './vigilance.js';
 import { KIT, KIT_IDS, KIT_SOURCE, KIT_URL, cleanKit, waterText } from './kit.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
@@ -91,7 +92,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (512)';
+const VERSION = '25 novembre 2026 (513)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5899,6 +5900,89 @@ function crisisBlock() {
       row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Autour de moi'), el('span', {}, '')));
 }
+/* v513 (mes réponses 25 et 25 ter C, maquette validée) : « Mes documents » : mes PDF (base locale du téléphone, comme les photos,
+   20 Mo au plus) et mes liens (https). La liste part toujours dans ma sauvegarde ; les PDF seulement avec « Avec mes PDF ». */
+const docsNow = () => cleanDocs(state.docs);
+const docsSub = () => { const d = docsNow(); return d.length ? plural(d.length, 'document', 'documents') : 'Tes PDF et tes liens'; };
+let docsMissing = new Set(); // PDF de la liste dont le fichier n'est pas sur ce téléphone (après une restauration sans « Avec mes PDF »)
+async function checkDocsMissing() {
+  const miss = new Set();
+  for (const d of docsNow().filter((x) => x.kind === 'pdf')) { const b = await getPhoto(d.id).catch(() => null); if (!b) miss.add(d.id); }
+  docsMissing = miss;
+  return miss;
+}
+async function openDoc(d) {
+  if (d.kind === 'link') { window.open(d.url, '_blank', 'noopener'); return; }
+  const b = await getPhoto(d.id).catch(() => null);
+  if (!b) { toast(`« ${d.name} » n'est pas sur ce téléphone : ajoute-le de nouveau.`, true); return; }
+  const url = URL.createObjectURL(b);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function removeDoc(d, again) {
+  const before = docsNow();
+  state.docs = before.filter((x) => x.id !== d.id); persist(); again();
+  let undone = false;
+  toast(`« ${d.name} » retiré`, false, { label: 'Annuler', fn: () => { undone = true; state.docs = before; persist(); again(); } });
+  if (d.kind === 'pdf') setTimeout(() => { if (!undone && !docsNow().some((x) => x.id === d.id)) deletePhoto(d.id).catch(() => {}); }, 8000);
+}
+function addPdf(again) {
+  const input = el('input', { type: 'file', accept: 'application/pdf,.pdf', hidden: true });
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0]; input.remove();
+    if (!f) return;
+    if (f.size > DOC_MAX_BYTES) { toast(`Ce PDF fait ${sizeText(f.size)} : 20 Mo au plus.`, true); return; }
+    const head = new Uint8Array(await f.slice(0, 5).arrayBuffer());
+    if (!looksLikePdf(head)) { toast('Ce fichier n\'est pas un PDF.', true); return; }
+    if (docsNow().length >= 40) { toast('40 documents au plus.', true); return; }
+    const id = newDocId();
+    try { await putPhoto(id, new Blob([f], { type: 'application/pdf' })); } catch { toast('Le téléphone n\'a plus de place pour ce PDF.', true); return; }
+    state.docs = cleanDocs([...docsNow(), { id, kind: 'pdf', name: f.name.replace(/\.pdf$/i, '') || 'Document', size: f.size, at: Date.now() }]);
+    persist(); again(); toast('PDF gardé sur ce téléphone');
+  });
+  document.body.append(input); input.click();
+}
+function openAddLink(back) {
+  const name = el('input', { type: 'text', maxlength: '80', placeholder: 'Ex. : Mairie du 11e, infos crue', 'aria-label': 'Nom du lien' });
+  const url = el('input', { type: 'url', inputmode: 'url', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'https://…', 'aria-label': 'Adresse du lien' });
+  const err = el('div', { class: 'error', role: 'alert' });
+  const save = () => {
+    const u = cleanUrl(url.value);
+    if (!u) { err.textContent = 'Une adresse qui commence par https:// (copie-la depuis Chrome).'; return; }
+    const n = name.value.trim() || hostOf(u);
+    state.docs = cleanDocs([...docsNow(), { id: newDocId(), kind: 'link', name: n, url: u, at: Date.now() }]); persist();
+    toast('Lien ajouté'); back();
+  };
+  openSheet([ico('link'), ' Un lien'], el('div', { class: 'stack' },
+    el('label', { class: 'field' }, 'Nom', name),
+    el('label', { class: 'field' }, 'Adresse', url),
+    err,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Ajouter le lien'),
+    foot(backBtn(back)),
+  ), { name: 'doc-link' });
+}
+function openDocs(back) {
+  track('Mes documents');
+  const self = () => openDocs(back);
+  const list = docsNow();
+  checkDocsMissing().then((m) => { if (view === 'docs' && [...m].join() !== [...docsMissing].join()) self(); });
+  openSheet([ico('file-text'), ' Mes documents'], el('div', { class: 'stack' },
+    list.length ? el('ul', { class: 'items' }, list.map((d) => el('li', { class: 'item' },
+      el('button', { type: 'button', class: 'item-main', onclick: () => openDoc(d) },
+        el('span', { class: 'cat-ico police-ico', 'aria-hidden': 'true' }, ico(d.kind === 'pdf' ? 'file-text' : 'external-link')),
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, d.name),
+          el('span', { class: 'item-sub' }, d.kind === 'link' ? `Lien · ${hostOf(d.url)}` : docsMissing.has(d.id) ? 'PDF · à ajouter de nouveau sur ce téléphone' : `PDF${d.size ? ` · ${sizeText(d.size)}` : ''} · sur ce téléphone`))),
+      el('button', { type: 'button', class: 'go-compass', 'aria-label': `Retirer ${d.name}`, onclick: () => removeDoc(d, self) }, ico('trash-2'))))) :
+      el('p', { class: 'help' }, 'Ajoute ici tes papiers utiles en cas de crise (PDF) et les pages que tu veux retrouver vite.'),
+    el('div', { class: 'row' },
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => addPdf(self) }, ico('plus'), 'Un PDF'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openAddLink(named('Mes documents', self)) }, ico('plus'), 'Un lien')),
+    // ma réponse 25 : une ligne pour le séisme (Géorisques : Paris en zone de sismicité 1, très faible)
+    el('p', { class: 'help' }, 'Séisme : Paris est en zone de sismicité très faible (1 sur 5, Géorisques).'),
+    el('p', { class: 'help tip' }, 'Tes PDF restent sur ce téléphone (20 Mo au plus chacun) : rien ne se partage d\'ici. La sauvegarde garde toujours la liste ; les fichiers seulement si tu coches « Avec mes PDF ».'),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'docs', again: self });
+}
 /** v509 (18 A et B) : une fiche « Les bons gestes » ; en bas, la source, le guide officiel et les autres fiches. */
 function openFiche(k, back) {
   const f = ficheOf(k); if (!f) return;
@@ -5908,6 +5992,11 @@ function openFiche(k, back) {
       el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
       el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, t), sub ? el('span', { class: 'item-sub' }, sub) : null)))),
     el('a', { class: 'btn', href: f.url, target: '_blank', rel: 'noopener' }, ico('external-link'), f.label),
+    // v513 (25, 25 ter C) : sous le guide officiel, mes documents (mes PDF et mes liens) ; ma consigne du 25 nov. : les informations de crise ne se partagent pas, elles se gardent sur le téléphone
+    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openDocs(named(`Les bons gestes · ${crisisShort(k)}`, () => openFiche(k, back))) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('file-text')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mes documents'), el('span', { class: 'menu-sub' }, docsSub())),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
     el('p', { class: 'help tip' }, `D'après ${f.source}. Relu le ${FICHES_CHECKED}.`),
     el('div', { class: 'row fiche-autres' }, Object.keys(FICHES).filter((x) => x !== k).map((x) => el('button', { type: 'button', class: 'btn', onclick: () => openFiche(x, back) }, crisisShort(x)))),
     back ? foot(backBtn(back)) : null,
@@ -11739,6 +11828,9 @@ function openSettings(section = null, from = null) {
   const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
   // v389 (mon choix A du 24 nov.) : ma clé CARTO dans la sauvegarde, case cochée au départ ; la restauration la remet si le téléphone n'en a pas
   const withKey = el('input', { type: 'checkbox', class: 'check', checked: true });
+  // v513 (25 ter C) : mes PDF de Mes documents, case décochée au départ (la liste part toujours)
+  const withPdf = el('input', { type: 'checkbox', class: 'check' });
+  const nbPdf = cleanDocs(state.docs).filter((d) => d.kind === 'pdf').length;
   const nbTtb = ttbList().length;
   const nbTtbMarks = Object.keys(ttbMarksNow()).length;
   const canShareFile = (() => {
@@ -11767,14 +11859,17 @@ function openSettings(section = null, from = null) {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
           el('p', { class: 'help tip' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked, withKey.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
-      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked, withKey.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Fichier plus lourd, mais une restauration rend aussi les photos'))) : null,
       nbTtb || nbTtbMarks ? el('label', { class: 'item-main check-row' }, withTtb,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
+      nbPdf ? el('label', { class: 'item-main check-row' }, withPdf,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec mes PDF (${nbPdf})`),
+          el('span', { class: 'item-sub' }, 'Sans la case, la liste part seule : il faudra rajouter les PDF après une restauration'))) : null,
       cartoKey() ? el('label', { class: 'item-main check-row' }, withKey,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec ma clé CARTO'),
           el('span', { class: 'item-sub' }, 'Restaurer la remet après un effacement. Le fichier porte ta clé : garde-le pour toi'))) : null,
@@ -13118,8 +13213,13 @@ function backupSummary() {
 /* ---------- Sauvegarde : un fichier dans Téléchargements, toujours sur décision de la personne ---------- */
 
 /** Le texte du fichier de sauvegarde, avec les photos et la liste TTB si demandé. */
-async function backupText(withPhotos, withTtb = false, withKey = false) {
+async function backupText(withPhotos, withTtb = false, withKey = false, withPdf = false) {
   const obj = JSON.parse(exportJSON(state));
+  if (withPdf) { // v513 (25 ter C) : seulement avec la case
+    const files = {};
+    for (const d of cleanDocs(state.docs).filter((x) => x.kind === 'pdf')) { const b = await getPhoto(d.id).catch(() => null); if (b) files[d.id] = await blobToDataUrl(new Blob([b], { type: 'application/pdf' })); }
+    if (Object.keys(files).length) obj.docFiles = files;
+  }
   if (withKey && cleanCartoKey(cartoKey())) obj.carto = cleanCartoKey(cartoKey()); /* v389 : seulement si la case est cochée */
   if (withTtb) { ttbList(); const t = ttbExport(ttbData, ttbMarksNow()); if (t) obj.ttb = t; } /* v179 : la liste et mes marques */
   // v380 (mes choix 10A et 11A du 24 nov.) : mes remarques, mes préparations pour un proche et Mes chiffres (marche et air, sans les fonctions utilisées) ;
@@ -13143,8 +13243,8 @@ async function backupText(withPhotos, withTtb = false, withKey = false) {
 function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
 function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(withMarks(state)); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
-async function saveBackup(withPhotos = true, withTtb = true, withKey = false) {
-  downloadBackup(backupFile(await backupText(withPhotos, withTtb, withKey)));
+async function saveBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false) {
+  downloadBackup(backupFile(await backupText(withPhotos, withTtb, withKey, withPdf)));
 }
 function downloadBackup(f) {
   const url = URL.createObjectURL(f);
@@ -13155,8 +13255,8 @@ function downloadBackup(f) {
   toast(`« ${f.name} » enregistré dans tes Téléchargements`);
 }
 /** Envoyer le fichier (courriel, Drive…) par le menu de partage du téléphone. */
-async function sendBackup(withPhotos = true, withTtb = true, withKey = false) {
-  const f = backupFile(await backupText(withPhotos, withTtb, withKey));
+async function sendBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false) {
+  const f = backupFile(await backupText(withPhotos, withTtb, withKey, withPdf));
   try {
     await navigator.share({ files: [f], title: 'Ma carte de Paris' });
     markSaved();
@@ -13461,6 +13561,22 @@ function importCartoKey(text) {
   applyMapStyle();
   return true;
 }
+/** v513 : les PDF de ma sauvegarde (case « Avec mes PDF ») ; un PDF déjà sur le téléphone n'est pas remplacé. Ensuite, s'il en
+ *  manque : « N PDF à ajouter de nouveau » avec leurs noms. */
+async function importDocFiles(text) {
+  let files = null;
+  try { files = JSON.parse(text)?.docFiles; } catch { files = null; }
+  for (const d of cleanDocs(state.docs).filter((x) => x.kind === 'pdf')) {
+    if (await getPhoto(d.id).catch(() => null)) continue;
+    const b = files && typeof files[d.id] === 'string' ? pdfDataUrlToBlob(files[d.id]) : null;
+    if (b) await putPhoto(d.id, b).catch(() => {});
+  }
+  const miss = await checkDocsMissing();
+  if (miss.size) {
+    const names = cleanDocs(state.docs).filter((d) => miss.has(d.id)).map((d) => `« ${d.name} »`);
+    setTimeout(() => toast(`${plural(miss.size, 'PDF à ajouter de nouveau', 'PDF à ajouter de nouveau')} dans Mes documents : ${names.join(', ')}`, true), 4500);
+  }
+}
 function importText(text, owner) {
   const wasEmpty = state.points.length === 0;
   try {
@@ -13470,6 +13586,7 @@ function importText(text, owner) {
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
     const keyBack = owner ? false : importCartoKey(text); /* v389 : ma clé revient avant les réglages, jamais celle d'un fichier de proche */
     if (!owner) restoreExtras(text); // v380 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
+    if (!owner) importDocFiles(text); // v513 (25 ter C) : mes PDF, sans remplacer ceux déjà là ; sinon, les noms à rajouter
     if (!owner && wasEmpty) {
       // Restauration sur une appli vide (après un effacement) : rien n'attend d'être sauvegardé, et le prénom revient.
       let at = Date.now();
@@ -14414,6 +14531,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
     '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
     '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
@@ -14423,7 +14541,6 @@ const HELP = [
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
-    '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
