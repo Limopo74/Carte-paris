@@ -58,7 +58,7 @@ export const FICHES = {
       ['Ne va pas chercher les enfants à l\'école', 'L\'école et les secours s\'en occupent.'],
     ],
     source: '« Réagir en cas d\'attaque terroriste », info.gouv.fr, et guide « Tous responsables »',
-    url: 'https://www.info.gouv.fr/reagir-attaque-terroriste', label: 'Toute la page (info.gouv.fr)',
+    url: 'https://www.info.gouv.fr/risques/reagir-en-cas-dattaque-terroriste', label: 'Toute la page (info.gouv.fr)',
   },
 };
 
