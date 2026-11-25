@@ -79,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (473)';
+const VERSION = '25 novembre 2026 (474)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -198,6 +198,8 @@ function updateSettingsDot() {
   if (due && !dot) { dot = el('span', { class: 'set-dot', 'aria-hidden': 'true' }); btn.append(dot); }
   if (!due && dot) dot.remove();
   btn.setAttribute('aria-label', due ? 'Réglages, sauvegarde à faire' : 'Réglages');
+  const save = document.getElementById('btnBackup'); // v469 (mon choix 2A) : le petit rond à côté des fonds, seulement quand c'est à faire
+  if (save) save.hidden = !due;
 }
 
 /** Demande au navigateur de ne jamais effacer les données de l'appli quand le téléphone manque de place.
@@ -12826,6 +12828,12 @@ document.getElementById('btnNotes').addEventListener('click', () => openDayNote(
 document.getElementById('btnMyParis').addEventListener('click', () => openMyParis('map'));
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
 document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
+// v469 (mon choix 2A du 25 nov.) : un appui = « Sauvegarder maintenant » de Réglages (photos comprises), le rond part quand c'est fait
+document.getElementById('btnBackup').addEventListener('click', async () => {
+  track('Sauvegarder (carte)'); waitToast('Préparation de la sauvegarde…');
+  try { await saveBackup(true); } catch { toast('La sauvegarde n\'a pas pu se faire : Réglages → Sauvegarde.', true); }
+  updateSettingsDot();
+});
 /** v382 (mon choix 7A du 24 nov.) : les fonds sans clé les plus utiles, en vignettes ; un appui change la carte et revient à la carte.
  *  Le fond choisi en ce moment y est toujours (même un fond CARTO) ; « Tous les fonds » ouvre Style de la carte. */
 const QUICK_STYLES = ['eclairci', 'classic', 'ign', 'photo', 'night'];
@@ -13307,7 +13315,7 @@ const HELP = [
   ['save', 'Garder et partager', [
     '**Tes lieux ne sont que sur ce téléphone.** Sauvegarde-les souvent.',
     '{save} **Sauvegarder** : {settings} → Sauvegarde → Sauvegarder maintenant. La ligne est orange s\'il y a des changements.',
-    '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, et « Sauvegarder maintenant » en tête des Réglages. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
+    '**Un rappel** s\'affiche dès 5 changements, ou au bout de 3 jours : une pastille terre cuite sur le bouton {settings} Réglages, « Sauvegarder maintenant » en tête des Réglages, et sur la carte un petit rond {save} à côté du rond des fonds : un appui sauvegarde. Elle part dès que tu sauvegardes. La liste du jour, qui s\'efface à minuit, ne compte pas ; « Fait », si.',
     '**Le fichier** va dans Téléchargements. Envoie-le-toi aussi par courriel ou sur ton Drive : si tu perds le téléphone, Téléchargements part avec.',
     '**Il contient** tes lieux (avec tes impressions et tes horaires notés), photos, sorties prévues, ton journal, tes notes du jour, tes artistes, tes salles, tes parcours, tes circuits (et tes versions de ceux de l\'appli), tes problèmes notés sur les circuits, catégories, listes, mots tout prêts, stations, Mes lignes de bus, ton adresse Chez moi, réglages et, si la case est cochée, la liste TTB avec tes marques, et ta clé CARTO si « Avec ma clé CARTO » est cochée (Restaurer la remet si le téléphone n\'en a pas). Aussi tes remarques, tes préparations pour un proche et Mes chiffres (marche et air). Pas « Ce que j\'utilise ».',
     '{triangle-alert} **Attention** : effacer les données des sites dans Chrome efface aussi tes lieux. Sauvegarde avant.',
@@ -13378,6 +13386,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
@@ -13388,7 +13397,6 @@ const HELP = [
     '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). Chacun a ses puces, ses icônes et le contour de tes gouttes. En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
     '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
-    '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

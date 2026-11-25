@@ -161,5 +161,5 @@ test('appli : la montée dans Mes parcours et Chemin à pied (pas les circuits),
 
 test('v407 : le petit rond des fonds de carte se cache sous un bandeau de la carte (il recouvrait le titre en Très grand)', () => {
   const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
-  assert.ok(css.includes('body:has(#sheet:not([hidden])) .map-btn.style-btn, body:has(.peek-card) .map-btn.style-btn { display: none; }'));
+  assert.ok(css.includes('body:has(#sheet:not([hidden])) .map-btn:is(.style-btn, .backup-btn), body:has(.peek-card) .map-btn:is(.style-btn, .backup-btn) { display: none; }')); // v469 : le rond Sauvegarder aussi
 });
