@@ -68,3 +68,15 @@ test('l\'écran : sous Urgences 112 dans Où suis-je ?, sombre, une seule plaque
   const autres = app.slice(app.indexOf("if (section === 'autres')"), app.indexOf("{ name: 'settings:autres'"));
   assert.ok(autres.indexOf("'Proches à prévenir'") > autres.indexOf("'Mes remarques'"), 'Proches à prévenir : tout en bas, il ne pousse rien');
 });
+
+// v486 (mon choix 2 du 25 nov.) : « On te suit, on t'embête », sous les réflexes d'attaque ; le SMS au 31177 reste le seul, en haut (v485)
+test('On te suit : sous les anciens boutons, vrai appel à un proche, Police 17, Ma Sécurité ; un seul bouton 31177', () => {
+  const body = app.slice(app.indexOf('function openSilentAlert('), app.indexOf('function openJeRentre('));
+  const at = (s) => { const i = body.indexOf(s); assert.ok(i > 0, s); return i; };
+  assert.ok(at("'Consignes officielles'") < at("'On te suit, on t\\'embête'"), 'sous les réflexes d\'attaque : rien ne bouge au-dessus');
+  assert.ok(at("'On te suit, on t\\'embête'") < at("href: 'tel:17'") && at("href: 'tel:17'") < at("MASECURITE_URL, target"));
+  assert.match(body, /people\.map\(\(c\) => el\('a', \{ class: 'btn', href: `tel:\$\{c\.tel\}`/, 'appeler un proche : un vrai appel');
+  assert.equal((body.match(/smsHref\(TRANSPORT_SMS|smsHref\('31177'/g) ?? []).length, 1, 'un seul bouton 31177');
+  assert.match(app, /const MASECURITE_URL = 'https:\/\/www\.masecurite\.interieur\.gouv\.fr\/fr';/);
+});
+

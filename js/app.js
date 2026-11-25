@@ -83,7 +83,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (486)';
+const VERSION = '25 novembre 2026 (487)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6776,6 +6776,7 @@ async function openWhereAmI() {
    Ouvert depuis Où suis-je ?, sous Urgences 112. L'écran s'ouvre en sombre (moins de lumière) ; l'appli ne parle pas et ne vibre pas.
    Les liens `sms:` ouvrent l'appli SMS avec le message écrit : c'est moi qui touche Envoyer (js/alerte.js, sources). */
 const ATTAQUE_URL = 'https://www.info.gouv.fr/risques/reagir-en-cas-dattaque-terroriste'; // lue le 25 nov. 2026 (modifiée le 22/06/2026)
+const MASECURITE_URL = 'https://www.masecurite.interieur.gouv.fr/fr'; // v484 : tchat avec un policier ou un gendarme, 24 h/24 (info.gouv.fr, lu le 25 nov. 2026)
 function openSilentAlert(at, addrOf = () => '', back = null) {
   const people = cleanAlertContacts(state.alertContacts);
   const addr = addrOf() || '';
@@ -6796,7 +6797,15 @@ function openSilentAlert(at, addrOf = () => '', back = null) {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Attaque : les réflexes officiels'), el('span', {}, '')),
     el('p', { class: 'alert-steps' }, el('b', {}, '1. T\'échapper'), ', si c\'est sans risque.', el('br'), el('b', {}, '2. Sinon, te cacher'), ', te barricader.', el('br'), el('b', {}, '3. Alerter'), ', une fois à l\'abri.'),
     el('a', { class: 'btn c-info', href: ATTAQUE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Consignes officielles'),
+    // v486 (mon choix 2 du 25 nov.) : la rue, le soir, les transports ; sous les anciens boutons, rien ne bouge au-dessus
+    el('h3', { class: 'ring-title' }, el('span', {}, 'On te suit, on t\'embête'), el('span', {}, '')),
+    el('p', { class: 'alert-steps' }, el('b', {}, '1. Rejoins du monde'), ' : entre dans un commerce ouvert.', el('br'), el('b', {}, '2. Appelle un proche'), ', à voix haute.', el('br'), el('b', {}, '3. Danger immédiat'), ' : la police au 17.'),
+    ...people.map((c) => el('a', { class: 'btn', href: `tel:${c.tel}`, 'aria-label': `Appeler ${who(c)}` }, ico('phone'), `Appeler ${who(c)}`)),
+    el('a', { class: 'btn', href: 'tel:17', 'aria-label': 'Appeler le 17 : police secours' }, ico('phone'), 'Police 17'),
+    el('a', { class: 'btn c-info', href: MASECURITE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Après coup : Ma Sécurité'),
+    el('p', { class: 'help' }, 'Tchat avec un policier ou un gendarme, à toute heure, sans donner ton nom ; plainte en ligne.'),
     el('p', { class: 'help tip' }, 'Sources : info.gouv.fr, « Réagir en cas d\'attaque terroriste » ; le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr) ; 31177 : RATP et SNCF.'),
+    el('p', { class: 'help tip' }, 'Ma Sécurité : ministère de l\'Intérieur, tchat avec un policier ou un gendarme à toute heure (info.gouv.fr).'),
     foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Où suis-je ?') : null),
   );
   openSheet([ico('volume-x'), ' Alerter en silence'], body, { name: 'alerte', again: self, tall: true, onClose: applyTheme });
@@ -13514,7 +13523,7 @@ const HELP = [
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement.',
-    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration.',
+    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme).',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13705,6 +13714,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
     '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
     '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
@@ -13714,7 +13724,6 @@ const HELP = [
     '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
     '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
-    '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
