@@ -81,7 +81,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (477)';
+const VERSION = '25 novembre 2026 (478)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -530,6 +530,49 @@ function applyMapStyle() {
   document.getElementById('map').dataset.style = id ?? 'classic';
 }
 
+/** v477 : le lien qui porte ma clé CARTO (…/#cle=…), lu à l'arrivée ; la clé est revérifiée (validCartoKey). */
+const cartoLink = (k) => `${APP_URL()}#cle=${k}`;
+const readCartoLink = (hash) => { const k = (/[#&]cle=([A-Za-z0-9_.-]+)/.exec(hash ?? '') ?? [])[1] ?? ''; return validCartoKey(k) ? k : null; };
+
+/** v478 (mes choix 1A 2A 3A du 25 nov.) : ma clé CARTO seule, en QR code à scanner ou en lien par le menu de partage. */
+function openCartoSend(back) {
+  const k = cartoKey();
+  if (!k) { back(); return; }
+  const url = cartoLink(k);
+  const box = el('div', { class: 'qr-box', role: 'img', 'aria-label': 'QR code de ma clé CARTO' });
+  const q = qrcode(0, 'M'); q.addData(url); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  const share = async () => {
+    try { if (navigator.share) { await navigator.share({ title: 'Ma clé CARTO', text: 'Ma clé CARTO pour « Ma carte de Paris » : ouvre ce lien dans Chrome, ton appli te demande de la garder.', url }); return; } } catch { return; /* annulé */ }
+    try { await navigator.clipboard.writeText(url); toast('Lien copié : colle-le dans un message'); } catch { toast('Le lien n\'a pas pu être copié.', true); }
+  };
+  openSheet([ico('send'), ' Envoyer ma clé'], el('div', { class: 'stack' }, box,
+    el('p', { class: 'help' }, 'Il scanne ce code avec l\'appareil photo, ou tu lui envoies le lien. Son appli lui demande de garder la clé.'),
+    el('p', { class: 'warn' }, 'Ce lien porte ta clé CARTO : envoie-le seulement à ce proche.'),
+    foot(el('button', { type: 'button', class: 'btn c-add solid', onclick: share }, ico('send'), 'Envoyer le lien'), el('button', { type: 'button', class: 'btn', onclick: back }, '← Clé CARTO')), // le retour en dernier (charte v185)
+  ), { tall: true, name: 'carto-send' });
+}
+
+/** v477 : une clé CARTO reçue par lien : « Garder » (ou « Remplacer » s'il en a déjà une autre) ; le fond choisi ne change pas. */
+function receiveCartoKey(k) {
+  const welcome = () => state.fresh && !firstDone();
+  const after = () => { if (welcome()) openWelcome(1); else closeSheet(); }; // appli neuve : Bienvenue prend la place (closeSheet la refermerait)
+  if (ESSAI) { toast('Termine l\'essai, puis rouvre le lien de la clé.', true); return; }
+  if (cartoKey() === k) { toast('Cette clé CARTO est déjà sur ce téléphone.'); if (welcome()) openWelcome(1); return; }
+  const had = !!cartoKey();
+  const keep = () => {
+    try { localStorage.setItem(CARTO_KEY, k); } catch { toast('Le téléphone refuse de garder la clé.', true); after(); return; }
+    applyMapStyle();
+    toast(had ? 'Clé CARTO remplacée.' : 'Clé CARTO enregistrée : Épuré, Très épuré et Nuit épurée sont prêts (Style de la carte).');
+    after();
+  };
+  openSheet([ico('palette'), ' Clé reçue'], el('div', { class: 'stack' }, // titre court : une ligne en Très grand
+    el('p', { class: 'summary' }, had ? 'Remplacer ta clé CARTO par celle de ce lien ?' : 'Garder cette clé CARTO ? Épuré, Très épuré et Nuit épurée seront prêts dans Style de la carte.'),
+    el('p', { class: 'help' }, `${needsKey(state.mapStyle) && !had ? `Ta carte prend le fond « ${STYLE_INFO[state.mapStyle].name} », que tu avais choisi.` : 'Ta carte ne change pas.'} La clé reste sur ce téléphone.`),
+    foot(el('button', { type: 'button', class: 'btn', onclick: after }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: keep }, ico('save'), had ? 'Remplacer' : 'Garder')),
+  ), { name: 'cle-recue' });
+}
+
 /** Saisir, changer ou retirer la clé CARTO (style Épuré). */
 function openCartoKey(back = () => openSettings('style'), style = 'clean', backName = 'Style de la carte') {
   const has = cartoKey();
@@ -552,7 +595,9 @@ function openCartoKey(back = () => openSettings('style'), style = 'clean', backN
     err,
     el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
     has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(CARTO_KEY); } catch { /* rien */ } if (needsKey(state.mapStyle)) state.mapStyle = 'classic'; persist(); applyMapStyle(); toast('Clé retirée : carte Classique'); back(); } }, 'Retirer la clé') : null,
-    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone, jamais sur GitHub ; dans ta sauvegarde si « Avec ma clé CARTO » est cochée (Sauvegarde) ; dans le lien d\'un proche seulement si tu coches « Avec ma clé CARTO » en préparant son démarrage. Ne la donne pas dans une conversation.'),
+    // v478 (mes choix 1A 2A 3A du 25 nov.) : envoyer ma clé seule à un proche, par QR code ou lien (même geste qu'« Envoyer le lien » d'un démarrage)
+    has ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openCartoSend(() => openCartoKey(back, style, backName)) }, ico('send'), 'Envoyer ma clé') : null,
+    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone, jamais sur GitHub. Elle part dans ta sauvegarde si « Avec ma clé CARTO » est cochée, chez un proche seulement par « Envoyer ma clé » ou la case de son démarrage.'),
     foot(el('button', { type: 'button', class: 'btn', onclick: back }, `← ${backName}`)),
   ), { tall: true, name: 'carto-key' });
 }
@@ -2777,10 +2822,11 @@ function runLaunchAction() {
   // « Ouvrir dans Chrome » (voir linkGuard) renvoie le lien dans ?ouvrir=… : on le remet à sa place
   const reopened = new URLSearchParams(location.search).get('ouvrir');
   const h = reopened ? `#${reopened}` : location.hash;
-  const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h); const circ = readMyCircuitLink(h);
+  const shared = readPlaceLink(h); const walk = readRouteLink(h); const meet = readMeetLink(h); const circ = readMyCircuitLink(h); const key = readCartoLink(h);
   const link = location.href;
-  if (/(lieu|balade|rdv|circuit)=/.test(h)) history.replaceState(null, '', location.pathname + (reopened ? '' : location.search));
-  const go = shared ? () => receivePlace(shared) : walk ? () => stationsReady.then(() => receiveRoute(walk)) : meet ? () => receiveMeet(meet) : circ ? () => receiveCircuit(circ) : null;
+  if (/(lieu|balade|rdv|circuit|cle)=/.test(h)) history.replaceState(null, '', location.pathname + (reopened ? '' : location.search)); // v477 : la clé quitte aussi l'adresse
+  const go = shared ? () => receivePlace(shared) : walk ? () => stationsReady.then(() => receiveRoute(walk)) : meet ? () => receiveMeet(meet) : circ ? () => receiveCircuit(circ) : key ? () => receiveCartoKey(key) : null;
+  if (!key && /[#&]cle=/.test(h)) toast('Ce lien de clé CARTO est abîmé : demande-le à nouveau.', true); // v477
   if (go) { if (!reopened && outsideMyApp()) linkGuard(link, h, go); else go(); return; }
   const q = new URLSearchParams(location.search);
   if (![...q.keys()].length) return;
@@ -13428,7 +13474,7 @@ const HELP = [
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
-    '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
+    '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois ; pour la donner à un proche : Clé CARTO → Envoyer ma clé.',
     '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. {settings} → Réglages de référence, en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
@@ -13472,6 +13518,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
     '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
     '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
@@ -13481,7 +13528,6 @@ const HELP = [
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
-    '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -13969,7 +14015,7 @@ else if (startHome) map.setView([startHome.lat, startHome.lng], 15, { animate: f
 else if (startViewOf(state) === 'paris') map.setView(PARIS, 13, { animate: false }); // v328 : le centre de Paris
 if (state.points.length) {
   if (!startLast && !startHome && startViewOf(state) !== 'paris') map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
-} else if (state.ok && !/(lieu|balade|rdv|ouvrir|depart)=/.test(location.hash + location.search) && !firstDone()) { // pas par-dessus un lien reçu
+} else if (state.ok && !/(lieu|balade|rdv|ouvrir|depart)=/.test(location.hash + location.search) && !readCartoLink(location.hash) && !firstDone()) { // pas par-dessus un lien reçu (v477 : ni une clé valable)
   // v314 : mémoire vide = premier lancement : le circuit (ouvert une seule fois). Sinon, carte vide : lieux effacés, restauration tout de suite.
   if (state.fresh) { openWelcome(1); persist(); } else openSheet('Ta carte est vide', el('div', { class: 'stack' },
     el('p', {}, 'Tu avais déjà des lieux ? Ils ont pu être effacés avec les données de Chrome. Ta sauvegarde est dans tes Téléchargements : « Ma carte de Paris - sauvegarde du … ».'),
@@ -14062,7 +14108,7 @@ btnRemark.addEventListener('click', () => openRemark()); // v440 : sans l'évén
 if (new URLSearchParams(location.search).has('test')) { testState = { ...testState, on: true }; saveTest(); toast('Période de test : touche le porte-voix pour une remarque.'); }
 showRemarkBtn();
 
-const launched = location.search.length > 1 || /(lieu|balade|rdv)=/.test(location.hash);
+const launched = location.search.length > 1 || /(lieu|balade|rdv|cle)=/.test(location.hash);
 runLaunchAction();
 if (departCode && state.ok && !ESSAI) receiveDepart(departCode); // v321
 if (!launched && state.ok && backupDue(state)) {
