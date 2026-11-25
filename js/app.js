@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (523)';
+const VERSION = '25 novembre 2026 (524)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8052,7 +8052,7 @@ async function openLate() {
     el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, p.name),
       el('span', { class: 'item-sub' }, [p.before ? `arriver avant ${lateHour(p.before)}` : '', p.note, o ? fmtDist(distanceM(o, p)) : ''].filter(Boolean).join(' · ')))));
   const back = named('Ouvert tard', () => openLate());
-  const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, date: d, list: lateOn(d) }; });
+  const week = [1, 2, 3, 4, 5, 6, 0].map((k) => { const d = new Date(now); d.setDate(d.getDate() + ((k - now.getDay() + 7) % 7)); return { k, date: d, list: lateOn(d, ART_PLACES, holidayOn(d)) }; }); // v520 (mon choix 2A du 25 nov.) : rien un jour férié, comme « Ce soir »
   openSheet([ico('moon'), ' Ouvert tard'], el('div', { class: 'stack' },
     holiday ? el('p', { class: 'warn' }, `Jour férié (${holiday}) : les horaires changent. Vérifie sur le site du lieu.`) : null,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Ce soir'), el('span', {}, String(tonight.length))),
