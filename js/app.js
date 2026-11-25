@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (491)';
+const VERSION = '25 novembre 2026 (492)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9202,30 +9202,37 @@ function openWeather(redraw = false) {
   const home = cleanHome(state.home);
   const a = arrHere();
   const z = altNow(); altShown = z;
-  openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack' },
+  /* v492 (ma demande du 25 nov.) : mêmes éléments qu'avant, rangés en quatre groupes sous un intertitre de liste
+     (`ring-title`, déjà dessiné pour Papier, Verre, Signalétique et Pop) ; un groupe vide ne montre pas son titre. */
+  const group = (title, ...rows) => (rows.some(Boolean) ? [el('h3', { class: 'ring-title wx-group' }, title), ...rows] : []);
+  openSheet([ico('thermometer-sun'), day ? ' Aujourd\'hui' : ' Météo et air'], el('div', { class: 'stack wx-page' },
     home ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), onclick: () => setHomeOn(!on) },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, on ? `Distances depuis chez toi · ${homeShort(state.home)}` : 'Distances depuis ta position')),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))) : null,
-    a ? el('p', { class: 'where-big' }, `Tu es dans le ${arrOrd(a)} arrondissement`) : null,
-    z !== null ? el('p', { class: 'alt-here' }, `Altitude : environ ${z} m`) : null,
-    day ? el('p', { class: 'warn day-note' }, day.long) : null,
-    meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
-    // v479 : lever et coucher du soleil, calculés sur le téléphone (aucun réseau)
-    el('p', { class: 'sun-line' }, ico('sunrise', { size: 17 }), `Lever ${sunText(sunriseMin(new Date()))}`, el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·'), ico('sunset', { size: 17 }), `coucher ${sunText(sunsetMin(new Date()))}`),
-    air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
-    air ? el('p', {}, AIR_ADVICE[air.level]) : null,
-    meteo?.rain && state.points.some((p) => p.covered) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
-      filt.covered = true; refresh(); closeSheet(); toast(`Il pleut : ${plural(visible().length, 'lieu abrité', 'lieux abrités')} sur la carte`);
-    } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
-    air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
-    meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null,
-    el('p', { class: 'help' }, 'Valeurs du quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.'),
-    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('pastille', named('Météo et air', () => openWeather())) },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sliders-horizontal')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
-    // v481 (mon choix 27 A du 25 nov.) : le saint du jour sur Nominis (site de l'Église catholique en France) ; aucun prénom écrit dans l'appli
-    el('a', { class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Saint du jour (Nominis)'),
+    ...group('Ici',
+      a ? el('p', { class: 'where-big' }, `Tu es dans le ${arrOrd(a)} arrondissement`) : null,
+      z !== null ? el('p', { class: 'alt-here' }, `Altitude : environ ${z} m`) : null,
+      day ? el('p', { class: 'warn day-note' }, day.long) : null),
+    ...group('Météo',
+      meteo ? el('p', { class: 'where-big' }, `${meteo.temp ?? '–'}° · ${meteo.rain ? 'il pleut' : 'pas de pluie'}`) : null,
+      // v479 : lever et coucher du soleil, calculés sur le téléphone (aucun réseau)
+      el('p', { class: 'sun-line' }, ico('sunrise', { size: 17 }), `Lever ${sunText(sunriseMin(new Date()))}`, el('span', { class: 'wx-sep', 'aria-hidden': 'true' }, '·'), ico('sunset', { size: 17 }), `coucher ${sunText(sunsetMin(new Date()))}`),
+      meteo?.rain && state.points.some((p) => p.covered) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+        filt.covered = true; refresh(); closeSheet(); toast(`Il pleut : ${plural(visible().length, 'lieu abrité', 'lieux abrités')} sur la carte`);
+      } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
+      meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null),
+    ...group('Air',
+      air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
+      air ? el('p', {}, AIR_ADVICE[air.level]) : null,
+      air ? el('p', { class: 'help' }, [air.pm25 != null ? `Particules fines PM2,5 : ${air.pm25} µg/m³` : '', air.pm10 != null ? `PM10 : ${air.pm10}` : '', air.no2 != null ? `dioxyde d'azote : ${air.no2}` : '', air.o3 != null ? `ozone : ${air.o3}` : ''].filter(Boolean).join(' · ')) : null,
+      el('p', { class: 'help' }, 'Valeurs du quartier, à l\'heure près. Seule une position arrondie à 1 km est envoyée.')),
+    ...group('Et aussi',
+      el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openSettings('pastille', named('Météo et air', () => openWeather())) },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sliders-horizontal')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
+      // v481 (mon choix 27 A du 25 nov.) : le saint du jour sur Nominis (site de l'Église catholique en France) ; aucun prénom écrit dans l'appli
+      el('a', { class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Saint du jour (Nominis)')),
     el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
@@ -13885,6 +13892,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
     '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
     '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
     '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
@@ -13894,7 +13902,6 @@ const HELP = [
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
     '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
     '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et au 31177 dans le métro, le RER ou le bus, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
-    '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
