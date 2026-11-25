@@ -108,8 +108,19 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
   | message électronique | **courriel** | mail |
   | les mots à toucher sous « En quelques mots » (v226, nommé ainsi depuis la v404) | **Mots tout prêts**, rangés en **séries** (« Repas », « Visite ») | liste (réservé aux listes de lieux), modèle |
   | ce qu'est un resto, comme dans TTB : La Table, Boui-boui, Street-food (v288) | **Genre**, dans la ligne au-dessus du nom de la fiche et en bas de Modifier | rubrique (réservé aux parties d'un écran et au guide TTB), type, catégorie |
+  | une photo et une ligne posées là où je suis (v302 à v312) | **Vu en passant** ; la note : **prise en passant** ; ma mosaïque : **Mes Vu en passant** ; le niveau sous la catégorie : **sous-catégorie** (Street art : l'artiste) | |
+  | faire d'une photo prise en passant l'impression d'un de mes lieux (v310) | **Rattacher** (à un de mes lieux) | |
+  | sortir mes photos en .zip (v307) | **Exporter** (« Télécharger », « Envoyer ») | |
+  | une rue tracée sur la carte comme un de mes lieux (v384) | **rue d'intérêt** (« Une rue d'intérêt », « Toute la rue ») | |
+  | le chemin par les rues, calculé sur le téléphone (v383) | **Chemin à pied** (Y aller ouvre toujours Google Maps) | |
+  | la page d'un point touché sur la carte doigt appuyé, ou d'une adresse de la loupe (v378, v399) | **Ce point** | |
+  | mes réglages figés pour y revenir, sans mes lieux (v414) | **Réglages de référence** | réglages par défaut (ancien nom), sauvegarde |
+  | mes lieux retirés de la carte le temps de la session (v427) | **Lieux masqués · Afficher** | Cacher |
+  | ce qu'un lieu offre en plus, coché par moi (v422) | **Café ou snack sur place**, **Boutique sur place** dans Modifier ; « Café », « Boutique » sur la fiche | |
+  | les stations autour d'un lieu ou de moi (v393, v394) | **Stations proches** (page) ; **Autres stations près de toi** (sous Métro) | |
+  | les fonds de carte sans clé de l'IGN (v382) | **Plan IGN**, **Photo aérienne** | |
 - **Deux voix** : les noms d'écrans et de boutons parlent comme moi (Mon planning, Autour de moi, J'ai du temps, Où suis-je ?) ; les phrases me tutoient (« touche… », « tes lieux »). Jamais de vouvoiement. Claude est toujours nommé à la 3e personne.
-- **Accords au féminin** : l'appli sert à deux utilisatrices (« Tu y es allée ? », « Tu es déjà passée ici »).
+- **Accords au féminin** : l'appli s'adresse à moi au féminin (« Tu y es allée ? », « Tu es déjà passée ici ») ; l'autre personne, un homme, allume « Écrire au masculin » (v286 ; les phrases sont dans `ACCORDS` de js/typo.js).
 - **Typographie à l'affichage** (`js/typo.js`, appliquée par `el()` et `toast()`, jamais dans un champ) : espace insécable avant « : ; ? ! » % » et après « « » ; heures « 9 h 30 » (un module peut écrire « 9h30 », l'écran montre « 9 h 30 ») ; « 1er » pour le premier jour du mois. Un texte posé autrement (`textContent`) passe aussi par `typo()`.
 - **Aide d'un écran** (v234) : les explications (comment faire, astuces, sources) sont marquées `help tip` et rangées par `gatherTips()` dans une seule ligne « Aide » (`ico('info')`), repliée, en bas de la page, juste au-dessus de la barre du bas ; elle reste ouverte si l'écran est redessiné. Restent à leur place : alertes, comptes, « Recherche… », pages vides, aide d'un champ, mises en garde sur ce qui est affiché, ce qui part du téléphone (vérifié par `tests/aide-repliee.test.mjs`). **Pas de texte gris de plusieurs lignes** (v250) : ce qui reste visible tient en une ou deux phrases courtes (la mise en garde, ce qui part du téléphone, l'état) ; son explication, sa source et sa date vont dans un `help tip` juste à côté, donc dans l'Aide (au-delà de 200 signes, le test échoue).
 - **Retour à la même hauteur** (v150) : revenir à un écran (« ← Nom », bouton retour du téléphone) ou le redessiner le rouvre là où on l'avait laissé ; un écran ouvert pour la première fois commence en haut (`openSheet`, pile `navStack`).
