@@ -6618,7 +6618,9 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
   const icon = () => el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 }));
   // v327 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
   // sans photo de l'agenda, ou si elle ne se charge pas, ma photo de la salle ; sinon la vignette lettrine (même taille).
-  const dist = d != null ? el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0'))) : el('span', { class: 'ev-dist' });
+  // v445 (mon choix 2A du 25 nov.) : à plus de 3 h à pied (règle de la v217), la distance seule, sans minutes (« 10206 min » loin de Paris)
+  const dist = d == null ? el('span', { class: 'ev-dist' }) : isFar(d) ? el('span', { class: 'ev-dist' }, fmtDist(d).replace(' ', '\u00a0'))
+    : el('span', { class: 'ev-dist' }, `${walkMinutes(d)}\u00a0min`, el('small', {}, fmtDist(d).replace(' ', '\u00a0')));
   const tiled = state.evThumbs === true && !badge && genre !== 'circuit';
   const none = () => (tiled ? letterTile(genre) : icon());
   const thumb = tiled ? (photo || venuePhoto ? evThumb(photo, venuePhoto, none) : none()) : null;

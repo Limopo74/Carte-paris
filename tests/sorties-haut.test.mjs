@@ -23,3 +23,8 @@ test('1A : Dehors et À l\'abri sont sur la ligne de Chercher, avec un mot visib
   assert.match(css, /\.ev-where-label \{ display: none; \}/);
   assert.match(css, /:root:is\(\[data-text="grand"\], \[data-text="tresgrand"\]\) \.ev-where-label \{ display: inline; \}/);
 });
+
+test('2A : une sortie à plus de 3 h à pied montre la distance seule, sans minutes', () => {
+  const card = body('sortieCard');
+  assert.match(card, /isFar\(d\)/, 'la règle de la v217 (FAR_WALK_MIN) vaut aussi dans Sorties');
+});
