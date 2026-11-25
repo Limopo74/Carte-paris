@@ -11,8 +11,8 @@ const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 
 test('au départ : température et air seulement ; null tant que rien n\'est changé', () => {
-  assert.deepEqual(WX_PARTS, ['arr', 'day', 'temp', 'rain', 'air', 'sun']);
-  assert.deepEqual({ ...WX_DEFAULT }, { arr: false, day: false, temp: true, rain: false, air: true, sun: false });
+  assert.deepEqual(WX_PARTS, ['arr', 'day', 'temp', 'rain', 'air', 'sun', 'seine']);
+  assert.deepEqual({ ...WX_DEFAULT }, { arr: false, day: false, temp: true, rain: false, air: true, sun: false, seine: false });
   const st = memStorage();
   assert.equal(loadState(st).wx, null);
   st.setItem(KEY, JSON.stringify({ points: [] })); // ancienne sauvegarde : le nouveau départ

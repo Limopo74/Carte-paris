@@ -379,8 +379,8 @@ export const cleanLook = (v) => (LOOKS.includes(v) ? v : 'papier');
 /** Pastille météo (mes choix 7 bis A et 7 ter du 25 nov.) : ce qu'elle montre, un interrupteur par élément.
  *  Au départ, seulement la température et l'air. Laissé au départ : null (rien d'enregistré). Le canapé de Chez moi
  *  n'en fait pas partie : allumé, il se voit toujours (un mode allumé dit son état). */
-export const WX_PARTS = ['arr', 'day', 'temp', 'rain', 'air', 'sun'];
-export const WX_DEFAULT = Object.freeze({ arr: false, day: false, temp: true, rain: false, air: true, sun: false });
+export const WX_PARTS = ['arr', 'day', 'temp', 'rain', 'air', 'sun', 'seine'];
+export const WX_DEFAULT = Object.freeze({ arr: false, day: false, temp: true, rain: false, air: true, sun: false, seine: false });
 export function cleanWx(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const o = Object.fromEntries(WX_PARTS.map((k) => [k, typeof v[k] === 'boolean' ? v[k] : WX_DEFAULT[k]]));

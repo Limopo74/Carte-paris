@@ -30,6 +30,7 @@ import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, 
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
 import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
+import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend } from './crue.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
@@ -84,7 +85,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (501)';
+const VERSION = '25 novembre 2026 (502)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -98,7 +99,8 @@ const PRIVACY_LINES = [
   'les fontaines, toilettes, horaires des parcs, l\'agenda de Sorties et ses photos (chargé aussi une fois par jour à l\'ouverture, pour « Maintenant ») et les marchés (Ville de Paris, sans ta position),',
   'la liste des monuments (Wikidata, tout Paris, sans ta position),',
   'les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m),',
-  'la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée).',
+  'la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée),',
+  'la hauteur de la Seine à Austerlitz (Hub\'Eau, eaufrance, aucune position envoyée ; seulement si tu l\'allumes dans la pastille ou en mode crise Crue).',
   'Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ;',
   'un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ;',
   '« Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ;',
@@ -5809,7 +5811,8 @@ function setCrisis(k) {
   saveCrisis(); markCrisis();
   if (c.water && !state.showPratique) setPratLayer(true);
   if (!c.water && state.showPratique && !pratBefore) setPratLayer(false);
-  drawLayerNote(); renderChips(); rescueSoon();
+  drawLayerNote(); renderChips(); rescueSoon(); drawWx();
+  if (k === 'crue') checkSeine(); // v498 : la hauteur de la Seine, dans la pastille et en haut d'Autour de moi
   toast(`Mode crise : ${c.name.toLowerCase()}. Autour de moi commence par les gestes utiles.`);
 }
 /** Terminer : Fontaines et toilettes reviennent comme avant ; « Annuler » rallume la même crise. */
@@ -5817,7 +5820,7 @@ function endCrisis() {
   const was = crisis; if (!was) return;
   crisis = null; saveCrisis(); markCrisis();
   if (state.showPratique && !was.pratBefore) setPratLayer(false);
-  drawLayerNote(); renderChips(); rescueSoon();
+  drawLayerNote(); renderChips(); rescueSoon(); drawWx();
   toast('Mode crise terminé', false, { label: 'Annuler', fn: () => { setCrisis(was.k); crisis = { ...crisis, since: was.since, pratBefore: was.pratBefore }; saveCrisis(); } });
 }
 /** La page « Mode crise » : toucher une crise l'allume (1 appui) ; allumé, « Terminer le mode crise ». */
@@ -5854,6 +5857,7 @@ function crisisBlock() {
     home
       ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
+    crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v498 (choix 7 A et 9 A)
     // v491 (mes réponses 15 et 22, choix 30 B) : mon point de repli et nos deux rendez-vous, sous Rentrer à pied
     el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => {
       const p = (cleanCrisisPoints(state.crisisPoints) ?? {})[c.k];
@@ -9235,7 +9239,31 @@ const arrHere = () => (arrData ? arrSure(here, arrData) : null);
    allumé (un mode allumé dit toujours son état), même si l'arrondissement est éteint. */
 const wxOn = (k) => wxPart(state, k);
 const NOMINIS = 'https://nominis.cef.fr/'; // v481 : la page d'accueil montre le saint du jour (vérifié le 25 nov. 2026 : sainte Catherine d'Alexandrie)
-const WX_NAME = { arr: 'arrondissement', day: 'dimanche', temp: 'température', rain: 'pluie', air: 'air', sun: 'soleil' };
+const WX_NAME = { arr: 'arrondissement', day: 'dimanche', temp: 'température', rain: 'pluie', air: 'air', sun: 'soleil', seine: 'Seine' };
+/* v498 (mes choix 7 A et 9 A du 25 nov.) : hauteur de la Seine à Austerlitz (Hub'Eau). Éteinte au départ ; toujours montrée
+   en mode crise Crue. Lue au plus tous les quarts d'heure, seulement quand elle sert (pastille, page Météo, mode Crue). */
+let seine = null;
+let seineAt = 0;
+const seineShown = () => wxOn('seine') || crisis?.k === 'crue';
+async function checkSeine(force = false) {
+  if (seine && Date.now() - seine.at > 2 * 3600 * 1000) { seine = null; drawWx(); } // trop vieille : plus rien
+  if (!navigator.onLine || (!force && !seineShown()) || Date.now() - seineAt < 15 * 60 * 1000) return;
+  seineAt = Date.now();
+  seine = await net(SEINE_URL).then((r) => r.json()).then((j) => readSeine(j)).catch(() => null);
+  drawWx();
+  if (view === 'weather') openWeather(true);
+  else if (view === 'near' && crisis?.k === 'crue') renderNear();
+}
+const seineAgo = (s) => { const d = new Date(s.at); return `mesure de ${sunText(d.getHours() * 60 + d.getMinutes())}`; };
+/** La ligne « Seine » de la page Météo et du mode Crue : un lien vers Vigicrues (choix 9 A). */
+function seineRow() {
+  return el('a', { class: 'menu-row c-guide', href: VIGICRUES, target: '_blank', rel: 'noopener' },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('waves')),
+    el('span', { class: 'menu-text' },
+      el('span', { class: 'menu-title' }, seine ? `Seine : ${seineText(seine)}${seine.trend ? `, ${seineTrend(seine)}` : ''}` : 'Seine : pas de mesure récente'),
+      el('span', { class: 'menu-sub' }, seine ? `À Austerlitz, ${seineAgo(seine)} · Vigicrues` : 'Voir Vigicrues')),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link')));
+}
 /** La petite ligne de « Pastille météo » dans Autres réglages : ce qui est allumé. */
 function wxSub() {
   const on = WX_PARTS.filter(wxOn);
@@ -9252,9 +9280,10 @@ function drawWx() {
   const rain = wxOn('rain') && meteo?.rain;
   const aq = wxOn('air') ? air : null;
   const sun = wxOn('sun') ? nextSun() : null;
-  if (t == null && !rain && !aq && !day && !a && !h && !sun) { wxBadge.hidden = true; return; }
+  const sn = seineShown() ? seine : null;
+  if (t == null && !rain && !aq && !day && !a && !h && !sun && !sn) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
-  const rest = Boolean(day || t != null || rain || aq || sun);
+  const rest = Boolean(day || t != null || rain || aq || sun || sn);
   fill(wxBadge,
     h ? el('b', { class: 'wx-arr wx-home' }, ico('sofa', { size: 16 })) : null,
     a ? el('b', { class: 'wx-arr' }, arrOrd(a)) : null,
@@ -9264,13 +9293,14 @@ function drawWx() {
     rain ? ico('cloud-rain', { size: 15 }) : null,
     aq ? el('span', { class: `air-dot air-${aq.level}`, 'aria-hidden': 'true' }) : null,
     aq ? el('span', { class: 'wx-air-word' }, `Air ${aq.label.toLowerCase()}`) : null,
-    sun ? el('span', { class: 'wx-sun' }, ico(sun.kind === 'rise' ? 'sunrise' : 'sunset', { size: 15 }), sunText(sun.min)) : null);
+    sun ? el('span', { class: 'wx-sun' }, ico(sun.kind === 'rise' ? 'sunrise' : 'sunset', { size: 15 }), sunText(sun.min)) : null,
+    sn ? el('span', { class: 'wx-sun wx-seine' }, ico('waves', { size: 15 }), seineText(sn), sn.trend === 'monte' ? '↑' : sn.trend === 'baisse' ? '↓' : '') : null);
   // v479 : tout allumé, un dimanche, en Très grand, la pastille dépasserait l'écran : les mots « Air … » s'effacent, le point
   // de couleur reste (TalkBack lit toujours le niveau)
   wxBadge.classList.remove('wx-tight');
   if (aq && wxBadge.getBoundingClientRect().right > innerWidth - 6) wxBadge.classList.add('wx-tight');
   const sunSay = sun ? `${sun.kind === 'rise' ? 'lever du soleil' : 'coucher du soleil'} à ${sunText(sun.min)}` : '';
-  wxBadge.setAttribute('aria-label', [h ? 'Distances depuis chez toi' : a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', t != null ? `${t} degrés` : '', rain ? 'pluie' : '', aq ? `qualité de l'air : ${aq.label}` : '', sunSay].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', [h ? 'Distances depuis chez toi' : a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', t != null ? `${t} degrés` : '', rain ? 'pluie' : '', aq ? `qualité de l'air : ${aq.label}` : '', sunSay, sn ? `Seine ${seineText(sn)}${sn.trend ? `, ${seineTrend(sn)}` : ''}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -9304,6 +9334,7 @@ function openWeather(redraw = false) {
   const home = cleanHome(state.home);
   const a = arrHere();
   const z = altNow(); altShown = z;
+  if (!redraw) checkSeine();
   /* v492 (ma demande du 25 nov.) : mêmes éléments qu'avant, rangés en quatre groupes sous un intertitre de liste
      (`ring-title`, déjà dessiné pour Papier, Verre, Signalétique et Pop) ; un groupe vide ne montre pas son titre. */
   const group = (title, ...rows) => (rows.some(Boolean) ? [el('h3', { class: 'ring-title wx-group' }, title), ...rows] : []);
@@ -9324,6 +9355,7 @@ function openWeather(redraw = false) {
         filt.covered = true; refresh(); closeSheet(); toast(`Il pleut : ${plural(visible().length, 'lieu abrité', 'lieux abrités')} sur la carte`);
       } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
       meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null),
+    ...group('Seine', seineShown() || seine ? el('div', { class: 'menu' }, seineRow()) : null),
     ...group('Air',
       air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
       air ? el('p', {}, AIR_ADVICE[air.level]) : null,
@@ -9335,7 +9367,7 @@ function openWeather(redraw = false) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
       // v481 (mon choix 27 A du 25 nov.) : le saint du jour sur Nominis (site de l'Église catholique en France) ; aucun prénom écrit dans l'appli
       el('a', { class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Saint du jour (Nominis)')),
-    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près.`),
+    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près${seineShown() || seine ? ' ; Seine : Hub\'Eau (eaufrance), mesure brute, pas encore validée' : ''}.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
 wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
@@ -9989,6 +10021,8 @@ async function checkMeteo(at) {
 }
 // Au lancement et toutes les 30 min : météo du dernier endroit connu (ou du centre de Paris), sans demander la position.
 setTimeout(() => checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }), 1500);
+setTimeout(() => checkSeine(), 2500); // v498 : seulement si la Seine est allumée ou en mode Crue
+setInterval(() => { if (document.visibilityState === 'visible') checkSeine(); }, 16 * 60 * 1000);
 setInterval(() => { if (document.visibilityState === 'visible') checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }); }, 31 * 60 * 1000);
 
 /* ---------- Temps libre : une boucle qui revient au point de départ ---------- */
@@ -12041,6 +12075,7 @@ function openSettings(section = null, from = null) {
   if (section === 'pastille') { // v479 (mes choix 7 bis A et 7 ter du 25 nov.) : Réglages → Autres réglages → Pastille météo
     const sw = (k, icon, title, sub) => onOff(`wx-${k}`, icon, title, sub, wxOn(k), () => {
       state.wx = cleanWx({ ...(cleanWx(state.wx) ?? WX_DEFAULT), [k]: !wxOn(k) }); drawWx();
+      if (k === 'seine') checkSeine();
     });
     openSheet([ico('thermometer-sun'), ' Pastille météo'], el('div', { class: 'stack' },
       el('div', { class: 'menu' },
@@ -12049,7 +12084,8 @@ function openSettings(section = null, from = null) {
         sw('temp', 'thermometer-sun', 'Température', 'Celle du quartier'),
         sw('rain', 'cloud-rain', 'Pluie', 'Le nuage, quand il pleut'),
         sw('air', 'wind', 'Qualité de l\'air', 'Point de couleur et mot'),
-        sw('sun', 'sunrise', 'Soleil', 'Lever ou coucher')),
+        sw('sun', 'sunrise', 'Soleil', 'Lever ou coucher'),
+        sw('seine', 'waves', 'Seine', 'Hauteur à Austerlitz')), // v498 : toujours montrée en mode crise Crue
       el('p', { class: 'help tip' }, 'Le canapé de Chez moi reste dans la pastille tant que Chez moi est allumé. Tout éteint : la pastille disparaît, et la page Météo et air avec elle ; rallume un élément ici pour la retrouver.'),
       backBtn,
     ), { tall: true, name: 'settings:pastille', again: () => openSettings('pastille') });
@@ -13996,6 +14032,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
     '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
     '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
@@ -14005,7 +14042,6 @@ const HELP = [
     '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
     '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
     '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
-    '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
