@@ -128,6 +128,21 @@ export function walkSegment(prev, fix) {
   return d;
 }
 
+/** v515 : un pas du compteur. Le point de départ (`anchor`) reste en place tant qu'on n'a pas fait 5 m : à une position
+ *  par seconde, chaque écart fait 1 ou 2 m et était jeté comme « bruit à l'arrêt » (Mes chiffres restait à zéro).
+ *  Imprécis : ignoré. Trop rapide (métro, saut de GPS) ou plus de 2 min sans position (appli mise de côté) :
+ *  pas compté, on repart de la nouvelle position. Rend { m, anchor }. */
+export function walkStep(anchor, fix) {
+  if (!fix || !(fix.acc <= 30)) return { m: 0, anchor };
+  if (!anchor) return { m: 0, anchor: fix };
+  const dt = (fix.time - anchor.time) / 1000;
+  if (dt <= 0) return { m: 0, anchor };
+  if (dt > 120) return { m: 0, anchor: fix };
+  const d = walkSegment(anchor, fix);
+  if (d) return { m: d, anchor: fix };
+  return distanceM(anchor, fix) < 5 ? { m: 0, anchor } : { m: 0, anchor: fix }; // < 5 m : on attend ; sinon trop rapide
+}
+
 /** Pas estimés pour une distance. */
 export function stepsFor(m) {
   return Math.round(m / STRIDE_M);

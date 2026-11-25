@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bearing, relativeAngle, compassLabel, bestFix, detourM, onTheWay, MAX_DETOUR_M,
-  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
+  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, walkStep, stepsFor, dayKey,
 } from '../js/move.js';
 import { distanceM } from '../js/geo.js';
 
@@ -120,4 +120,22 @@ test('compteur de balade : seulement la marche plausible', () => {
   assert.equal(walkSegment(null, b), 0);
   assert.equal(stepsFor(700), 1000);
   assert.equal(dayKey(new Date(2026, 10, 5)), '2026-11-05');
+});
+
+// v515 : une position par seconde (Android) est à 1 ou 2 m de la précédente : le compteur gardait 0 m (Mes chiffres à zéro).
+test('compteur de balade : une position par seconde compte la marche', () => {
+  const run = (fixes) => { let anchor = null, m = 0; for (const f of fixes) { const r = walkStep(anchor, f); anchor = r.anchor; m += r.m; } return m; };
+  const walk = Array.from({ length: 601 }, (_, s) => ({ ...off(O, 1.3 * s, 0), acc: 12, time: s * 1000 })); // 780 m en 10 min
+  assert.ok(Math.abs(run(walk) - 780) < 10, `marche comptée : ${Math.round(run(walk))} m`);
+  // À l'arrêt, le GPS tremble de quelques mètres : rien ne s'ajoute
+  const still = Array.from({ length: 600 }, (_, s) => ({ ...off(O, (s % 3) - 1, (s % 2) * 2 - 1), acc: 12, time: s * 1000 }));
+  assert.equal(run(still), 0, 'bruit à l\'arrêt');
+  // Métro ou saut de GPS : pas compté, et la marche reprend de la nouvelle position
+  assert.equal(walkStep({ ...O, acc: 10, time: 0 }, { ...off(O, 300, 0), acc: 10, time: 15000 }).m, 0, 'trop rapide');
+  assert.equal(walkStep({ ...O, acc: 10, time: 0 }, { ...off(O, 300, 0), acc: 10, time: 15000 }).anchor.time, 15000);
+  // Appli mise de côté longtemps : le trajet fait pendant ce temps n'est pas compté
+  assert.equal(walkStep({ ...O, acc: 10, time: 0 }, { ...off(O, 200, 0), acc: 10, time: 600000 }).m, 0, 'appli fermée entre deux');
+  // Position imprécise : ignorée, le point de départ ne bouge pas
+  const a = { ...O, acc: 10, time: 0 };
+  assert.equal(walkStep(a, { ...off(O, 20, 0), acc: 60, time: 15000 }).anchor, a, 'imprécis');
 });

@@ -1284,10 +1284,9 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .stats-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: var(--t13); color: var(--muted); }
 .stats-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .air-key { width: 12px; height: 12px; border-radius: var(--r); display: inline-block; }
-.stats-table summary { min-height: 44px; display: flex; align-items: center; color: var(--metro); font-weight: 700; cursor: pointer; }
 .stats-table table { width: 100%; border-collapse: collapse; font-size: var(--t13); font-variant-numeric: tabular-nums; }
 .stats-table th, .stats-table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
-.stats-table th:first-child, .stats-table td:first-child { text-align: left; }
+.stats-table th:first-child, .stats-table td:first-child { text-align: left; white-space: nowrap; }
 .stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
 .stat-tile { background: var(--surface); border: 2px solid var(--btn-bd); border-radius: var(--r); padding: 8px 10px; display: flex; flex-direction: column; }
 .stat-tile b { font-family: var(--display); font-weight: 800; font-size: var(--t22); font-stretch: 90%; font-variant-numeric: tabular-nums; color: var(--ink); }

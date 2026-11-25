@@ -88,11 +88,11 @@ import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKi
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
-  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, stepsFor, dayKey,
+  orderRoute, routeLength, routeUrl, MAX_ROUTE, newlyNear, directionWord, spokenDistance, walkSegment, walkStep, stepsFor, dayKey,
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (514)';
+const VERSION = '25 novembre 2026 (515)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4581,8 +4581,8 @@ let walkSavedAt = 0;
 function countWalk(fix) {
   const today = dayKey();
   if (state.walk?.day !== today) state.walk = { day: today, m: 0 };
-  const seg = walkSegment(walkPrev, fix);
-  if (fix.acc <= 30) walkPrev = fix;
+  const { m: seg, anchor } = walkStep(walkPrev, fix);
+  walkPrev = anchor;
   if (!seg) return;
   state.walk.m += seg;
   walkSession += seg;
@@ -7073,10 +7073,12 @@ function myStats() {
   for (const [i, txt] of [[0, dayName(days[0].date)], [days.length - 1, 'aujourd\'hui']]) {
     const tx = svgEl('text', { x: i ? W : 0, y: H - 4, class: 'stats-tick', 'text-anchor': i ? 'end' : 'start' }); tx.textContent = txt; svg.append(tx);
   }
-  const legend = el('div', { class: 'stats-legend' }, order.filter((b) => t.air[b] > 0 || b !== 'inconnu').map((b) => el('span', {}, el('i', { class: `air-key air-${b}`, 'aria-hidden': 'true' }), `${AIR_LABEL[b]} · ${durText(minOf(t.air[b]))}`)));
-  const table = el('details', { class: 'stats-table' }, el('summary', {}, 'Voir en tableau'),
-    el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Jour'), el('th', {}, 'Marche'), ...order.map((b) => el('th', {}, AIR_LABEL[b].replace('Air ', ''))))),
-      el('tbody', {}, days.filter((d) => d.m > 0).reverse().map((d) => el('tr', {}, el('td', {}, dayName(d.date)), el('td', {}, `${durText(minOf(d.m))}`), ...order.map((b) => el('td', {}, d.air[b] ? `${minOf(d.air[b])}` : '–')))))));
+  // v515 : une valeur arrondie à 0 min ne s'affiche pas (des mètres de bruit GPS donnaient « 0 min » et « 0 »)
+  const legend = el('div', { class: 'stats-legend' }, order.filter((b) => minOf(t.air[b]) > 0 || b !== 'inconnu').map((b) => el('span', {}, el('i', { class: `air-key air-${b}`, 'aria-hidden': 'true' }), `${AIR_LABEL[b]} · ${durText(minOf(t.air[b]))}`)));
+  const cols = order.filter((b) => b !== 'inconnu' || minOf(t.air.inconnu) > 0); // v515 : colonne « inconnu » seulement si elle sert (tient à 360 px)
+  const table = el('details', { class: 'help-item stats-table' }, el('summary', {}, 'Voir en tableau'), // v515 : replié comme le reste de l'appli (encre et ›), plus en lien bleu
+    el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Jour'), el('th', {}, 'Marche'), ...cols.map((b) => el('th', {}, AIR_LABEL[b].replace('Air ', ''))))),
+      el('tbody', {}, days.filter((d) => minOf(d.m) > 0).reverse().map((d) => el('tr', {}, el('td', {}, d.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })), el('td', {}, `${durText(minOf(d.m))}`), ...cols.map((b) => el('td', {}, minOf(d.air[b] ?? 0) ? `${minOf(d.air[b])}` : '–')))))));
 
   // Barres horizontales (une seule série : pas de légende, la valeur est écrite)
   const hbars = (rows, label) => {
@@ -7087,7 +7089,8 @@ function myStats() {
       el('span', { class: 'hbar-val' }, String(v)))));
   };
   const tile = (n, label) => el('div', { class: 'stat-tile' }, el('b', {}, n), el('span', {}, label));
-  const steps = stepsFor(t.m);
+  const walked = minOf(t.m); // v515 : moins d'une minute = rien de compté (bruit du GPS à l'arrêt)
+  const steps = walked ? stepsFor(t.m) : 0;
 
   // Remise à zéro : au choix marche et air / fonctions utilisées ; jamais les lieux ni leurs « visité ».
   const resetBox = el('div', { class: 'stack' });
@@ -7122,8 +7125,8 @@ function myStats() {
   return [
     seg,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Marche et air'), el('span', {}, '')),
-    el('div', { class: 'stat-tiles' }, tile(`${durText(minOf(t.m))}`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
-    svg, readout, legend, table,
+    el('div', { class: 'stat-tiles' }, tile(`${durText(minOf(t.m))}`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(walked ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
+    ...(walked ? [svg, readout, legend, table] : [el('p', { class: 'help' }, `Aucune marche comptée sur les ${statsDays} derniers jours.`)]), // v515 : pas de graphique vide
     el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position. L\'air : une estimation du quartier, pas une mesure sur toi.'),
     el('p', { class: 'help tip' }, 'La marche est comptée avec Ma position et direction ou une balade guidée ; l\'air, heure par heure.'),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
@@ -14531,6 +14534,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
     '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
     '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
     '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
@@ -14540,7 +14544,6 @@ const HELP = [
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
-    '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
