@@ -430,3 +430,15 @@ export function altHere(P, fix, now = Date.now()) {
   const z = s ? altOnEdge(P, s.edge, s.t) : null;
   return z === null ? null : Math.round(z / 5) * 5;
 }
+
+/** v494 (plan de secours, ma réponse 5 et mon choix 31 A) : les tronçons dont une case de la grille touche le cadre ;
+ *  `max` cases au plus (sinon [] : vue trop large, trop de rues à dessiner). */
+export function edgesInBox(P, s, w, n, e, max = 400) {
+  if (!P) return [];
+  const i0 = Math.floor(s / CELL); const i1 = Math.floor(n / CELL);
+  const j0 = Math.floor(w / CELL); const j1 = Math.floor(e / CELL);
+  if ((i1 - i0 + 1) * (j1 - j0 + 1) > max) return [];
+  const out = new Set();
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (const k of P.grid.get(`${i},${j}`) ?? []) out.add(k);
+  return [...out];
+}

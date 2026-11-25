@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
-import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints, edgesInBox } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize, PIN_SIZES, cleanPinSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (494)';
+const VERSION = '25 novembre 2026 (495)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -518,6 +518,9 @@ const validCartoKey = (k) => /^[A-Za-z0-9_.-]{8,200}$/.test(k);
  * de CARTO restait vide au dernier cran, sur mon téléphone). Si les images d'un cran ≥ 19 échouent alors que le réseau répond
  * et qu'aucune de ce cran n'est arrivée, la carte agrandit celles du cran du dessous, jusqu'à la fermeture de l'appli. */
 const HIGH_ZOOM = 19;
+let tileOkAt = 0; let tileFailAt = 0; let tileFails = 0; // v494 : santé du fond de carte
+let rescueTimer = null;
+const rescueSoon = () => { clearTimeout(rescueTimer); rescueTimer = setTimeout(() => drawRescue(), 400); };
 const zoomCap = {};
 function applyMapStyle() {
   // Épuré sans clé : on garde le style Classique (le choix reste enregistré pour quand la clé sera là)
@@ -530,7 +533,8 @@ function applyMapStyle() {
   const native = Math.min(st.native ?? st.maxZoom, zoomCap[id] ?? st.maxZoom);
   tiles = L.tileLayer(st.url, { maxZoom: st.maxZoom, maxNativeZoom: native, subdomains: 'abc', attribution: st.attr, crossOrigin: cors ? 'anonymous' : undefined, k: cartoKey() }).addTo(map);
   const okZ = new Set(); const badZ = {};
-  tiles.on('tileload', (e) => { okZ.add(e.coords?.z); });
+  tiles.on('tileload', (e) => { okZ.add(e.coords?.z); tileOkAt = Date.now(); tileFails = 0; rescueSoon(); });
+  tiles.on('tileerror', () => { tileFails += 1; tileFailAt = Date.now(); rescueSoon(); }); // v494 : le plan de secours se dessine quand le fond ne vient plus
   tiles.on('tileerror', (e) => {
     const z = e.coords?.z;
     if (!(z >= HIGH_ZOOM) || okZ.has(z) || !navigator.onLine) return;
@@ -5801,7 +5805,7 @@ function setCrisis(k) {
   saveCrisis();
   if (c.water && !state.showPratique) setPratLayer(true);
   if (!c.water && state.showPratique && !pratBefore) setPratLayer(false);
-  drawLayerNote(); renderChips();
+  drawLayerNote(); renderChips(); rescueSoon();
   toast(`Mode crise : ${c.name.toLowerCase()}. Autour de moi commence par les gestes utiles.`);
 }
 /** Terminer : Fontaines et toilettes reviennent comme avant ; « Annuler » rallume la même crise. */
@@ -5809,7 +5813,7 @@ function endCrisis() {
   const was = crisis; if (!was) return;
   crisis = null; saveCrisis();
   if (state.showPratique && !was.pratBefore) setPratLayer(false);
-  drawLayerNote(); renderChips();
+  drawLayerNote(); renderChips(); rescueSoon();
   toast('Mode crise terminé', false, { label: 'Annuler', fn: () => { setCrisis(was.k); crisis = { ...crisis, since: was.since, pratBefore: was.pratBefore }; saveCrisis(); } });
 }
 /** La page « Mode crise » : toucher une crise l'allume (1 appui) ; allumé, « Terminer le mode crise ». */
@@ -5967,6 +5971,31 @@ async function prepareOffline(again = null) {
 const offlineRow = (again, family = 'c-guide') => el('button', { type: 'button', class: `menu-row ${family}`, onclick: () => prepareOffline(again) },
   el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(offlineAt() && !offlineBusy ? 'circle-check' : 'download')),
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Préparer hors ligne'), el('span', { class: 'menu-sub' }, offlineSub())));
+
+/* v494 : le plan de secours (ma réponse 5, mon choix 31 A) : en mode crise, quand le fond de carte ne se charge plus
+   (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent en encre, à partir du zoom 15.
+   Avec du réseau, la vraie carte reste. Rien n'est téléchargé pour ça : sans plan gardé, un message renvoie à Préparer hors ligne. */
+const RESCUE_ZOOM = 15;
+map.createPane('rescue').style.zIndex = 250; // au-dessus du fond (200), sous les couches et les gouttes
+const rescueLayer = L.layerGroup().addTo(map);
+const rescueRenderer = L.canvas({ pane: 'rescue', padding: 0.2 });
+let rescueSaid = '';
+const tilesDown = () => navigator.onLine === false || (tileFails >= 4 && tileFailAt > tileOkAt);
+async function drawRescue() {
+  rescueLayer.clearLayers();
+  if (!crisis || !tilesDown()) { rescueSaid = ''; return; }
+  const P = streets ?? await (async () => { const j = await streetsStored(); return j ? (streets = readPlan(j)) : null; })();
+  const say = (k, msg) => { if (rescueSaid !== k) { rescueSaid = k; toast(msg); } };
+  if (!P) { say('noplan', 'Pas de fond de carte et pas de plan des rues sur le téléphone : Mon Paris → Préparer hors ligne, dès que le réseau revient.'); return; }
+  if (map.getZoom() < RESCUE_ZOOM) { say('zoom', 'Pas de fond de carte : zoome pour voir le plan de secours (les rues gardées sur le téléphone).'); return; }
+  const b = map.getBounds();
+  const edges = edgesInBox(P, b.getSouth(), b.getWest(), b.getNorth(), b.getEast());
+  const lines = edges.map((i) => edgePoints(P, i));
+  if (lines.length) L.polyline(lines, { pane: 'rescue', renderer: rescueRenderer, color: ink(), weight: 2.5, opacity: 0.85, interactive: false }).addTo(rescueLayer);
+  say('on', 'Pas de fond de carte : plan de secours, les rues gardées sur le téléphone.');
+}
+map.on('moveend', rescueSoon);
+addEventListener('offline', rescueSoon); addEventListener('online', rescueSoon);
 
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
@@ -13746,6 +13775,7 @@ const HELP = [
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, Je vais bien, Appeler un proche, Alerter en silence. Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
+    '{triangle-alert} **Plan de secours** : en mode crise, quand le fond de carte ne se charge plus (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent à l\'encre, à partir d\'un zoom de quartier. Avec du réseau, la vraie carte reste. Les noms des rues n\'y sont pas : Où suis-je ? donne ton adresse quand le réseau revient.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13936,6 +13966,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
     '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
     '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
@@ -13945,7 +13976,6 @@ const HELP = [
     '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
     '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
     '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
-    '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

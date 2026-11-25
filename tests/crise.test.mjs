@@ -98,3 +98,18 @@ test('v493 : Préparer hors ligne (réponse 21) : Mon Paris tout en bas, page Mo
   assert.match(app.slice(app.indexOf('function crisisBlock()'), app.indexOf('function openImOk(')), /offlineRow\(/);
   assert.match(app.slice(app.indexOf('function openCrisis('), app.indexOf('function crisisBlock()')), /offlineRow\(self\)/);
 });
+
+import { readPlan, edgesInBox } from '../js/rues.js';
+test('v494 : plan de secours (réponse 5, choix 31 A) : les rues du cadre, rien si la vue est trop large ; seulement en crise et fond en panne', () => {
+  const P = readPlan(JSON.parse(readFileSync(new URL('../data/rues.json', import.meta.url), 'utf8')));
+  assert.ok(P);
+  const near = edgesInBox(P, 48.874, 2.336, 48.879, 2.344);
+  assert.ok(near.length > 20 && near.length < 5000, `${near.length} tronçons autour de la rue des Martyrs`);
+  assert.equal(new Set(near).size, near.length, 'chaque tronçon une fois');
+  assert.deepEqual(edgesInBox(P, 48.80, 2.20, 48.92, 2.48), [], 'tout Paris : rien (trop de rues)');
+  assert.deepEqual(edgesInBox(null, 0, 0, 1, 1), []);
+  const fn = app.slice(app.indexOf('async function drawRescue()'), app.indexOf("map.on('moveend', rescueSoon);"));
+  assert.match(fn, /if \(!crisis \|\| !tilesDown\(\)\)/, 'avec du réseau, la vraie carte');
+  assert.match(fn, /map\.getZoom\(\) < RESCUE_ZOOM/);
+  assert.ok(!/downloadStreets/.test(fn), 'rien n\'est téléchargé pour le dessiner');
+});
