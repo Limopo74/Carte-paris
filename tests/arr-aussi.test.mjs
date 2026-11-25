@@ -52,3 +52,18 @@ test('aussi dans : une ligne à 0 ou un fichier pas lu ne s\'affiche pas ; un au
   assert.match(body('arrMoreList'), /if \(!items\) return null;/);
   assert.doesNotMatch(app.match(/async function arrMoreList[\s\S]*?\n}\n/)?.[0] ?? '', /net\(|fetch\(/, 'rien n\'est demandé en ligne de plus');
 });
+
+test('v469 : une ligne d\'« Aussi dans » se déplie sur place (10 au plus, puis « Voir les N … »), plusieurs ouvertes, gardées au retour', () => {
+  const b = body('arrMoreBlock');
+  assert.match(app, /const ARR_MORE_MAX = 10;/);
+  assert.match(b, /'aria-expanded': String\(open\), onclick: toggle/, 'la ligne se déplie, elle n\'ouvre plus de page');
+  assert.match(b, /ico\(open \? 'chevron-up' : 'chevron-down'\)/);
+  assert.match(b, /l\.slice\(0, ARR_MORE_MAX\)/);
+  assert.match(b, /`Voir les \$\{l\.length\} \$\{def\.noun\}`, ico\('chevron-down'\)/);
+  assert.match(b, /onclick: \(\) => def\.open\(x, back\)/, 'un lieu déplié ouvre sa page, qui revient à « Mes lieux du 9e »');
+  assert.doesNotMatch(b, /arrMoreOpen\.clear\(\)|\.forEach\(\(k\) => arrMoreOpen\.delete/, 'ouvrir une ligne ne ferme pas les autres');
+  assert.match(b, /top\.want > sheetBody\.scrollTop\) sheetBody\.scrollTop = top\.want;/, 'au retour, la même hauteur');
+  assert.doesNotMatch(app, /function openArrMore\(/, 'plus de page à part');
+  const defs = app.match(/const ARR_MORE = \[([\s\S]*?)\n\];/)?.[1] ?? '';
+  assert.equal([...defs.matchAll(/noun: '/g)].length, 7);
+});

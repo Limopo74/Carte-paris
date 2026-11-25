@@ -79,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (468)';
+const VERSION = '25 novembre 2026 (469)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5837,13 +5837,13 @@ function openArrList(n) {
 const museumPage = (m, back) => openSpot({ mark: true, icon: 'landmark', title: m.n, kicker: 'Musée', lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
   link: m.url ? [m.url, 'Site officiel du musée'] : null, back, key: `musee:${m.id}`, fav: 'musee' });
 const ARR_MORE = [
-  { k: 'jardins', icon: 'trees', title: 'Jardins publics', load: () => loadJardins(), name: (x) => x.name, sub: (x) => jardinKind(x), open: (x, b) => (x.kind === 'c' ? openCimetiere : openJardin)(x, b) },
-  { k: 'passages', icon: 'door-open', title: 'Passages couverts', load: () => loadArcades(), name: (x) => x.nom, sub: (x) => x.rues, open: (x, b) => openArcade(x, b) },
-  { k: 'musees', icon: 'landmark', title: 'Musées', load: async () => (await loadMusees())?.items, name: (x) => x.n, sub: (x) => x.a, open: (x, b) => museumPage(x, b) },
-  { k: 'circuits', icon: 'signpost', title: 'Circuits qui y passent', load: () => loadCircuits(), name: (x) => x.titre, sub: (x) => plural(x.etapes.length, 'étape', 'étapes'), open: (x, b) => openCircuit(x, b), points: (x) => x.etapes },
-  { k: 'plaques', icon: 'scroll-text', title: 'Plaques commémoratives', load: async () => (await loadPlaques())?.items, name: (x) => x.t, sub: (x) => plaqueStart(x, 60), open: (x, b) => openPlaque(x, b) },
-  { k: 'oeuvres', icon: 'shapes', title: 'Art dans la rue', load: () => loadStreetArt(), name: (x) => x.name, sub: (x) => [x.type, x.artist].filter(Boolean).join(' · '), open: (x, b) => openStreetArtCard(x, b) },
-  { k: 'galeries', icon: 'palette', title: 'Galeries', load: () => loadGalleries(), name: (x) => x.name, sub: (x) => x.kind, open: (x, b) => openGalleryCard(x, b) },
+  { k: 'jardins', icon: 'trees', title: 'Jardins publics', noun: 'jardins', load: () => loadJardins(), name: (x) => x.name, sub: (x) => jardinKind(x), open: (x, b) => (x.kind === 'c' ? openCimetiere : openJardin)(x, b) },
+  { k: 'passages', icon: 'door-open', title: 'Passages couverts', noun: 'passages', load: () => loadArcades(), name: (x) => x.nom, sub: (x) => x.rues, open: (x, b) => openArcade(x, b) },
+  { k: 'musees', icon: 'landmark', title: 'Musées', noun: 'musées', load: async () => (await loadMusees())?.items, name: (x) => x.n, sub: (x) => x.a, open: (x, b) => museumPage(x, b) },
+  { k: 'circuits', icon: 'signpost', title: 'Circuits qui y passent', noun: 'circuits', load: () => loadCircuits(), name: (x) => x.titre, sub: (x) => plural(x.etapes.length, 'étape', 'étapes'), open: (x, b) => openCircuit(x, b), points: (x) => x.etapes },
+  { k: 'plaques', icon: 'scroll-text', title: 'Plaques commémoratives', noun: 'plaques', load: async () => (await loadPlaques())?.items, name: (x) => x.t, sub: (x) => plaqueStart(x, 60), open: (x, b) => openPlaque(x, b) },
+  { k: 'oeuvres', icon: 'shapes', title: 'Art dans la rue', noun: 'œuvres', load: () => loadStreetArt(), name: (x) => x.name, sub: (x) => [x.type, x.artist].filter(Boolean).join(' · '), open: (x, b) => openStreetArtCard(x, b) },
+  { k: 'galeries', icon: 'palette', title: 'Galeries', noun: 'galeries', load: () => loadGalleries(), name: (x) => x.name, sub: (x) => x.kind, open: (x, b) => openGalleryCard(x, b) },
 ];
 const arrMoreCache = new Map(); // `${k}:${n}` → la liste de l'arrondissement (les fichiers ne changent pas pendant la session)
 async function arrMoreList(def, n) {
@@ -5856,34 +5856,47 @@ async function arrMoreList(def, n) {
   }
   return arrMoreCache.get(key);
 }
+/* v469 (mes choix 1A 2A 3A du 25 nov., « Tout conseillé ») : une ligne touchée se déplie sur place, sous elle, au lieu d'ouvrir
+   une autre page ; ⌄ à droite du nombre, ⌃ quand elle est ouverte (comme « Voir les N » de Sorties). Jusqu'à 10 lieux ;
+   au-delà, les 10 premiers puis « Voir les N … ⌄ », qui déplie la suite sur place. Plusieurs lignes peuvent être ouvertes ;
+   chacune se replie par un nouvel appui (rien ne saute sous le doigt). Les lignes ouvertes le restent le temps de la session :
+   en revenant d'une fiche, la page les retrouve ouvertes, à la même hauteur. */
+const ARR_MORE_MAX = 10;
+const arrMoreOpen = new Set(); // `${k}:${n}` déplié ; `${k}:${n}:all` la suite au-delà de 10 aussi
 function arrMoreBlock(n, back) {
   const box = el('div', { class: 'stack' });
   (async () => {
     await loadArr();
     const found = (await Promise.all(ARR_MORE.map(async (def) => [def, await arrMoreList(def, n)]))).filter(([, l]) => l?.length);
     if (!found.length || filt.arr !== n || !box.isConnected) return;
-    fill(box,
-      el('h3', { class: 'ring-title' }, el('span', {}, `Aussi dans le ${arrOrd(n)}`), el('span', {}, '')),
-      el('ul', { class: 'items' }, found.map(([def, l]) => el('li', { class: 'item' },
-        el('button', { type: 'button', class: 'item-main', onclick: () => openArrMore(def, n, back) },
+    const list = el('ul', { class: 'items' });
+    const draw = () => fill(list, ...found.flatMap(([def, l]) => {
+      const key = `${def.k}:${n}`;
+      const open = arrMoreOpen.has(key);
+      const toggle = () => { if (open) arrMoreOpen.delete(key); else arrMoreOpen.add(key); draw(); };
+      const head = el('li', { class: 'item' },
+        el('button', { type: 'button', class: 'item-main', 'aria-expanded': String(open), onclick: toggle },
           el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(def.icon, { size: 18 })),
           el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, def.title)),
-          el('span', { class: 'arr-more-n' }, String(l.length)))))),
-      el('p', { class: 'help tip' }, `Rangés dans l'appli, sans réseau. Touche une ligne : leur liste dans le ${arrOrd(n)}.`));
+          el('span', { class: 'arr-more-n' }, String(l.length), ico(open ? 'chevron-up' : 'chevron-down'))));
+      if (!open) return [head];
+      const all = arrMoreOpen.has(`${key}:all`) || l.length <= ARR_MORE_MAX;
+      const rows = (all ? l : l.slice(0, ARR_MORE_MAX)).map((x) => el('li', { class: 'item arr-sub' },
+        el('button', { type: 'button', class: 'item-main', onclick: () => def.open(x, back) },
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, def.name(x)), def.sub(x) ? el('span', { class: 'item-sub' }, def.sub(x)) : null))));
+      return [head, ...rows, all ? null : el('li', { class: 'arr-sub' },
+        el('button', { type: 'button', class: 'ev-more', onclick: () => { arrMoreOpen.add(`${key}:all`); draw(); } }, `Voir les ${l.length} ${def.noun}`, ico('chevron-down')))];
+    }));
+    draw();
+    fill(box,
+      el('h3', { class: 'ring-title' }, el('span', {}, `Aussi dans le ${arrOrd(n)}`), el('span', {}, '')),
+      list,
+      el('p', { class: 'help tip' }, `Rangés dans l'appli, sans réseau. Touche une ligne : sa liste du ${arrOrd(n)} se déplie dessous ; touche-la encore pour la replier.`));
+    // Retour d'une fiche : la page s'est ouverte avant ce bloc (trop courte) ; on remet la hauteur où on l'avait laissée.
+    const top = navStack.at(-1);
+    if (top?.name === 'arrlist' && top.want > sheetBody.scrollTop) sheetBody.scrollTop = top.want;
   })();
   return box;
-}
-async function openArrMore(def, n, back) {
-  const l = await arrMoreList(def, n);
-  if (!l) { toast('Liste indisponible pour l\'instant.', true); return; }
-  const self = named(`${def.title} du ${arrOrd(n)}`, () => openArrMore(def, n, back));
-  openSheet([ico(def.icon), ` ${def.title} du ${arrOrd(n)}`], el('div', { class: 'stack' },
-    el('ul', { class: 'items' }, l.map((x) => el('li', { class: 'item' },
-      el('button', { type: 'button', class: 'item-main', onclick: () => def.open(x, self) },
-        el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(def.icon, { size: 18 })),
-        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, def.name(x)), def.sub(x) ? el('span', { class: 'item-sub' }, def.sub(x)) : null))))),
-    foot(backBtn(back)),
-  ), { name: `arrmore:${def.k}:${n}`, again: () => openArrMore(def, n, back) });
 }
 
 /* Liste d'un arrondissement affichée (même réduite) : toucher un autre arrondissement sur la carte ouvre le sien.
@@ -13217,7 +13230,7 @@ const HELP = [
     '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Autres réglages → Favoris.',
     '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
-    '{trees} **Aussi dans l\'arrondissement** : en bas de la liste de tes lieux d\'un arrondissement, ce que l\'appli connaît là (jardins, passages, musées, circuits, plaques, art dans la rue, galeries) avec leur nombre. Touche une ligne : leur liste. Pas les monuments : leur liste complète est en ligne.',
+    '{trees} **Aussi dans l\'arrondissement** : en bas de la liste de tes lieux d\'un arrondissement, ce que l\'appli connaît là (jardins, passages, musées, circuits, plaques, art dans la rue, galeries) avec leur nombre. Touche une ligne : leur liste se déplie dessous (10 d\'abord, puis « Voir les … ») ; touche-la encore pour la replier. Pas les monuments : leur liste complète est en ligne.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
@@ -13323,6 +13336,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
@@ -13332,7 +13346,6 @@ const HELP = [
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
-    '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
