@@ -15,3 +15,10 @@ test('la croix Fermer est dessinée au trait épais, à la même place', () => {
   // ⌄ reste juste avant la croix
   assert.match(app, /document\.getElementById\('sheetClose'\)\.before\(sheetMin\);/);
 });
+
+// v455 (mon choix A du 25 nov.) : le soir (Signalétique), ⌄ avait un contour gris et la croix un contour clair.
+// La règle du mode sombre des .icon-btn épargne maintenant tout l'en-tête de la feuille, pas seulement la croix.
+test('le soir, les boutons de l\'en-tête gardent le même contour', () => {
+  assert.match(css, /:root\[data-theme="dark"\] \.icon-btn:not\(\.sheet-head \.icon-btn\) \{ background: var\(--btn\); border-color: var\(--btn-bd\); \}/);
+  assert.doesNotMatch(css, /\.icon-btn:not\(#sheetClose\)/);
+});

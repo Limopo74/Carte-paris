@@ -774,7 +774,7 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 
 /* Mode sombre : mêmes contours qu'en clair, sans relief (charte « Papier ») */
 :root[data-theme="dark"] .seg button:not([aria-pressed="true"]) { background: var(--btn); border-color: var(--btn-bd); }
-:root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn:not(#sheetClose) { background: var(--btn); border-color: var(--btn-bd); }
+:root[data-theme="dark"] .chip:not([aria-pressed="true"]), :root[data-theme="dark"] .icon-btn:not(.sheet-head .icon-btn) { background: var(--btn); border-color: var(--btn-bd); } /* v455 : les boutons de l'en-tête (⌄, haut-parleur, croix) gardent tous le contour de l'en-tête */
 .menu-row.c-metro .menu-ico { color: var(--metro); }
 .menu-row.c-metro .menu-chev { color: var(--metro); }
 
