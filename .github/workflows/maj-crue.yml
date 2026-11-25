@@ -1,0 +1,52 @@
+# Zone inondable seule (v503) : le même travail que la ligne « Zone inondable » du robot des données, sans attendre
+# OpenStreetMap (le 25 nov., ses serveurs muets ont fait dépasser les 45 min au robot complet : rien n'a été publié).
+# À la demande seulement (« Run workflow ») ; le robot des données la refait chaque mois. Données publiques, rien du téléphone.
+name: Zone inondable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: maj-crue
+  cancel-in-progress: false
+
+jobs:
+  crue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Télécharger, réunir, contrôler, publier
+        run: |
+          set -euo pipefail
+          curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -o /tmp/ppri.geojson \
+            "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/plub_pprizone/exports/geojson"
+          echo "$(wc -c < /tmp/ppri.geojson) octets"
+          # shapely installé pour tout le système : python3 -I ignore les paquets installés pour l'utilisateur
+          sudo python3 -m pip install -q --break-system-packages shapely
+          python3 -I tools/maj-ppri.py /tmp/ppri.geojson "$(TZ=Europe/Paris date +%F)"
+          npm test
+          git config user.name "Robot des données"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/ppri.json; then echo "Rien de changé."; exit 0; fi
+          cp data/ppri.json /tmp/ppri-neuf.json
+          for essai in 1 2 3; do
+            git fetch -q origin main
+            git reset -q --hard FETCH_HEAD
+            cp /tmp/ppri-neuf.json data/ppri.json
+            git add data/ppri.json
+            if git diff --cached --quiet; then echo "Rien de changé."; exit 0; fi
+            npm test > /tmp/tests.txt 2>&1 || { tail -30 /tmp/tests.txt; exit 1; }
+            git commit -q -m "Zone inondable du $(TZ=Europe/Paris date +%-d/%m/%Y) (PPRI de Paris, robot)"
+            if git push; then exit 0; fi
+            sleep 15
+          done
+          exit 1

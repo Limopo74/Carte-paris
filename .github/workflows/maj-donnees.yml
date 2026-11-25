@@ -197,7 +197,7 @@ jobs:
           # Jamais bloquant : si la source manque ou a changé, data/respire.json reste tel quel
           if [ -s /tmp/src/respire.json ]; then python3 -I tools/maj-respire.py /tmp/src/respire.json "$TODAY" || echo "Paris Respire : fichier d'avant gardé"; else echo "Paris Respire : pas de réponse, fichier d'avant gardé"; fi
           # v503 : réunir les morceaux du PPRI demande shapely ; jamais bloquant
-          if [ -s /tmp/src/ppri.geojson ]; then { python3 -m pip install -q --break-system-packages shapely && python3 -I tools/maj-ppri.py /tmp/src/ppri.geojson "$TODAY"; } || echo "Zone inondable : fichier d'avant gardé"; else echo "Zone inondable : pas de réponse, fichier d'avant gardé"; fi
+          if [ -s /tmp/src/ppri.geojson ]; then { sudo python3 -m pip install -q --break-system-packages shapely && python3 -I tools/maj-ppri.py /tmp/src/ppri.geojson "$TODAY"; } || echo "Zone inondable : fichier d'avant gardé"; else echo "Zone inondable : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/acces.json ]; then python3 -I tools/maj-acces.py /tmp/src/acces.json "$TODAY" || echo "Sorties du métro : fichier d'avant gardé"; else echo "Sorties du métro : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/arch ]; then python3 -I tools/maj-architectes.py /tmp/src/arch "$TODAY" || echo "Auteurs des monuments : fichier d'avant gardé"; else echo "Auteurs des monuments : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/dansmarue.csv ]; then python3 -I tools/maj-dansmarue.py /tmp/src/dansmarue.csv "$TODAY" || echo "Dans ma rue : fichier d'avant gardé"; else echo "Dans ma rue : pas de réponse, fichier d'avant gardé"; fi
