@@ -80,3 +80,14 @@ test('On te suit : sous les anciens boutons, vrai appel à un proche, Police 17,
   assert.match(app, /const MASECURITE_URL = 'https:\/\/www\.masecurite\.interieur\.gouv\.fr\/fr';/);
 });
 
+// v488 (mon choix 5 du 25 nov.) : témoin, les 5D, repliés tout en bas d'Alerter en silence
+test('les 5D : repliés, dans l\'ordre, sous Ma Sécurité, avec leur source', () => {
+  const body = app.slice(app.indexOf('function openSilentAlert('), app.indexOf('function openJeRentre('));
+  const i5 = body.indexOf("'Tu es témoin : les 5D'");
+  assert.ok(i5 > body.indexOf("'Après coup : Ma Sécurité'"), 'sous Ma Sécurité');
+  assert.match(body, /el\('details', \{ class: 'help-item temoin-5d' \}/, 'replié');
+  const order = ['Distraire', 'Déléguer', 'Documenter', 'Diriger', 'Dialoguer'].map((w) => body.indexOf(`el('b', {}, '${w}')`));
+  assert.ok(order.every((x, k) => x > i5 && (k === 0 || x > order[k - 1])), 'les cinq, dans l\'ordre');
+  assert.match(body, /seulement si c\\'est sans risque pour toi/);
+  assert.match(body, /Right To Be\), reprise par la RATP/);
+});

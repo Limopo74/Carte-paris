@@ -83,7 +83,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (487)';
+const VERSION = '25 novembre 2026 (488)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6804,6 +6804,16 @@ function openSilentAlert(at, addrOf = () => '', back = null) {
     el('a', { class: 'btn', href: 'tel:17', 'aria-label': 'Appeler le 17 : police secours' }, ico('phone'), 'Police 17'),
     el('a', { class: 'btn c-info', href: MASECURITE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Après coup : Ma Sécurité'),
     el('p', { class: 'help' }, 'Tchat avec un policier ou un gendarme, à toute heure, sans donner ton nom ; plainte en ligne.'),
+    // v488 (mon choix 5 du 25 nov.) : témoin d'un harcèlement, les 5D ; replié : il se lit avant, pas pendant
+    el('details', { class: 'help-item temoin-5d' }, el('summary', {}, ico('users'), 'Tu es témoin : les 5D'),
+      el('div', { class: 'stack sources-body' },
+        el('p', { class: 'alert-steps' },
+          el('b', {}, 'Distraire'), ' : détourne l\'attention (demande l\'heure, ton chemin), sans parler du harceleur.', el('br'),
+          el('b', {}, 'Déléguer'), ' : demande de l\'aide à un agent, un commerçant ; dans les transports, le 3117.', el('br'),
+          el('b', {}, 'Documenter'), ' : note ou filme de loin ; la trace est pour la personne, si elle veut porter plainte.', el('br'),
+          el('b', {}, 'Diriger'), ' : dis calmement à l\'auteur d\'arrêter, seulement si c\'est sans risque pour toi.', el('br'),
+          el('b', {}, 'Dialoguer'), ' : après, va voir la personne et demande-lui si elle va bien.'),
+        el('p', { class: 'help tip' }, 'Méthode des 5D (association Right To Be), reprise par la RATP (ratp.fr/avecvous) et le programme Stand Up.'))),
     el('p', { class: 'help tip' }, 'Sources : info.gouv.fr, « Réagir en cas d\'attaque terroriste » ; le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr) ; 31177 : RATP et SNCF.'),
     el('p', { class: 'help tip' }, 'Ma Sécurité : ministère de l\'Intérieur, tchat avec un policier ou un gendarme à toute heure (info.gouv.fr).'),
     foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Où suis-je ?') : null),
@@ -13523,7 +13533,7 @@ const HELP = [
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement.',
-    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme).',
+    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13714,6 +13724,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
     '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
     '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
@@ -13723,7 +13734,6 @@ const HELP = [
     '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
     '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
-    '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
