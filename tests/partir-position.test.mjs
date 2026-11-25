@@ -34,5 +34,5 @@ test('Nouveautés : la ligne en tête, 10 au plus', () => {
   const block = app.slice(i, app.indexOf(']],', i));
   const lines = block.split('\n').filter((l) => l.trim().startsWith("'{"));
   assert.equal(lines.length, 10);
-  assert.ok(lines.slice(1, 4).some((l) => l.includes('**Partir de ma position**'))); // v440 : « Les boutons comme au début » en tête ; v441 : « Photo sous la goutte » avant elle ; v443 : « Le démarrage d'un proche »
+  assert.ok(lines.slice(1, 5).some((l) => l.includes('**Partir de ma position**'))); // v440 : « Les boutons comme au début » en tête ; v441 : « Photo sous la goutte » avant elle ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde »
 });

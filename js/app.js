@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (443)';
+const VERSION = '25 novembre 2026 (444)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -136,7 +136,20 @@ if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ }
 let state = loadState(storage);
 /** v295 (mon choix A du 20 nov.) : mes marques TTB (vérifiée, fermée, masquée) comptent dans les changements à sauvegarder. Elles sont
  * gardées à part (TTB_MARKS_KEY) : l'empreinte les reçoit ici, lues sur le téléphone (fonction appelée tôt : pas de variable d'en bas). */
-function withMarks(s) { let m = {}; try { m = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { /* illisibles : aucune */ } return { ...s, ttbMarks: m }; }
+function withMarks(s) {
+  let m = {}; try { m = cleanTtbMarks(JSON.parse(storage.getItem(TTB_MARKS_KEY) ?? 'null')); } catch { /* illisibles : aucune */ }
+  // v444 (mon choix 2A du 25 nov.) : mes préparations pour un proche et mes remarques comptent aussi (dans ma sauvegarde depuis la v380) ;
+  // Mes chiffres, non (chaque jour de marche compterait). Lues sur le téléphone, comme les marques.
+  let preps = []; try { preps = cleanPreps(JSON.parse(storage.getItem(DEPART_KEY) ?? 'null')); } catch { /* illisibles : aucune */ }
+  let remarks = []; try { remarks = readTest(storage.getItem(TEST_KEY)).remarks ?? []; } catch { /* illisibles : aucune */ }
+  return { ...s, ttbMarks: m, preps, remarks };
+}
+/** v444 : une donnée gardée à part qui va dans ma sauvegarde (préparation, remarque) vient de changer : le compte des changements suit. */
+function countExtras() {
+  const b = trackChange(withMarks(state));
+  if (b === state.backup) return;
+  state.backup = b; saveState(storage, state); updateSettingsDot();
+}
 // Au démarrage, l'empreinte gardée a pu être faite sans les marques (avant la v295) : on la refait, sans compter de changement
 if (state.backup) { const h = backupHash(withMarks(state)); state.backup = state.backup.n || !state.backup.saved ? { ...state.backup, last: h } : { ...state.backup, saved: h, last: h }; }
 /** Une valeur réglable (Réglages → Distances et durées, Alertes et bandeau), toujours vérifiée (v214). */
@@ -12476,6 +12489,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
     '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
@@ -12485,7 +12499,6 @@ const HELP = [
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
-    '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -12626,7 +12639,7 @@ function openWelcome(step = 1) {
 /* ---------- Préparer le démarrage d'un proche (v321, mes choix du 20 nov., maquette validée) : mes préparations nommées,
    10 étapes qui ne touchent jamais mes réglages, puis un lien et un QR code. Le nom reste pour moi seule. ---------- */
 const prepsNow = () => { try { return cleanPreps(JSON.parse(storage.getItem(DEPART_KEY) ?? 'null')); } catch { return []; } };
-const savePreps = (list) => { try { storage.setItem(DEPART_KEY, JSON.stringify(cleanPreps(list))); return true; } catch { toast('Le téléphone n\'a pas pu garder la préparation.', true); return false; } };
+const savePreps = (list) => { try { storage.setItem(DEPART_KEY, JSON.stringify(cleanPreps(list))); } catch { toast('Le téléphone n\'a pas pu garder la préparation.', true); return false; } countExtras(); return true; }; // v444 : compte pour la sauvegarde
 const PREP_STEPS = 10;
 const prepId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 const PREP_TITLES = ['Mot d\'accueil', 'Les étapes qu\'il verra', 'Taille du texte', 'Pour toi', 'Ses boutons du haut', 'Sa colonne', 'Sa carte', 'Catégories et listes', 'Fiche et alertes', 'Nom et envoi'];
@@ -12967,7 +12980,7 @@ updateSettingsDot(); // pastille de sauvegarde à l'ouverture (3 jours passés :
 /* ---------- Période de test (v313, mes choix 1A à 6A du 20 nov.) : le porte-voix, une remarque, le menu de partage ----------
    Allumée par le lien …/?test ou par Réglages → Autres réglages, tout en bas. Rangée à part (js/remarques.js) ; dans ma sauvegarde depuis la v380 (mon choix 10A), jamais chez un proche. */
 let testState = readTest((() => { try { return storage.getItem(TEST_KEY); } catch { return null; } })());
-const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } };
+const saveTest = () => { try { storage.setItem(TEST_KEY, JSON.stringify(testState)); } catch { /* plein : la remarque part quand même */ } countExtras(); };
 const btnRemark = document.getElementById('btnRemark');
 const showRemarkBtn = () => { btnRemark.hidden = !testState.on; };
 let platform = platformInfo(null, navigator.userAgent); // Chrome seul ; Android si Chrome le donne (lu une fois, plus bas)
