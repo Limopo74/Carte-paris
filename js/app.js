@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (493)';
+const VERSION = '25 novembre 2026 (494)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -497,6 +497,16 @@ function applyTheme() {
 }
 applyTheme();
 darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !state.theme) { applyTheme(); refresh?.(); } });
+/** v494 : le petit point du coin : le style suivant, en boucle (Papier → Verre → Signalétique → Pop → Papier).
+ *  En sombre, le style affiché est toujours Signalétique : le point passe alors en Clair, sinon rien ne changerait. */
+function nextLook() {
+  const k = LOOKS[(LOOKS.indexOf(lookNow()) + 1) % LOOKS.length];
+  state.look = k;
+  if (isDark()) state.theme = 'light';
+  persist(); applyTheme(); refresh();
+  toast(`Style : ${LOOK_NAME[k]}`);
+}
+document.getElementById('lookDot')?.addEventListener('click', nextLook);
 
 let tiles = null;
 let noCorsTiles = false;
@@ -13883,7 +13893,7 @@ const HELP = [
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois ; pour la donner à un proche : Clé CARTO → Envoyer ma clé.',
-    '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. Plus vite : le petit point en haut à droite change de style à chaque appui. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. {settings} → Réglages de référence, en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -13926,6 +13936,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
     '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
     '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
@@ -13935,7 +13946,6 @@ const HELP = [
     '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
     '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
-    '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

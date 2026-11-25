@@ -215,6 +215,16 @@ button { cursor: pointer; }
   padding-right: 24px;
 }
 .chips::-webkit-scrollbar { display: none; }
+/* v494 : le petit point du coin en haut à droite : chaque appui passe au style suivant (Papier, Verre, Signalétique, Pop).
+   Zone d'appui de 22 × 22 dans la marge de la barre du haut ; il ne pousse rien. */
+.look-dot {
+  position: fixed; top: 0; right: 0; z-index: 501;
+  width: 22px; height: 22px; padding: 0; border: 0; background: none;
+}
+.look-dot::after {
+  content: ''; position: absolute; top: 4px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ink); opacity: .55;
+}
 
 
 /* Barre du bas */
