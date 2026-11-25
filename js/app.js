@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (435)';
+const VERSION = '25 novembre 2026 (436)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5657,7 +5657,7 @@ function drawArrNums() {
 }
 
 /* ---------- Repères (v386, mes choix 1A à 5A du 24 nov.) : 19 grands monuments dessinés, sur la carte vue de loin (zooms 12 et 13).
-   Allumés au départ ; Réglages → Autres réglages → La carte → Dessins des monuments. Pas touchables. Un dessin qui touche un bouton,
+   Allumés au départ ; Réglages → Autres réglages → Dessins des monuments. Pas touchables. Un dessin qui touche un bouton,
    un de mes lieux ou un dessin plus important se cache ; un numéro d'arrondissement qu'il touche se cache à sa place (3A). ---------- */
 
 map.createPane('reperes').style.zIndex = 395; // au-dessus des numéros d'arrondissement, sous mes gouttes et les calques
@@ -12129,7 +12129,7 @@ const HELP = [
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
-    '**Le nom de tes lieux**, de près, est écrit sous leur goutte. Quand deux noms se touchent, ou un nom et un bouton, l\'un se cache (tes favoris passent d\'abord) : rapproche-toi encore, ou touche la goutte. Pour les retirer : {settings} → Autres réglages → La carte → Noms de mes lieux.',
+    '**Le nom de tes lieux**, de près, est écrit sous leur goutte. Quand deux noms se touchent, ou un nom et un bouton, l\'un se cache (tes favoris passent d\'abord) : rapproche-toi encore, ou touche la goutte. Pour les retirer : {settings} → Autres réglages → Noms de mes lieux.',
     '**Zoomer d\'un seul doigt** : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner. Deux appuis sans glisser rapprochent d\'un cran. Pincer à deux doigts marche toujours.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
@@ -12340,12 +12340,12 @@ const HELP = [
   ]],
   ['settings', 'Régler l\'appli', [
     '{settings} **La petite roue à côté d\'un titre** : dans Sorties, Autour de moi, la page d\'un circuit et Mes Vu en passant, elle ouvre les réglages de cet écran (Distances et durées, ou Vu en passant). « ← » en bas te ramène à l\'écran d\'où tu viens.',
-    '{sofa} **Chez moi** : {settings} → La carte → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
+    '{sofa} **Chez moi** : {settings} → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
-    '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Ce qui s\'affiche.',
+    '{a-large-small} **Taille du texte** : Normal, Grand ou Très grand. {settings} → Taille du texte.',
     '{chart-no-axes-column} **Ce que j\'utilise** : {settings} → Autres réglages, tout en bas. Les écrans ouverts et les boutons touchés, comptés sur ce téléphone seulement, avec ceux jamais touchés. Un interrupteur l\'éteint ; « Remettre à zéro » efface les comptes.',
     '{megaphone} **Période de test** : {settings} → Autres réglages, tout en bas, ou le lien …/Carte-paris/?test. Le porte-voix, en haut à droite, ouvre « Une remarque » : un choix, un mot si tu veux, puis « Envoyer » ouvre le menu de partage. Partent avec : l\'écran, la version, la taille du texte, le côté des boutons, Android et Chrome ; jamais ta position. Mes remarques, juste dessous, les renvoie ou les supprime. Elles partent dans ta sauvegarde, jamais chez un proche.',
-    '**Ranger les boutons du haut** : {settings} → Ce qui s\'affiche → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
+    '**Ranger les boutons du haut** : {settings} → Barre du haut. La page suit l\'écran : « La barre, de gauche à droite », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Barre, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe, tes catégories comprises : une catégorie peut passer devant TTB ou l\'étoile (Tout et Filtres restent en tête, Mes artistes en tête de Plus). Exemple : Vu en passant juste après Filtres, Resto et Boutique dans Plus.',
     '**Ranger les boutons de la colonne** : {settings} → Boutons de la carte. La page suit l\'écran : « Sur la carte, de haut en bas », puis « Dans ⋯ Plus », puis « Masqués ». Pour chacun : Carte, Plus ou Masqué ; ↑ ↓ changent sa place dans son groupe.',
     '{pencil} **Changer le nom d\'un bouton** : même page, touche son nom. « Noms à côté des boutons » les écrit sur la carte.',
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
