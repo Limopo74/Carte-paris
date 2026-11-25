@@ -39,10 +39,14 @@ export function readVigi(json, now = Date.now()) {
     .map((x) => ({ name: PHENOMENA[Number(x?.phenomenon_id)], color: Number(x?.phenomenon_max_color_id) }))
     .filter((x) => x.name && x.color >= 3 && x.color <= 4)
     .sort((a, b) => b.color - a.color);
-  return { color, risks, at };
+  // v519 (7 quinquies, mon choix A du 25 nov.) : la couleur des crues à Paris dès le jaune (null si vert ou absente), pour la ligne Crue du mode crise
+  const cr = Math.max(0, ...(Array.isArray(d.phenomenon_items) ? d.phenomenon_items : []).filter((x) => Number(x?.phenomenon_id) === 4).map((x) => Number(x?.phenomenon_max_color_id)).filter((c) => c >= 2 && c <= 4));
+  return { color, risks, at, crue: cr || null };
 }
 
 /** « Orages », ou « Orages +1 » s'il y en a d'autres (la pastille reste courte). */
 export const vigiShort = (v) => (v?.risks.length ? `${v.risks[0].name[0].toUpperCase()}${v.risks[0].name.slice(1)}${v.risks.length > 1 ? ` +${v.risks.length - 1}` : ''}` : '');
 /** « Vigilance orange à Paris : orages, canicule. » */
+/** « Vigilance crue orange à Paris (Météo-France) », ou '' sans vigilance crue. */
+export const vigiCrueText = (v) => (v?.crue ? `Vigilance crue ${COLOR_NAME[v.crue]} à Paris (Météo-France)` : '');
 export const vigiText = (v) => `Vigilance ${COLOR_NAME[v.color]} à Paris${v.risks.length ? ` : ${v.risks.map((r) => r.name).join(', ')}` : ''}.`;

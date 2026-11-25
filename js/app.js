@@ -35,7 +35,7 @@ import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriS
 import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
 import { FICHES, FICHES_CHECKED, ficheOf } from './fiches.js';
 import { DOC_MAX_BYTES, cleanDocs, cleanUrl, newDocId, sizeText, hostOf, pdfDataUrlToBlob, looksLikePdf } from './docs.js';
-import { VIGI_URL, VIGI_PAGE, VIGI_PORTAL, VIGI_KEY, validVigiKey, readVigi, vigiShort, vigiText, COLOR_NAME } from './vigilance.js';
+import { VIGI_URL, VIGI_PAGE, VIGI_PORTAL, VIGI_KEY, validVigiKey, readVigi, vigiShort, vigiText, vigiCrueText, COLOR_NAME } from './vigilance.js';
 import { KIT, KIT_IDS, KIT_SOURCE, KIT_URL, cleanKit, waterText } from './kit.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (518)';
+const VERSION = '25 novembre 2026 (519)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5913,13 +5913,15 @@ function endCrisis() {
 /** La page « Mode crise » : toucher une crise l'allume (1 appui) ; allumé, « Terminer le mode crise ». */
 function openCrisis(back = null) {
   const self = () => openCrisis(back);
+  // v519 (7 quinquies A) : la vigilance crue de Météo-France sous « Crue », seulement avec ma clé ; la page se redessine si elle arrive
+  if (vigiKey()) { const before = vigi?.crue ?? null; checkVigi().then(() => { if (view === 'crise' && (vigi?.crue ?? null) !== before) self(); }); }
   openSheet([ico('triangle-alert'), ' Mode crise'], el('div', { class: 'stack' },
     el('p', { class: 'help' }, crisis ? 'Touche une autre crise pour changer. Rien ne bouge de place.' : 'Touche la crise : le mode s\'allume. Autour de moi commence alors par les gestes utiles ; rien ne bouge de place.'),
     el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Quelle crise ?' }, CRISES.map((c) => {
       const on = crisis?.k === c.k;
       return el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), 'data-crise': c.k, onclick: () => { if (!on) setCrisis(c.k); closeSheet(); } },
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : c.icon)),
-        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, c.sub)));
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, (c.k === 'crue' && vigiCrueText(vigi)) || c.sub)));
     })),
     el('div', { class: 'menu' }, offlineRow(self)), // v493 : la maquette validée (29 A) montrait « Prêt hors ligne » ici
     crisis ? el('button', { type: 'button', class: 'btn', onclick: () => { endCrisis(); closeSheet(); } }, ico('x'), 'Terminer le mode crise') : null,
@@ -14624,6 +14626,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
     '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
@@ -14633,7 +14636,6 @@ const HELP = [
     '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
-    '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

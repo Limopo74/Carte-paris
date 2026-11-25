@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readVigi, vigiShort, vigiText, validVigiKey, VIGI_URL, VIGI_KEY } from '../js/vigilance.js';
+import { readVigi, vigiShort, vigiText, vigiCrueText, validVigiKey, VIGI_URL, VIGI_KEY } from '../js/vigilance.js';
 import { exportJSON, loadState } from '../js/store.js';
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
@@ -17,7 +17,7 @@ const carte = (dom = '75', color = 3, items = [{ phenomenon_id: '3', phenomenon_
 
 test('lecture : Paris, la période en cours, orange et rouge seulement', () => {
   const v = readVigi(carte(), T);
-  assert.deepEqual(v, { color: 3, risks: [{ name: 'orages', color: 3 }], at: Date.parse('2026-11-25T14:00:00Z') });
+  assert.deepEqual(v, { color: 3, risks: [{ name: 'orages', color: 3 }], at: Date.parse('2026-11-25T14:00:00Z'), crue: null });
   assert.equal(vigiShort(v), 'Orages');
   assert.equal(vigiText(v), 'Vigilance orange à Paris : orages.');
   assert.equal(readVigi(carte(), Date.parse('2026-11-26T01:00:00Z')).color, 4, 'demain devient aujourd\'hui');
@@ -41,4 +41,17 @@ test('la clé : sur le téléphone seulement ; appel déclaré à la page ; oran
   assert.match(app, /headers: \{ apikey: k, accept: 'application\/json' \}/);
   assert.match(app, /const vg = vigi\?\.color >= 3 \? vigi : null;/);
   assert.ok(!exportJSON(loadState({ getItem: () => null, setItem() {} })).includes(VIGI_KEY), 'jamais dans la sauvegarde');
+});
+
+test('v519 (7 quinquies A) : la vigilance crue sous « Crue » dans Mode crise, dès le jaune, seulement avec ma clé', () => {
+  const j = readVigi(carte('75', 2, [{ phenomenon_id: '4', phenomenon_max_color_id: 2 }]), T);
+  assert.equal(j.crue, 2);
+  assert.equal(vigiCrueText(j), 'Vigilance crue jaune à Paris (Météo-France)');
+  assert.equal(vigiCrueText(readVigi(carte('75', 4, [{ phenomenon_id: 4, phenomenon_max_color_id: 4 }, { phenomenon_id: 3, phenomenon_max_color_id: 3 }]), T)), 'Vigilance crue rouge à Paris (Météo-France)');
+  assert.equal(readVigi(carte('75', 1, [{ phenomenon_id: '4', phenomenon_max_color_id: 1 }]), T).crue, null, 'vert : rien');
+  assert.equal(readVigi(carte(), T).crue, null, 'pas de crue dans la carte : rien');
+  assert.equal(vigiCrueText(null), '', 'sans clé ou carte trop vieille : rien');
+  const page = app.slice(app.indexOf('function openCrisis('), app.indexOf('function crisisBlock('));
+  assert.match(page, /\(c\.k === 'crue' && vigiCrueText\(vigi\)\) \|\| c\.sub/);
+  assert.match(page, /if \(vigiKey\(\)\)/, 'aucun appel sans clé');
 });
