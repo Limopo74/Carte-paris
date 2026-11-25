@@ -79,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (471)';
+const VERSION = '25 novembre 2026 (472)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2646,7 +2646,7 @@ function openPlaceSearch(initial = '', autoRun = false, back = null, kept = null
   openSheet([ico('search'), ' Nom ou adresse'], el('div', { class: 'stack' },
     el('label', { class: 'field' }, 'Lieu ou adresse', input),
     el('button', { type: 'button', class: 'btn primary', onclick: run }, 'Chercher'),
-    info, out, back ? foot(el('button', { type: 'button', class: 'btn', onclick: back.fn }, `← ${back.name}`)) : null),
+    info, out, back ? foot(backBtn(back)) : null), /* v467 : avant, « ← openAddChoice » (nom interne) et un bouton sans effet */
     { tall: true, onClose: () => ctrl?.abort(), name: 'place', again: () => openPlaceSearch(input.value, Boolean(input.value.trim()), back) });
   if (kept) show(kept); else if (autoRun) run(); else input.focus();
 }
