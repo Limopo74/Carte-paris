@@ -118,7 +118,7 @@ test('Autres réglages → Ce qui s\'affiche : « Photos des salles » sous Fich
   const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
   const f = page.indexOf("'Fiche d\\'un lieu'");
   const c = page.indexOf("row('camera', 'Photos des salles'");
-  const b = page.indexOf("onOff('evThumbs', 'camera', 'Photos dans Sorties'");
+  const b = page.indexOf("onOff('evThumbs', 'image', 'Photos dans Sorties'"); // 6A (25 nov.) : l'image du bouton de Sorties
   const a = page.indexOf("onOff('masculin'");
   const d = page.indexOf("'ring-title menu-group' }, 'Appli')");
   assert.ok(f > 0 && c > f && b > c && a > b && d > a);

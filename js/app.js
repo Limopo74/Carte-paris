@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (458)';
+const VERSION = '25 novembre 2026 (459)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1389,7 +1389,7 @@ function openFilterChoice(back = openFilters) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
-    hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); } }, 'Tout réafficher') : null,
+    hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); toast('Filtres remis au départ : toutes les lignes'); } }, ico('rotate-ccw'), 'Remettre au départ') : null, /* 6A */
     foot(backBtn(back)),
   ), { tall: true, name: 'filter-choice', again: () => openFilterChoice(back) });
 }
@@ -10496,6 +10496,11 @@ const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
 let settingsFrom = null;
+/** 6A (25 nov.) : la page Alertes et bandeau est-elle comme au départ ? */
+function alertsAtStart() {
+  return state.suggestNow !== false && state.vibrateNow !== true && state.alertNear !== false && state.voice !== false && state.jardinsNow !== true
+    && tune('alertM') === TUNING.alertM.def && tune('memoryM') === TUNING.memoryM.def;
+}
 function openSettings(section = null, from = null) {
   if (from) settingsFrom = { section, back: from };
   else if (!section || section === 'autres') settingsFrom = null;
@@ -10848,7 +10853,7 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'help tip' }, 'Mesurer : l\'appli lance un chrono et s\'arrête seule au bout de 1 km, compté comme partout dans l\'appli (la ligne droite × 1,3). Elle ne garde que ton point de départ, le temps de la mesure. Sans l\'appli : chronomètre 1 km dans la rue, feux compris, puis touche − ou + jusqu\'à lire ton temps en « min par km ».'),
       el('p', { class: 'help' }, `À ton pas, 1 km en ligne droite ≈ ${walkMinutes(1000)} min à pied.`),
       el('p', { class: 'help tip' }, 'Les rues font environ 1,3 fois la ligne droite. De 2 à 7 km/h. Au départ : Rapide 6, Normal 5, Tranquille 3,5.'),
-      el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'),
+      JSON.stringify(pace) === JSON.stringify(cleanPace(undefined)) ? null : el('button', { type: 'button', class: 'btn', onclick: () => apply(undefined, 'Mon pas remis au départ : Normal, 5 km/h') }, ico('rotate-ccw'), 'Remettre au départ'), /* 6A : seulement quand il a changé */
       backBtn,
     ), { tall: true, name: 'settings:pas', again: () => openSettings('pas') });
     requestAnimationFrame(() => document.querySelector(`[data-pace="${pace.mode}"]`)?.focus());
@@ -11266,6 +11271,12 @@ function openSettings(section = null, from = null) {
         toast(state.jardinsNow ? 'Le bandeau signalera un grand jardin ouvert à 200 m' : 'Plus de grand jardin dans le bandeau');
       })),
       el('p', { class: 'help tip' }, 'Les jardins de 4 hectares ou plus (parcs Monceau, Montsouris, des Buttes-Chaumont…), ouverts d\'après les horaires de la Ville ; rien s\'il ferme dans moins de 20 min, rien par grand vent, rien quand tu y es déjà.'),
+      /* 6A (25 nov.) : comme Distances et durées et Mon pas ; seulement quand un réglage de la page a changé */
+      alertsAtStart() ? null : el('button', { type: 'button', class: 'btn', onclick: () => {
+        state.suggestNow = true; state.vibrateNow = false; state.alertNear = true; state.voice = true; state.jardinsNow = false;
+        state.tuning = { ...cleanTuning(state.tuning), alertM: TUNING.alertM.def, memoryM: TUNING.memoryM.def };
+        persist(); updateNow(true); openSettings('alertes'); toast('Alertes et bandeau remis au départ');
+      } }, ico('rotate-ccw'), 'Remettre au départ'),
       backBtn,
     ), { tall: true, name: 'settings:alertes', again: () => openSettings('alertes') });
     return;
@@ -11280,7 +11291,7 @@ function openSettings(section = null, from = null) {
         if (hid.has(key)) hid.delete(key); else hid.add(key);
         state.ficheHidden = cleanFicheHidden([...hid]);
       }))),
-      hid.size ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => { state.ficheHidden = []; persist(); openSettings('fiche'); } }, 'Tout réafficher') : null,
+      hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.ficheHidden = []; persist(); openSettings('fiche'); toast('Fiche d\'un lieu remise au départ : toutes les lignes'); } }, ico('rotate-ccw'), 'Remettre au départ') : null, /* 6A */
       backBtn,
     ), { tall: true, name: 'settings:fiche', again: () => openSettings('fiche') });
     return;
@@ -11303,10 +11314,11 @@ function openSettings(section = null, from = null) {
       el('h3', { class: 'fiche-sec' }, 'Mon planning'),
       tuneRow('askDays', (v) => `« Tu y es allée ? » ${v}`, 'Après la sortie'),
       tuneRow('leaveMin', (v) => `Marge de ${v}`, '« Pars à » : en plus du trajet'), // v365 (ma demande du 21 nov.) : sous la dernière ligne, il ne pousse rien
-      el('button', { type: 'button', class: 'btn', onclick: () => {
+      /* 6A (25 nov.) : un seul mot sur chaque page, « Remettre au départ », seulement quand une valeur a changé, juste au-dessus du retour */
+      PAGE_KEYS.every((k) => tune(k) === TUNING[k].def) ? null : el('button', { type: 'button', class: 'btn', onclick: () => {
         state.tuning = { ...cleanTuning(state.tuning), ...Object.fromEntries(PAGE_KEYS.map((k) => [k, TUNING[k].def])) };
         setWalkLimit(tune('walkM')); persist(); openSettings('distances'); toast('Distances et durées remises au départ');
-      } }, ico('rotate-ccw'), 'Tout remettre au départ'),
+      } }, ico('rotate-ccw'), 'Remettre au départ'),
       backBtn,
     ), { tall: true, name: 'settings:distances', again: () => openSettings('distances') });
     return;
@@ -11355,7 +11367,7 @@ function openSettings(section = null, from = null) {
     // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
-    onOff('evThumbs', 'camera', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+    onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche de chaque sortie, sinon la lettre du genre' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
       state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
     }),
     // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
@@ -13061,6 +13073,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
@@ -13070,7 +13083,6 @@ const HELP = [
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
     '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
     '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
-    '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
