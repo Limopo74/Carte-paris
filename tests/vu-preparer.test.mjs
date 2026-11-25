@@ -34,8 +34,9 @@ test('Dans l\'appli : seulement les cochées après la photo, Vu en passant touj
   assert.match(app, /const seenCats = \(\) => seenCatsAll\(\)\.filter\(\(c, i\) => i === 0 \|\| !\(state\.seenOff \?\? \[\]\)\.includes\(c\.id\)\);/);
   assert.match(app, /return \[vu, \.\.\.seenOrderOf\(state\.seenOrder, all\.slice\(1\)\.map\(\(c\) => c\.id\)\)/);
   assert.match(app, /el\('span', \{\}, 'Après la photo'\)/);
-  assert.match(app, /function openSeenSubs\(catId\)/);
+  assert.match(app, /function openSeenSubs\(catId, back = named\('Vu en passant', \(\) => openSettings\('vu'\)\)\)/); // v440 : le retour par défaut, Vu en passant
   assert.match(app, /« \$\{x\.name\} » supprimée \(ses photos restent\)`, false, \{ label: 'Annuler'/);
-  assert.match(app, /Ses \$\{plural\(c\.subs\.length, 'sous-catégorie', 'sous-catégories'\)\} \(photos prises en passant\) : Réglages → Autres réglages → Vu en passant → \$\{c\.name\}\./, 'la page de la catégorie dit seulement où');
+  assert.match(app, /Ses \$\{plural\(c\.subs\.length, 'sous-catégorie', 'sous-catégories'\)\} \(photos prises en passant\) se règlent dans Vu en passant :/, 'la page de la catégorie dit seulement où'); // v440 : avec le bouton « Ses sous-catégories »
+  assert.match(app, /onclick: \(\) => openSeenSubs\(c\.id, here\(\)\) \}, ico\('camera'\), 'Ses sous-catégories'/);
   assert.match(app, /if \(state\.seenStart === 'street' && seenCats\(\)\.some\(isStreetCat\)\)/, 'Street art décochée : pas une autre catégorie à sa place');
 });

@@ -50,7 +50,7 @@ test('Éteints : bouton, ⋯ Plus, L\'essentiel, Itinéraire, + Ajouter, Mes par
 
 test('Une page de circuit ouverte par un autre chemin : Circuits dit « éteints » et propose de rallumer ; un lien reçu s\'ouvre (4A)', () => {
   assert.match(app, /async function openCircuits\(back = null\) \{\n\s+if \(circuitsOff\(\)\) \{ openCircuitsOff\(back\); return; \}/);
-  assert.match(app, /c\.received && circuitsOff\(\) \? el\('p', \{ class: 'warn' \}, 'Les circuits sont éteints sur ce téléphone/);
+  assert.match(app, /c\.received && circuitsOff\(\) \? el\('div'[^\n]*\n\s+el\('p', \{ class: 'warn' \}, 'Les circuits sont éteints sur ce téléphone/); // v440 : la phrase et son bouton « Rallumer les circuits »
   assert.match(app, /withGear\(c\.titre, circuitsOff\(\) \? null : settingsGear\('distances'/, 'pas de roue vers un réglage caché');
 });
 

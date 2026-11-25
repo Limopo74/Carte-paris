@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (448)';
+const VERSION = '25 novembre 2026 (449)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -785,16 +785,16 @@ function openPassages(p, back) {
   ), { name: `passages:${p.id}`, again });
 }
 /** Noter (ou corriger, `at` donné) un passage : le jour en puces, une ligne, une photo facultative. Passer, c'est aussi « Déjà visité ». */
-function openPassage(p, back, at = null) {
+function openPassage(p, back, at = null, draft = null) { // v440 : `draft`, ce qui était écrit avant d'aller voir la catégorie
   const old = at != null ? cleanPassages(p.passages).find((x) => x.at === at) : null;
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const today = new Date(); const yday = new Date(Date.now() - 864e5);
   const oldIso = old ? iso(new Date(old.at)) : iso(today);
-  let day = oldIso === iso(today) ? 'today' : oldIso === iso(yday) ? 'yday' : 'other';
-  const date = el('input', { type: 'date', max: iso(today), value: oldIso });
+  let day = draft?.day ?? (oldIso === iso(today) ? 'today' : oldIso === iso(yday) ? 'yday' : 'other');
+  const date = el('input', { type: 'date', max: iso(today), value: draft?.date ?? oldIso });
   const dateField = el('label', { class: 'field' }, 'Date', date);
-  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: old?.text ?? '', placeholder: 'Ex. : terrasse au soleil' });
+  const text = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', value: draft?.text ?? old?.text ?? '', placeholder: 'Ex. : terrasse au soleil' });
   // Mots tout prêts (v226) : la série de la catégorie ; un appui ajoute le mot à la fin du texte, un second le retire
   const series = seriesOf(catOf(p.cat), wordsOf(state));
   // v405 (mon choix B du 24 nov.) : sur plusieurs lignes, tous visibles (avant : une rangée qui glissait, 3 mots et demi visibles à 360 px)
@@ -809,8 +809,8 @@ function openPassage(p, back, at = null) {
   };
   text.addEventListener('input', drawWords);
   drawWords();
-  let photo = old?.photo ?? null; let newBlob = null;
-  let stars = old?.stars ?? 0;
+  let photo = draft ? draft.photo : old?.photo ?? null; let newBlob = draft?.newBlob ?? null;
+  let stars = draft?.stars ?? old?.stars ?? 0;
   const pick = starPicker(stars, (n) => { stars = n; });
   const preview = el('div', { class: 'stack' });
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
@@ -871,7 +871,12 @@ function openPassage(p, back, at = null) {
       el('button', { type: 'button', class: 'btn', onclick: done }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Enregistrer')),
     old ? el('button', { type: 'button', class: 'btn danger', onclick: remove }, 'Supprimer cette impression') : null,
-    el('p', { class: 'help tip' }, `Tes impressions restent sur ce téléphone et partent dans ta sauvegarde. Le nom « ${logName(catOf(p.cat))} » se change dans Réglages → Catégories et listes → la catégorie.`),
+    /* v440 (mon choix 1A du 25 nov.) : le bouton à la place du chemin écrit, dans l'Aide avec sa phrase ; ce qui est écrit ici est gardé */
+    el('p', { class: 'help tip' }, `Tes impressions restent sur ce téléphone et partent dans ta sauvegarde. Le nom « ${logName(catOf(p.cat))} » se change dans sa catégorie :`,
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+        const keep = { day, date: date.value, text: text.value, photo, newBlob, stars };
+        openCategory(p.cat, { back: named(old ? 'Cette impression' : 'Écrire une impression', () => openPassage(p, back, at, keep)) });
+      } }, ico('tags'), `Catégorie « ${catOf(p.cat).name} »`)),
   ), { name: `passage:${p.id}:${at ?? 'new'}` });
 }
 /* ---------- Note du jour (v205) : une page de texte par jour, sans lieu ni position ; Mon journal la range à sa date ---------- */
@@ -2197,11 +2202,10 @@ function seenDeleteZone(catId, again) {
 
 /** v311 (mes choix 3A 4A 5C du 20 nov.) : les sous-catégories d'une catégorie, préparées avant la balade : créer, renommer,
  *  supprimer (ses photos restent), ↑ ↓ pour l'ordre où elles sont proposées après la photo. Street art : l'artiste, pas de sous-catégorie. */
-function openSeenSubs(catId) {
+function openSeenSubs(catId, back = named('Vu en passant', () => openSettings('vu'))) { // v440 : `back`, depuis Modifier la catégorie
   const c0 = seenCatsAll().find((x) => x.id === catId);
-  if (!c0) { openSettings('vu'); return; }
-  const back = named('Vu en passant', () => openSettings('vu'));
-  const again = () => openSeenSubs(catId);
+  if (!c0) { back(); return; }
+  const again = () => openSeenSubs(catId, back);
   if (isStreetCat(c0)) {
     openSheet([dotOf(c0), ` ${c0.name}`], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Pour Street art, l\'appli demande l\'artiste à la place d\'une sous-catégorie. Dans Mes Vu en passant, tes artistes servent de sous-catégories.'),
@@ -3671,7 +3675,7 @@ function unplan(p) {
   };
 }
 
-function openPlan(p, back = null, { done: doneFn = null } = {}) {
+function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { // v440 : `draft`, ce qui était choisi avant d'aller régler la marge
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const now = new Date();
@@ -3679,13 +3683,13 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
   const stored = !p.plan || (state.plans ?? []).some((x) => x.id === p.id); // sortie de l'agenda pas encore gardée : rien à retirer ni à envoyer
   const days = dayChoices(now);
   const oldDay = old ? days.find((d) => iso(d.date) === iso(new Date(old.at))) : null;
-  let day = old ? (oldDay?.key ?? 'other') : null;
-  let part = old ? (isPart(old.part) ? old.part : isDayList(old) ? null : 'time') : null; // liste du jour : ni moment ni heure
-  const date = el('input', { type: 'date', min: iso(now), value: old ? iso(new Date(old.at)) : '' });
-  const time = el('input', { type: 'time', value: old && !isPart(old.part) && !isDayList(old) ? `${pad(new Date(old.at).getHours())}:${pad(new Date(old.at).getMinutes())}` : '' });
+  let day = draft ? draft.day : old ? (oldDay?.key ?? 'other') : null;
+  let part = draft ? draft.part : old ? (isPart(old.part) ? old.part : isDayList(old) ? null : 'time') : null; // liste du jour : ni moment ni heure
+  const date = el('input', { type: 'date', min: iso(now), value: draft?.date ?? (old ? iso(new Date(old.at)) : '') });
+  const time = el('input', { type: 'time', value: draft?.time ?? (old && !isPart(old.part) && !isDayList(old) ? `${pad(new Date(old.at).getHours())}:${pad(new Date(old.at).getMinutes())}` : '') });
   const dateField = el('label', { class: 'field' }, 'Date', date);
   const timeField = el('label', { class: 'field' }, 'Heure', time);
-  const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: old?.with ?? '' });
+  const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: draft?.who ?? old?.with ?? '' });
   const err = el('div', { class: 'error', role: 'alert' });
   const done = doneFn ?? (() => (p.plan ? openPlanning() : back ? openDetail(p.id, back) : openDetail(p.id)));
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
@@ -3743,7 +3747,13 @@ function openPlan(p, back = null, { done: doneFn = null } = {}) {
       if (p.plan) openPlanning(); else done();
       toast('Sortie retirée de Mon planning', false, { label: 'Annuler', fn: undo }); // v300 (mon choix 3A)
     } }, 'Retirer de Mon planning') : null,
-    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${tune('leaveMin')} min de marge, à régler dans Réglages → Autres réglages → Distances et durées). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
+    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${tune('leaveMin')} min de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
+    /* v440 (mon choix 1A du 25 nov.) : la marge se règle par un bouton, à la place du chemin écrit ; dans l'Aide, sous sa phrase ; le jour et le moment choisis sont gardés */
+    el('p', { class: 'help tip' }, 'La marge se règle dans :',
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+        const k = { day, part, date: date.value, time: time.value, who: who.value };
+        openSettings('distances', named('Prévoir', () => openPlan(p, back, { done: doneFn, draft: k })));
+      } }, ico('ruler'), 'Distances et durées')),
     /* v208 : Annuler | Enregistrer en bas, comme le formulaire d'un lieu (charte § 8) ; l'erreur juste au-dessus, toujours visible */
     foot(err, el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: p.plan && back ? back : done }, 'Annuler'),
@@ -4759,7 +4769,11 @@ async function showWalkRoute(p, pos, back) {
   const up = routeClimb(streets, [r]); // v406 : « ça monte de 40 m », seulement à partir de 15 m
   const note = [f & (PARK | COVERED) ? 'passe par un parc ou un passage couvert' : null, f & STEPS ? 'escaliers' : null, up ? `ça ${up}` : null].filter(Boolean).join(', ');
   // v406 : avec la montée, « 4 min » sans « à pied » (le titre le dit déjà) : le bandeau garde sa hauteur en Grand texte
-  showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${up ? routeMin(r.m).replace(/ à pied$/, '') : routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '));
+  // v440 (mon choix 3B du 25 nov.), petite roue au bout du petit titre en v443 (mon choix 1A) : elle ouvre Mon pas (les minutes en dépendent) ; son retour redessine le chemin, avec les minutes du nouveau pas
+  const gear = el('button', { type: 'button', class: 'now-gear', 'aria-label': 'Régler mon pas', title: 'Régler mon pas', onclick: () => {
+    endPeek(); openSettings('pas', named('Chemin à pied', () => showWalkRoute(p, pos, back)));
+  } }, ico('settings', { size: 18 }));
+  showPeekCard(`Chemin à pied${pos?.kind === 'home' ? ' de chez toi' : ''}`, p.name, back, [`${fmtDist(r.m)} · ${up ? routeMin(r.m).replace(/ à pied$/, '') : routeMin(r.m)}`, note, 'touche ici pour revenir à la fiche'].filter(Boolean).join(' · '), gear);
   map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
 }
 
@@ -7632,13 +7646,28 @@ async function eventsFromMe() {
   } catch (e) { toast(e.message, true); }
 }
 /** Le bandeau de « Voir sur la carte » : ce qui est montré, un appui pour revenir, la croix pour tout retirer. */
-function showPeekCard(kicker, label, back, sub = 'Touche ici pour revenir à la liste') {
+function showPeekCard(kicker, label, back, sub = 'Touche ici pour revenir à la liste', gear = null) { // v443 : `gear`, une petite roue juste après le petit titre (Chemin à pied)
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': `${kicker} sur la carte` },
     el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); back(); } },
       el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, kicker), el('span', { class: 'now-name' }, label), el('span', { class: 'now-sub' }, sub)),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
+    gear,
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Retirer de la carte', onclick: endPeek }, ico('x')));
   document.body.append(peekCard);
+  /* v443 (mon choix 1A du 25 nov.) : pas de colonne ; la roue se place au bout des mots du petit titre, centrée sur sa ligne.
+     Elle ne peut pas être dans le bouton du bandeau (un bouton dans un bouton) : elle est posée dessus, et suit la taille du texte. */
+  if (gear) {
+    const card = peekCard; const kick = card.querySelector('.now-kicker');
+    const place = () => {
+      const rg = document.createRange(); rg.selectNodeContents(kick);
+      const r = rg.getBoundingClientRect(); const c = card.getBoundingClientRect();
+      if (!r.width) return;
+      gear.style.left = `${Math.round(r.right - c.left - card.clientLeft - 6)}px`; /* clientLeft : sans le bord du bandeau */
+      gear.style.top = `${Math.round(r.top - c.top - card.clientTop + r.height / 2 - 22)}px`;
+    };
+    place();
+    new ResizeObserver(place).observe(card);
+  }
 }
 /**
  * « Voir sur la carte » (v213 : on parcourt) : chaque lieu en rond à contour terre cuite, et un bandeau qui en montre un à la fois.
@@ -9301,7 +9330,12 @@ function openCircuit(c, back) {
   const isHidden = cleanHiddenCircuits(state.hiddenCircuits).includes(c.id);
   openSheet([ico('signpost'), ' ', ...withGear(c.titre, circuitsOff() ? null : settingsGear('distances', 'Régler la distance de mes lieux au tracé', self))], el('div', { class: 'stack' }, // v365 (mes choix 1A 2A) ; v390 : circuits éteints, leur réglage est caché, pas de roue
     isHidden ? el('p', { class: 'warn' }, 'Circuit masqué : il n\'est plus dans la liste. « Remettre ce circuit », en bas, le fait revenir.') : null,
-    c.received && circuitsOff() ? el('p', { class: 'warn' }, 'Les circuits sont éteints sur ce téléphone : ce lien s\'ouvre quand même. Pour les rallumer : Réglages → Autres réglages → Circuits de visite.') : null, // v390 (4A)
+    c.received && circuitsOff() ? el('div', { class: 'stack', style: 'gap:8px' }, // v390 (4A) ; v440 (mes choix 1A 2A du 25 nov.) : un bouton qui rallume, à la place du chemin écrit
+      el('p', { class: 'warn' }, 'Les circuits sont éteints sur ce téléphone : ce lien s\'ouvre quand même.'),
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+        state.circuitsOn = true; persist(); applyToolOrder(); again();
+        toast('Circuits de retour : bouton, Itinéraire, + Ajouter');
+      } }, ico('signpost'), 'Rallumer les circuits')) : null,
     c.mine ? el('p', { class: 'fiche-kick' }, c.received ? 'Circuit reçu par un lien' : c.base ? 'Ta version de ce circuit' : (myCircuitsList().find((x) => x.id === c.myId)?.by ? `Circuit de ${myCircuitsList().find((x) => x.id === c.myId).by}` : 'Mon circuit')) : null,
     revisedLine(c),
     el('p', { class: 'summary' }, c.mine ? [c.depart ? `Ⓜ ${c.depart}` : 'Départ', c.arrivee ? `Ⓜ ${c.arrivee}` : 'arrivée'].join(' → ') + ` · ${kmText(c.m)}` : `${c.depart} → ${c.arrivee} · ${kmText(c.m)}`),
@@ -11008,7 +11042,11 @@ function openUsage() {
     el('h3', { class: 'ring-title' }, el('span', {}, 'Les plus touchés'), el('span', {}, '')),
     r.top.length ? r.top.map((x) => el('p', {}, el('b', {}, x.label), ` · ${x.screen} · ${x.used}`))
       : el('p', { class: 'help' }, 'Aucun appui compté pour l\'instant.'),
-    el('p', { class: 'help tip' }, 'Pour masquer ce qui ne sert pas : un bouton de la fiche dans Réglages → Autres réglages → Fiche d\'un lieu ; un bouton du haut dans Barre du haut ; un bouton de la carte dans Boutons de la carte ; une ligne de Filtres dans Filtres affichés. Pour le reste, montre cette page à Claude.'),
+    /* v440 (mon choix 1A du 25 nov.) : quatre boutons à la place des chemins écrits, dans l'Aide avec leur phrase ; leur retour ramène ici */
+    el('p', { class: 'help tip' }, 'Pour masquer ce qui ne sert pas (pour le reste, montre cette page à Claude) :',
+      ...[['file-text', 'Fiche d\'un lieu', (b) => openSettings('fiche', b)], ['panel-top', 'Barre du haut', (b) => openSettings('barre', b)],
+        ['arrow-up-down', 'Boutons de la carte', (b) => openSettings('outils', b)], ['sliders-horizontal', 'Filtres affichés', (b) => openFilterChoice(b)]]
+        .map(([i, label, go]) => el('button', { type: 'button', class: 'btn c-guide', onclick: () => go(named('Ce que j\'utilise', () => openUsage())) }, ico(i), label))),
     foot(el('button', { type: 'button', class: 'btn danger', onclick: () => {
       if (!confirm('Remettre les comptes à zéro ? Ils repartiront d\'aujourd\'hui.')) return;
       usage = emptyUsage(); saveUsage(true); openUsage(); toast('Comptes remis à zéro');
@@ -11077,21 +11115,23 @@ async function importPhotos(text, st, mine = true) {
 
 /** Création (id null) ou modification d'une catégorie. */
 /** `ret` (facultatif) : { back, done(id) } quand on vient de la fiche d'un lieu au lieu des Réglages. */
-function openCategory(id, ret = null) {
+function openCategory(id, ret = null, draft = null) { // v440 : `draft`, ce qui était choisi avant d'aller voir Mots tout prêts ou les sous-catégories
   const c = id ? catOf(id) : null;
   // v349 (mes choix 1A 2A 3A du 21 nov.) : une catégorie de photos n'a ni « Toutes prêtes » (catégories de la carte),
   // ni historique, ni « Déjà visité », ni mots tout prêts. Street art garde tout : elle sert aussi aux œuvres de la carte.
   const photoCat = Boolean(ret?.photo) || (Boolean(c) && isPhotoCat(c) && !isStreetCat(c));
-  let color = c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
-  let icon = c?.icon ?? '📍';
-  const name = el('input', { type: 'text', value: c?.name ?? '', maxlength: '20', autocomplete: 'off' });
-  const log = el('input', { type: 'text', value: c?.log ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Mes impressions' });
-  const did = el('input', { type: 'text', value: c?.did ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Déjà visité' });
+  let color = draft?.color ?? c?.color ?? PALETTE.find((col) => !state.categories.some((x) => x.color === col)) ?? PALETTE[0];
+  let icon = draft?.icon ?? c?.icon ?? '📍';
+  const name = el('input', { type: 'text', value: draft?.name ?? c?.name ?? '', maxlength: '20', autocomplete: 'off' });
+  const log = el('input', { type: 'text', value: draft?.log ?? c?.log ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Mes impressions' });
+  const did = el('input', { type: 'text', value: draft?.did ?? c?.did ?? '', maxlength: '24', autocomplete: 'off', placeholder: 'Déjà visité' });
   const err = el('p', { class: 'error', role: 'alert' });
   // Mots tout prêts (v226) : la série de la catégorie ; pas touchée, la catégorie garde son choix (ou celui de son nom)
   const series = wordsOf(state);
-  let wordsId = c ? seriesIdOf(c, series) : '';
-  let wordsTouched = false;
+  // v440 : une série choisie puis supprimée dans Mots tout prêts : le choix d'avant revient
+  const draftWords = draft?.wordsTouched && (draft.wordsId === '' || series.some((x) => x.id === draft.wordsId));
+  let wordsId = draftWords ? draft.wordsId : c ? seriesIdOf(c, series) : '';
+  let wordsTouched = Boolean(draftWords);
   const wordsBox = el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Mots tout prêts' });
   const drawSeries = () => fill(wordsBox, [['', 'Aucun'], ...series.map((x) => [x.id, x.name])].map(([v, label]) =>
     el('button', { type: 'button', class: 'chip', 'aria-pressed': String(wordsId === v), onclick: () => { wordsId = v; wordsTouched = true; drawSeries(); } }, label)));
@@ -11106,7 +11146,7 @@ function openCategory(id, ret = null) {
       state = id ? updateCategory(state, id, f) : addCategory(state, f);
     } catch (e) { err.textContent = e.message; return; }
     persist(); refresh();
-    if (ret && !id) ret.done(state.categories.at(-1).id); else openSettings('categories');
+    if (ret && !id) ret.done(state.categories.at(-1).id); else if (ret) ret.back(); else openSettings('categories'); // v440 : ouverte depuis une impression, elle y ramène
     toast(id ? 'Catégorie modifiée' : 'Catégorie ajoutée');
   };
 
@@ -11114,7 +11154,7 @@ function openCategory(id, ret = null) {
   const others = state.categories.filter((x) => x.id !== id);
   const doDelete = (moveTo) => {
     try { state = deleteCategory(state, id, moveTo); } catch (e) { err.textContent = e.message; return; }
-    persist(); refresh(); openSettings('categories');
+    persist(); refresh(); if (ret) ret.back(); else openSettings('categories');
     toast('Catégorie supprimée');
   };
   const showButtons = () => fill(zone, 
@@ -11140,7 +11180,12 @@ function openCategory(id, ret = null) {
 
   // v305 (mon choix du 20 nov.) : les sous-catégories de mes photos prises en passant, tout en bas ; renommer et supprimer agissent tout de suite
   // v311 (mon choix 4A) : les sous-catégories se gèrent dans Réglages → Vu en passant ; ici, seulement où les trouver
-  const subsBlock = c?.subs?.length ? el('p', { class: 'help' }, `Ses ${plural(c.subs.length, 'sous-catégorie', 'sous-catégories')} (photos prises en passant) : Réglages → Autres réglages → Vu en passant → ${c.name}.`) : null;
+  // v440 (mon choix 1A du 25 nov.) : un bouton à la place du chemin écrit ; ce qui est choisi ici est gardé pour le retour
+  const keep = () => ({ name: name.value, color, icon, log: log.value, did: did.value, wordsId, wordsTouched });
+  const here = () => named(id ? 'Modifier la catégorie' : 'Nouvelle catégorie', ((k) => () => openCategory(id, ret, k))(keep()));
+  const subsBlock = c?.subs?.length ? el('div', { class: 'stack', style: 'gap:8px' },
+    el('p', { class: 'help' }, `Ses ${plural(c.subs.length, 'sous-catégorie', 'sous-catégories')} (photos prises en passant) se règlent dans Vu en passant :`),
+    el('button', { type: 'button', class: 'btn c-guide', onclick: () => openSeenSubs(c.id, here()) }, ico('camera'), 'Ses sous-catégories')) : null;
 
   const presets = id || photoCat ? [] : suggestedPresets(state.categories);
   const presetBox = presets.length ? el('div', {},
@@ -11168,7 +11213,8 @@ function openCategory(id, ret = null) {
       el('label', { class: 'field' }, 'Nom de « Déjà visité » dans la fiche', did),
       el('p', { class: 'help' }, 'Ex. : « Déjà goûté » pour des restos, « Déjà vu » pour du street art, « Déjà lu » pour des livres. Vide : « Déjà visité ».'),
       el('div', {}, el('div', { class: 'legend' }, 'Mots tout prêts'), wordsBox),
-      el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans Réglages → Autres réglages → Mots tout prêts.')]),
+      el('p', { class: 'help tip' }, 'Les mots à toucher quand tu écris une impression. Ils se changent dans :', /* v440 (1A) : le bouton à la place du chemin */
+        el('button', { type: 'button', class: 'btn c-guide', onclick: () => openWordSeries(here()) }, ico('message-square-text'), 'Mots tout prêts'))]),
     subsBlock,
     err, zone,
     foot(el('div', { class: 'row' }, /* v284 : « Annuler | Enregistrer », comme toute page qui enregistre (charte § 8) ; Annuler ramène au même endroit qu'avant */
@@ -11196,9 +11242,9 @@ function openWordSeries(back = toOthers()) {
     foot(backBtn(back)),
   ), { tall: true, name: 'settings:mots', again });
 }
-function openWordSerie(id, back) {
+function openWordSerie(id, back, draft = null) { // v440 : `draft`, ce qui était écrit avant d'aller voir Catégories et listes
   const old = id ? wordsOf(state).find((x) => x.id === id) : null;
-  const name = el('input', { type: 'text', value: old?.name ?? '', maxlength: String(SERIES_NAME_MAX), autocomplete: 'off', placeholder: 'Ex. : Repas' });
+  const name = el('input', { type: 'text', value: draft?.name ?? old?.name ?? '', maxlength: String(SERIES_NAME_MAX), autocomplete: 'off', placeholder: 'Ex. : Repas' });
   // v403 (ma demande du 24 nov. : « autant de mots que souhaité ») : un champ par mot, plus un champ vide en bas ;
   // écrire dans ce champ vide en ajoute un autre dessous (pas de bouton à toucher), jusqu'à WORDS_MAX
   const fields = [];
@@ -11209,7 +11255,7 @@ function openWordSerie(id, back) {
     fields.push(input);
     fieldBox.append(el('label', { class: 'field' }, `Mot ${fields.length}`, input));
   };
-  for (const w of (old?.words ?? []).slice(0, WORDS_MAX)) addField(w);
+  for (const w of (draft?.words ?? old?.words ?? []).filter((x, i, a) => !draft || x.trim() || i < a.length - 1).slice(0, WORDS_MAX)) addField(w);
   if (fields.length < WORDS_MAX) addField();
   const err = el('p', { class: 'error', role: 'alert' });
   const zone = el('div', { class: 'stack' });
@@ -11232,7 +11278,12 @@ function openWordSerie(id, back) {
     el('label', { class: 'field' }, 'Nom de la série', name),
     el('div', { class: 'legend' }, 'Les mots, dans cet ordre'),
     fieldBox,
-    el('p', { class: 'help' }, `Vide un champ pour retirer un mot.${used.length ? ` Prise par : ${used.join(', ')}.` : ' Pour la donner à une catégorie : Réglages → Catégories et listes → la catégorie.'}`),
+    /* v440 (mon choix 1A du 25 nov.) : un bouton à la place du chemin écrit ; une série pas encore enregistrée ne peut pas encore se donner : la phrase le dit */
+    el('p', { class: 'help' }, `Vide un champ pour retirer un mot.${used.length ? ` Prise par : ${used.join(', ')}.` : old ? ' Pour la donner à une catégorie :' : ' Une fois enregistrée, elle se donne à une catégorie.'}`),
+    old && !used.length ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+      const k = { name: name.value, words: fields.map((x) => x.value) };
+      openSettings('categories', named(`Série « ${old.name} »`, () => openWordSerie(id, back, k)));
+    } }, ico('tags'), 'Catégories et listes') : null,
     err, zone,
     foot(el('div', { class: 'row' },
       backBtn(back),
@@ -12360,7 +12411,7 @@ const HELP = [
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
     '{landmark} **Monuments** : en haut, les immeubles **protégés par la Ville** tout près (150 m au départ, réglable dans {settings} → Autres réglages → Distances et durées), avec le texte de la Ville qui dit quoi regarder sur la façade ; « Lire la suite » le donne en entier. Ces textes datent du plan d\'urbanisme de juin 2026 : une façade a pu changer depuis. Dessous, les monuments à moins de 1 km : les monuments historiques, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date ; et les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Orgues de Flandre…). « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
-    '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche. Le bandeau dit « ça monte de 40 m » quand le chemin monte de 15 m ou plus (altitudes de l\'IGN, sans les ponts). « Y aller » ouvre toujours Google Maps.',
+    '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche, la petite roue après « Chemin à pied » pour régler Mon pas (les minutes en dépendent). Le bandeau dit « ça monte de 40 m » quand le chemin monte de 15 m ou plus (altitudes de l\'IGN, sans les ponts). « Y aller » ouvre toujours Google Maps.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). « Le plus rapide » ne s\'affiche qu\'avec 3 min d\'avance : en dessous, l\'estimation ne départage pas.',
     '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
@@ -12526,6 +12577,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
     '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
     '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
@@ -12535,7 +12587,6 @@ const HELP = [
     '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
     '{trees} **Aussi dans le 9e** : Filtres → Arrondissement → une case. En bas de « Mes lieux du 9e », les jardins, passages, musées, circuits, plaques, œuvres et galeries de l\'arrondissement, avec leur nombre ; touche une ligne pour leur liste.',
-    '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -13058,14 +13109,15 @@ async function sendRemarks(list) {
   testState = markSent(testState, list.map((r) => r.id)); saveTest();
   return true;
 }
-function openRemark() {
+function openRemark(draft = null) { // v440 : `draft`, la remarque en cours au retour de Mes remarques (même écran visé, même choix, même texte)
   if (view === 'remarque') return; // déjà ouverte
-  const where = remarkWhere();
+  const where = draft?.where ?? remarkWhere();
   const again = sheet.hidden ? null : navStack.at(-1)?.again;
-  const prev = again ? named(where.s, again) : named('Carte', () => closeSheet());
-  let pick = '';
+  const prev = draft?.prev ?? (again ? named(where.s, again) : named('Carte', () => closeSheet()));
+  let pick = draft?.pick ?? '';
   const text = el('textarea', { maxlength: String(REMARK_TEXT_MAX), placeholder: 'Ex. : je ne trouve pas comment revenir' });
-  const chips = REMARK_KINDS.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', onclick: (ev) => {
+  if (draft) text.value = draft.text;
+  const chips = REMARK_KINDS.map(([k, label]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(Boolean(pick) && pick === k), onclick: (ev) => {
     pick = k; for (const b of chips) b.setAttribute('aria-pressed', String(b === ev.currentTarget));
   } }, label));
   const send = el('button', { type: 'button', class: 'btn c-add solid', onclick: () => {
@@ -13080,7 +13132,12 @@ function openRemark() {
     el('div', { class: 'list-chips', role: 'group', 'aria-label': 'Ce qui ne va pas (un seul choix)' }, chips),
     el('label', { class: 'field' }, 'Un mot (facultatif)', text),
     el('p', { class: 'help' }, 'Part avec : la version, cet écran, la taille du texte, Android et Chrome. Jamais ta position.'),
-    el('p', { class: 'help tip' }, 'Envoyer ouvre le menu de partage du téléphone (SMS, WhatsApp, courriel). La remarque reste aussi dans Réglages → Autres réglages → Mes remarques. Pour dicter : le micro du clavier.'),
+    /* v440 (mon choix 1A du 25 nov.) : un bouton à la place du chemin écrit, dans l'Aide ; la remarque en cours est gardée */
+    el('p', { class: 'help tip' }, 'Envoyer ouvre le menu de partage du téléphone (SMS, WhatsApp, courriel). Pour dicter : le micro du clavier. La remarque reste aussi dans :',
+      el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
+        const k = { where, prev, pick, text: text.value };
+        openRemarks(named('Une remarque', () => openRemark(k)));
+      } }, ico('megaphone'), 'Mes remarques')),
     foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: prev }, 'Annuler'), send)),
   ), { name: 'remarque', tall: true });
 }
@@ -13105,7 +13162,7 @@ function openRemarks(back) {
     foot(backBtn(back)),
   ), { name: 'remarques', again, tall: true });
 }
-btnRemark.addEventListener('click', openRemark);
+btnRemark.addEventListener('click', () => openRemark()); // v440 : sans l'événement (openRemark prend un brouillon)
 // Le lien …/Carte-paris/?test allume la période de test (lu avant que runLaunchAction n'efface l'adresse)
 if (new URLSearchParams(location.search).has('test')) { testState = { ...testState, on: true }; saveTest(); toast('Période de test : touche le porte-voix pour une remarque.'); }
 showRemarkBtn();

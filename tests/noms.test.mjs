@@ -62,6 +62,6 @@ test('v441 : la marque photo des listes (v391) devant le nom sous la goutte, ave
   // TalkBack l'entend sur la goutte (le nom est caché aux lecteurs d'écran)
   assert.match(app, /myPhoto\(p\) \? ', avec photo' : ''/);
   // la marque suit la taille du texte
-  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n').slice(1, 7).some((l) => l.includes('**Photo sous la goutte**'))); // v443, v444 : « Le démarrage d'un proche », « Sauvegarde » au-dessus ; v445 : « Mon Paris plus court » aussi ; v446 : une ligne de plus ; v447 : « Sorties, une ligne de moins »
+  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n').slice(1, 8).some((l) => l.includes('**Photo sous la goutte**'))); // v443, v444 : « Le démarrage d'un proche », « Sauvegarde » au-dessus ; v445 : « Mon Paris plus court » aussi ; v446 : une ligne de plus ; v447 : « Sorties, une ligne de moins » ; v448 : « Des boutons à la place des chemins » en tête
   assert.match(readFileSync('css/style.css', 'utf8'), /\.pin-name \.ico svg \{ width: calc\(13px \* var\(--ts\)\); height: calc\(13px \* var\(--ts\)\); \}/);
 });

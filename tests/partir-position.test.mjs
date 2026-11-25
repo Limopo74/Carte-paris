@@ -34,5 +34,5 @@ test('Nouveautés : la ligne en tête, 10 au plus', () => {
   const block = app.slice(i, app.indexOf(']],', i));
   const lines = block.split('\n').filter((l) => l.trim().startsWith("'{"));
   assert.equal(lines.length, 10);
-  assert.ok(lines.slice(1, 8).some((l) => l.includes('**Partir de ma position**'))); // v440 : « Les boutons comme au début » en tête ; v441 : « Photo sous la goutte » avant elle ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde » ; v445 : « Mon Paris plus court » ; v446 : une ligne de plus ; v447 : « Sorties, une ligne de moins »
+  assert.ok(lines.slice(1, 9).some((l) => l.includes('**Partir de ma position**'))); // v440 : « Les boutons comme au début » en tête ; v441 : « Photo sous la goutte » avant elle ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde » ; v445 : « Mon Paris plus court » ; v446 : une ligne de plus ; v447 : « Sorties, une ligne de moins » ; v448 : « Des boutons à la place des chemins » en tête
 });
