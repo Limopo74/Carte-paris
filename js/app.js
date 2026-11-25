@@ -41,6 +41,7 @@ import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.
 import { openIdOf, needsCenter } from './lieu-ouvert.js';
 import { rueTraitShown, rueNote } from './rues-calque.js';
 import { sheetStep, SHARE } from './hauteurs.js';
+import { VUES, VUES_CHECKED, VUES_NEAR_MIN, vueStale, vueFermee, vueFermeText, vueSub, vuesSorted } from './vues.js';
 import { remoteVersionOf, isNewer, shouldCheck, versionNote } from './nouvelle-version.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
@@ -75,7 +76,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (453)';
+const VERSION = '25 novembre 2026 (454)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9208,6 +9209,7 @@ async function openCuriosities() {
   if (origin !== here) return; // la position a changé pendant la recherche : la nouvelle ouverture s'en charge
   const near = plaquesNear(plaquesOf(plaquesData), here, minutesToMeters(5), Infinity);
   const arcs = arcadesNear(arcadesData ?? [], here, ARCADE_NEAR_MIN);
+  const vues = VUES.map((v) => ({ v, d: distanceM(here, v) })).filter((x) => x.d <= minutesToMeters(VUES_NEAR_MIN)).sort((a, b) => a.d - b.d).slice(0, 3); // v452
   const items = (list ?? []).map((w) => ({ ...w, d: distanceM(here, w) })).sort((a, b) => a.d - b.d);
   const have = (w) => findDuplicate(state.points, { name: w.title, lat: w.lat, lng: w.lng });
   const back = named('Curiosités', openCuriosities);
@@ -9220,6 +9222,10 @@ async function openCuriosities() {
     arcs.length ? el('h3', { class: 'ring-title' }, `Passages couverts à moins de ${ARCADE_NEAR_MIN} min`) : null,
     arcs.length ? el('ul', { class: 'items' }, arcs.slice(0, 3).map((x) => arcadeRow(x, back))) : null,
     arcs.length > 3 ? el('button', { type: 'button', class: 'btn', onclick: () => openArcadeList(arcs, ARCADE_NEAR_MIN, back) }, `Tous les passages (${arcs.length})`) : null,
+    // v452 (mon choix 2A du 25 nov.) : les points de vue avant Wikipédia (une liste souvent longue), 3 au plus, et toujours « Tous »
+    el('h3', { class: 'ring-title' }, `Points de vue à moins de ${VUES_NEAR_MIN} min`),
+    vues.length ? el('ul', { class: 'items' }, vues.map((x) => vueRow(x, back))) : el('p', { class: 'help' }, `Aucun point de vue à moins de ${VUES_NEAR_MIN} min à pied.`),
+    el('button', { type: 'button', class: 'btn', onclick: () => openVueList(back) }, `Tous les points de vue (${VUES.length})`),
     el('h3', { class: 'ring-title' }, 'Wikipédia à moins de 1 km'),
     !list ? el('p', { class: 'warn' }, 'Wikipédia ne répond pas. Vérifie ta connexion.')
       : el('p', { class: 'help' }, `${plural(items.length, 'article', 'articles')} : monuments, rues, histoire. « + » pour en faire un lieu.`),
@@ -9244,6 +9250,8 @@ async function openCuriosities() {
       open: (b) => openPlaque(x.plaque, b) })),
     ...arcs.map((x) => ({ name: x.a.nom, lat: x.a.lat, lng: x.a.lng, icon: 'door-open', style: { radius: 6, color: discInk(), weight: 2, fillColor: '#fff', fillOpacity: 1 },
       open: (b) => openArcade(x.a, b) })),
+    ...vues.map((x) => ({ name: x.v.nom, lat: x.v.lat, lng: x.v.lng, icon: 'mountain', style: { radius: 6, color: discInk(), weight: 2, fillColor: '#fff', fillOpacity: 1 },
+      open: (b) => openVue(x.v, b) })), // v452
   ];
   tapRounds(nearLayer, cur, (k) => showPeek({ kicker: 'Curiosités', items: cur, icon: 'book-open-text', open: (x, b) => x.open(b), back, from: here, start: k, stay: true }));
 }
@@ -9789,6 +9797,75 @@ const arcadeRow = (x, back, sub = '') => el('li', { class: 'item' },
   el('button', { type: 'button', class: 'item-main', onclick: () => openArcade(x.a, back) },
     el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('door-open', { size: 18 })),
     el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, x.a.nom), el('span', { class: 'item-sub' }, sub || `${walkMinutes(x.d)} min · ${x.a.rues}`))));
+
+/* ---------- v452 : points de vue sur Paris (js/vues.js ; mes choix 1B 2A 3A puis 1A 2A 3A 4A du 25 nov.) ----------
+   Un bloc dans Curiosités, une liste (gratuits d'abord), une page par lieu au geste des passages couverts (ma photo). */
+const vueRow = (x, back) => el('li', { class: 'item' },
+  el('button', { type: 'button', class: 'item-main', onclick: () => openVue(x.v, back) },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('mountain', { size: 18 })),
+    el('span', { class: 'item-text' },
+      el('span', { class: 'item-name' }, x.v.nom, vueFermee(x.v) ? el('span', { class: 'tag closed' }, 'Fermée') : null),
+      el('span', { class: 'item-sub' }, vueSub(x.v, x.d != null ? walkMinutes(x.d) : null)))));
+const vueLinkLabel = (v) => (/wikipedia\.org/.test(v.s) ? 'Wikipédia' : 'Site officiel');
+/** Tous les points de vue : gratuits, puis payants, chacun du plus proche (de ma position, sinon dans l'ordre de la liste). */
+function openVueList(back = null) {
+  const self = named('Points de vue', () => openVueList(back));
+  const all = vuesSorted(origin, distanceM);
+  const stale = vueStale();
+  openSheet([ico('mountain'), ' Points de vue'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, stale ? 'Du plus proche.' : 'Gratuits d\'abord, puis payants, du plus proche. Ni prix ni horaires : ils changent souvent, vérifie sur le site avant d\'y aller.'),
+    stale ? el('p', { class: 'warn' }, `Liste vérifiée le ${VUES_CHECKED}, il y a plus d'un an : vérifie sur le site de chaque lieu avant d'y aller.`) : null,
+    stale ? null : el('h3', { class: 'ring-title' }, 'Gratuits'),
+    el('ul', { class: 'items' }, (stale ? [...all].sort((a, b) => (a.d ?? 0) - (b.d ?? 0)) : all.filter((x) => x.v.libre)).map((x) => vueRow(x, self))),
+    stale ? null : el('h3', { class: 'ring-title' }, 'Payants'),
+    stale ? null : el('ul', { class: 'items' }, all.filter((x) => !x.v.libre).map((x) => vueRow(x, self))),
+    el('p', { class: 'help tip' }, `Liste relue sur le site de chaque lieu le ${VUES_CHECKED}. Tri sur ton téléphone.`),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'vues', again: () => openVueList(back) });
+}
+/** La page d'un point de vue : le geste d'un passage couvert (photo en tête, Y aller, Boussole, Métro, Ajouter ou Ma fiche). */
+function openVue(v, back = null) {
+  const stale = vueStale();
+  const ferme = vueFermeText(v);
+  const add = { ...(state.categories.some((c) => c.id === 'culture') ? { cat: 'culture' } : {}) };
+  openSpot({ icon: 'mountain', title: v.nom, kicker: stale ? 'Point de vue' : v.libre ? 'Point de vue gratuit' : 'Point de vue payant', place: { lat: v.lat, lng: v.lng, address: v.adresse ?? '' },
+    lines: stale ? [el('p', { class: 'warn' }, `Vérifié le ${VUES_CHECKED}, il y a plus d'un an : vérifie sur le site avant d'y aller.`)]
+      : [ferme ? el('p', { class: 'warn' }, ferme) : null, v.t],
+    link: [v.s, vueLinkLabel(v)], add, back, key: `vue:${v.id}`,
+    mine: myArcadePlace(state.points, v), // le lieu est dans mes lieux → « Ma fiche » et ma photo (même règle que les passages)
+    snap: () => vuePhoto(v, back, add) }); // pas d'« Écouter » : il reste aux plaques, passages et Où suis-je ? (mon choix 2A, v437)
+}
+/** « Prendre une photo » sur la page d'un point de vue : comme un passage couvert (v238), le lieu s'ajoute seul à mes lieux. */
+function vuePhoto(v, back, add) {
+  const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  camera.addEventListener('change', async () => {
+    const f = camera.files?.[0];
+    camera.remove();
+    if (!f) return;
+    const mine = myArcadePlace(state.points, v);
+    if (mine) {
+      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
+      if (await savePhotos(mine, [f])) { renderMarkers(); openVue(v, back); }
+      return;
+    }
+    if (findDuplicate(state.points, { name: v.nom, lat: v.lat, lng: v.lng })) { openForm({ name: v.nom, lat: v.lat, lng: v.lng, address: v.adresse ?? '', acc: null, ...add, photoFile: f }); return; }
+    const np = newPoint({ name: v.nom, cat: add.cat ?? state.categories[0].id, lat: v.lat, lng: v.lng, address: v.adresse ?? '' });
+    state.points.push(np);
+    if (!(await savePhotos(np, [f]))) { state.points = state.points.filter((p) => p !== np); return; }
+    renderMarkers();
+    openVue(v, back);
+    toast(`${v.nom} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
+      state.points = state.points.filter((p) => p !== np);
+      persist();
+      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      renderMarkers();
+      if (view === `vue:${v.id}`) openVue(v, back);
+      toast('Point de vue retiré de tes lieux, photo effacée');
+    } });
+  });
+  document.body.append(camera);
+  camera.click();
+}
 
 /** Les passages couverts à moins de N min, du plus proche. */
 function openArcadeList(near, min, back) {
@@ -12385,7 +12462,7 @@ const HELP = [
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
-    '**Le nom de tes lieux**, de près, est écrit sous leur goutte. Quand deux noms se touchent, ou un nom et un bouton, l\'un se cache (tes favoris passent d\'abord) : rapproche-toi encore, ou touche la goutte. Pour les retirer : {settings} → Autres réglages → Noms de mes lieux.',
+    '**Le nom de tes lieux**, de près, est écrit sous leur goutte, avec ta photo en petit devant quand tu en as mis une. Quand deux noms se touchent, ou un nom et un bouton, l\'un se cache (tes favoris passent d\'abord) : rapproche-toi encore, ou touche la goutte. Pour les retirer : {settings} → Autres réglages → Noms de mes lieux.',
     '**Zoomer d\'un seul doigt** : touche deux fois la carte en gardant le doigt posé la seconde fois, puis glisse vers le bas pour rapprocher, vers le haut pour éloigner. Deux appuis sans glisser rapprochent d\'un cran. Pincer à deux doigts marche toujours.',
     '**Tant que Ma position est allumée**, l\'écran reste allumé. Le téléphone vibre près d\'un de tes lieux (100 m au départ). Pour changer la distance ou couper cette alerte : {settings} → Autres réglages → Alertes et bandeau.',
     '**Le bandeau « Maintenant »**, en bas de la carte, montre une seule chose à la fois : ta sortie du jour (« Fermé à cette heure-là » au lieu de « Pars à … » quand ses horaires le disent), « Tu es déjà passée ici », « C\'est le moment », ta sortie de demain (avec « Fermé » ou « Pluie probable » comme dans Mon planning), ce qui se passe dans la rue à 5 min, un secteur sans voitures à 10 min (les jours prévus), une sortie gratuite à 5 min (gratuite sans condition, sans réservation obligatoire, qui commence dans la demi-heure ou est en cours), un jour gratuit (le lieu gratuit le plus proche à 15 min, avec son heure si elle est sûre), sinon le lieu ouvert le plus proche. La croix le cache. Pour qu\'il vibre quand il a du nouveau (Pars maintenant, Tu es déjà passée ici, C\'est le moment, Dans la rue, Gratuit à 5 min) : {settings} → Autres réglages → Alertes et bandeau → Vibrer quand « Maintenant » a du nouveau. Seulement appli ouverte et écran allumé. Sur la même page, éteindre « Suggestions autour de moi » ne laisse au bandeau que tes sorties prévues et « Tu es déjà passée ici ».',
@@ -12482,7 +12559,7 @@ const HELP = [
     '{volume-2} **Écouter** : sur la page d\'une étape de circuit, d\'une plaque, d\'un passage couvert et dans Où suis-je ?, le haut-parleur en haut, à gauche de ⌄, lit le texte de la page. Le carré arrête. La lecture s\'arrête aussi quand tu changes de page.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
-    '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
+    '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, les points de vue à moins de 20 min (« Tous les points de vue » : gratuits d\'abord), puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
     '{landmark} **Monuments** : en haut, les immeubles **protégés par la Ville** tout près (150 m au départ, réglable dans {settings} → Autres réglages → Distances et durées), avec le texte de la Ville qui dit quoi regarder sur la façade ; « Lire la suite » le donne en entier. Ces textes datent du plan d\'urbanisme de juin 2026 : une façade a pu changer depuis. Dessous, les monuments à moins de 1 km : les monuments historiques, avec leur site, la fiche du ministère et Wikipédia, et, quand la base Mérimée les donne, leur auteur (architecte, sculpteur…) et leur date ; et les édifices récents labellisés « Architecture contemporaine remarquable » (Forum des Halles, Orgues de Flandre…). « Du même auteur » liste ses autres édifices protégés de Paris (nom écrit à l\'identique : ce n\'est pas toute son œuvre).',
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche, la petite roue après « Chemin à pied » pour régler Mon pas (les minutes en dépendent). Le bandeau dit « ça monte de 40 m » quand le chemin monte de 15 m ou plus (altitudes de l\'IGN, sans les ponts). « Y aller » ouvre toujours Google Maps.',
@@ -12651,6 +12728,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
     '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place.',
     '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
@@ -12660,7 +12738,6 @@ const HELP = [
     '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
-    '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

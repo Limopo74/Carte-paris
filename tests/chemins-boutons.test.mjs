@@ -70,6 +70,6 @@ test('Nouveautés : la ligne en tête, 10 au plus ; l\'Aide de Chemin à pied ci
   const block = app.slice(i, app.indexOf(']],', i));
   const news = block.split('\n').filter((l) => l.trim().startsWith("'{"));
   assert.equal(news.length, 10);
-  assert.ok(news.slice(0, 5).some((l) => l.includes('**Des boutons à la place des chemins**'))); // v453 : « Croix Fermer plus visible » en tête ; v452 : « Deux nouveaux styles » en tête ; v450 : « Grands lieux, depuis toi » au-dessus ; v451 : « Un rond touché sur la carte change la page » en tête
+  assert.ok(news.slice(0, 6).some((l) => l.includes('**Des boutons à la place des chemins**'))); // v454 : « Points de vue » en tête ; v453 : « Croix Fermer plus visible » en tête ; v452 : « Deux nouveaux styles » en tête ; v450 : « Grands lieux, depuis toi » au-dessus ; v451 : « Un rond touché sur la carte change la page » en tête
   assert.ok(app.includes('touche le bandeau pour revenir à la fiche, la petite roue après « Chemin à pied » pour régler Mon pas'));
 });
