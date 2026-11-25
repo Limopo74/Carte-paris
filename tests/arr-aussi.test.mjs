@@ -38,7 +38,7 @@ test('aussi dans : en bas de la liste (sous mes lieux, au-dessus du retour), jam
   const b = body('openArrList');
   const groups = b.indexOf('...arrGroups(');
   const more = b.indexOf('arrMoreBlock(n, back)');
-  const foot = b.indexOf('foot(backBtn(openFilters))');
+  const foot = b.indexOf('foot(backBtn(arrListBack ?? openFilters))');
   assert.ok(groups > 0 && more > groups && foot > more);
   const defs = app.match(/const ARR_MORE = \[([\s\S]*?)\n\];/)?.[1] ?? '';
   assert.deepEqual([...defs.matchAll(/\{ k: '(\w+)'/g)].map((m) => m[1]), ['jardins', 'passages', 'musees', 'circuits', 'plaques', 'oeuvres', 'galeries']);

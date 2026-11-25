@@ -44,7 +44,7 @@ import { remoteVersionOf, isNewer, shouldCheck, versionNote } from './nouvelle-v
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
 import { ARCADE_LINE_ZOOM, ARCADE_NEAR_MIN, ARCADE_TRACE_MIN, ARCADE_HOURS, cleanArcades, arcadesNear, arcadesNearTrace, myArcadePlace, arcadeNote } from './passages.js';
 import { TTB_SITE, TTB_KEY, TTB_RUBS, ttbIcon, TTB_DAYS, mhtmlHtml, mhtmlDate, ttbRawFromDoc, cleanAll, readTtb, ttbStore, ttbKicker, ttbPass, ttbToday, ttbCategory, TTB_MARKS_KEY, ttbKey, cleanTtbMarks, ttbMark, ttbState, ttbCheckedAt, ttbCheckedBy, ttbCheckEnd, ttbCounts, ttbQueue, ttbOnlyOk, ttbExport, ttbMerge, ttbFilterText, RESTO_RUBS, ttbRubByName, ttbSame } from './ttb.js';
-import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, arrProgress, WALK_M_PER_MIN } from './journal.js';
+import { cleanJournal, addWalk, addUse, resetJournal, prune as pruneJournal, journalForBackup, mergeJournal, lastDays, totals, placesStats, WALK_M_PER_MIN } from './journal.js';
 import { NOTE_MAX, cleanNotes, setNote, noteOf } from './notes.js';
 import { byDay, monthCells, addMonth, monthRange, clampMonth, sameMonth, monthLabel, dayLabel } from './calendrier.js';
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (444)';
+const VERSION = '25 novembre 2026 (445)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5758,13 +5758,15 @@ function arrPicker() {
   return el('div', { class: 'arr-grid arr-pick' }, Object.entries(ARR_GRID).map(([k, [c, r]]) => {
     const a = Number(k); const m = by.get(a) ?? 0;
     return el('button', { type: 'button', class: 'arr', style: `grid-column:${c + 1};grid-row:${r + 1}`,
-      'aria-label': `${arrOrd(a)} arrondissement : ${plural(m, 'lieu', 'lieux')}`, onclick: () => pickArr(a) },
+      'aria-label': `${arrOrd(a)} arrondissement : ${plural(m, 'lieu', 'lieux')}`, onclick: () => pickArr(a, null) },
     el('b', {}, arrOrd(a)), el('span', {}, String(m)));
   }));
 }
 /** Choisit l'arrondissement : la liste de mes lieux s'ouvre, la carte se place dessus au-dessus de la liste et dessine son contour
  * (exception voulue : c'est le but de l'appui, sur une case de Filtres comme sur la carte). */
-function pickArr(n) {
+let arrListBack = null; // v445 : « Mes lieux du 9e » ouverte depuis Mes arrondissements y revient ; depuis Filtres (null), vers Filtres
+function pickArr(n, back) {
+  if (back !== undefined) arrListBack = back; // un appui sur la carte (sans retour donné) garde celui de la liste affichée
   filt.arr = n;
   if (view === 'arrlist') { setSheetMini(false); sheetBody.scrollTop = 0; } else openArrList(n); /* un autre arrondissement : la liste repart du haut, en grand */
   refresh(); /* la carte, le voile, et la liste (refresh la redessine quand elle est affichée) */
@@ -5795,7 +5797,7 @@ function openArrList(n) {
       el('h3', { class: 'ring-title' }, el('span', {}, catOf(g.cat).name), el('span', {}, String(g.rows.length))),
       el('ul', { class: 'items' }, g.rows.map(row))]),
     arrMoreBlock(n, back),
-    foot(backBtn(openFilters)),
+    foot(backBtn(arrListBack ?? openFilters)),
   ), { name: 'arrlist', again: () => openArrList(n) });
 }
 /* ---------- « Aussi dans le 9e » (v438, mon choix 1A du 25 nov., visuel A) ----------
@@ -5863,11 +5865,10 @@ map.on('click', (e) => {
 });
 
 let myParisBack = 'settings';
-async function openMyParis(from = null) {
-  if (from) { myParisBack = from; calMonth = null; } // v426 : rouvert par un bouton, le calendrier repart du mois en cours
-  await loadArr();
+/** Mes lieux par arrondissement (les lieux d'un proche ne colorent pas mon Paris) ; contours lus avant. */
+function myArrCounts() {
   const by = new Map();
-  const mine = state.points.filter((p) => !p.owner); // les lieux d'un proche ne colorent pas mon Paris
+  const mine = state.points.filter((p) => !p.owner);
   let outside = 0;
   for (const p of mine) {
     const a = arrAt(p.lat, p.lng, arrData);
@@ -5876,34 +5877,64 @@ async function openMyParis(from = null) {
     e.all++; if (p.done) e.done++;
     by.set(a, e);
   }
-  const explored = [...by.values()].filter((e) => e.done).length;
-  const inParis = mine.length - outside;
-  const ord = (n) => (n === 1 ? '1er' : `${n}e`);
-  const tiles = Object.entries(ARR_GRID).map(([n, [c, r]]) => {
-    const e = by.get(Number(n)) ?? { done: 0, all: 0 };
-    const level = e.done >= 5 ? 3 : e.done >= 2 ? 2 : e.done ? 1 : 0;
-    return el('div', { class: `arr l${level}`, style: `grid-column:${c + 1};grid-row:${r + 1}`, role: 'img', 'aria-label': `${ord(Number(n))} : ${e.done} visité${e.done > 1 ? 's' : ''} sur ${e.all}` },
-      el('b', {}, ord(Number(n))), el('span', {}, e.all ? `${e.done}/${e.all}` : '–'));
-  });
+  return { by, outside, mine, explored: [...by.values()].filter((e) => e.done).length };
+}
+/* v445 (mes choix 1A 2A 3B 4A du 25 nov.) : Mon Paris tient sur un écran (planning, calendrier, deux lignes) ;
+   les arrondissements et Mes chiffres ont chacun leur page, « ← Mon Paris » y ramène. */
+async function openMyParis(from = null) {
+  if (from) { myParisBack = from; calMonth = null; } // v426 : rouvert par un bouton, le calendrier repart du mois en cours
+  await loadArr();
+  const { explored } = myArrCounts();
   const planned = plannedPoints().length;
-  openSheet([ico('map'), ' Mon Paris et mes chiffres'], el('div', { class: 'stack' },
-    el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-disc', onclick: () => openPlanning('myparis') },
-      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('alarm-clock')),
-      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mon planning'), el('span', { class: 'menu-sub' }, planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue')),
-      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
+  const row = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+  openSheet([ico('map'), ' Mon Paris'], el('div', { class: 'stack' },
+    el('div', { class: 'menu' }, row('alarm-clock', 'Mon planning', planned ? `${plural(planned, 'sortie prévue', 'sorties prévues')}` : 'Aucune sortie prévue', () => openPlanning('myparis'))),
     journalCalendar(), // v426 (mon choix 3A) : à la place de la ligne « Mon journal », qui reste en « Liste »
-    el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`),
-    el('div', { class: 'arr-grid' }, tiles),
-    el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +'),
-    el('p', { class: 'help' }, arrData
-      ? `Chaque case : lieux visités / lieux enregistrés. ${plural(inParis, 'lieu', 'lieux')} dans Paris${outside ? `, ${plural(outside, 'hors de Paris', 'hors de Paris')} (non comptés)` : ''}${state.points.length > mine.length ? `. Les lieux de tes proches ne sont pas comptés` : ''}. L'arrondissement vient de la position du lieu, calculée sur ton téléphone. Plan schématique.`
-      : 'Les contours des arrondissements n\'ont pas pu être lus : rouvre Mon Paris avec du réseau.'),
-    ...myStats(),
+    el('div', { class: 'menu' },
+      row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
+      row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats())),
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => renderNear() }, '← Autour de moi')
       : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
       : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
   ), { tall: true, name: 'myparis', again: openMyParis });
+}
+const toMyParis = named('Mon Paris', () => openMyParis());
+
+/** Mes arrondissements (v445) : la grille de Mon Paris ; une case touchée ouvre « Mes lieux du 9e » (mon choix 2A), qui revient ici. */
+async function openMyArr() {
+  await loadArr();
+  const { by, outside, mine, explored } = myArrCounts();
+  const inParis = mine.length - outside;
+  const self = named('Mes arrondissements', () => openMyArr());
+  const tiles = Object.entries(ARR_GRID).map(([n, [c, r]]) => {
+    const e = by.get(Number(n)) ?? { done: 0, all: 0 };
+    const level = e.done >= 5 ? 3 : e.done >= 2 ? 2 : e.done ? 1 : 0;
+    return el('button', { type: 'button', class: `arr l${level}`, style: `grid-column:${c + 1};grid-row:${r + 1}`,
+      'aria-label': `${arrOrd(Number(n))} : ${e.done} visité${e.done > 1 ? 's' : ''} sur ${e.all}`, onclick: () => pickArr(Number(n), self) },
+    el('b', {}, arrOrd(Number(n))), el('span', {}, e.all ? `${e.done}/${e.all}` : '–'));
+  });
+  openSheet([ico('map'), ' Mes arrondissements'], el('div', { class: 'stack' },
+    arrData ? el('p', { class: 'summary' }, `${explored} arrondissement${explored > 1 ? 's' : ''} sur 20 où tu as visité au moins un lieu.`) : null,
+    arrData ? el('div', { class: 'arr-grid' }, tiles) : null,
+    arrData ? el('div', { class: 'arr-legend', 'aria-hidden': 'true' }, el('span', { class: 'arr l0' }), ' aucun', el('span', { class: 'arr l1' }), ' 1', el('span', { class: 'arr l2' }), ' 2 à 4', el('span', { class: 'arr l3' }), ' 5 et +') : null,
+    el('p', { class: 'help' }, arrData
+      ? `Chaque case : lieux visités / lieux enregistrés. Touche une case : tes lieux de l'arrondissement.`
+      : 'Les contours des arrondissements n\'ont pas pu être lus : rouvre Mes arrondissements avec du réseau.'),
+    arrData ? el('p', { class: 'help tip' }, `${plural(inParis, 'lieu', 'lieux')} dans Paris${outside ? `, ${outside} hors de Paris (non comptés)` : ''}${state.points.length > mine.length ? '. Les lieux de tes proches ne sont pas comptés' : ''}. L'arrondissement vient de la position du lieu, calculée sur ton téléphone. Plan schématique.`) : null,
+    foot(backBtn(toMyParis)),
+  ), { tall: true, name: 'myarr', again: openMyArr });
+}
+
+/** Mes chiffres (v445) : leur page, sous Mon Paris. */
+function openMyStats() {
+  openSheet([ico('timer'), ' Mes chiffres'], el('div', { class: 'stack' },
+    ...myStats(),
+    foot(backBtn(toMyParis)),
+  ), { tall: true, name: 'mystats', again: openMyStats });
 }
 
 /* ---------- Mon planning : les sorties prévues (Prévoir), rangées par jour ; la veille et avant : « Tu y es allée ? ». ---------- */
@@ -6272,10 +6303,9 @@ function myStats() {
   const t = totals(days);
   const from = days[0].date.getTime();
   const ps = placesStats(state.points.filter((p) => !p.owner), from); // mes lieux seulement
-  const ap = arrProgress(state.points.filter((p) => !p.owner).map((p) => ({ ...p, arr: arrAt(p.lat, p.lng, arrData) })), from); // même calcul que la carte de Mon Paris
   const dayName = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Période' },
-    [7, 30].map((n) => el('button', { type: 'button', 'aria-pressed': String(statsDays === n), onclick: () => { statsDays = n; openMyParis(); } }, `${n} jours`)));
+    [7, 30].map((n) => el('button', { type: 'button', 'aria-pressed': String(statsDays === n), onclick: () => { statsDays = n; openMyStats(); } }, `${n} jours`)));
 
   // Marche par jour, empilée par qualité de l'air (du meilleur en bas au pire en haut)
   const order = ['bon', 'moyen', 'mauvais', 'inconnu'];
@@ -6349,14 +6379,13 @@ function myStats() {
           resetJournal(journal, { walk, use });
           if (walk) state.walk = { day: '', m: 0 };
           saveJournal(true); persist();
-          openMyParis();
+          openMyStats();
           toast(walk && use ? 'Marche, air et fonctions remis à zéro.' : walk ? 'Marche et air remis à zéro.' : 'Fonctions utilisées remises à zéro.');
         } }, 'Remettre à zéro')));
     walkBox.focus();
   };
   showReset();
   return [
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Mes chiffres'), el('span', {}, '')),
     seg,
     el('h3', { class: 'ring-title' }, el('span', {}, 'Marche et air'), el('span', {}, '')),
     el('div', { class: 'stat-tiles' }, tile(`${minOf(t.m)} min`, 'de marche'), tile(steps.toLocaleString('fr-FR'), 'pas environ'), tile(t.m ? `${Math.round((t.air.mauvais / t.m) * 100)} %` : '–', 'sous un air médiocre')),
@@ -6364,11 +6393,9 @@ function myStats() {
     el('p', { class: 'help' }, 'Marche comptée seulement quand l\'appli suit ta position. L\'air : une estimation du quartier, pas une mesure sur toi.'),
     el('p', { class: 'help tip' }, 'La marche est comptée avec Ma position et direction ou une balade guidée ; l\'air, heure par heure.'),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Mes lieux'), el('span', {}, '')),
-    el('div', { class: 'stat-tiles' }, tile(String(ps.added), 'ajoutés'), tile(String(ps.visited), 'visités'), tile(String(ps.fav), 'favoris'), tile(ps.stars != null ? `${String(ps.stars).replace('.', ',')} ★` : '–', 'étoiles en moyenne')),
-    ps.byCat.length ? hbars(ps.byCat.slice(0, 6).map(([id, n]) => [catOf(id).name, n, catDot(id)]), 'Lieux par catégorie') : null,
-    el('p', { class: 'help' }, `Ajoutés et visités : sur les ${statsDays} derniers jours. Catégories et favoris : tous tes lieux (${ps.total}).`),
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Mon Paris'), el('span', {}, '')),
-    el('p', {}, `${ap.now} arrondissement${ap.now > 1 ? 's' : ''} sur 20 explorés${ap.gained ? `, dont ${ap.gained} de plus sur les ${statsDays} derniers jours` : ''}.`),
+    // v445 (mon choix 3B) : seulement ce qui suit la période ; « 1 ajouté », pas « 1 ajoutés »
+    el('div', { class: 'stat-tiles' }, tile(String(ps.added), ps.added > 1 ? 'ajoutés' : 'ajouté'), tile(String(ps.visited), ps.visited > 1 ? 'visités' : 'visité')),
+    el('p', { class: 'help' }, `Sur les ${statsDays} derniers jours.`),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Ce que j\'utilise le plus'), el('span', {}, '')),
     t.use.length ? hbars(t.use.slice(0, 6), 'Fonctions les plus utilisées') : el('p', { class: 'help' }, 'Rien encore sur cette période.'),
     el('p', { class: 'help tip' }, 'Totaux par jour gardés 90 jours sur ce téléphone seulement : ni le tracé de tes déplacements, ni la sauvegarde, ni personne d\'autre.'),
@@ -12302,7 +12329,7 @@ const HELP = [
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes.',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
-    '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis tes 20 arrondissements, ta marche du jour et Mon planning.',
+    '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
     '{signpost} **Mes circuits**, en haut de Circuits de visite : ceux que tu crées avec « **Nouveau circuit** », en bas de la page (touche la carte pour chaque étape, puis Enregistrer : titre, thème, textes), ceux faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien. En bas de leur page : Modifier, Partager (un lien, avec ou sans tes textes) et Supprimer.',
@@ -12329,10 +12356,10 @@ const HELP = [
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
-    '**Sous le calendrier**, chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés.',
-    '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mon Paris.',
+    '**Mes arrondissements** (Mon Paris, sous le calendrier) : chaque arrondissement se colore selon tes lieux « Déjà visité ». Chaque case : visités / enregistrés. Touche une case : tes lieux de l\'arrondissement.',
+    '**Les lieux de tes proches** et ceux hors de Paris ne comptent pas dans Mes arrondissements.',
     '**Marche et air** : touche une barre pour le détail du jour.',
-    '**« Remettre à zéro… »**, tout en bas de Mon Paris, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
+    '**« Remettre à zéro… »**, tout en bas de Mes chiffres, efface la marche et l\'air ou les fonctions utilisées. Tes lieux ne changent pas.',
     '{map-pinned} **Les ronds de la carte se touchent**, dans Sorties, Vélib\', Rentrer, Curiosités et Monuments : le bandeau montre ce lieu, un appui l\'ouvre (Vélib\' et Monuments : la boussole). Ces listes gardent les cercles d\'Autour de moi, sauf depuis « Centre de la carte ».',
   ]],
   ['map-pin', 'Mes lieux', [
@@ -12489,6 +12516,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
@@ -12498,7 +12526,6 @@ const HELP = [
     '{volume-2} **Écouter, aussi ailleurs** : le haut-parleur en haut lit aussi le texte d\'une plaque, d\'un passage couvert et Où suis-je ? (ton adresse, la rue, le quartier).',
     '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
-    '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

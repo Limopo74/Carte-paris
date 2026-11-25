@@ -622,12 +622,12 @@ ol.items { padding: 0; }
 
 /* Mon Paris */
 .arr-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(5, 54px); gap: 5px; }
-.arr { border-radius: var(--r); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.15; border: 2px solid var(--neutral-bd); }
+.arr { border-radius: var(--r); display: flex; flex-direction: column; align-items: center; justify-content: center; font: inherit; font-size: 12px; line-height: 1.15; border: 2px solid var(--neutral-bd); padding: 0; cursor: pointer; } /* v445 : les cases de Mes arrondissements se touchent */
 .arr b { font-size: 14px; }
 .arr-pick .arr { background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
 .arr-pick .arr b { font-family: var(--display); font-size: 15px; }
 /* Aucun lieu visité : case vide en pointillés ; dès 1 : vert plein avec un bord franc. */
-.arr.l0 { background: transparent; color: var(--muted); border: 1.5px dashed var(--line); }
+.arr.l0 { background: transparent; color: var(--muted); border: 2px solid var(--line); } /* v445 : plus de tirets, la case se touche (tirets = inactif, CHARTE § 4) */
 .arr.l1 { background: #A9DDB6; color: #123d1b; border: 2px solid #3f9553; }
 .arr.l2 { background: #4FAE66; color: #06200c; border: 2px solid #2f7f43; }
 .arr.l3 { background: #1B6129; color: #fff; border: 2px solid #1B6129; }
