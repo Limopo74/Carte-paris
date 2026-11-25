@@ -92,7 +92,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (515)';
+const VERSION = '25 novembre 2026 (516)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4548,6 +4548,41 @@ function renderNear(fit = false) {
         el('p', { class: 'help tip' }, `Commissariats : liste de la Préfecture de Police, relevée le ${COMMISSARIATS_CHECKED}. Le 34 30 joint un commissariat (prix d'un appel local).`));
     }
   }
+  { /* v514 (mes choix 1A 2A du 25 nov. : un bloc, tout en bas d'Autour de moi, après les commissariats) : les 3 stations Vélib'
+       les plus proches qui ont des vélos, à moins du plus grand cercle. Mêmes données et mêmes règles que la page Vélib' :
+       aucune position envoyée (le fichier entier, trié sur le téléphone), station muette depuis 1 h jamais proposée,
+       nombres de plus de 10 min jamais montrés. Pas chargé à chaque pas : les données de moins de 2 min resservent ;
+       plus vieilles, l'appli les redemande et redessine la page si elle est encore ouverte. Rien loin de Paris. */
+    const fresh = velibAll && !velibOld(velibAt);
+    if (!fresh || Date.now() - velibAt > VELIB_RECHECK_MS) nearVelibLoad();
+    const bikes = fresh ? nearestVelib(velibAll, origin, 'bike', 3).filter((s) => s.d <= maxRing) : [];
+    if (bikes.length) {
+      body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'Vélib\' les plus proches'), el('span', {}, String(bikes.length))));
+      body.push(el('ul', { class: 'items' }, bikes.map((s) => el('li', { class: 'item' },
+        el('div', { class: 'item-main' },
+          el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico('bike', { size: 18 })),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, s.name),
+            el('span', { class: 'item-sub' }, `${fmtDist(s.d)} · ${durText(walkMinutes(s.d))} · ${plural(s.bikes, 'vélo', 'vélos')}`))), // méca. et élec. : sur la page Vélib' (3 lignes ici)
+        compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: s.name, lat: s.lat, lng: s.lng }), 'aria-label': `Boussole vers ${s.name}` }, ico('compass')),
+        el('a', { class: 'go', href: mapsUrl(s, s.d), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${s.name}` }, 'Y aller')))));
+      body.push(el('p', { class: 'help' }, `Vélib' en temps réel, reçu à ${hourText(velibAt)}.`));
+    }
+  }
+  { /* v514 (ma demande du 25 nov. « Rajoute les trois métros les plus proches », même modèle que Vélib') : tout en bas d'Autour de moi,
+       les 3 stations de métro les plus proches, dans le plus grand cercle, avec leurs lignes. Trié sur le téléphone (data/stations.json).
+       Pas depuis une station (elle serait la première, à 0 m), rien loin de Paris. */
+    const metros = origin.kind === 'station' ? [] : nearestStations(stations, origin, 3).filter((x) => x.d <= maxRing);
+    if (metros.length) {
+      body.push(el('h3', { class: 'ring-title' }, el('span', {}, 'Métros les plus proches'), el('span', {}, String(metros.length))));
+      body.push(el('ul', { class: 'items' }, metros.map(({ station: o, d }) => el('li', { class: 'item' },
+        el('div', { class: 'item-main' },
+          el('span', { class: 'metro-mini', 'aria-hidden': 'true' }, 'M'),
+          el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, o.n),
+            el('span', { class: 'item-sub' }, `${fmtDist(d)} · ${durText(walkMinutes(d))} · ${stationLabel(o)}`))),
+        compassOff() ? null : el('button', { type: 'button', class: 'go-compass', onclick: () => openCompass({ name: `Ⓜ ${o.n}`, lat: o.lat, lng: o.lng }), 'aria-label': `Boussole vers ${o.n}` }, ico('compass')),
+        el('a', { class: 'go', href: mapsUrl(o, 0), target: '_blank', rel: 'noopener', 'aria-label': `Y aller : ${o.n}` }, 'Y aller')))));
+    }
+  }
   // v365 (mes choix 1A 2A) : la roue ouvre Distances et durées (TTB, passages couverts, Y aller) ; son retour revient ici
   openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle(), settingsGear('distances', 'Régler les distances', named('Autour de moi', nearAgain)))], body, { name: 'near', again: nearAgain });
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
@@ -5656,6 +5691,20 @@ async function showVelib(at = null) {
   tapRounds(nearLayer, list.map((s) => ({ lat: s.lat, lng: s.lng, style: { radius: 8, color: '#1B56E8', weight: 3, fillColor: '#fff', fillOpacity: 1 } })),
     (k) => showPeek({ kicker: 'Vélib\'', items: vItems, icon: 'bike', open: (x) => openCompass({ name: x.name, lat: x.lat, lng: x.lng }), back: () => showVelib(from), from, start: k, stay: true }));
   if (list.length) map.fitBounds(L.latLngBounds([[from.lat, from.lng], ...list.map((s) => [s.lat, s.lng])]).pad(0.4), { paddingTopLeft: [10, 60], paddingBottomRight: [70, sheet.offsetHeight + 10], maxZoom: 17, animate: false });
+}
+
+/** v514 : les données Vélib' du bloc d'Autour de moi, chargées sans bloquer la page ; un échec ne dit rien (le bloc reste absent). */
+let nearVelibBusy = false;
+let nearVelibFail = 0;
+async function nearVelibLoad() {
+  if (nearVelibBusy || velibBusy || Date.now() - nearVelibFail < VELIB_RECHECK_MS) return;
+  nearVelibBusy = true;
+  let list = null;
+  try { list = await velibStations(); } catch { nearVelibFail = Date.now(); }
+  nearVelibBusy = false;
+  if (!list) return;
+  keepVelib(list);
+  if (view === 'near') { const keep = sheetBody.scrollTop; renderNear(); sheetBody.scrollTop = keep; }
 }
 
 /* ---------- Calques Vélib' et Fontaines et WC (v150) : tout ce qui est dans la zone de la carte ----------
@@ -14335,6 +14384,8 @@ const HELP = [
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 » et « Police 17 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
+    '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
+    '{train-front} **Métros les plus proches** : tout en bas d\'Autour de moi, sous Vélib\', les 3 stations de métro les plus proches, avec leurs lignes et Y aller (jusqu\'à la station). Pas depuis une station ni loin de Paris. L\'entrée la plus proche : le bouton M de la colonne de droite.',
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, Je vais bien, Appeler un proche, Alerter en silence. Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
@@ -14534,6 +14585,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
     '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
     '{hand} **Astuces au démarrage** : au plus une par jour, une petite carte en bas de la carte présente une fonction que tu n\'as encore jamais touchée ; touche-la pour « Montre-moi » (l\'écran s\'ouvre et le bouton est entouré de bleu), × pour la fermer. 20 au plus au départ : {settings} → Autres réglages → Astuces au démarrage (0 pour les éteindre, et Revoir les astuces).',
@@ -14543,7 +14595,6 @@ const HELP = [
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
-    '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
