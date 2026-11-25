@@ -11,12 +11,12 @@ const section = (name) => {
   return app.slice(i, app.indexOf(`name: 'settings:${name}'`, i));
 };
 
-test('plus de « Tout réafficher » ni de « Tout remettre au départ »', () => {
-  assert.ok(!app.includes("'Tout réafficher'"));
+test('plus de « Tout remettre au départ » ; « Tout réafficher » reste là où le départ masque déjà des lignes', () => {
   assert.ok(!app.includes("'Tout remettre au départ'"));
+  assert.equal(app.split("'Tout réafficher'").length - 1, 2, 'Fiche d\'un lieu et Filtres affichés : au départ, Uber et des filtres sont masqués');
 });
 
-for (const name of ['distances', 'pas', 'alertes', 'fiche']) {
+for (const name of ['distances', 'pas', 'alertes']) {
   test(`${name} : « Remettre au départ » avec ↺, seulement quand quelque chose a changé, juste avant le retour`, () => {
     const body = section(name);
     const i = body.indexOf("ico('rotate-ccw'), 'Remettre au départ')");
@@ -27,12 +27,6 @@ for (const name of ['distances', 'pas', 'alertes', 'fiche']) {
     assert.ok(!/backBtn[^]*Remettre au départ/.test(body), 'jamais sous le retour');
   });
 }
-
-test('Filtres affichés : le même bouton', () => {
-  const i = app.indexOf('state.hiddenFilters = []; persist(); openFilterChoice(back);');
-  assert.ok(i > 0);
-  assert.ok(app.slice(i, i + 200).includes("ico('rotate-ccw'), 'Remettre au départ')"));
-});
 
 test('Alertes et bandeau : la remise couvre toute la page, et seulement elle', () => {
   const body = section('alertes');

@@ -1389,7 +1389,7 @@ function openFilterChoice(back = openFilters) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title)),
       el('span', { class: `switch${on ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
     })),
-    hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); toast('Filtres remis au départ : toutes les lignes'); } }, ico('rotate-ccw'), 'Remettre au départ') : null, /* 6A */
+    hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.hiddenFilters = []; persist(); openFilterChoice(back); toast('Toutes les lignes de Filtres sont de retour'); } }, 'Tout réafficher') : null, /* 6A : pas « Remettre au départ » : au départ, des lignes sont masquées */
     foot(backBtn(back)),
   ), { tall: true, name: 'filter-choice', again: () => openFilterChoice(back) });
 }
@@ -11301,7 +11301,7 @@ function openSettings(section = null, from = null) {
         if (hid.has(key)) hid.delete(key); else hid.add(key);
         state.ficheHidden = cleanFicheHidden([...hid]);
       }))),
-      hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.ficheHidden = []; persist(); openSettings('fiche'); toast('Fiche d\'un lieu remise au départ : toutes les lignes'); } }, ico('rotate-ccw'), 'Remettre au départ') : null, /* 6A */
+      hid.size ? el('button', { type: 'button', class: 'btn', onclick: () => { state.ficheHidden = []; persist(); openSettings('fiche'); toast('Toutes les lignes de la fiche sont de retour'); } }, 'Tout réafficher') : null, /* 6A : pas « Remettre au départ » : au départ, Uber est masqué (v323) */
       backBtn,
     ), { tall: true, name: 'settings:fiche', again: () => openSettings('fiche') });
     return;
@@ -13086,6 +13086,7 @@ const HELP = [
   ['sparkles', 'Nouveautés', [
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
+    '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
@@ -13093,7 +13094,6 @@ const HELP = [
     '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
     '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place. Le soir, ⌄ à côté a le même contour.',
     '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
-    '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
