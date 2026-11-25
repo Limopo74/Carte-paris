@@ -84,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (492)';
+const VERSION = '25 novembre 2026 (493)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5813,6 +5813,7 @@ function openCrisis(back = null) {
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : c.icon)),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, c.sub)));
     })),
+    el('div', { class: 'menu' }, offlineRow(self)), // v493 : la maquette validée (29 A) montrait « Prêt hors ligne » ici
     crisis ? el('button', { type: 'button', class: 'btn', onclick: () => { endCrisis(); closeSheet(); } }, ico('x'), 'Terminer le mode crise') : null,
     el('p', { class: 'help tip' }, 'Le mode reste allumé si tu fermes l\'appli : l\'étiquette du haut le dit, et « Terminer » l\'éteint. Il reste sur ce téléphone : ni dans ta sauvegarde, ni chez un proche.'),
     el('p', { class: 'help' }, 'Crue, coupure, canicule : fontaines et toilettes s\'allument sur la carte. En cas de coupure d\'eau, rien ne dit qu\'elles coulent : vérifie sur place.'),
@@ -5846,6 +5847,7 @@ function crisisBlock() {
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('phone')),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Appeler ${c.name || c.tel}`), el('span', { class: 'menu-sub' }, 'Le téléphone s\'ouvre')))),
       row('volume-x', 'Alerter en silence', 'SMS au 114, proches, sans bruit', () => (pos ? openSilentAlert(pos, () => '', () => nearAgain(), 'Autour de moi') : openWhereAmI())),
+      offlineRow(() => { if (view === 'near') renderNear(); }), // v493 (réponse 21)
       row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Autour de moi'), el('span', {}, '')));
 }
@@ -5925,6 +5927,36 @@ function openCrisisPoint(k, back) {
       back();
     } }, 'Retirer'), backBtn(back))), { tall: true, name: 'cpoint-show', again: self });
 }
+
+/* v493 : « Préparer hors ligne » (ma réponse 21) : tout ce qui sert au mode crise, gardé sur le téléphone avant d'en avoir besoin.
+   Le plan des rues vient du site de l'appli ; fontaines et toilettes, de la Ville de Paris (la liste entière, sans ta position).
+   La date de la dernière préparation reste sur ce téléphone (pas dans la sauvegarde). */
+const OFFLINE_KEY = 'carte-paris.horsligne';
+let offlineBusy = false;
+const offlineAt = () => { try { return Number(storage.getItem(OFFLINE_KEY)) || 0; } catch { return 0; } };
+const offlineSub = () => (offlineBusy ? 'Téléchargement en cours…' : offlineAt() ? `Prêt · vérifié le ${new Date(offlineAt()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : 'Pas encore fait');
+async function prepareOffline(again = null) {
+  if (offlineBusy) return;
+  if (navigator.onLine === false) { toast('Pas de réseau : réessaie quand il revient.', true); return; }
+  offlineBusy = true; again?.();
+  const fail = [];
+  waitToast('Plan des rues (1 sur 3)…');
+  try { await downloadStreets(); } catch { fail.push('le plan des rues'); }
+  waitToast('Fontaines et toilettes (2 sur 3)…');
+  try {
+    const [f, w] = await Promise.all([loadPratique('fontaines'), loadPratique('toilettes'), loadRatpToilets()]);
+    if (!f.length || !w.length) fail.push('les fontaines et toilettes');
+  } catch { fail.push('les fontaines et toilettes'); }
+  waitToast('L\'appli elle-même (3 sur 3)…');
+  try { await navigator.storage?.persist?.(); } catch { /* le navigateur décide */ }
+  offlineBusy = false;
+  if (fail.length) toast(`Pas tout téléchargé (manque : ${andList(fail)}). Réessaie avec le réseau.`, true);
+  else { try { storage.setItem(OFFLINE_KEY, String(Date.now())); } catch { /* rien */ } toast('Prêt hors ligne : plan des rues, fontaines et toilettes gardés sur le téléphone'); }
+  again?.();
+}
+const offlineRow = (again, family = 'c-guide') => el('button', { type: 'button', class: `menu-row ${family}`, onclick: () => prepareOffline(again) },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(offlineAt() && !offlineBusy ? 'circle-check' : 'download')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Préparer hors ligne'), el('span', { class: 'menu-sub' }, offlineSub())));
 
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
@@ -6243,6 +6275,7 @@ async function openMyParis(from = null) {
     el('div', { class: 'menu' },
       row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
       row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats())),
+    el('div', { class: 'menu' }, offlineRow(() => { if (view === 'myparis') openMyParis(); }, 'c-disc')), // v493 (réponse 21) : tout en bas, il ne pousse rien
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')
       : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
@@ -13702,6 +13735,7 @@ const HELP = [
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, Je vais bien, Appeler un proche, Alerter en silence. Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
+    '{download} **Préparer hors ligne** : en bas de Mon Paris, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13892,6 +13926,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
     '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
     '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
     '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
@@ -13901,7 +13936,6 @@ const HELP = [
     '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
     '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
-    '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et au 31177 dans le métro, le RER ou le bus, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

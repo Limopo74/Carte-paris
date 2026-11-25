@@ -86,3 +86,15 @@ test('v491 : points de crise : nettoyés, gardés, dans ma sauvegarde, jamais ch
   assert.match(smsPointText('hors', { lat: 48.9, lng: 2.3, label: '' }), /^Notre rendez-vous \(hors du quartier\) : https/);
   assert.match(app, /'Point de crise…'\) \}\);/, 'dans « Ce point », par extra (sous les boutons)');
 });
+
+test('v493 : Préparer hors ligne (réponse 21) : Mon Paris tout en bas, page Mode crise, Autour de moi en mode crise ; la date seulement si tout est arrivé', () => {
+  const fn = app.slice(app.indexOf('async function prepareOffline('), app.indexOf('const offlineRow ='));
+  assert.match(fn, /await downloadStreets\(\)/);
+  assert.match(fn, /loadPratique\('fontaines'\), loadPratique\('toilettes'\)/);
+  assert.ok(fn.indexOf('storage.setItem(OFFLINE_KEY') > fn.indexOf('if (fail.length)'), 'la date n\'est écrite que si rien ne manque');
+  assert.match(app, /const OFFLINE_KEY = 'carte-paris\.horsligne';/);
+  const my = app.slice(app.indexOf('async function openMyParis('), app.indexOf('const toMyParis ='));
+  assert.ok(my.indexOf('offlineRow(') > my.indexOf("'Mes chiffres'") && my.indexOf('offlineRow(') < my.indexOf('foot('), 'Mon Paris : tout en bas');
+  assert.match(app.slice(app.indexOf('function crisisBlock()'), app.indexOf('function openImOk(')), /offlineRow\(/);
+  assert.match(app.slice(app.indexOf('function openCrisis('), app.indexOf('function crisisBlock()')), /offlineRow\(self\)/);
+});
