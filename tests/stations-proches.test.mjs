@@ -47,7 +47,7 @@ test('Stations proches part du lieu, jamais de ma position, et la marque passe p
   assert.match(body, /clearFastest\(opts, home\.st, walk\)/);
   assert.match(body, /renderMetroPlan\(dest, place, self, o\.st, place\)/);
   assert.match(body, /pickMyStation\(false, self\)/, 'sans Maison : la choisir puis revenir');
-  assert.match(app, /const lead = clearFastest\(opts, home\.st, walk\);[^\n]*\n[\s\S]{0,4000}o === lead && opts\.length > 1/, 'Rentrer');
+  assert.match(app, /const lead = clearFastest\(opts, home\.st, walk\);[^\n]*\n[\s\S]{0,4600}o === lead && opts\.length > 1/, 'Rentrer');
   assert.doesNotMatch(app, /o === best && opts\.length > 1/);
 });
 

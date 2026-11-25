@@ -83,7 +83,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (485)';
+const VERSION = '25 novembre 2026 (486)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8576,6 +8576,8 @@ async function goHome() {
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, s.label), el('span', { class: 'menu-sub' }, `Ⓜ ${s.st.n}`)),
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')))), { name: 'home' });
 }
+/** v483 : de 21 h à 6 h, Rentrer rappelle la descente à la demande (le soir, on prépare souvent le retour avant 22 h). */
+const eveningBus = (d = new Date()) => d.getHours() >= 21 || d.getHours() < 6;
 /* Rentrer : les 2 ou 3 stations (métro, RER) les plus proches de toi, avec le temps total
    jusqu'à ta station Maison depuis chacune ; la plus rapide est marquée. Calcul sur le téléphone. */
 async function openHomePlan(home) {
@@ -8613,6 +8615,8 @@ async function openHomePlan(home) {
               el('span', { class: 'item-sub' }, [`${walkMinutes(o.d)} min à pied`, busPlace(busData, o.stop), several ? `jusqu'à ${o.to[2]}` : ''].filter(Boolean).join(' · ')))))))
           : el('p', { class: 'empty' }, `Aucun bus vers ${busTo} à moins de 8 min à pied.`),
     ...goneStops.map((b) => el('p', { class: 'help' }, `L'arrêt ${b.n} n'existe plus dans la liste : choisis-le à nouveau dans Mes stations.`)),
+    // v483 (mon choix 1 du 25 nov.) : le soir, la descente entre deux arrêts (IDFM, RATP : tous les bus après 22 h, Noctilien compris)
+    eveningBus() ? el('p', { class: 'help' }, ico('bus', { size: 15 }), ' Après 22 h, tu peux descendre entre deux arrêts : dis-le au conducteur au moins un arrêt avant.') : null,
   ];
   await loadGares();
   const railNear = garesNear(gares, from, 1500, 1)[0];
@@ -13535,7 +13539,7 @@ const HELP = [
     '**M Station** : ce qu\'il y a autour d\'une station, sans GPS. Pratique dans le métro. Sous les autres stations de métro : les gares de RER (R) et les arrêts de tram (T) à moins de 1,5 km, avec leurs lignes, sans horaires.',
     '{route} **Chemin à pied** : fiche d\'un lieu → Pratique → Chemin à pied. Le chemin par les rues, calculé sur le téléphone avec le plan des rues (téléchargé une fois), dessiné sur la carte ; touche le bandeau pour revenir à la fiche, la petite roue après « Chemin à pied » pour régler Mon pas (les minutes en dépendent). Le bandeau dit « ça monte de 40 m » quand le chemin monte de 15 m ou plus (altitudes de l\'IGN, sans les ponts). « Y aller » ouvre toujours Google Maps.',
     '{house} **Rentrer** : les 3 stations proches et le temps jusqu\'à ta station Maison. Tes stations : {settings} → Mes stations. Quand une gare de RER ou un arrêt de tram est nettement plus près que le métro (bois, bord de Paris), une ligne le dit : vérifie qu\'il va vers chez toi. En bas, « Google Maps » ouvre le trajet en transports jusqu\'à ta station Maison, avec les horaires et les correspondances (bus compris). « Le plus rapide » ne s\'affiche qu\'avec 3 min d\'avance : en dessous, l\'estimation ne départage pas.',
-    '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose.',
+    '{bus} **En bus** : dans Mes stations, choisis ton arrêt de bus, puis, s\'il y en a d\'autres près de chez toi, « Ajouter un arrêt de bus » (3 au plus). Rentrer montre alors les lignes qui y vont, depuis un arrêt à moins de 8 min, et à quel arrêt chacune te dépose. Le soir (de 21 h à 6 h), une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts, sur tous les bus d\'Île-de-France, Noctilien compris (Île-de-France Mobilités, RATP).',
     '**Bus : ni horaires ni sens.** Vérifie le sens du bus à l\'arrêt. Touche un arrêt pour la boussole.',
     '{cloud-rain} **S\'il pleut**, un bandeau propose tes lieux abrités. {thermometer-sun} **S\'il fait chaud**, les lieux frais.',
     '**TTB affiché ?** Les 3 adresses du guide les plus proches, et la liste complète.',
@@ -13701,6 +13705,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{bus} **Rentrer en bus, le soir** : de 21 h à 6 h, une ligne rappelle qu\'après 22 h tu peux demander au conducteur de descendre entre deux arrêts (dis-le au moins un arrêt avant).',
     '{shield} **Dehors, en sécurité** : SMS au 31177 (transports) dans Alerter en silence ; « Je rentre : prévenir un proche » dans Où suis-je ? ; les commissariats les plus proches tout en bas d\'Autour de moi.',
     '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
     '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et au 31177 dans le métro, le RER ou le bus, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
@@ -13710,7 +13715,6 @@ const HELP = [
     '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
     '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
     '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
-    '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
