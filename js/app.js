@@ -92,7 +92,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (516)';
+const VERSION = '25 novembre 2026 (517)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6083,6 +6083,8 @@ function openImOk(back) {
   const draw = () => {
     const at = withPos ? freshHere() : null;
     fill(list, ...people.map((c) => el('a', { class: 'btn', href: smsHref(c.tel, smsOkText(at)) }, ico('message-square-text'), `Envoyer à ${c.name || c.tel}`)),
+      // v517 (mon choix A du 25 nov.) : WhatsApp, Signal… par le menu de partage d'Android ; ni logo ni lien direct (il passerait par le site de Meta)
+      navigator.share ? el('button', { type: 'button', class: 'btn', 'data-imok-other': '', onclick: async () => { try { await navigator.share({ text: smsOkText(at) }); } catch { /* annulé */ } } }, ico('share-2'), 'Autre appli (WhatsApp…)') : null,
       withPos && !at ? el('p', { class: 'warn' }, 'Ta position n\'est pas connue (localisation coupée ?) : le message partira sans elle. Touche Ma position, puis reviens ici.') : null);
   };
   const box = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': 'false', onclick: () => {
@@ -6095,7 +6097,7 @@ function openImOk(back) {
   el('span', { class: 'switch', 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
   draw();
   openSheet([ico('message-square-text'), ' Je vais bien'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, 'L\'appli SMS s\'ouvre avec « Je vais bien. » ; c\'est toi qui touches Envoyer.'),
+    el('p', { class: 'help' }, 'L\'appli SMS s\'ouvre avec « Je vais bien. » ; c\'est toi qui touches Envoyer. Le SMS part sans internet ; « Autre appli » (WhatsApp…) en demande, et tu y choisis la personne.'),
     el('div', { class: 'menu' }, box), list,
     foot(backBtn(back))), { tall: true, name: 'imok', again: self });
 }
@@ -14585,6 +14587,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
     '{file-text} **Mes documents** : en bas de chaque fiche « Les bons gestes ». Ajoute tes PDF (20 Mo au plus, ils restent sur ce téléphone) et tes liens ; un appui les ouvre. Rien ne se partage d\'ici. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
@@ -14594,7 +14597,6 @@ const HELP = [
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
-    '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

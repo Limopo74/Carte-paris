@@ -137,3 +137,12 @@ test('v499 : bandes jaune et noir en haut et en bas en mode crise, jamais en Abr
   assert.match(css, /var\(--crisis-a\) 0 14px, var\(--crisis-b\) 14px 28px/);
   assert.match(css, /html\[data-crise\] \.look-dot \{ z-index: 100000; \}/, 'le point du style reste visible par-dessus la bande');
 });
+
+test('v517 (mon choix A du 25 nov.) : Je vais bien garde le SMS et ajoute « Autre appli » par le menu de partage, sans logo ni wa.me', () => {
+  const page = app.slice(app.indexOf('function openImOk('), app.indexOf('function openCrisisPointPick('));
+  assert.match(page, /smsHref\(c\.tel, smsOkText\(at\)\)/, 'le SMS reste, un par proche');
+  assert.match(page, /navigator\.share \? el\('button'[^\n]*navigator\.share\(\{ text: smsOkText\(at\) \}\)[^\n]*'Autre appli \(WhatsApp…\)'/);
+  assert.doesNotMatch(page, /wa\.me|whatsapp:\/\/|\.png|\.svg/);
+  const silent = app.slice(app.indexOf('function openSilentAlert('), app.indexOf('function openSilentAlert(') + 6000);
+  assert.doesNotMatch(silent, /Autre appli/, 'Alerter en silence reste en SMS seulement');
+});
