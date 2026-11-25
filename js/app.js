@@ -81,7 +81,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (476)';
+const VERSION = '25 novembre 2026 (477)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1722,8 +1722,15 @@ try {
   const last = JSON.parse(storage.getItem(LAST_KEY) ?? 'null');
   if (last && Number.isFinite(last.lat) && Number.isFinite(last.lng) && Number.isFinite(last.time)) here = last;
 } catch { /* rien */ }
+// v477 (mon choix A du 25 nov.) : seulement le cas où je suis (appli installée ou Chrome), en étapes courtes ; le texte des deux cas mélangés était trop long
+const DENIED_STEPS = STANDALONE // *…* : en gras
+  ? ['*Appui long* sur l\'icône de l\'appli', '*Infos sur l\'appli* → *Autorisations*', '*Position* → *Autoriser*, puis *Réessayer*']
+  : ['Chrome *⋮* → *Paramètres*', '*Paramètres des sites* → *Position*', 'Autorise *limopo74.github.io*, puis *Réessayer*'];
+/** Les étapes, mots à toucher en gras, pour les pages « Position introuvable ». */
+const deniedHelp = () => el('div', { class: 'stack' }, el('p', {}, el('b', {}, 'Position refusée.'), ' Pour l\'autoriser :'),
+  el('ol', { class: 'steps' }, DENIED_STEPS.map((t) => el('li', {}, t.split('*').map((x, k) => (k % 2 ? el('b', {}, x) : x))))));
 const GEO_ERRORS = {
-  1: 'Position refusée. Dans Chrome : ⋮ → Paramètres → Paramètres des sites → Position, puis autorise limopo74.github.io. Appli installée : appui long sur son icône → Infos sur l\'appli → Autorisations → Position.',
+  1: `Position refusée. ${DENIED_STEPS.join(' → ').replaceAll('*', '').replace(/, puis Réessayer$/, '')}.`, // les messages courts (toasts) : la même chose sur une ligne
   2: 'Position introuvable pour le moment (dans le métro ou un bâtiment, le GPS passe mal).',
   3: 'La position met trop de temps à arriver.',
 };
@@ -4200,7 +4207,7 @@ function nearAgain() {
 function offerFallback(e) {
   const age = here ? Date.now() - here.time : Infinity;
   openSheet('Position introuvable', el('div', { class: 'stack' },
-    el('p', {}, e.message),
+    e?.code === 1 ? deniedHelp() : el('p', {}, e.message),
     here && age < 2 * 3600 * 1000
       ? el('button', { type: 'button', class: 'btn primary', onclick: () => { origin = { ...here, kind: 'last' }; renderNear(true); } },
         `Utiliser ma dernière position (${timeAgoShort(here.time)})`)
@@ -7658,7 +7665,7 @@ async function openToCheck(back, { keep = false } = {}) {
       try { checkFrom = await locate(); hideToast(); } catch (e) {
         hideToast();
         openSheet(title, el('div', { class: 'stack' },
-          el('p', { class: 'warn' }, `Position introuvable : la liste part de l'endroit où tu es. ${e?.message ?? ''}`.trim()),
+          e?.code === 1 ? deniedHelp() : el('p', { class: 'warn' }, `Position introuvable : la liste part de l'endroit où tu es. ${e?.message ?? ''}`.trim()),
           el('button', { type: 'button', class: 'btn c-info', onclick: () => openToCheck(back) }, ico('rotate-cw'), 'Réessayer'),
           foot(backBtn(back))), { name: 'averifier' });
         return;
@@ -13465,6 +13472,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{locate-fixed} **Position refusée, plus court** : la page ne montre que ton cas (appli installée ou Chrome), en 3 étapes, les mots à toucher en gras.',
     '{message-square-warning} **Signalements Dans ma rue** : ⋯ Plus en haut, puis zoome. Des carrés de 100 m, plus foncés là où les habitants ont signalé le plus de saleté et d\'objets abandonnés sur 12 mois. L\'étiquette du haut ouvre la légende.',
     '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
     '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
@@ -13474,7 +13482,6 @@ const HELP = [
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
     '{settings} **Réglages plus courts** : dans Réglages et Autres réglages, chaque petite ligne tient sur une seule ligne (en Normal). Moins à lire, des pages plus courtes ; l\'Aide de chaque page garde le détail.',
-    '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). Chacun a ses puces, ses icônes et le contour de tes gouttes. En sombre, toujours Signalétique. Les boutons restent à leur place.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
