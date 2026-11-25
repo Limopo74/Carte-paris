@@ -28,7 +28,7 @@ test('Une nocturne prévue garde sa marque (texte de la page, site officiel)', (
   assert.equal(x.ticket.part, 'soir');
   const [y] = cleanPlans([{ id: 'n2', name: 'Concert', lat: 48.86, lng: 2.33, late: 'oui', ticket: { at } }], new Date(2026, 10, 25).getTime());
   assert.equal(y.late, undefined);
-  assert.match(app, /link: x\.url \? \[x\.url, x\.late \? 'Site officiel' : 'Voir dans « Que faire à Paris »'\] : null/);
+  assert.match(app, /link: x\.url \? \[x\.url, x\.late( \|\| x\.free)? \? 'Site officiel' : 'Voir dans « Que faire à Paris »'\] : null/);
 });
 
 test('Le bloc : seulement allumé, sous « Trouver une sortie » (qui ne bouge pas), jours fériés exclus, ce soir seulement si on peut entrer', () => {

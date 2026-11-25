@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (524)';
+const VERSION = '25 novembre 2026 (525)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3934,8 +3934,8 @@ function planEvent(e, again) {
 function openPlanSpot(x, back = null) {
   const again = () => openPlanSpot(x, back);
   openSpot({ icon: 'calendar-days', title: x.name, kicker: `Prévu ${planText(x.ticket)}${x.ticket.with ? ` avec ${x.ticket.with}` : ''}`,
-    lines: [[x.place, x.address].filter(Boolean).join(' · '), x.late ? 'Nocturne habituelle d\'un grand lieu : vérifie sur son site avant d\'y aller (fermeture exceptionnelle). Le lendemain, Mon planning te demande si tu y es allée.' /* v519 */ : 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allée. « Ajouter » la garde dans tes lieux.'],
-    place: x, link: x.url ? [x.url, x.late ? 'Site officiel' : 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
+    lines: [[x.place, x.address].filter(Boolean).join(' · '), x.late ? 'Nocturne habituelle d\'un grand lieu : vérifie sur son site avant d\'y aller (fermeture exceptionnelle). Le lendemain, Mon planning te demande si tu y es allée.' /* v519 */ : x.free ? `Gratuit ce jour-là. Les règles changent : vérifie sur son site officiel avant d'y aller. Le lendemain, Mon planning te demande si tu y es allée.` /* v521 (mon choix 3A du 25 nov.) */ : 'Sortie de l\'agenda « Que faire à Paris ? ». Le lendemain, Mon planning te demande si tu y es allée. « Ajouter » la garde dans tes lieux.'],
+    place: x, link: x.url ? [x.url, x.late || x.free ? 'Site officiel' : 'Voir dans « Que faire à Paris »'] : null, back, key: `sortieprevue:${x.id}`,
     add: { note: [x.place, x.url].filter(Boolean).join(' · ') },
     extra: x.by
       ? el('div', { class: 'stack' },
@@ -7809,7 +7809,7 @@ function openFreeDaySpot(f, date, back) {
     const st = openState(spotHours(f, date), new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 1));
     const [hh, mm] = (st?.opensAt ?? '14:00').split(':').map(Number);
     const at = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm).getTime();
-    openPlan({ id: newPhotoId(), name: f.name, lat: f.lat, lng: f.lng, plan: true, place: f.name, ticket: st?.opensAt ? { at } : { at, part: 'aprem' } }, named(f.name, again), { done: again });
+    openPlan({ id: newPhotoId(), name: f.name, lat: f.lat, lng: f.lng, plan: true, free: true /* v521 : pas une sortie de l'agenda */, place: f.name, ...(f.url ? { url: f.url } : {}), ticket: st?.opensAt ? { at } : { at, part: 'aprem' } }, named(f.name, again), { done: again });
   };
   openSpot({ mark: true, icon: 'landmark', title: f.name, kicker: `Gratuit ${dayTitle(date)}`, place: f, back, key: `gratuitjour:${f.lat},${f.lng}:${date.getTime()}`, fav: 'musee',
     lines: [h ? el('p', {}, ico('clock'), ` Ce jour-là : ${h}`) : el('p', { class: 'help' }, 'Horaires de ce jour-là inconnus : vérifie avant d\'y aller.'),
