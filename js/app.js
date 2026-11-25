@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
-import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -28,7 +28,8 @@ import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galle
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote } from './soleil.js';
-import { voieOrigin } from './voies.js';
+import { voieOrigin, voieKey } from './voies.js';
+import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
 import { cleanAcces, exitFor, entryFor } from './acces.js';
 import { typo, accord, setMasculin } from './typo.js';
 import { wordsOf, seriesOf, seriesIdOf, hasWord, toggleWord, saveSeries, deleteSeries, WORDS_MAX, WORD_MAX, SERIES_NAME_MAX, SERIES_MAX } from './mots.js';
@@ -77,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (457)';
+const VERSION = '25 novembre 2026 (458)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6702,10 +6703,10 @@ function followButton(name, again) {
   } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false, mark = false, listen = null }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false, mark = false, listen = null, tail = null }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin, mark, listen });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin, mark, listen, tail });
   /* v420 : `pin` = le petit rond terre cuite marque l'endroit tant que la page est ouverte ; il revient avec elle
      (retour depuis Métro ou Boussole) et part à sa fermeture ; v429 : `mark` = le rond choisi d'un lieu de Sorties (markSpot) */
   const closing = pin || mark ? () => { unmarkSpot(); onClose?.(); } : onClose;
@@ -6731,6 +6732,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     link ? el('a', { class: 'btn c-disc', href: link[0], target: '_blank', rel: 'noopener' }, ico('external-link'), link[1]) : null,
     /* v333 : musée, galerie, salle, théâtre (les pages qui ont un Favori) : Uber en bas de page, rien ne bouge au-dessus */
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
+    tail, // v457 : le nom touchable d'une personne, en dernier (rien ne bouge au-dessus)
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again, onClose: closing, listen });
   if (mark) markSpot(place.lat, place.lng, icon);
@@ -7086,19 +7088,124 @@ async function openLate() {
  * La page d'un artiste (v161), ouverte depuis la fiche d'une œuvre ou Mes artistes : ses œuvres dans mes lieux
  * (les disparues à la fin), son site ou son Instagram noté une fois, et « Suivre ses expos » (Mes artistes). Rien n'est envoyé.
  */
-function openArtist(name, back = null) {
+/* ---------- Page d'une personne (v457, mes choix « tout conseillé » du 25 nov. : 1A 2A 4A 5A, puis A A A des maquettes) ----------
+   La page Artiste réunit tout ce que les fichiers de l'appli connaissent sous un même nom complet (js/personnes.js) : ses œuvres dans
+   la rue, sa tombe, ses plaques, la rue à son nom ; « Son site » et « Ses expos » seulement pour un artiste (suivi, ou qui a des
+   œuvres). On y arrive par un nom touchable (fiche de mes lieux, plaque, Art dans la rue, tombe), jamais par un nouveau bouton. */
+let personReady = false;
+let personLoading = null;
+/** Les fichiers de l'appli dont la page d'une personne a besoin (un fichier qui ne vient pas : sa rubrique manque, rien d'autre). */
+const loadPersonData = () => (personLoading ??= Promise.allSettled([loadMusees(), loadPlaques(), loadCimetieres(), loadVoies(), loadStreetArt()]).then(() => { personReady = true; }));
+/** Vrai si les fichiers sont lus ; sinon les lit et rouvre la page `key` si elle est toujours affichée. */
+function personDataOr(key, reopen) {
+  if (personReady) return true;
+  loadPersonData().then(() => { if (view === key) reopen(); });
+  return false;
+}
+/** Ce que l'appli connaît sous ce nom, sur le téléphone. */
+function personFacts(name, pos = null) {
+  const tombs = cimData ? tombsOf(cimData, name) : [];
+  const near = (xs) => xs.map((a) => ({ a, d: pos ? distanceM(pos, a) : null })).sort((x, y) => (pos ? x.d - y.d : x.a.name.localeCompare(y.a.name, 'fr')));
+  return {
+    tombs,
+    plaques: plaquesData && isFullName(name) ? plaquesFor(plaquesOf(plaquesData), name, pos).filter((x) => x.title) : [],
+    streets: voiesData ? streetsOf(voiesData.voies, name, tombs[0]?.t.years) : [],
+    works: streetArt ? groupWorks(near(streetWorksOf(streetArt, name))) : [], // v457 : un groupe de statues de même nom = une ligne
+    mine: artistWorks(state.points, name, pos),
+    museums: museesInfo ? museumsWith(museesInfo.items, name, pos) : [],
+    followed: cleanArtists(state.artists).some((x) => artistKey(x) === artistKey(name)),
+  };
+}
+/**
+ * Le nom touchable d'une personne (mon choix 5A), sous les boutons d'une page (mon choix A : « Y aller » ne bouge pas) : seulement si
+ * une autre liste que les plaques la connaît (tombe, rue à son nom, œuvre, Mes artistes, musée : un titre de plaque seul n'est pas
+ * forcément une personne), et si sa page montre autre chose que ce qu'on regarde (`skip`).
+ */
+function personRow(name, back, skip = {}) {
+  if (!personReady || !isFullName(name)) return null;
+  const f = personFacts(name);
+  if (!(f.tombs.length || f.streets.length || f.works.length || f.mine.length || f.museums.length || f.followed)) return null;
+  const has = {
+    tomb: !skip.tomb && f.tombs.length > 0,
+    works: f.works.some(({ a }) => a.name !== skip.workName) || f.mine.length > 0, // une autre œuvre que ce groupe
+    plaques: !skip.plaques && f.plaques.some((x) => x.plaque !== skip.plaque),
+    street: f.streets.length > 0,
+  };
+  if (!Object.values(has).some(Boolean)) return null;
+  return el('div', { class: 'fiche-toc' }, el('button', { type: 'button', class: 'fiche-row', onclick: () => openArtist(name, back) },
+    ico('user'), el('span', {}, name, el('small', {}, personSub(has))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+}
+/** Les rues à son nom, avec leur vrai nom et un point : le plan des rues gardé sur le téléphone d'abord (rien n'est envoyé),
+ * sinon l'IGN (seul le nom de la rue part, jamais ma position) ; une rue retrouvée hors de Paris ou sous un autre nom est écartée. */
+async function personStreets(keys, pos) {
+  const out = [];
+  const P = streets ?? await loadStreets().catch(() => null);
+  if (!arrData) await loadArr().catch(() => null);
+  for (const key of keys.slice(0, 3)) {
+    let hit = null;
+    if (P && arrData) {
+      const pts = [];
+      let label = '';
+      for (let i = 0; i < P.E; i++) {
+        const nm = edgeName(P, i);
+        if (!nm || voieKey(nm) !== key) continue;
+        label ||= nm;
+        for (const [lat, lng] of edgePoints(P, i)) if (arrOfPoint({ lat, lng })) pts.push({ lat, lng });
+      }
+      if (pts.length) {
+        const mid = { lat: pts.reduce((t, p) => t + p.lat, 0) / pts.length, lng: pts.reduce((t, p) => t + p.lng, 0) / pts.length };
+        const ref = pos ?? mid;
+        const pt = pts.reduce((b, p) => (distanceM(ref, p) < distanceM(ref, b) ? p : b));
+        hit = { key, name: label, lat: pt.lat, lng: pt.lng, arr: arrOfPoint(pt) };
+      }
+    }
+    if (!hit) {
+      const r = (await searchAddress(key).catch(() => [])).find((x) => x.type === 'street' && arrFromCitycode(x.citycode) && voieKey(x.street) === key);
+      if (r) hit = { key, name: r.street, lat: r.lat, lng: r.lng, arr: arrFromCitycode(r.citycode) };
+    }
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+/** La page d'une rue à son nom : l'origine du nom (Ville de Paris), Y aller au point de la rue le plus proche. */
+function openPersonStreet(r, back) {
+  openSpot({ icon: 'git-commit-horizontal', title: r.name, kicker: `Rue · ${arrOrd(r.arr)}`, place: { lat: r.lat, lng: r.lng, address: r.name }, back, key: `ruenom:${r.key}`, pin: true,
+    lines: [voieOrigin(voiesData, r.key) ? el('p', { class: 'help' }, el('b', {}, 'Origine du nom : '), voieOrigin(voiesData, r.key)) : null,
+      el('p', { class: 'help tip' }, 'Origine du nom : Ville de Paris (Direction de l\'Urbanisme). Y aller mène au point de la rue le plus proche de toi.')],
+    add: { address: r.name } });
+}
+/** Toutes ses œuvres dans la rue, de la plus proche (ou par nom sans position). */
+function openPersonWorks(n, works, back) {
+  const again = named('Ses œuvres', () => openPersonWorks(n, works, back));
+  openSheet([ico('shapes'), ' Ses œuvres dans la rue'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${n} · ${plural(works.length, 'œuvre', 'œuvres')}`),
+    el('ul', { class: 'items ev-list' }, works.map(({ a, d, n: k2 }) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, again), sub: [k2 > 1 ? `${k2} œuvres` : a.type, a.year], d }))),
+    el('p', { class: 'help' }, 'Liste des œuvres d\'OpenStreetMap rangée dans l\'appli. Elle n\'est pas complète.'),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'personneoeuvres', again });
+}
+
+async function openArtist(name, back = null) {
   const n = cleanArtist(name);
   if (!n) return;
-  if (!museesInfo) { loadMusees().then(() => openArtist(name, back)); return; } // fichier de l'appli : quelques millisecondes
   const k = artistKey(n);
+  if (!personReady) {
+    openSheet([ico('user'), ` ${n}`], el('p', { class: 'help' }, 'Lecture des listes de l\'appli…'), { name: `artiste:${k}` });
+    await Promise.race([loadPersonData(), new Promise((ok) => { setTimeout(ok, 1500); })]); // fichiers de l'appli : quelques millisecondes
+    if (view !== `artiste:${k}`) return;
+  }
   const again = () => openArtist(n, back);
   const here = named(n, again);
   const pos = startHere() ?? (evStale(origin) ? null : origin); // v450 : jamais une position de plus de 10 min
-  const works = artistWorks(state.points, n, pos);
-  const museums = museumsWith(museesInfo.items, n, pos); // v231 : toute l'année dans les musées
+  const f = personFacts(n, pos);
+  const works = f.mine;
+  const museums = f.museums; // v231 : toute l'année dans les musées
   const openMuseum = (m) => openSpot({ mark: true, icon: 'landmark', title: m.n, kicker: `${n} dans ses collections`, lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
     link: m.url ? [m.url, 'Site officiel du musée'] : null, back: here, key: `musee:${m.id}`, fav: 'musee' });
-  const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
+  const followed = f.followed;
+  /* v457 (mon choix A) : « Son site » et « Ses expos » seulement pour un artiste : suivi, ou qui a des œuvres (mes lieux, la rue, un musée) */
+  const artist = followed || works.length > 0 || f.works.length > 0 || museums.length > 0;
+  const tomb = f.tombs[0] ?? null;
   const link = cleanArtistLinks(state.artistLinks)[k];
   const input = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', inputmode: 'url', enterkeyhint: 'done', placeholder: 'https://… ou @nom (Instagram)', 'aria-label': `Site ou Instagram de ${n}` });
   const saveLink = () => {
@@ -7111,30 +7218,59 @@ function openArtist(name, back = null) {
   const dropLink = () => { const l = { ...cleanArtistLinks(state.artistLinks) }; delete l[k]; state.artistLinks = l; persist(); again(); toast('Lien retiré'); };
   const follow = () => { state.artists = cleanArtists([...cleanArtists(state.artists), n]); persist(); again(); toast(`${n} est dans Mes artistes`); };
   const site = link ? link.u.replace(/^https:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
+  const head = (t, c) => el('h3', { class: 'ring-title' }, el('span', {}, t), el('span', {}, String(c)));
+  const minTxt = (d) => (d != null ? `${walkMinutes(d)} min` : '');
+  const rowOf = (icon, title, sub, onclick) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick },
+    el('span', { class: 'tool-prev', 'aria-hidden': 'true' }, ico(icon, { size: 18 })),
+    el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, title), el('span', { class: 'item-sub' }, sub))));
+  const MAX = 5;
+  const tombJardin = tomb ? (jardinsData ?? []).find((j) => j.id === tomb.c.jid) ?? { id: tomb.c.jid } : null;
+  // La rue à son nom : retrouvée après l'ouverture (plan des rues gardé, sinon l'IGN) ; la rubrique arrive quand elle est trouvée
+  const streetBox = el('div', { class: 'stack' });
+  if (f.streets.length) {
+    personStreets(f.streets, pos).then((rs) => {
+      if (!streetBox.isConnected) return;
+      fill(streetBox, ...(rs.length ? [head(rs.length > 1 ? 'Les rues à son nom' : 'La rue à son nom', rs.length),
+        el('ul', { class: 'items' }, rs.map((r) => rowOf('git-commit-horizontal', r.name, [arrOrd(r.arr), minTxt(pos ? distanceM(pos, r) : null)].filter(Boolean).join(' · '), () => openPersonStreet(r, here))))]
+        : [head('La rue à son nom', f.streets.length), el('p', { class: 'help' }, 'L\'appli ne la retrouve pas sur la carte sans connexion. Réessaie plus tard.')]));
+    });
+  }
   openSheet([ico('user'), ` ${n}`], el('div', { class: 'stack' },
-    el('h3', { class: 'ring-title' }, el('span', {}, 'Ses œuvres dans tes lieux'), el('span', {}, String(works.length))),
-    works.length ? el('ul', { class: 'items ev-list' }, works.map(({ p, d }) => sortieCard({ genre: 'oeuvre', name: p.name, onclick: () => openDetail(p.id, here),
+    tomb?.t.what ? el('p', { class: 'help' }, tomb.t.years ? `${shortWhat(tomb.t)} (${tomb.t.years})` : shortWhat(tomb.t)) : null,
+    artist ? head('Ses œuvres dans tes lieux', works.length) : null,
+    !artist ? null : works.length ? el('ul', { class: 'items ev-list' }, works.map(({ p, d }) => sortieCard({ genre: 'oeuvre', name: p.name, onclick: () => openDetail(p.id, here),
       sub: [catOf(p.cat).name, p.address], d, tags: [p.gone ? el('span', { class: 'tag closed' }, 'Disparue ou recouverte') : null] })))
       : el('p', { class: 'empty' }, 'Aucune pour l\'instant. Note l\'artiste dans la fiche d\'une œuvre (Modifier → Artiste).'),
+    ...(f.works.length ? [head('Ses œuvres dans la rue', f.works.length),
+      el('ul', { class: 'items ev-list' }, f.works.slice(0, MAX).map(({ a, d, n: k2 }) => sortieCard({ genre: 'oeuvre', name: a.name, onclick: () => openStreetArtCard(a, here), sub: [k2 > 1 ? `${k2} œuvres` : a.type, a.year], d }))),
+      f.works.length > MAX ? el('button', { type: 'button', class: 'btn', onclick: () => openPersonWorks(n, f.works, here) }, ico('shapes'), `Toutes ses œuvres (${f.works.length})`) : null] : []),
     ...(museums.length ? [
-      el('h3', { class: 'ring-title' }, el('span', {}, 'Toute l\'année dans les musées'), el('span', {}, String(museums.length))),
+      head('Toute l\'année dans les musées', museums.length),
       el('ul', { class: 'items ev-list' }, museums.map((m) => sortieCard({ genre: 'musee', name: m.n, sub: [m.a], d: m.d, onclick: () => openMuseum(m) }))),
       el('p', { class: 'help' }, 'La liste de la Région ne cite pas tout : un autre musée peut avoir ses œuvres. Une œuvre peut être prêtée ou en réserve : regarde sur le site du musée avant d\'y aller pour elle.'),
-      el('p', { class: 'help tip' }, `D'après la liste des musées de France de la Région Île-de-France${museesInfo.updated ? `, lue le ${frenchDate(museesInfo.updated)}` : ''}. Quand elle n'écrit que le nom de famille, l'appli s'en contente, sauf s'il est porté par plusieurs artistes (David, Brueghel…).`),
+      el('p', { class: 'help tip' }, `D'après la liste des musées de France de la Région Île-de-France${museesInfo?.updated ? `, lue le ${frenchDate(museesInfo.updated)}` : ''}. Quand elle n'écrit que le nom de famille, l'appli s'en contente, sauf s'il est porté par plusieurs artistes (David, Brueghel…).`),
     ] : []),
-    el('h3', { class: 'fiche-sec' }, 'Son site'),
-    link ? el('div', { class: 'fiche-toc' },
-      el('a', { class: 'fiche-row', href: link.u, target: '_blank', rel: 'noopener' }, ico('external-link'),
-        el('span', {}, site, el('small', {}, 'Noté par toi, ouvert dans le navigateur')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
-      el('button', { type: 'button', class: 'fiche-row danger', onclick: dropLink }, ico('trash-2'), el('span', {}, 'Retirer ce lien'), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))
-      : el('div', { class: 'stack' },
-        el('label', { class: 'field' }, 'Adresse (facultatif)', input),
-        el('button', { type: 'button', class: 'btn c-add solid', onclick: saveLink }, ico('save'), 'Enregistrer le lien'),
-        el('p', { class: 'help' }, 'Recopie l\'adresse de son site officiel ou son compte Instagram (@nom). L\'appli ne le cherche pas pour toi : un faux compte est vite arrivé.')),
-    el('h3', { class: 'fiche-sec' }, 'Ses expos'),
-    followed ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtists() }, ico('palette'), 'Voir Mes artistes')
-      : el('button', { type: 'button', class: 'btn c-disc', onclick: follow }, ico('plus'), 'Suivre ses expos'),
-    el('p', { class: 'help tip' }, followed ? 'Dans Mes artistes, l\'appli cherche son nom dans l\'agenda de la Ville sur 7 jours.' : 'Son nom ira dans Mes artistes (Sorties → Expos) : l\'appli le cherchera dans l\'agenda de la Ville sur 7 jours.'),
+    ...(tomb ? [head('Sa tombe', 1), el('ul', { class: 'items' }, rowOf('flower-2', tomb.c.name, `Division ${tomb.t.div}`, () => openTombe(tombJardin, tomb.t, here)))] : []), // mon choix A : « Division 11 », une ligne
+    ...(f.plaques.length ? [head('Ses plaques dans Paris', f.plaques.length),
+      el('ul', { class: 'items' }, f.plaques.slice(0, MAX).map((x) => rowOf('scroll-text', x.plaque.t, [minTxt(pos ? x.d : null), x.plaque.a || plaqueStart(x.plaque, 60)].filter(Boolean).join(' · '), () => openPlaque(x.plaque, here)))),
+      f.plaques.length > MAX ? el('button', { type: 'button', class: 'btn', onclick: () => openTombPlaques({ name: n }, f.plaques, pos, here) }, ico('scroll-text'), `Toutes ses plaques (${f.plaques.length})`) : null] : []),
+    streetBox,
+    ...(artist ? [
+      el('h3', { class: 'fiche-sec' }, 'Son site'),
+      link ? el('div', { class: 'fiche-toc' },
+        el('a', { class: 'fiche-row', href: link.u, target: '_blank', rel: 'noopener' }, ico('external-link'),
+          el('span', {}, site, el('small', {}, 'Noté par toi, ouvert dans le navigateur')), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
+        el('button', { type: 'button', class: 'fiche-row danger', onclick: dropLink }, ico('trash-2'), el('span', {}, 'Retirer ce lien'), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))
+        : el('div', { class: 'stack' },
+          el('label', { class: 'field' }, 'Adresse (facultatif)', input),
+          el('button', { type: 'button', class: 'btn c-add solid', onclick: saveLink }, ico('save'), 'Enregistrer le lien'),
+          el('p', { class: 'help' }, 'Recopie l\'adresse de son site officiel ou son compte Instagram (@nom). L\'appli ne le cherche pas pour toi : un faux compte est vite arrivé.')),
+      el('h3', { class: 'fiche-sec' }, 'Ses expos'),
+      followed ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => openArtists() }, ico('palette'), 'Voir Mes artistes')
+        : el('button', { type: 'button', class: 'btn c-disc', onclick: follow }, ico('plus'), 'Suivre ses expos'),
+      el('p', { class: 'help tip' }, followed ? 'Dans Mes artistes, l\'appli cherche son nom dans l\'agenda de la Ville sur 7 jours.' : 'Son nom ira dans Mes artistes (Sorties → Expos) : l\'appli le cherchera dans l\'agenda de la Ville sur 7 jours.'),
+    ] : []),
+    tomb || f.plaques.length || f.streets.length || f.works.length ? el('p', { class: 'help tip' }, 'Relié par le nom complet, écrit pareil dans chaque liste de l\'appli. Un nom seul ou porté par plusieurs personnes ne relie rien.') : null,
     foot(backBtn(back ?? named('Mes artistes', () => openArtists()))),
   ), { tall: true, name: `artiste:${k}`, again });
 }
@@ -7837,8 +7973,12 @@ function loadStreetArt(force = false) {
 }
 /** Une œuvre : ce qu'on sait (type, artiste, année), Y aller, Boussole, Métro ; l'article Wikipédia s'il existe. */
 function openStreetArtCard(a, back = null) {
+  const key = `oeuvre:${a.lat},${a.lng}`;
+  const reopen = () => openStreetArtCard(a, back);
+  // v457 (mon choix 5A) : l'artiste, touchable, sous les boutons, quand sa page montre autre chose que cette œuvre
+  const who = a.artist && personDataOr(key, reopen) ? String(a.artist).split(/\s*[;/]\s*/).map((n) => personRow(n, named(a.name, reopen), { workName: a.name })).filter(Boolean) : [];
   openSpot({ mark: true, icon: 'shapes', title: a.name, kicker: a.type, lines: [[a.artist, a.year].filter(Boolean).join(', ') || 'Artiste non indiqué.', 'Dans la rue : visible à toute heure, sauf travaux.'],
-    place: a, link: a.wiki ? [a.wiki, 'Article Wikipédia'] : null, back: typeof back === 'function' ? back : null, key: `oeuvre:${a.lat},${a.lng}` });
+    place: a, link: a.wiki ? [a.wiki, 'Article Wikipédia'] : null, back: typeof back === 'function' ? back : null, key, tail: who.length ? who : null });
 }
 /** Art dans la rue autour du point de départ de Sorties : les 30 œuvres les plus proches, mes artistes d'abord. */
 async function openStreetArt() {
@@ -9173,13 +9313,17 @@ const wikiCache = new Map();
 const PLAQUE_COLOR = '#2b8a3e';
 /** La page d'une plaque : son texte gravé en entier, où la regarder sur l'immeuble, puis les actions d'un lieu. */
 function openPlaque(p, back = null) {
-  openSpot({ icon: 'scroll-text', title: p.t, kicker: 'Plaque commémorative', place: { lat: p.lat, lng: p.lng, address: p.a },
+  const key = `plaque:${p.lat},${p.lng}`;
+  const reopen = () => openPlaque(p, back);
+  /* v457 (mes choix 5A et A) : le nom de la personne, touchable, sous les boutons ; les listes de l'appli lues au besoin, la page rouverte */
+  const who = personDataOr(key, reopen) ? namesInTitle(p.t).map((n) => personRow(n, named('La plaque', reopen), { plaque: p })) /* « ← La plaque » : le titre d'une plaque est souvent le nom de la personne */.filter(Boolean) : [];
+  openSpot({ icon: 'scroll-text', title: p.t, kicker: 'Plaque commémorative', place: { lat: p.lat, lng: p.lng, address: p.a }, tail: who.length ? who : null,
     lines: [el('blockquote', { class: 'plaque-text' }, p.x),
       p.o ? el('p', { class: 'where' }, ico('eye'), `Où regarder : ${p.o.charAt(0).toLowerCase()}${p.o.slice(1)}`) : null,
       p.a ? el('p', { class: 'where' }, ico('map-pin'), p.a) : null,
       el('p', { class: 'help' }, 'Une plaque peut avoir été déplacée ou retirée.'),
       el('p', { class: 'help tip' }, 'Texte relevé par la Ville de Paris (Direction des Affaires Culturelles, licence ODbL).')],
-    add: { note: p.x }, back, key: `plaque:${p.lat},${p.lng}`,
+    add: { note: p.x }, back, key,
     listen: sayJoin([p.t, p.x, p.o ? `Où regarder : ${p.o}` : '']) }); // v437 (mon choix 2A du 25 nov.)
 }
 const plaqueRow = (x, back) => el('li', { class: 'item' },
@@ -9795,6 +9939,7 @@ async function openTombe(j, t, back) {
       el('p', { class: 'help tip' }, `${c.short} : ${c.planSource} de la Ville de Paris, recoupé avec Wikidata. Les années ne s'affichent pas quand Wikidata ne donne pas les mêmes. Sur la carte, de près, chaque division porte son numéro ; celle-ci en gras.`),
     ],
     add, mine: myTombPlace(t, place), snap: () => tombPhoto(j, t, back, add),
+    tail: personDataOr(`tombe:${c.id}:${t.key}:${t.div}`, () => openTombe(j, t, back)) ? personRow(t.name, named('La tombe', () => openTombe(j, t, back)), { tomb: true, plaques: true }) : null, // v457 : sa page (sa rue, ses œuvres)
     extra: [
       plq.length ? el('button', { type: 'button', class: 'btn', onclick: () => openTombPlaques(t, plq, from, again) }, ico('scroll-text'), `Ses plaques dans Paris (${plq.length})`) : null,
       wikiOf(t) ? el('a', { class: 'btn c-disc', href: wikiOf(t), target: '_blank', rel: 'noopener' }, ico('book-open-text'), 'Article Wikipédia') : null,
@@ -12699,6 +12844,7 @@ const HELP = [
     '**Expos** : en tête, Grands lieux, Expos de la semaine, Ouvert tard, Art dans la rue et Mes artistes. Puis Dernière chance, Expos en cours et galeries.',
     '{moon} **Ouvert tard** : les nocturnes des grands lieux, ce soir puis jour par jour. À gauche, la fermeture ; dessous, « arriver avant » : l\'heure où le guichet ferme ou de la dernière entrée, quand le site du lieu la donne. Un lieu quitte « Ce soir » à cette heure. Horaires habituels ; rien un jour férié.',
     '{user} **Mes artistes** (aussi sous ⋯ Plus, en haut, et dans la loupe) : écris les noms que tu suis ; l\'appli les cherche tels quels dans l\'agenda de la semaine, tout Paris. Pour l\'enlever de ⋯ Plus : « Choisir ce qui va dans Plus », puis « Masqué » sur sa ligne (rien n\'est supprimé, la loupe y mène toujours). Sur la page d\'un artiste, « Toute l\'année dans les musées » : les musées de Paris qui citent ses œuvres, d\'après la liste de la Région (incomplète).',
+    '{user} **La page d\'une personne** : touche un nom sous les boutons d\'une plaque, d\'une œuvre dans la rue ou d\'une tombe, ou l\'artiste sur la fiche d\'un de tes lieux. Elle réunit ses œuvres dans la rue, sa tombe, ses plaques et la rue à son nom ; « Son site » et « Ses expos » seulement pour un artiste. Relié par le nom complet : un nom seul ou porté par plusieurs personnes ne relie rien.',
     '{shapes} **Art dans la rue** : statues, sculptures et installations à moins de 1 km (OpenStreetMap, liste rangée dans l\'appli chaque mois). Pas de fresques : elles disparaissent trop vite.',
     `{landmark} **Grands lieux** : ${ART_PLACES.length} musées, fondations, salles de concert et théâtres, avec ce que l'agenda annonce. Aussi par la loupe : tape « orsay ».`,
     '**Expos de la semaine** : tout Paris sur 7 jours, par arrondissement, celles qui ferment d\'abord.',
@@ -12915,6 +13061,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
     '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
@@ -12924,7 +13071,6 @@ const HELP = [
     '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
     '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
     '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
-    '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

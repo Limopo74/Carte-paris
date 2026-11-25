@@ -86,5 +86,5 @@ test('dans l\'appli : bloc de Curiosités, liste, page, fichier gardé hors lign
   assert.match(app, /function openVue\(/);
   assert.match(app, /snap: \(\) => vuePhoto\(/);
   assert.match(sw, /'js\/vues\.js'/);
-  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n').slice(1, 4).some((l) => l.includes('**Points de vue**')) /* v456 : « Cimetières » en tête ; v457 : « Mettre à jour, plus visible » */);
+  assert.ok(app.slice(app.indexOf("['sparkles', 'Nouveautés', [")).split('\n').slice(1, 5).some((l) => l.includes('**Points de vue**')) /* v456 : « Cimetières » en tête ; v457 : « Mettre à jour, plus visible » */);
 });
