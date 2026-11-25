@@ -65,6 +65,7 @@ import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFast
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
 import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList, legText, dayWalkText } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
+import { makeDeck, deckMove, deckCount, deckLabel } from './glisser-sorties.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, searchArtists, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
@@ -92,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (517)';
+const VERSION = '25 novembre 2026 (518)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1553,6 +1554,9 @@ new MutationObserver(() => { if (!sheet.hidden) gatherTips(); }).observe(sheetBo
 
 let userSize = null; // v332 : hauteur choisie au doigt pour l'écran affiché ('low' | 'mid' | 'tall' ; null : celle prévue pour lui)
 let sheetNatural = Infinity; // v332 : hauteur de la page entière, mesurée fenêtre ouverte (moitié et grande se confondent sur une page courte)
+// v518 : la suite de la fiche de sortie ouverte (glisser de côté), ou null ; chaque ligne de sortie garde sa sortie (deckCard)
+let sortieDeck = null;
+const deckCards = new WeakMap();
 function openSheet(title, body, { onClose = null, tall = false, name = null, again = null, listen = null } = {}) {
   if (moving && name !== 'move') stopMove();
   if (!(name && name === view && !sheet.hidden)) userSize = null; // v332 : un nouvel écran prend sa hauteur prévue ; le même, redessiné, garde celle choisie au doigt
@@ -1580,6 +1584,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   if (filt.arr && name !== 'arrlist' && !String(name).startsWith('detail:')) { filt.arr = 0; renderChips(); renderMarkers(); drawArrOutline(); updateNow(true); }
   const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
+  if (name !== 'sortie') sortieDeck = null; // v518 : la suite des sorties ne dure que le temps de leurs fiches
   sheet.classList.toggle('swipe-tabs', name === 'events'); // v459 : la page de Sorties laisse le doigt glisser de côté (onglets)
   markOpen(true); // v331 : la goutte du lieu de cette fiche se distingue (ou plus aucune)
   fill(sheetTitle, ...[title].flat().filter(Boolean));
@@ -1746,19 +1751,35 @@ function setSheetMini(on) {
   head.addEventListener('pointercancel', reset);
 }
 { // v459 : glisser de côté sur Sorties (barre du titre ou page) change d'onglet ; une rangée qui défile de côté, un champ ou une carte gardent leur geste
+  // v518 : sur la fiche d'une sortie ouverte depuis une liste, il ouvre la voisine (doigt vers la gauche : la suivante) ; la page suit le doigt, et résiste au bout
   let sw = null; let swiped = false;
   const sideScroll = (t) => { for (let q = t; q && q !== sheet; q = q.parentElement) if (q.scrollWidth > q.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(q).overflowX)) return true; return false; };
+  const deckView = () => view === 'sortie' && sortieDeck;
+  const unslide = () => { sheetBody.style.transform = ''; };
   sheet.addEventListener('pointerdown', (e) => {
     swiped = false;
-    sw = view === 'events' && e.isPrimary && !e.target.closest('input, textarea, select, .leaflet-container') && !sideScroll(e.target) ? { x: e.clientX, y: e.clientY } : null;
+    sw = (view === 'events' || deckView()) && e.isPrimary && !e.target.closest('input, textarea, select, .leaflet-container') && !sideScroll(e.target) ? { x: e.clientX, y: e.clientY } : null;
+  });
+  sheet.addEventListener('pointermove', (e) => {
+    if (!sw || !e.isPrimary || !deckView()) return;
+    const dx = e.clientX - sw.x; const dy = e.clientY - sw.y;
+    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.5) { unslide(); return; }
+    sheetBody.style.transform = `translateX(${deckMove(sortieDeck, dx < 0 ? 1 : -1) ? dx : dx / 4}px)`;
   });
   sheet.addEventListener('pointerup', (e) => {
     if (!sw) return;
     const step = swipeStep(e.clientX - sw.x, e.clientY - sw.y);
-    sw = null;
-    if (step && view === 'events') { swiped = true; swipeEventsTab(step); }
+    sw = null; unslide();
+    if (step && view === 'events') { swiped = true; swipeEventsTab(step); return; }
+    if (step && deckView()) {
+      swiped = true;
+      const next = deckMove(sortieDeck, step);
+      if (!next) return; // au bout : on s'arrête (mon choix 3A)
+      next.items[next.i].go({ deck: next });
+      sheetBody.scrollTop = 0; const top = navStack.at(-1); if (top) top.want = 0; // une autre sortie s'ouvre en haut
+    }
   });
-  sheet.addEventListener('pointercancel', () => { sw = null; });
+  sheet.addEventListener('pointercancel', () => { sw = null; unslide(); });
   sheet.addEventListener('click', (e) => { if (swiped) { swiped = false; e.stopPropagation(); e.preventDefault(); } }, true); // le doigt levé sur une ligne n'ouvre pas la sortie
 }
 
@@ -7072,8 +7093,8 @@ function openDayEvents(key = null, back = null) {
     const near = nearbyEvents(all, from, tune('eventsM')).sort((a, b) => a.slotStart - b.slotStart).slice(0, 40);
     const hm = (d) => `${d.getHours()}h${d.getMinutes() ? String(d.getMinutes()).padStart(2, '0') : ''}`;
     fill(list, near.length
-      ? el('ul', { class: 'items ev-list' }, near.map((e) => sortieCard({ genre: genreOf(e, { expo: isExpo(e) }), name: e.title, onclick: () => openEventPage(e, named('Trouver une sortie', again)),
-        sub: [el('b', {}, hm(e.slotStart)), e.place], d: e.d, tags: [e.free ? freeTag() : null] })))
+      ? el('ul', { class: 'items ev-list' }, near.map((e) => { const go = (o) => openEventPage(e, named('Trouver une sortie', again), o); return deckCard(e, go, sortieCard({ genre: genreOf(e, { expo: isExpo(e) }), name: e.title, onclick: (ev) => go({ deck: deckOf(ev, e) }),
+        sub: [el('b', {}, hm(e.slotStart)), e.place], d: e.d, tags: [e.free ? freeTag() : null] })); }))
       : el('p', { class: 'empty' }, `Aucune sortie avec un horaire publié ce jour-là, à moins de ${tuningText('eventsM', tune('eventsM'))} du centre de la carte. Déplace la carte ou choisis un autre jour.`));
   }).catch(() => { if (list.isConnected) fill(list, el('p', { class: 'error' }, 'L\'agenda de la Ville ne répond pas. Vérifie ta connexion, puis réessaie.')); });
 }
@@ -7680,12 +7701,14 @@ const linkRow = (icon, label, href) => el('a', { class: 'fiche-row', href, targe
   ico(icon), el('span', {}, label, el('small', {}, siteName(href))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
 const BOOKING_TEXT = { required: 'Réservation obligatoire', advised: 'Réservation conseillée', none: 'Sans réservation' };
 
-function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
+function openEventPage(e, back = null, { label = '', icon = '' , deck = null } = {}) {
   const expo = isExpo(e);
   const genre = genreOf(e, { expo });
   const d = startPos() ? distanceM(startPos(), e) : null;
-  const again = () => openEventPage(e, back, { label, icon });
+  const dk = state.evSwipe !== false && deck?.items[deck.i]?.e === e ? deck : null; // v518 : glisser entre les sorties (éteint dans Réglages : rien)
+  const again = () => openEventPage(e, back, { label, icon, deck: dk });
   openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
+    dk ? el('p', { class: 'sortie-count', 'aria-label': deckLabel(dk) }, deckCount(dk)) : null, // v518 (mon choix 2A) : « 3 / 24 » sous le titre
     evPhoto(e),
     el('p', { class: 'summary' }, [label || GENRE_NAME[genre], eventWhen(e), d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
     e.dates?.length ? el('div', { class: 'ev-dates' }, el('p', { class: 'legend' }, 'Dates de l\'agenda'), ...e.dates.map((t) => el('p', {}, t))) : null,
@@ -7719,18 +7742,27 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: 'sortie', again, onClose: unmarkSpot });
+  sortieDeck = dk; sheet.classList.toggle('swipe-tabs', Boolean(dk)); // v518 : le navigateur garde le défilement vertical, le doigt de côté est pour nous
   markSpot(e.lat, e.lng, icon || GENRE_ICON[genre] || 'calendar-days'); // v429 : la sortie sur la carte
 }
 
+/* v518 (mes choix 1A 2A 3A 4A du 25 nov.) : glisser de côté sur la fiche d'une sortie ouvre la voisine de la liste d'où l'on vient.
+   Chaque ligne de sortie garde sa sortie et la façon de l'ouvrir ; un appui lit la page dans l'ordre affiché (js/glisser-sorties.js). */
+function deckCard(e, go, card) { deckCards.set(card, { e, go }); return card; }
+function deckOf(ev, e) {
+  const list = [...(ev?.currentTarget?.closest('.sheet-body') ?? sheetBody).querySelectorAll('li.ev')].map((li) => deckCards.get(li)).filter(Boolean);
+  return makeDeck(list, e);
+}
 const eventRow = (e, back, { last = false, week = false } = {}) => {
   const expo = isExpo(e);
   const keep = () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null,
     note: [e.place, e.end ? `Expo jusqu'au ${e.end.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}` : '', e.url].filter(Boolean).join(' · ') });
   const later = startsLater(e);
   const when = week ? el('b', {}, (!expo && nextSlotText(e)) || weekText(e)) /* v191 : un concert dit son prochain créneau, une expo sa date de fin */ : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
-  return sortieCard({ genre: genreOf(e, { expo }), name: e.title, photo: e.cover, venuePhoto: venuePhotoFor(e, venuePhotos)?.id ?? null, onclick: () => openEventPage(e, back), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
+  const go = (o) => openEventPage(e, back, o);
+  return deckCard(e, go, sortieCard({ genre: genreOf(e, { expo }), name: e.title, photo: e.cover, venuePhoto: venuePhotoFor(e, venuePhotos)?.id ?? null, onclick: (ev) => go({ deck: deckOf(ev, e) }), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
-      : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] });
+      : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] }));
 };
 
 /** Un musée gratuit aujourd'hui. */
@@ -12853,6 +12885,11 @@ function openSettings(section = null, from = null) {
       state.compassOn = compassOff();
       toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
     }),
+    // v518 (mes choix 1A à 4A du 25 nov.) : sous Boussole, tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ
+    onOff('evSwipe', 'arrow-left-right', 'Glisser entre les sorties', state.evSwipe !== false ? 'Fiche : la voisine de la liste' : 'Éteint : la fiche ne change pas', state.evSwipe !== false, () => {
+      state.evSwipe = state.evSwipe === false;
+      toast(state.evSwipe ? 'Sur la fiche d\'une sortie, glisse de côté : la voisine de la liste' : 'Glisser entre les sorties éteint');
+    }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Version, données, partager', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Boutons touchés ou jamais', openUsage), // v254
@@ -14335,7 +14372,7 @@ const HELP = [
   ]],
   ['calendar-days', 'Trouver une sortie', [
     '{calendar-days} **Sorties**, dans la colonne de droite : ce qui se passe aujourd\'hui autour du centre de la carte. La carte ne bouge pas.',
-    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Glisse le doigt de côté sur la fenêtre pour passer à l\'onglet voisin, à toutes les hauteurs. Sans passe Navigo : {settings} → Autres réglages → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
+    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Glisse le doigt de côté sur la fenêtre pour passer à l\'onglet voisin, à toutes les hauteurs. Sur la fiche d\'une sortie, le même geste ouvre la sortie voisine de la liste (« 3 / 24 » sous le titre) ; {settings} → Autres réglages → « Glisser entre les sorties », éteint, le retire. Sans passe Navigo : {settings} → Autres réglages → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
@@ -14587,6 +14624,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
     '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
     '{bike} **Vélib\' et métros dans Autour de moi** : tout en bas, les 3 stations Vélib\' qui ont des vélos (avec l\'heure des données) et les 3 métros les plus proches, avec Y aller.',
     '{timer} **Mes chiffres** : la marche se compte enfin pendant que tu marches avec Ma position et direction (avant, presque rien n\'était compté, donc l\'air restait à zéro). Sans marche sur la période, plus de graphique vide ; le tableau s\'ouvre comme le reste de l\'appli.',
@@ -14596,7 +14634,6 @@ const HELP = [
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
-    '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

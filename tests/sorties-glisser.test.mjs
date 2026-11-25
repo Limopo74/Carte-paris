@@ -15,7 +15,7 @@ test('le geste est celui des photos : de côté, au moins 48 px, et pas en diago
 });
 
 test('Sorties écoute le geste sur toute la fenêtre (barre du titre comprise), seulement sur sa page', () => {
-  assert.match(app, /sheet\.addEventListener\('pointerdown'[^\n]*\n[^\n]*\n\s*sw = view === 'events'/);
+  assert.match(app, /sheet\.addEventListener\('pointerdown'[^\n]*\n[^\n]*\n\s*sw = \(view === 'events' \|\| deckView\(\)\)/); // v518 : aussi la fiche d'une sortie ouverte depuis une liste
   assert.match(app, /sheet\.classList\.toggle\('swipe-tabs', name === 'events'\)/);
   assert.match(css, /\.sheet\.swipe-tabs \.sheet-body \{ touch-action: pan-y; \}/);
   // réduite, elle le reste, et un message dit l'onglet
