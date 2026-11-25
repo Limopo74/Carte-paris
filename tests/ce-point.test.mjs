@@ -19,8 +19,9 @@ test('la page : la même que pour une adresse, un rond tant qu\'elle est ouverte
   // v420 : le rond passe par openSpot (`pin: true`), commun avec l'adresse de la loupe ; il part à la fermeture
   assert.match(f, /pin: true/);
   const pinFn = app.slice(app.indexOf('function showPointPin('), app.indexOf('function openPointAt('));
-  assert.match(pinFn, /class="peek-pin"/);
-  assert.match(app, /const closing = pin \? \(\) => \{ pointLayer\.clearLayers\(\); onClose\?\.\(\); \} : onClose;/);
+  assert.match(pinFn, /class="peek-pin/);
+  assert.match(app, /const closing = pin \|\| mark \? \(\) => \{ unmarkSpot\(\); onClose\?\.\(\); \} : onClose;/);
+  assert.match(app, /const unmarkSpot = \(\) => \{ marked = null; pointLayer\.clearLayers\(\); \};/);
   assert.match(app, /\), \{ tall: true, name: key, again, onClose: closing \}\);/);
 });
 

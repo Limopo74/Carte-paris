@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (429)';
+const VERSION = '25 novembre 2026 (430)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2427,10 +2427,43 @@ map.on('contextmenu', (e) => {
    jusqu'à ce que la page se ferme. Le point touché part à l'IGN pour trouver l'adresse, comme avant pour Nouveau lieu. */
 const pointLayer = L.layerGroup().addTo(map);
 /** Le petit rond de « Ce point » (v399) et de l'adresse cherchée (v420) : un seul à la fois, effacé quand sa page se ferme. */
-function showPointPin(lat, lng) {
+function showPointPin(lat, lng, icon = 'map-pin', sel = false) {
   pointLayer.clearLayers();
-  L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: 400,
-    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('map-pin', { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(pointLayer);
+  L.marker([lat, lng], { interactive: false, keyboard: false, zIndexOffset: sel ? 3000 : 400,
+    icon: L.divIcon({ className: 'pin-wrap', html: `<span class="peek-pin${sel ? ' sel' : ''}">${svgIcon(icon, { size: 15, stroke: 2.4 })}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(pointLayer);
+}
+/* v429 (mon choix A du 25 nov.) : la page d'un lieu de Sorties (sortie, marché, musée gratuit, kiosque, galerie, Navigo,
+   Art dans la rue, musée d'un artiste) montre ce lieu sur la carte : le rond choisi du bandeau « Carte » (bord encre, plus gros),
+   tant que la page est ouverte ; la carte ne se place sur lui que s'il ne se voit pas au-dessus de la page (règle des fiches, v331).
+   Page en grand (moins de 100 px de carte visible) : le rond est posé, la carte se place sur lui quand je baisse la page (⌄ ou glisser). */
+let marked = null;
+function markSpot(lat, lng, icon = 'map-pin') {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) { marked = null; return; }
+  marked = { lat, lng };
+  showPointPin(lat, lng, icon, true);
+  showMarked();
+}
+function showMarked() {
+  if (!marked || sheet.hidden) return;
+  const top = document.querySelector('header.top')?.getBoundingClientRect().bottom ?? 0;
+  const h = sheet.getBoundingClientRect().height;
+  const pt = map.latLngToContainerPoint([marked.lat, marked.lng]);
+  const size = map.getSize();
+  const m = 24; // le rond choisi fait environ 36 px : il doit se voir en entier
+  if (pt.x >= m && pt.x <= size.x - m && pt.y >= top + m && pt.y <= size.y - h - m) return;
+  if (size.y - h - top < 100) return; // la page cache presque toute la carte : rien à montrer pour l'instant
+  map.setView([marked.lat, marked.lng], Math.max(map.getZoom(), 16), { animate: false });
+  const dy = Math.round((h - top) / 2); // au milieu de la carte visible, entre la barre du haut et la page
+  if (dy) map.panBy([0, dy], { animate: false });
+}
+const unmarkSpot = () => { marked = null; pointLayer.clearLayers(); };
+{ // la page baisse (⌄, glisser vers le bas) : le lieu marqué se montre s'il était caché
+  let lastH = 0; let wait = null;
+  new ResizeObserver(() => {
+    const h = sheet.hidden ? 0 : sheet.getBoundingClientRect().height;
+    if (marked && h < lastH - 20) { clearTimeout(wait); wait = setTimeout(showMarked, 250); }
+    lastH = h;
+  }).observe(sheet);
 }
 function openPointAt(lat, lng) {
   track('Ce point');
@@ -6441,7 +6474,7 @@ const slots = (btns, n) => [...btns, ...Array.from({ length: Math.max(0, n - btn
 const freeTag = () => el('span', { class: 'tag open' }, 'Gratuit');
 const kiosqueRow = (k, back) => sortieCard({ genre: 'scene', name: k.name, onclick: () => openKiosque(k, back), sub: ['Places du jour à −50 % (+ 3,50 €)', k.address], d: k.d, tags: [stateTag(spotHours(k), walkOf(k.d))] });
 function openKiosque(k, back = null) {
-  openSpot({ icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [hoursLine(k, spotHours(k)), k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
+  openSpot({ mark: true, icon: 'drama', title: k.name, kicker: 'Théâtre à moitié prix, le jour même', lines: [hoursLine(k, spotHours(k)), k.address, k.hours, 'Places invendues du jour à moitié prix, plus 3,50 € de frais par place. Sur place seulement.'],
     place: k, link: [KIOSQUE_SOURCE, 'Site officiel du Kiosque'], back, key: `kiosque:${k.lat},${k.lng}`, add: { hours: k.oh ?? '' }, fav: 'theatre' });
 }
 /** La page d'un lieu de Sorties qui n'a pas de fiche (musée gratuit, kiosque, galerie) : ce qu'on sait, puis les mêmes actions qu'une sortie. */
@@ -6478,13 +6511,13 @@ function followButton(name, again) {
   } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false, mark = false }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin, mark });
   /* v420 : `pin` = le petit rond terre cuite marque l'endroit tant que la page est ouverte ; il revient avec elle
-     (retour depuis Métro ou Boussole) et part à sa fermeture */
-  const closing = pin ? () => { pointLayer.clearLayers(); onClose?.(); } : onClose;
+     (retour depuis Métro ou Boussole) et part à sa fermeture ; v429 : `mark` = le rond choisi d'un lieu de Sorties (markSpot) */
+  const closing = pin || mark ? () => { unmarkSpot(); onClose?.(); } : onClose;
   openSheet([ico(icon), ` ${title}`], el('div', { class: 'stack' },
     // v238 (mes choix 1A 2A) : ma photo illustre la page d'un passage, en tête, en bandeau de 100 px (Boussole · Métro · Ma fiche
     // restent visibles à 360 × 740) ; sans photo, un cadre de la même hauteur « Prendre une photo » (`snap`) : d'un passage à
@@ -6509,7 +6542,8 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
   ), { tall: true, name: key, again, onClose: closing });
-  if (pin) showPointPin(place.lat, place.lng); // après openSheet : la page quittée (« Ce point », Métro) efface le sien en se fermant
+  if (mark) markSpot(place.lat, place.lng, icon);
+  else if (pin) showPointPin(place.lat, place.lng); // après openSheet : la page quittée (« Ce point », Métro) efface le sien en se fermant
 }
 /** v378 : la page d'une adresse trouvée par la loupe : Y aller, Boussole, Métro, Ajouter (le geste des pages de passage) ; v420 : sur la carte. */
 function openAddressSpot(r, back) {
@@ -6601,7 +6635,8 @@ function openEventPage(e, back = null, { label = '', icon = '' } = {}) {
     el('p', { class: 'help tip' }, 'Agenda « Que faire à Paris ? » de la Ville de Paris. Photo, liens et réservation fournis par l\'organisateur.'),
     label ? el('p', { class: 'help' }, `« ${label} » est deviné d'après le titre et le lieu : vérifie sur la page de l'événement.`) : null,
     back ? foot(backBtn(back)) : null,
-  ), { tall: true, name: 'sortie', again });
+  ), { tall: true, name: 'sortie', again, onClose: unmarkSpot });
+  markSpot(e.lat, e.lng, icon || GENRE_ICON[genre] || 'calendar-days'); // v429 : la sortie sur la carte
 }
 
 const eventRow = (e, back, { last = false, week = false } = {}) => {
@@ -6617,7 +6652,7 @@ const eventRow = (e, back, { last = false, week = false } = {}) => {
 
 /** Un musée gratuit aujourd'hui. */
 /** Page d'un musée gratuit : quand c'est gratuit, et s'il est ouvert en ce moment (v156 ; rien si l'horaire n'est pas sûr). */
-const openFreeSpot = (f, back = null) => openSpot({ icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
+const openFreeSpot = (f, back = null) => openSpot({ mark: true, icon: 'landmark', title: f.name, kicker: 'Gratuit aujourd\'hui',
   lines: [hoursLine(f, spotHours(f)), `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur son site officiel avant d\'y aller.'], place: f, back, key: `gratuit:${f.lat},${f.lng}`, fav: 'musee',
   link: f.url ? [f.url, 'Site officiel'] : null }); // v269 : la page dit de vérifier sur le site : le lien y mène
 /* ---------- Un jour gratuit à venir (v168) : les lieux gratuits ce jour-là, leurs heures, Prévoir ---------- */
@@ -6644,7 +6679,7 @@ function openFreeDaySpot(f, date, back) {
     const at = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm).getTime();
     openPlan({ id: newPhotoId(), name: f.name, lat: f.lat, lng: f.lng, plan: true, place: f.name, ticket: st?.opensAt ? { at } : { at, part: 'aprem' } }, named(f.name, again), { done: again });
   };
-  openSpot({ icon: 'landmark', title: f.name, kicker: `Gratuit ${dayTitle(date)}`, place: f, back, key: `gratuitjour:${f.lat},${f.lng}:${date.getTime()}`, fav: 'musee',
+  openSpot({ mark: true, icon: 'landmark', title: f.name, kicker: `Gratuit ${dayTitle(date)}`, place: f, back, key: `gratuitjour:${f.lat},${f.lng}:${date.getTime()}`, fav: 'musee',
     lines: [h ? el('p', {}, ico('clock'), ` Ce jour-là : ${h}`) : el('p', { class: 'help' }, 'Horaires de ce jour-là inconnus : vérifie avant d\'y aller.'),
       `Gratuit : ${f.when}.`, 'Les règles changent : vérifie sur son site officiel avant d\'y aller.'],
     link: f.url ? [f.url, 'Site officiel'] : null, // v269
@@ -6868,7 +6903,7 @@ function openArtist(name, back = null) {
   const pos = startHere() ?? origin;
   const works = artistWorks(state.points, n, pos);
   const museums = museumsWith(museesInfo.items, n, pos); // v231 : toute l'année dans les musées
-  const openMuseum = (m) => openSpot({ icon: 'landmark', title: m.n, kicker: `${n} dans ses collections`, lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
+  const openMuseum = (m) => openSpot({ mark: true, icon: 'landmark', title: m.n, kicker: `${n} dans ses collections`, lines: [m.a], place: { lat: m.lat, lng: m.lng, address: m.a },
     link: m.url ? [m.url, 'Site officiel du musée'] : null, back: here, key: `musee:${m.id}`, fav: 'musee' });
   const followed = cleanArtists(state.artists).some((x) => artistKey(x) === k);
   const link = cleanArtistLinks(state.artistLinks)[k];
@@ -7538,7 +7573,7 @@ function loadStreetArt(force = false) {
 }
 /** Une œuvre : ce qu'on sait (type, artiste, année), Y aller, Boussole, Métro ; l'article Wikipédia s'il existe. */
 function openStreetArtCard(a, back = null) {
-  openSpot({ icon: 'shapes', title: a.name, kicker: a.type, lines: [[a.artist, a.year].filter(Boolean).join(', ') || 'Artiste non indiqué.', 'Dans la rue : visible à toute heure, sauf travaux.'],
+  openSpot({ mark: true, icon: 'shapes', title: a.name, kicker: a.type, lines: [[a.artist, a.year].filter(Boolean).join(', ') || 'Artiste non indiqué.', 'Dans la rue : visible à toute heure, sauf travaux.'],
     place: a, link: a.wiki ? [a.wiki, 'Article Wikipédia'] : null, back: typeof back === 'function' ? back : null, key: `oeuvre:${a.lat},${a.lng}` });
 }
 /** Art dans la rue autour du point de départ de Sorties : les 30 œuvres les plus proches, mes artistes d'abord. */
@@ -7571,7 +7606,7 @@ async function openStreetArt() {
 
 function openGalleryCard(g, back = null) {
   const st = openState(g.hours);
-  openSpot({ icon: 'palette', title: g.name, kicker: g.kind || 'Galerie', lines: [g.address, !st ? 'Horaires inconnus : vérifie avant d\'y aller.' : st.open ? `Ouverte${st.until ? ` jusqu'à ${hhText(st.until)}` : ''}.` : 'Fermée en ce moment.', closedDaysText(g.hours)],
+  openSpot({ mark: true, icon: 'palette', title: g.name, kicker: g.kind || 'Galerie', lines: [g.address, !st ? 'Horaires inconnus : vérifie avant d\'y aller.' : st.open ? `Ouverte${st.until ? ` jusqu'à ${hhText(st.until)}` : ''}.` : 'Fermée en ce moment.', closedDaysText(g.hours)],
     place: g, link: g.site ? [g.site, 'Site de la galerie'] : null, back: typeof back === 'function' ? back : null, key: `galerie:${g.lat},${g.lng}`, add: { hours: g.hours }, fav: 'galerie' });
 }
 
@@ -8457,7 +8492,8 @@ function openMarket(m, back = null, date = new Date()) {
       el('button', { type: 'button', class: 'btn c-add', onclick: () => openForm({ name: m.name, lat: m.lat, lng: m.lng, address: m.place, acc: null }) }, ico('plus'), 'Ajouter')),
     back ? backBtn(back) : null,
     el('p', { class: 'help' }, m.covered ? `Horaires relevés sur paris.fr le ${COVERED_CHECKED} ; ils peuvent changer les jours fériés.` : m.fixed ? `Jours et horaires corrigés d'après paris.fr le ${MARKET_FIX_CHECKED} (le fichier de la Ville se trompait).` : 'Données « Marchés découverts », Ville de Paris. Horaires indicatifs.'),
-  ), { name: 'market' });
+  ), { name: 'market', onClose: unmarkSpot });
+  markSpot(m.lat, m.lng, 'store'); // v429
 }
 
 /* ---------- Avantages culture Navigo : lieux partenaires (fichier fixe, trié sur le téléphone) ---------- */
@@ -8494,7 +8530,8 @@ function openNavigo(x, back = null) {
     x.url ? el('a', { class: 'btn c-disc', href: x.url, target: '_blank', rel: 'noopener noreferrer' }, ico('info'), 'Site du lieu') : null,
     back ? backBtn(back) : null,
     el('p', { class: 'help' }, `Liste « Avantages culture Navigo » d'Île-de-France Mobilités${navigoUpdated ? ` du ${frenchDate(navigoUpdated)}` : ''}.`),
-  ), { name: `navigo:${x.lat},${x.lng}`, again });
+  ), { name: `navigo:${x.lat},${x.lng}`, again, onClose: unmarkSpot });
+  markSpot(x.lat, x.lng, 'badge-percent'); // v429
 }
 
 /* ---------- TTB : adresses du guide, importées par moi et gardées sur le téléphone ----------
@@ -12313,6 +12350,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
@@ -12322,7 +12360,6 @@ const HELP = [
     '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
     '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
     '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
-    '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

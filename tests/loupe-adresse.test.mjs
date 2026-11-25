@@ -37,7 +37,7 @@ test('Loupe : l\'adresse touchée a son rond sur la carte et la carte se place d
   const spot = app.slice(app.indexOf('function openSpot('), app.indexOf('\n}\n', app.indexOf('function openSpot(')));
   // le rond est posé après openSheet (la page quittée efface le sien en se fermant) et part à la fermeture
   assert.ok(spot.indexOf('if (pin) showPointPin(') > spot.indexOf('openSheet('), 'rond posé après l\'ouverture de la page');
-  assert.match(spot, /const closing = pin \? \(\) => \{ pointLayer\.clearLayers\(\); onClose\?\.\(\); \}/);
+  assert.match(spot, /const closing = pin \|\| mark \? \(\) => \{ unmarkSpot\(\); onClose\?\.\(\); \}/);
   assert.match(spot, /onClose: closing/);
-  assert.match(spot, /const again = \(\) => openSpot\(\{[^}]*pin \}\)/, 'le rond revient avec la page (retour depuis Métro)');
+  assert.match(spot, /const again = \(\) => openSpot\(\{[^}]*pin, mark \}\)/, 'le rond revient avec la page (retour depuis Métro)');
 });
