@@ -368,8 +368,9 @@ export function loadState(storage) {
   }
 }
 
-/** v452 (mes choix 1B 2A 3A 4A du 25 nov.) : le style de l'appli le jour. Le soir (mode sombre), c'est toujours Signalétique. */
-export const LOOKS = ['papier', 'verre'];
+/** v452 (mes choix 1B 2A 3A 4A du 25 nov.) : le style de l'appli. v464 (mon choix A du 25 nov.) : les quatre au choix ;
+ *  le mode sombre reste Signalétique, quel que soit le choix. */
+export const LOOKS = ['papier', 'verre', 'signal', 'pop'];
 export const cleanLook = (v) => (LOOKS.includes(v) ? v : 'papier');
 
 /** Réglages de l'appli (pas les lieux ni les catégories), nettoyés. Sert pour « mes réglages par défaut ». */

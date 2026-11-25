@@ -10,7 +10,7 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim().replace(/\s+/g, ' '), body: m[2] }));
 const block = (sel) => Object.fromEntries([...rules.find((r) => r.sel === sel).body.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 const PAPIER = block(':root');
-const STYLES = { papier: PAPIER, verre: { ...PAPIER, ...block(':root[data-look="verre"]') }, signal: { ...PAPIER, ...block(':root[data-theme="dark"]') } };
+const STYLES = { papier: PAPIER, verre: { ...PAPIER, ...block(':root[data-look="verre"]') }, signal: { ...PAPIER, ...block(':root[data-theme="dark"]') }, pop: { ...PAPIER, ...block(':root[data-look="pop"]') } }; // v464 : Pop
 
 const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
@@ -43,7 +43,7 @@ test('Verre : le texte blanc de la plaque en dégradé se lit sur ses deux coule
 
 test('les règles d\'un style ne valent que pour lui, et Verre ne touche que l\'appli posée sur la carte', () => {
   for (const r of rules) {
-    if (/data-look="verre"/.test(r.sel)) assert.ok(topLevel(r.sel).every((s) => s.startsWith(':root[data-look="verre"]')), r.sel);
+    for (const k of ['verre', 'pop']) if (r.sel.includes(`data-look="${k}"`)) assert.ok(topLevel(r.sel).every((s) => s.startsWith(`:root[data-look="${k}"]`)), r.sel);
   }
   const verre = rules.filter((r) => r.sel.startsWith(':root[data-look="verre"] ')).map((r) => r.sel).join('\n');
   assert.ok(!/\.compass\b|viewer/.test(verre), 'la boussole et la photo en grand gardent leur aspect');
@@ -62,10 +62,10 @@ test('les tailles ne changent pas d\'un style à l\'autre : mêmes hauteurs de b
   }
 });
 
-test('le réglage : Papier au départ, Verre gardé, une valeur inconnue redevient Papier', () => {
-  assert.deepEqual(LOOKS, ['papier', 'verre']);
-  assert.equal(cleanLook('verre'), 'verre');
-  for (const v of [undefined, null, '', 'signal', 'VERRE', 3]) assert.equal(cleanLook(v), 'papier');
+test('le réglage : Papier au départ, les quatre styles gardés, une valeur inconnue redevient Papier', () => {
+  assert.deepEqual(LOOKS, ['papier', 'verre', 'signal', 'pop']); // v464 (mon choix A) : les quatre au choix
+  for (const v of LOOKS) assert.equal(cleanLook(v), v);
+  for (const v of [undefined, null, '', 'gazette', 'VERRE', 3]) assert.equal(cleanLook(v), 'papier');
   const mem = new Map(); const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
   assert.equal(loadState(storage).look, 'papier');
   const st = { ...loadState(storage), look: 'verre' };
@@ -79,11 +79,16 @@ test('le style suit la sauvegarde, mes réglages de référence et le fichier de
   assert.equal(JSON.parse(exportJSON(st)).settings.look, 'verre');
   const file = readSettingsFile(exportSettingsJSON(st));
   assert.equal(file.settings.look, 'verre');
-  assert.equal(cleanSettings({ look: 'pop' }).look, 'papier');
+  assert.equal(cleanSettings({ look: 'gazette' }).look, 'papier');
+  assert.equal(cleanSettings({ look: 'pop' }).look, 'pop');
 });
 
 test('l\'appli : data-look porte le style affiché, Signalétique dès que le mode sombre est là', () => {
   assert.match(app, /const lookNow = \(\) => \(isDark\(\) \? 'signal' : cleanLook\(state\.look\)\);/);
+  // v464 : Signalétique choisi le jour s'affiche en sombre (jetons, fond de carte, traits de la carte)
+  assert.match(app, /const shownDark = \(\) => lookNow\(\) === 'signal';/);
+  assert.match(app, /dataset\.theme = shownDark\(\) \? 'dark' : 'light'/);
+  assert.match(app, /const ink = \(\) => \(shownDark\(\)/);
   assert.match(app, /document\.documentElement\.dataset\.look = lookNow\(\);/);
   // applyAllSettings (restauration, réglages de référence) passe par applyTheme
   assert.match(app, /function applyAllSettings\(\) \{[^\n]*applyTheme\(\)/);
@@ -105,3 +110,16 @@ test('Réglages → Apparence (1A du 25 nov.) : à la place de Mode sombre ; Le 
   assert.match(app, /if \(section === 'look'\) section = 'apparence';/, 'l\'ancien nom mène à la page');
   assert.match(app, /const OTHER_SECTIONS = \[[^\]]*'ouverture'\];/, 'Apparence revient à Réglages');
 });
+
+test('v464 : Pop, plaque rose à texte encre, aplats des familles lisibles, seulement sur l\'appli posée sur la carte', () => {
+  const t = STYLES.pop;
+  const rose = t['--plaque-img'].match(/#[0-9A-Fa-f]{6}/g);
+  for (const c of rose) assert.ok(ratio(t['--plaque-ink'], c) >= 4.5, c);
+  for (const k of ['--pop-yellow', '--pop-metro', '--pop-add', '--pop-disc']) assert.ok(ratio(t['--ink'], t[k]) >= 4.5, k);
+  const pop = rules.filter((r) => r.sel.startsWith(':root[data-look="pop"] ')).map((r) => r.sel).join('\n');
+  assert.ok(!/\.compass\b|viewer/.test(pop));
+  assert.match(pop, /:is\(\.top, \.map-tools, \.bottom, \.sheet, \.peek-card, \.now-card\) :is\(\.btn/);
+  const look = app.slice(app.indexOf("if (section === 'apparence') {"), app.indexOf("if (section === 'vu') {"));
+  for (const k of ['papier', 'verre', 'signal', 'pop']) assert.match(look, new RegExp(`${k}: '`));
+});
+

@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (463)';
+const VERSION = '25 novembre 2026 (464)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -474,16 +474,18 @@ const needsKey = (id) => /basemaps\.cartocdn\.com/.test(STYLE_INFO[id]?.url ?? '
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && darkQuery.matches));
 /** Couleur des traits dessinés sur la carte (cercles, chemins), lisible sur le fond clair comme sombre. */
-const ink = () => (isDark() ? '#e9edf5' : '#1f2a44');
+const ink = () => (shownDark() ? '#e9edf5' : '#1f2a44');
 setMasculin(state.masculin === true); // v286 : avant le premier écran
 /** v452 (mes choix 1B 2A du 25 nov.) : le style de l'appli. Le jour : Papier ou Verre (Réglages → Apparence, 1A du 25 nov.) ;
  *  le soir (mode sombre) : toujours Signalétique. `data-look` porte le style affiché, `data-theme` reste clair ou sombre. */
-const LOOK_NAME = { papier: 'Papier', verre: 'Verre', signal: 'Signalétique' };
+const LOOK_NAME = { papier: 'Papier', verre: 'Verre', signal: 'Signalétique', pop: 'Pop' };
 const lookNow = () => (isDark() ? 'signal' : cleanLook(state.look));
+/** v464 : l'appli est-elle affichée en sombre ? (mode sombre, ou Signalétique choisi le jour) */
+const shownDark = () => lookNow() === 'signal';
 function applyTheme() {
-  document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
+  document.documentElement.dataset.theme = shownDark() ? 'dark' : 'light';
   document.documentElement.dataset.look = lookNow();
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark() ? '#131418' : lookNow() === 'verre' ? '#F3F2F8' : '#15181D');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', shownDark() ? '#131418' : lookNow() === 'pop' ? '#FFE45C' : lookNow() === 'verre' ? '#F3F2F8' : '#15181D');
 }
 applyTheme();
 darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !state.theme) { applyTheme(); refresh?.(); } });
@@ -5774,7 +5776,7 @@ function drawArrOutline() {
   if (!z) return;
   const rings = z.rings.map((r) => r.map(([x, y]) => [y, x]));
   // Voile gris sur tout ce qui est hors de l'arrondissement (le monde moins ses contours) : l'intérieur garde la vraie carte
-  L.polygon([[[85, -180], [85, 180], [-85, 180], [-85, -180]], ...rings], { stroke: false, fillColor: isDark() ? '#000000' : ink(), fillOpacity: isDark() ? 0.45 : 0.28, interactive: false }).addTo(arrLayer);
+  L.polygon([[[85, -180], [85, 180], [-85, 180], [-85, -180]], ...rings], { stroke: false, fillColor: shownDark() ? '#000000' : ink(), fillOpacity: shownDark() ? 0.45 : 0.28, interactive: false }).addTo(arrLayer);
   L.polygon(rings, { color: ink(), weight: 3, dashArray: '8 6', fill: false, interactive: false }).addTo(arrLayer);
 }
 /** La grille des 20 arrondissements (même plan schématique que Mon Paris), avec le nombre de mes lieux dans chacun. */
@@ -9467,7 +9469,7 @@ const loadCircuits = async () => (circuitsData ??= await fetch('data/circuits.js
 let circuitTheme = '';
 let circuitDur = '';
 /** Couleur du tracé d'un circuit : terre cuite (découvrir), lisible sur le fond clair comme sombre. */
-const discInk = () => (isDark() ? '#FFB08A' : '#A54A28');
+const discInk = () => (shownDark() ? '#FF9466' : '#A54A28');
 /** D'où trier les circuits : ma position si elle est fraîche, sinon le centre de la carte (aucune demande de GPS). */
 const circuitFrom = () => startHere() ?? { ...map.getCenter(), kind: 'map' };
 const dayText = (at) => new Date(at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
@@ -9751,7 +9753,7 @@ const loadJardins = async () => (jardinsData ??= await fetch('data/jardins.json'
 let jardinLinks = null;
 const loadJardinLinks = async () => (jardinLinks ??= await fetch('data/jardins-liens.json').then((r) => (r.ok ? r.json() : null)).then(cleanJardinLinks).catch(() => new Map()));
 const jardinLayer = L.layerGroup().addTo(map);
-const mutedInk = () => (isDark() ? '#A9B0BC' : '#5C6370'); // le gris --muted
+const mutedInk = () => (shownDark() ? '#B4B8C0' : '#5C6370'); // le gris --muted
 const windy = () => (meteo?.gust ?? 0) >= WIND_GUST;
 /** Ouvert maintenant d'après ses horaires connus (jamais par grand vent). */
 const jardinOpen = (j) => !windy() && openState(j.kind === 'c' ? cimHours(cimOf(j)) : jardinHours(j, pratique.fraisParcs))?.open === true; // v450 : un cimetière, ses horaires relevés à la main
@@ -10041,7 +10043,7 @@ const loadVelo = async () => (veloData ??= await fetch('data/velo.json').then((r
 map.createPane('velo').style.zIndex = 395; // au-dessus des numéros des arrondissements, sous les gouttes et les autres calques
 const veloLayer = L.layerGroup().addTo(map);
 const veloRenderer = L.canvas({ pane: 'velo', padding: 0.3 });
-const addInk = () => (isDark() ? '#8FD6A5' : '#2C5B4E'); // le vert de « Garder » (--add), exception écrite dans CHARTE.md § 3
+const addInk = () => (shownDark() ? '#5FE3A1' : '#2C5B4E'); // le vert de « Garder » (--add), exception écrite dans CHARTE.md § 3
 const VELO_ATTR = 'Pistes : Ville de Paris (ODbL)';
 function drawVeloLayer() {
   veloLayer.clearLayers();
@@ -10590,6 +10592,7 @@ function openSettingsSearch(q = '') {
 
 /** 1A (25 nov.) : la petite ligne d'Apparence dans Réglages : le style du jour, puis clair ou sombre. */
 function appearanceSub() {
+  if (cleanLook(state.look) === 'signal') return 'Signalétique · sombre jour et nuit'; // v464
   const t = state.theme === 'light' ? 'clair' : state.theme === 'dark' ? 'sombre' : 'clair ou sombre comme le téléphone';
   return `${LOOK_NAME[cleanLook(state.look)]} · ${t}`;
 }
@@ -11295,7 +11298,9 @@ function openSettings(section = null, from = null) {
   if (section === 'apparence') { // 1A (25 nov.) : v452 Style de l'appli (Papier ou Verre, le jour) + v280 Mode sombre (clair, sombre, comme le téléphone)
     const cur = cleanLook(state.look);
     const theme = state.theme === 'light' || state.theme === 'dark' ? state.theme : 'auto';
-    const LOOK_SUB = { papier: 'Encre sur papier blanc, traits nets, angles droits', verre: 'Panneaux clairs et translucides sur la carte, formes arrondies' };
+    const LOOK_SUB = { papier: 'Encre sur papier blanc, traits nets, angles droits', verre: 'Panneaux clairs et translucides sur la carte, formes arrondies',
+      signal: 'Fond nuit, plaques jaunes, même le jour', pop: 'Contours noirs épais, couleurs vives, titres en capitales' }; // v464 (mon choix A du 25 nov.) : les quatre
+    const LOOK_ICON = { papier: 'file-text', verre: 'layers', signal: 'moon', pop: 'palette' };
     const radio = (on, icon, title, sub, pick, data) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), [data[0]]: data[1], onclick: () => { if (!on) pick(); } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
@@ -11304,7 +11309,7 @@ function openSettings(section = null, from = null) {
     const chooseTheme = (k) => { state.theme = k; persist(); applyTheme(); refresh(); again(`[data-theme-pick="${k}"]`); toast(k === 'auto' ? 'Clair ou sombre : comme le téléphone' : k === 'dark' ? 'Sombre : Signalétique' : 'Clair : le style du jour'); };
     openSheet([ico('sun'), ' Apparence'], el('div', { class: 'stack' },
       el('p', { class: 'legend' }, 'Le jour'),
-      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Le jour' }, LOOKS.map((k) => radio(cur === k, k === 'verre' ? 'layers' : 'file-text', LOOK_NAME[k], LOOK_SUB[k], () => chooseLook(k), ['data-look-pick', k]))),
+      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Le jour' }, LOOKS.map((k) => radio(cur === k, LOOK_ICON[k], LOOK_NAME[k], LOOK_SUB[k], () => chooseLook(k), ['data-look-pick', k]))),
       el('p', { class: 'legend' }, 'Clair ou sombre'),
       el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Clair ou sombre' },
         radio(theme === 'light', 'sun', 'Clair', 'Toujours le style du jour', () => chooseTheme('light'), ['data-theme-pick', 'light']),
@@ -13139,7 +13144,7 @@ const HELP = [
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
-    '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier ou Verre ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier, Verre, Signalétique ou Pop ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages de référence », en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -13182,6 +13187,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
     '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
@@ -13191,7 +13197,6 @@ const HELP = [
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
-    '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

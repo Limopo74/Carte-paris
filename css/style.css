@@ -133,6 +133,47 @@
   --plaque-img: linear-gradient(120deg, #C8381F, #8A1F6E);
   --plaque-shadow: 0 10px 24px rgba(138, 31, 110, .32);
 }
+/* v464 (mon choix A du 25 nov.) : style « Pop », le jour seulement (data-look="pop" ; CHARTE.md § 10.3). */
+:root[data-look="pop"] {
+  --ink: #0A0A0A;
+  --strong: #0A0A0A;
+  --on-strong: #FFFFFF;
+  --guide: #0A0A0A;
+  --guide-bd: #0A0A0A;
+  --muted: #47474F;
+  --line: #0A0A0A;
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --soft: #FFE45C;
+  --field: #0A0A0A;
+  --btn: #FFFFFF;
+  --btn-bd: #0A0A0A;
+  --neutral-bd: #0A0A0A;
+  --disc: #A82E08;
+  --add: #0B6B43;
+  --add-bd: #0A0A0A;
+  --add-bg: #B7F5D5;
+  --metro: #1440D6;
+  --metro-bd: #0A0A0A;
+  --danger: #B4161B;
+  --fav: #7A5000;
+  --fav-icon: #9A6A00;
+  --fav-bg: #FFE45C;
+  --info: #47474F;
+  --info-bd: #0A0A0A;
+  --info-bg: #FFE45C;
+  --focus: #1440D6;
+  --r: 12px;
+  --float: 4px 4px 0 #0A0A0A;
+  /* propres à Pop : ombre dure décalée, aplats vifs des familles (texte encre dessus), plaque rose */
+  --pop-shadow: 4px 4px 0 #0A0A0A;
+  --pop-yellow: #FFE45C;
+  --pop-metro: #D6E2FF;
+  --pop-add: #B7F5D5;
+  --pop-disc: #FFD2BF;
+  --plaque-img: linear-gradient(#FF7AB0, #FF7AB0);
+  --plaque-ink: #0A0A0A;
+}
 /* Taille du texte (Réglages, v144) : l'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26 multipliée par --ts. */
 :root[data-text="grand"] { --ts: 1.15; --tools-cols: 3; }
 :root[data-text="tresgrand"] { --ts: 1.3; --tools-cols: 3; }
@@ -948,7 +989,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 /* ---- Outils = tuiles papier + médaillon de famille ---- */
 .tool, .tool.c-guide, .tool.c-metro, .tool.c-add, .tool.c-fav, .tool.c-info, .tool.c-disc {
   --fam: var(--guide); color: var(--ink); border: 2px solid var(--fam); border-radius: var(--r);
-  min-height: 64px; gap: 2px; font-size: var(--t13); font-weight: 700; box-shadow: none; background: transparent;
+  min-height: 64px; gap: 2px; font-size: var(--t13); font-weight: 700; font-stretch: 86%; box-shadow: none; background: transparent; /* v464 : « Monuments » touchait le bord de sa tuile (77 px à 360 px) */
 }
 .tool.c-metro { --fam: var(--metro); } .tool.c-add { --fam: var(--add); } .tool.c-fav { --fam: var(--fav); }
 .tool.c-info { --fam: var(--info); } .tool.c-disc { --fam: var(--disc); }
@@ -1501,13 +1542,15 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="verre"] .tabs-line { border-bottom-color: var(--line); }
 :root[data-look="verre"] #sheetTitle { font-weight: 750; letter-spacing: -.02em; }
 :root[data-look="verre"] :is(.item-name, .menu-title, .fiche-v) { letter-spacing: -.015em; }
+:root[data-look="verre"] .tool { letter-spacing: -.03em; }
+:root[data-look="verre"] .ev-letter { border-radius: 0; } /* v464 : la grande lettre touchait le coin arrondi de 14 px */ /* v464 : Inter n'a pas de largeur réglable ; « Monuments » tient dans sa tuile */
 :root[data-look="verre"] .big-btn { padding: 0 8px; gap: 6px; letter-spacing: -.02em; }
 
 /* ---- Style « Signalétique » (le mode sombre, v452, mon choix 2A du 25 nov. ; CHARTE.md § 10.2) ----
    Fond nuit, plaques jaunes (--strong, --guide), boutons en pilule, filets forts jaunes, titres en pleine largeur. */
 :root[data-theme="dark"] :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .go-compass, .tag) { border-radius: 999px; }
 :root[data-theme="dark"] .tag { padding: 0 8px; }
-:root[data-theme="dark"] :is(.btn, .big-btn, .chip, .tool) { font-weight: 800; }
+:root[data-theme="dark"] :is(.btn, .big-btn, .chip) { font-weight: 800; } /* v464 : pas les tuiles d'Autour de moi (« Monuments » ne tenait pas) */
 :root[data-theme="dark"] #sheetTitle { font-stretch: 100%; }
 :root[data-theme="dark"] .row3 .btn { font-stretch: 90%; } /* la pilule mange les coins : « Boussole » ne touche plus le bord à 360 px */
 :root[data-theme="dark"] #sheetTitle .fiche-name { font-stretch: 96%; }
@@ -1515,3 +1558,31 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-theme="dark"] .tabs-line, :root[data-theme="dark"] .tabs-line button[aria-pressed="true"] { border-bottom-color: var(--strong); }
 :root[data-theme="dark"] .sheet { border-radius: 26px 26px 0 0; }
 :root[data-theme="dark"] .sheet-head::before { background: var(--strong); }
+
+/* ---- Style « Pop » (le jour, v464, mon choix A du 25 nov. ; CHARTE.md § 10.3) ----
+   Contours noirs de 3 px, ombre dure décalée, aplats vifs, titres serrés en capitales. Seulement dans l'appli posée sur la carte, comme Verre. */
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(:disabled) {
+  border-width: 3px; border-color: var(--ink); box-shadow: var(--pop-shadow); color: var(--ink);
+}
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet) :is(.btn.c-metro, .tool.c-metro):not(.solid):not([aria-pressed="true"]):not(.on) { background-color: var(--pop-metro); }
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet) :is(.btn.c-add, .big-btn.c-add):not(.solid):not([aria-pressed="true"]) { background-color: var(--pop-add); }
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet) .btn.c-fav:not(.solid):not([aria-pressed="true"]) { background-color: var(--pop-yellow); }
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet) .btn.c-disc:not(.solid):not([aria-pressed="true"]) { background-color: var(--pop-disc); }
+:root[data-look="pop"] :is(.btn.primary, .big-btn.primary):not(:disabled) { background-image: var(--plaque-img); color: var(--plaque-ink); }
+:root[data-look="pop"] :is(.btn.solid, .tool.on):not(.primary):not(:disabled) { color: var(--on-strong); }
+:root[data-look="pop"] .top .chip[aria-pressed="true"], :root[data-look="pop"] .tabs-line button[aria-pressed="true"] { background-color: var(--pop-yellow); color: var(--ink); }
+:root[data-look="pop"] .btn:active, :root[data-look="pop"] .big-btn:active { transform: translate(3px, 3px); box-shadow: none; }
+:root[data-look="pop"] .big-btn { font-stretch: 72%; font-weight: 900; }
+:root[data-look="pop"] :is(.btn, .chip, .map-btn, .tool) { font-weight: 900; font-stretch: 88%; }
+:root[data-look="pop"] .row3 .btn { font-stretch: 78%; padding-inline: 6px; }
+:root[data-look="pop"] .tool { font-stretch: 76%; }
+:root[data-look="pop"] #sheetTitle { font-weight: 900; font-stretch: 66%; text-transform: uppercase; }
+:root[data-look="pop"] #sheetTitle .fiche-name { font-stretch: 66%; }
+:root[data-look="pop"] #sheetTitle .fiche-kick { display: inline-block; padding: 2px 8px; border-radius: var(--r); background: var(--ink); color: var(--pop-yellow); text-transform: none; }
+:root[data-look="pop"] :is(.ring-title, .fiche-sec) { border-top: 3px solid var(--ink); font-weight: 900; font-stretch: 75%; text-transform: uppercase; }
+:root[data-look="pop"] .sheet { outline: 3px solid var(--ink); outline-offset: -3px; border-radius: 22px 22px 0 0; box-shadow: 0 -6px 0 var(--ink); } /* un trait par-dessus, pas une bordure : la largeur de la feuille ne change pas */
+:root[data-look="pop"] .sheet-head { border-bottom: 3px solid var(--ink); }
+:root[data-look="pop"] .sheet-head::before { background: var(--ink); }
+:root[data-look="pop"] .tag { border: 2px solid var(--ink); border-radius: var(--r); background: var(--pop-yellow); color: var(--ink); }
+:root[data-look="pop"] .tabs-line { border-bottom: 3px solid var(--ink); }
+

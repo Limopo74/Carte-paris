@@ -10,7 +10,7 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].replace(/@media[^{]*$/, '').trim().replace(/\s+/g, ' '), body: m[2] }));
 const decls = (r, prop) => [...r.body.matchAll(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'g'))].map((m) => m[1].trim());
 // v452 : un troisième bloc de jetons, le style Verre (CHARTE.md § 10.1) ; le sombre est le style Signalétique (§ 10.2)
-const isTokens = (r) => r.sel === ':root' || r.sel === ':root[data-theme="dark"]' || r.sel === ':root[data-look="verre"]';
+const isTokens = (r) => r.sel === ':root' || r.sel === ':root[data-theme="dark"]' || r.sel === ':root[data-look="verre"]' || r.sel === ':root[data-look="pop"]'; // v464 : Pop (§ 10.3)
 
 // Ce qui est dessiné SUR la carte (épingles, tracés, cercles…) et les aperçus garde ses couleurs propres.
 const MAP = /pin|line-|st-dot|st-name|st-line|me-dot|me-cone|ring-label|swatch|\.s-|\.arr|crosshair|viewer|qr-box|thumb|photo|cat-ico|step-|compass-arrow|\.chips|#map|leaflet|\.dot\b|knob|\.toast|\.sheet\b/;
@@ -19,6 +19,7 @@ test('charte : un seul bloc de jetons clair et un seul sombre, en tête', () => 
   assert.equal(rules.filter((r) => r.sel === ':root').length, 1, ':root doit être défini une seule fois');
   assert.equal(rules.filter((r) => r.sel === ':root[data-theme="dark"]').length, 1);
   assert.equal(rules.filter((r) => r.sel === ':root[data-look="verre"]').length, 1, 'v452 : un seul bloc de jetons Verre');
+  assert.equal(rules.filter((r) => r.sel === ':root[data-look="pop"]').length, 1, 'v464 : un seul bloc de jetons Pop');
   assert.ok(css.trimStart().startsWith(':root'), 'les jetons doivent être en tête du fichier');
 });
 
