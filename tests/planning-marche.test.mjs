@@ -31,3 +31,9 @@ test('Mon planning : les minutes depuis le lieu précédent, le total sous la li
   const run = app.slice(app.indexOf('async function dayLegsByStreets('), app.indexOf('async function walkRouteTo('));
   assert.ok(run.length > 0 && !/downloadStreets/.test(run), 'le plan des rues n\'est jamais téléchargé depuis Mon planning');
 });
+
+test('v484 : la plaque « Y aller » de Mon planning prend la durée par les rues, comme la fiche', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const fn = app.slice(app.indexOf('function openPlanning('), app.indexOf('function openDayOrder('));
+  assert.match(fn, /walkRouteTo\(next, pos\)\.then\(\(r\) => \{ if \(r && goNext\.isConnected\) fill\(goNext, ico\('arrow-right'\), \.\.\.goRouteText\(r\.m, pos\)\)/);
+});

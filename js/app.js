@@ -82,7 +82,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (483)';
+const VERSION = '25 novembre 2026 (484)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6263,11 +6263,14 @@ function openPlanning(from = null) {
   // si le plan des rues est déjà sur le téléphone (jamais téléchargé ici, rien ne part : le calcul se fait sur le téléphone)
   const legs = list.slice(1).map((p, i) => ({ min: walkMinutes(placeDistM(list[i], p)), exact: false }));
   if (legs.length) dayLegsByStreets(list, legs); // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
+  const goNext = next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
+    ico('arrow-right'), ...goText(dNext, pos)) : null;
+  // v484 (défaut vu en v483, mon « A » du 25 nov.) : le plan des rues déjà sur le téléphone, la plaque dit la durée par les rues, comme la fiche (v383, v406)
+  if (goNext && dNext != null && walkGo(dNext) && !(next.line && dNext < 50)) walkRouteTo(next, pos).then((r) => { if (r && goNext.isConnected) fill(goNext, ico('arrow-right'), ...goRouteText(r.m, pos)); });
   const todayBlock = [
     el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
     next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
-    next ? el('a', { class: 'btn primary go-bar', href: mapsUrl(next, dNext ?? Infinity), target: '_blank', rel: 'noopener' },
-      ico('arrow-right'), ...goText(dNext, pos)) : null, /* v231 : comme la fiche ; « de chez toi » quand Chez moi est allumé */
+    goNext, /* v231 : comme la fiche ; « de chez toi » quand Chez moi est allumé ; v484 : par les rues aussi, comme la fiche */
     next ? el('div', { class: 'row3' },
       compassOff() ? null : el('button', { type: 'button', class: 'btn c-guide', onclick: () => openCompass(next) }, ico('compass'), 'Boussole'),
       el('button', { type: 'button', class: 'btn c-metro', onclick: () => showMetroPlan(next, back), 'aria-label': 'Métro : quel métro prendre' }, el('b', { class: 'm-badge', 'aria-hidden': 'true' }), 'Métro'),
