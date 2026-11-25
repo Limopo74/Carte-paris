@@ -1662,6 +1662,7 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="verre"] .sheet .seg button { border-color: transparent; background: var(--seg-bg); border-radius: 999px; }
 :root[data-look="verre"] .sheet .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-strong); }
 :root[data-theme="dark"] .sheet .seg button { border-radius: 999px; }
+:root:is([data-look="verre"], [data-theme="dark"]) .sheet .seg.days button { border-radius: var(--r); } /* v500 : en Très grand, « Sam » touchait la courbe de la pilule (Horaires, 7 jours sur une ligne) */
 :root[data-theme="dark"] .sheet .seg button[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
 :root[data-look="pop"] .sheet .seg button { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); } /* 3 px à l'œil, 2 px comptés : « Barre, Plus, Masqué » garde sa largeur */
 :root[data-look="pop"] .sheet .seg button[aria-pressed="true"] { background: var(--pop-yellow); box-shadow: inset 0 0 0 1px var(--ink), 3px 3px 0 var(--ink); }

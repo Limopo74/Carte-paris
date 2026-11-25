@@ -76,15 +76,22 @@ const RECHERCHE = [[48.8722, 2.3330, 'Boulevard Haussmann', '36'], [48.8660, 2.3
 const chercher = async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'nom ou une adresse' }).click(); await feuille(p).locator('input[type=search]').fill('supérette'); await feuille(p).locator('button', { hasText: /^Chercher$/ }).click(); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).waitFor(); };
 // Dézoomer la carte à la molette, au centre de l'écran (aucun crochet de test dans l'appli)
 const dezoome = async (p, fois) => { const v = p.viewportSize(); await p.mouse.move(v.width / 2, v.height / 3); for (let i = 0; i < fois; i++) { await p.mouse.wheel(0, 240); await p.waitForTimeout(350); } await p.waitForTimeout(400); };
+/** Réglages, puis la ligne voulue ; si elle n'y est pas, Autres réglages d'abord (v322 : beaucoup de pages y sont rangées). */
+async function reglage(p, texte) {
+  await p.locator('#btnSettings').click(); await p.waitForTimeout(200);
+  const ligne = () => feuille(p).locator('.menu-row', { hasText: texte }).first();
+  if (!(await ligne().count())) { await feuille(p).locator('.menu-row', { hasText: 'Autres réglages' }).first().click(); await p.waitForTimeout(200); }
+  await ligne().click();
+}
 const ECRANS = {
   carte: async () => {},
-  fiche: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); },
+  fiche: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); },
   autour: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); },
   sorties: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); },
   chercher: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('Mus'); await p.waitForTimeout(600); },
   nouveau: async (p) => { await p.locator('#btnAdd').click(); },
   reglages: async (p) => { await p.locator('#btnSettings').click(); },
-  application: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mise à jour et confidentialité' }).click(); },
+  application: async (p) => { await reglage(p, 'Mise à jour et confidentialité'); },
   navigo: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); },
   expos: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Expos' }).click(); await p.waitForTimeout(800); },
   grandslieux: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Expos' }).click(); await p.waitForTimeout(600); await feuille(p).locator('.menu-row', { hasText: 'Grands lieux' }).click(); await p.waitForTimeout(1500); await feuille(p).locator('details.week-arr summary').first().click(); await p.waitForTimeout(300); },
@@ -92,12 +99,12 @@ const ECRANS = {
   dehors: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.chip', { hasText: 'Dehors' }).click(); await p.waitForTimeout(800); },
   gratuit: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Gratuit' }).click(); await p.waitForTimeout(800); },
   navigolieu: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.tabs-line button', { hasText: 'Navigo' }).click(); await p.waitForTimeout(800); await feuille(p).locator('.ev-main').first().click(); await p.waitForTimeout(400); },
-  donnees: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mise à jour et confidentialité' }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await p.waitForTimeout(400); },
-  donneelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mise à jour et confidentialité' }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
+  donnees: async (p) => { await reglage(p, 'Mise à jour et confidentialité'); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await p.waitForTimeout(400); },
+  donneelignes: async (p) => { await reglage(p, 'Mise à jour et confidentialité'); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Lignes et gares' }).click(); await p.waitForTimeout(400); },
   monuments: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.waitForTimeout(400); },
   planning: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); },
   planningmanque: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button[aria-label^="Non, pas allée à Exposition"]').click(); await p.waitForSelector('#sheet button:has-text("Prévoir un autre jour")'); await p.waitForTimeout(300); },
-  prevoirgratuit: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('carte-paris.v1')); s.points[0].lat = 48.8600; s.points[0].lng = 2.3266; localStorage.setItem('carte-paris.v1', JSON.stringify(s)); }); await p.reload(); await p.waitForTimeout(800); if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click(); await p.evaluate(() => document.querySelector('.leaflet-marker-icon')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
+  prevoirgratuit: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('carte-paris.v1')); s.points[0].lat = 48.8600; s.points[0].lng = 2.3266; localStorage.setItem('carte-paris.v1', JSON.stringify(s)); }); await p.reload(); await p.waitForTimeout(800); if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click(); await p.evaluate(() => document.querySelector('.leaflet-marker-icon')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   // v201 : liste du jour (Mon planning → Aujourd'hui). La liste est posée le temps de l'écran, puis le stockage est remis : les écrans suivants ne la voient pas.
   jour: async (p) => { await avecListe(p, ['d', 'c', 'f']); await p.locator('#btnPlanning').click(); await p.waitForSelector('#sheet .go-bar'); },
   jourlieux: async (p) => { await ECRANS.jour(p); await feuille(p).locator('button', { hasText: 'Ajouter des lieux' }).click(); await p.waitForSelector('#sheet input[type="search"]'); },
@@ -121,14 +128,14 @@ const ECRANS = {
   sortieprevoir: async (p) => { await p.locator('#btnSorties').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev:not(.feat) .ev-main').first().click(); await p.waitForTimeout(600); await feuille(p).locator('.row3 .btn', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
   joursortie: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('button', { hasText: 'Trouver une sortie' }).click(); await p.waitForTimeout(1200); },
   sortieprevue: async (p) => { await p.locator('#btnPlanning').click(); await p.waitForTimeout(400); await feuille(p).locator('.item-main', { hasText: 'Concert de jazz' }).click(); await p.waitForTimeout(300); },
-  partagerlieu: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Partager' }).click(); await p.waitForTimeout(300); },
-  modifier: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.legend', { hasText: 'Le bon moment' }).scrollIntoViewIfNeeded(); },
+  partagerlieu: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Partager' }).click(); await p.waitForTimeout(300); },
+  modifier: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); await feuille(p).locator('.legend', { hasText: 'Le bon moment' }).scrollIntoViewIfNeeded(); },
   recherchelieux: async (p) => { await chercher(p); },
   // v248 : un résultat enregistré ramène à la liste, marqué « Sur ta carte » ; sur la carte, il n'a plus de rond
   recherchesuite: async (p) => { await chercher(p); await feuille(p).locator('.results button').first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: /^Enregistrer$/ }).click(); await feuille(p).locator('.results .tag', { hasText: 'Sur ta carte' }).waitFor(); await p.waitForTimeout(300); },
   recherchesuitecarte: async (p) => { await chercher(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(400); await p.locator('.leaflet-marker-icon[aria-label="Supérette test"]').first().dispatchEvent('click'); await p.waitForTimeout(300); await p.locator('.peek-card .now-open').click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: /^Enregistrer$/ }).click(); await p.waitForTimeout(600); },
   recherchecarte: async (p) => { await chercher(p); await feuille(p).locator('button', { hasText: 'Voir sur la carte' }).click(); await p.waitForTimeout(400); await p.locator('.leaflet-marker-icon[aria-label="Supérette test"]').first().dispatchEvent('click'); await p.waitForTimeout(300); },
-  vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: 'Vu en passant' }).click(); await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
+  vuenpassant: async (p) => { await p.locator('#btnAdd').click(); await p.waitForTimeout(300); const fc = p.waitForEvent('filechooser'); await feuille(p).locator('button', { hasText: /^\s*Vu en passant\s*$/ }).click(); /* pas « Mes Vu en passant » (v312) */ await (await fc).setFiles('icons/icon-512.png'); await p.waitForTimeout(1500); },
   // v168 : circuits de visite
   circuits: async (p) => { await p.evaluate(() => document.getElementById('btnCircuits').click()); await p.waitForSelector('#sheet .ev-list'); await p.waitForTimeout(300); },
   circuit: async (p) => { await ECRANS.circuits(p); await feuille(p).locator('.ev-main', { hasText: 'Montmartre' }).click(); await p.waitForTimeout(400); },
@@ -178,10 +185,10 @@ const ECRANS = {
   fichedisparue: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Mosaïque bleue"]').dispatchEvent('click'); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'de nouveau là' }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   artiste: async (p) => { await ECRANS.ficheoeuvre(p); await feuille(p).locator('.fiche-row', { hasText: 'Invader' }).click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(300); },
   // v162 : l'adresse dans Modifier, le nom de « Déjà visité » dans la catégorie
-  modifieradresse: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); },
+  modifieradresse: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-row', { hasText: 'Modifier' }).click(); await p.waitForTimeout(300); },
   // v241 : Réglages → Catégories et listes, la ligne « Aide » ouverte (exemples de listes)
-  categoriesaide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('details.page-help summary').click(); await p.waitForTimeout(200); await feuille(p).locator('details.page-help').scrollIntoViewIfNeeded(); },
-  categorie: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Catégories et listes' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
+  categoriesaide: async (p) => { await reglage(p, 'Catégories et listes'); await p.waitForTimeout(300); await feuille(p).locator('details.page-help summary').click(); await p.waitForTimeout(200); await feuille(p).locator('details.page-help').scrollIntoViewIfNeeded(); },
+  categorie: async (p) => { await reglage(p, 'Catégories et listes'); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
   // v166 : feuille réduite, Mes salles
   sortiescarte: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-mapbtn').click(); await p.waitForSelector('.peek-card.deck'); await p.waitForTimeout(400); }, // v219 : le bandeau dit « Sorties · 9e » et l'heure
   sortiesphotos: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-photo').click(); await p.waitForTimeout(900); }, // v370 : l'image à droite du titre allume les photos
@@ -200,18 +207,18 @@ const ECRANS = {
   // v172 : « Vouliez-vous dire » sous le champ Artiste (Invader est déjà dans mes lieux)
   artisteaide: async (p) => { await ECRANS.vuenstreet(p); await feuille(p).locator('input[list="artist-names"]').fill('Invadr'); await p.waitForTimeout(500); },
   vuenstreet: async (p) => { await ECRANS.vuenpassant(p); await feuille(p).locator('.seg button', { hasText: 'Street art' }).click(); await p.waitForTimeout(300); },
-  passage: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'Impression' }).click(); await p.waitForTimeout(300); },
-  fichepassages: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /impressions/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
+  passage: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('button', { hasText: 'Impression' }).click(); await p.waitForTimeout(300); },
+  fichepassages: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.fiche-sec', { hasText: /impressions/i }).scrollIntoViewIfNeeded(); await p.waitForTimeout(300); },
   curiosites: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await p.waitForTimeout(400); },
   plaque: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await feuille(p).locator('.item-main').first().click(); await p.waitForSelector('#sheet .plaque-text'); await p.waitForTimeout(300); },
   plaques: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Curiosités' }).first().click(); await p.waitForSelector('#sheet .ring-title'); await feuille(p).locator('button', { hasText: 'Toutes les plaques' }).click(); await p.waitForTimeout(400); },
-  donneeplaques: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mise à jour et confidentialité' }).click(); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Plaques commémoratives' }).first().click(); await p.waitForTimeout(600); },
-  journal: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon Paris' }).first().click(); await p.waitForTimeout(400); await feuille(p).locator('.menu-row', { hasText: 'Mon journal' }).click(); await p.waitForTimeout(400); },
+  donneeplaques: async (p) => { await reglage(p, 'Mise à jour et confidentialité'); await feuille(p).locator('button', { hasText: 'Données de l' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Plaques commémoratives' }).first().click(); await p.waitForTimeout(600); },
+  journal: async (p) => { await p.evaluate(() => document.getElementById('btnMyParis').click()); /* le bouton peut être rangé dans ⋯ Plus */ await p.waitForTimeout(600); await feuille(p).locator('button', { hasText: /^\s*Liste\s*$/ }).click(); await p.waitForTimeout(400); }, // v426, v445 : Mon journal en calendrier, sa liste par « Liste »
   /* v244 : la page Horaires d'un lieu (fiche → Pratique → Horaires), puis avec « Fermé à midi » allumé */
   horaires: async (p) => { await ECRANS.fiche(p); await feuille(p).locator('.fiche-row', { hasText: /^\s*Horaires/ }).click(); await p.waitForSelector('#sheet .seg.days'); },
   horairesmidi: async (p) => { await ECRANS.horaires(p); await feuille(p).locator('[role="switch"]', { hasText: 'Fermé à midi' }).click(); await p.waitForTimeout(200); },
-  prevoir: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
-  prevoirautre: async (p) => { await p.locator('.leaflet-marker-icon').first().click(); await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await feuille(p).locator('.seg button', { hasText: 'Autre jour' }).click(); await feuille(p).locator('.seg button', { hasText: 'Heure précise' }).click(); await p.waitForTimeout(300); },
+  prevoir: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await p.waitForTimeout(300); },
+  prevoirautre: async (p) => { await p.locator('.leaflet-marker-icon[aria-label^="Musée de la Vie romantique"]').click() /* toujours le même lieu : un écran d'avant peut avoir ajouté une goutte */; await p.waitForSelector('#sheet .go-bar'); await feuille(p).locator('.btn.c-disc', { hasText: /Prévoir|Prévu/ }).click(); await feuille(p).locator('.seg button', { hasText: 'Autre jour' }).click(); await feuille(p).locator('.seg button', { hasText: 'Heure précise' }).click(); await p.waitForTimeout(300); },
   ousuisje: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Où suis' }).click(); await p.waitForSelector('#sheet .where-big'); await p.waitForTimeout(900); },
   memeauteur: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await feuille(p).locator('button', { hasText: 'Monuments' }).first().click(); await p.waitForSelector('#sheet .items'); await p.locator('#sheet button', { hasText: 'Du même auteur' }).first().click(); await p.waitForSelector('#sheet .items .item-main'); await p.waitForTimeout(300); },
   respire: async (p) => { await p.locator('#btnNear').click(); await p.waitForTimeout(900); await p.locator('#sheet .tool', { hasText: 'Itinéraire' }).click(); await p.locator('#sheet button', { hasText: 'Rues sans voitures' }).click(); await p.waitForSelector('#sheet .items .plan-time'); await p.waitForTimeout(300); },
@@ -230,24 +237,24 @@ const ECRANS = {
     } finally { await p.context().setGeolocation({ latitude: 48.8812, longitude: 2.3361 }); }
   },
   station: async (p) => { await p.locator('#btnMetro').click(); await p.waitForSelector('#sheet .stack'); await p.waitForTimeout(400); },
-  sauvegarde: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Sauvegarde' }).first().click(); await p.waitForTimeout(300); },
+  sauvegarde: async (p) => { await reglage(p, 'Sauvegarde'); await p.waitForTimeout(300); },
   envoyerproche: async (p) => { await ECRANS.sauvegarde(p); await feuille(p).locator('button', { hasText: 'Envoyer à un proche' }).click(); await p.waitForTimeout(300); }, // v180
-  restaurer: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Restaurer ou importer' }).click(); await p.waitForTimeout(300); },
-  aide: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Aide' }).first().click(); await feuille(p).locator('.help-item summary').first().click(); }, // v258 : la première rubrique est la Prise en main
-  boutons: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Boutons de la carte' }).click(); await p.waitForTimeout(300); },
-  texte: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Taille du texte' }).click(); await p.waitForTimeout(300); },
-  pas: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mon pas' }).click(); await p.waitForTimeout(300); },
+  restaurer: async (p) => { await reglage(p, 'Restaurer ou importer'); await p.waitForTimeout(300); },
+  aide: async (p) => { await reglage(p, 'Aide'); await feuille(p).locator('.help-item summary').first().click(); }, // v258 : la première rubrique est la Prise en main
+  boutons: async (p) => { await reglage(p, 'Boutons de la carte'); await p.waitForTimeout(300); },
+  texte: async (p) => { await reglage(p, 'Taille du texte'); await p.waitForTimeout(300); },
+  pas: async (p) => { await reglage(p, 'Mon pas'); await p.waitForTimeout(300); },
   // v320 : Mesurer mon pas. Position simulée précise (départ possible), puis 800 m plus au nord après 12 min 40 s (horloge simulée).
   mesure: async (p) => { await ECRANS.pas(p); await feuille(p).locator('button[data-measure="normal"]').click(); await p.waitForSelector('#sheet button:has-text("Partir"):not([disabled])'); await p.waitForTimeout(200); },
   mesuremarche: async (p) => { await p.clock.install(); await ECRANS.mesure(p); await feuille(p).locator('button', { hasText: 'Partir' }).click(); await p.clock.runFor(312e3); await p.context().setGeolocation({ latitude: 48.8812 + 450 / 1.3 / 111195, longitude: 2.3361, accuracy: 8 }); await p.waitForTimeout(400); },
   mesurefin: async (p) => { await ECRANS.mesuremarche(p); await p.clock.runFor(448e3); await p.context().setGeolocation({ latitude: 48.8812 + 1005 / 1.3 / 111195, longitude: 2.3361, accuracy: 8 }); await p.waitForSelector('#sheet .mesure-res'); await p.context().setGeolocation({ latitude: 48.8812, longitude: 2.3361 }); await p.waitForTimeout(200); },
   // v214 : les trois pages de réglages souples, et Cercles rangé dans Distances et durées
-  alertes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Alertes et bandeau' }).click(); await p.waitForTimeout(300); },
-  fichelignes: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Fiche d\'un lieu' }).click(); await p.waitForTimeout(300); },
+  alertes: async (p) => { await reglage(p, 'Alertes et bandeau'); await p.waitForTimeout(300); },
+  fichelignes: async (p) => { await reglage(p, 'Fiche d\'un lieu'); await p.waitForTimeout(300); },
   // v240 : Réglages → Favoris (étoile ou cœur)
-  favstyle: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Favoris' }).first().click(); await p.waitForTimeout(300); },
-  distances: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await p.waitForTimeout(300); },
-  cercles: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Distances et durées' }).click(); await feuille(p).locator('.menu-row', { hasText: 'Cercles' }).click(); await p.waitForTimeout(300); },
+  favstyle: async (p) => { await reglage(p, 'Favoris'); await p.waitForTimeout(300); },
+  distances: async (p) => { await reglage(p, 'Distances et durées'); await p.waitForTimeout(300); },
+  cercles: async (p) => { await reglage(p, 'Distances et durées'); await feuille(p).locator('.menu-row', { hasText: 'Cercles' }).click(); await p.waitForTimeout(300); },
   essentiel: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.menu-row', { hasText: 'L\'essentiel' }).click(); await p.waitForTimeout(300); },
   nombouton: async (p) => { await ECRANS.boutons(p); await feuille(p).locator('.tool-rename').nth(1).click(); await p.waitForTimeout(300); },
   nomscarte: async (p) => { // v139 : « Noms à côté des boutons » allumé, avec un nom choisi
@@ -270,11 +277,11 @@ const ECRANS = {
     await feuille(p).getByText('Aucun de tes lieux dans cet arrondissement').waitFor({ timeout: 3000 });
   },
   filtrescalques: async (p) => { await p.locator('.chip.filters').click(); await p.waitForTimeout(300); await feuille(p).locator('.menu-group', { hasText: 'Afficher aussi sur la carte' }).scrollIntoViewIfNeeded(); },
-  mesbus: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Mes lignes de bus' }).click(); await p.waitForTimeout(1500); await feuille(p).locator('input[type="search"]').fill('38'); await p.waitForTimeout(300); }, // v228
+  mesbus: async (p) => { await reglage(p, 'Mes lignes de bus'); await p.waitForTimeout(1500); await feuille(p).locator('input[type="search"]').fill('38'); await p.waitForTimeout(300); }, // v228
   chercherartiste: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('monet'); await p.waitForTimeout(800); }, // v373 : Mes artistes dans la loupe
   chercherbus: async (p) => { await p.locator('#btnSearch').click(); await feuille(p).locator('input').first().fill('38'); await p.waitForSelector('#sheet .bus-name'); }, // v234
   plushaut: async (p) => { await p.locator('.chip.more-chip').click(); await p.waitForTimeout(300); },
-  barrehaut: async (p) => { await p.locator('#btnSettings').click(); await feuille(p).locator('.menu-row', { hasText: 'Barre du haut' }).click(); await p.waitForTimeout(300); },
+  barrehaut: async (p) => { await reglage(p, 'Barre du haut'); await p.waitForTimeout(300); },
   vide: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.v1')); await p.goto(URL_APPLI); await p.waitForTimeout(700); }, // en dernier : efface les lieux de ce contexte
 };
 // v237 : un lieu de plus (et sa photo, dessinée ici, rangée dans la base des photos) le temps d'un écran ; le fichier d'état est remis ensuite.
@@ -351,6 +358,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.evaluate(([pts, plans, textSize, outings, artists, venues, notes, look]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, notes, layoutV: 3, lastExport: Date.now(), textSize, look })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES, NOTES, process.env.LOOK || 'papier']);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
+    await page.evaluate(() => sessionStorage.clear()); // un écran d'avant peut avoir masqué mes lieux ou posé un filtre pour la session (v427)
     await page.goto(URL_APPLI); await page.waitForTimeout(600);
     if (await page.locator('#sheet:not([hidden])').count()) await page.locator('#sheetClose').click();
     try { await ECRANS[nom](page); } catch (e) { lignes.push(`${vw} ${theme} ${nom} : ouverture impossible (${e.message.split('\n')[0]})`); defauts++; continue; }
