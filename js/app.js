@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (442)';
+const VERSION = '25 novembre 2026 (443)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -12476,6 +12476,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
     '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
     '{locate-fixed} **Partir de ma position** : + Ajouter → Un parcours, avant la première étape, touche « Partir de ma position » : l\'étape 1 se pose sur la rue où tu es, la carte se place dessus. Rien n\'est posé d\'office.',
@@ -12485,7 +12486,6 @@ const HELP = [
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
-    '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

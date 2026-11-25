@@ -1,6 +1,6 @@
 // v321 (mes choix du 20 nov.) : préparer le démarrage d'un proche. Ce que je choisis pour lui voyage dans le lien
 // (…/Carte-paris/#depart=…), compressé ; jamais mes lieux, ma liste TTB, ma clé CARTO, ni le nom de la préparation.
-import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, cleanMore, withNewInMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, freshChips, FRESH_TOOLS, DEFAULT_CATEGORIES } from './store.js';
+import { cleanSettings, cleanChipOrder, cleanCartoKey, cleanChips, cleanMoreChips, withNewChips, CHIPS_V, cleanMore, withNewInMore, normalizeTools, cleanCategories, cleanPace, TEXT_SIZES, MAP_STYLES, MAP_TOOLS, freshStart, freshChips, FRESH_TOOLS, DEFAULT_CATEGORIES } from './store.js';
 import { cleanFicheHidden } from './reglages.js';
 import { SEEN_CAT } from './passage.js';
 
@@ -19,6 +19,11 @@ export const KEY_STYLES = ['clean', 'positron', 'darkmatter'];
 export const PREP_STARTS = ['me', 'all', 'paris', 'last'];
 const str = (v, max) => (typeof v === 'string' ? [...v.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, max).join('') : '');
 const bool = (v, def) => (typeof v === 'boolean' ? v : def);
+/** v443 : la version de la barre du haut d'une préparation (`chipsV`, comme mes réglages) : un bouton du haut plus récent qu'elle
+ * arrive dans ⋯ Plus chez le proche, jamais dans sa barre. Sans `chipsV`, une préparation enregistrée avant la v372 (21 nov.,
+ * 9 h 36 UTC, Mes artistes) est de la version 5 ; une plus récente, ou un lien d'avant la v443, est à jour. */
+const CHIPS_V6_AT = Date.UTC(2026, 10, 21, 9, 36);
+const chipsVOf = (o) => (Number.isInteger(o?.chipsV) && o.chipsV >= 1 ? Math.min(o.chipsV, CHIPS_V) : CHIPS_V);
 
 /** Le départ standard d'un nouveau venu (v314) : point de départ d'une nouvelle préparation. */
 export function defaultPreset(me = '') {
@@ -27,7 +32,7 @@ export function defaultPreset(me = '') {
     textSize: 'normal', masculin: false, pace: 'normal', side: 'right', labels: false, navigo: true,
     ...(({ hiddenChips, moreChips }) => ({ hiddenChips, moreChips }))(freshChips([...DEFAULT_CATEGORIES.map((c) => c.id), SEEN_CAT.id])), // v440, v442 : le départ de mes captures
     mapTools: [...FRESH_TOOLS.mapTools], hiddenTools: [...FRESH_TOOLS.hiddenTools], moreTools: [...FRESH_TOOLS.moreTools],
-    mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: freshChips().chipOrder, chipIcons: true, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
+    mapStyle: 'eclairci', withKey: false, startView: 'me', chipOrder: freshChips().chipOrder, chipsV: CHIPS_V, chipIcons: true, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), lists: [],
     ficheHidden: [], voice: true, vibrateNow: false, suggestNow: true, alertNear: true,
   };
 }
@@ -45,7 +50,7 @@ export function cleanPreset(o) {
     de: str(o.de, NAME_MAX), msg: str(o.msg, MSG_MAX), steps,
     textSize: TEXT_SIZES.includes(o.textSize) ? o.textSize : d.textSize, masculin: o.masculin === true,
     pace: cleanPace({ mode: o.pace }).mode, side: o.side === 'left' ? 'left' : 'right', labels: o.labels === true, navigo: o.navigo !== false,
-    hiddenChips, moreChips: Array.isArray(o.moreChips) ? cleanMoreChips(o.moreChips, hiddenChips) : d.moreChips,
+    hiddenChips, moreChips: Array.isArray(o.moreChips) ? cleanMoreChips(withNewChips(o.moreChips, chipsVOf(o)), hiddenChips) : d.moreChips, chipsV: CHIPS_V, // v443
     mapTools: Array.isArray(o.mapTools) ? normalizeTools(o.mapTools) : d.mapTools, hiddenTools,
     moreTools: Array.isArray(o.moreTools) ? cleanMore(withNewInMore(o.moreTools, o.mapTools), hiddenTools) : d.moreTools, // v426 : un bouton plus récent que la préparation (Mon Paris) arrive dans ⋯ Plus, jamais sur la carte
     mapStyle: [...FREE_STYLES, ...KEY_STYLES].includes(o.mapStyle) && MAP_STYLES.includes(o.mapStyle) ? o.mapStyle : d.mapStyle,
@@ -61,7 +66,8 @@ export const noKey = ({ carto: _, ...p }) => p;
 /** Mes préparations nommées : [{ id, name, at, p }], 5 au plus. */
 export function cleanPreps(list) {
   return (Array.isArray(list) ? list : []).filter((x) => x && typeof x.id === 'string' && /^[\w-]{1,64}$/.test(x.id) && str(x.name, NAME_MAX))
-    .slice(0, DEPART_MAX).map((x) => ({ id: x.id, name: str(x.name, NAME_MAX), at: Number.isFinite(x.at) ? x.at : 0, p: noKey(cleanPreset(x.p)) }));
+    .slice(0, DEPART_MAX).map((x) => ({ id: x.id, name: str(x.name, NAME_MAX), at: Number.isFinite(x.at) ? x.at : 0,
+      p: noKey(cleanPreset(x.p && typeof x.p === 'object' && x.p.chipsV === undefined && Number.isFinite(x.at) && x.at < CHIPS_V6_AT ? { ...x.p, chipsV: 5 } : x.p)) })); // v443
 }
 
 /** Le départ du proche, posé sur une appli (mémoire vide : son départ entier ; appli déjà là : ses lieux et ses réglages
