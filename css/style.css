@@ -49,45 +49,89 @@
 }
 
 :root[data-theme="dark"] {
+  /* v452 (mon choix 2A du 25 nov.) : le mode sombre est le style « Signalétique » : fond nuit, plaques jaunes (CHARTE.md § 10.2) */
   color-scheme: dark;
   --aq-bon: #267369;
   --aq-moyen: #E28136;
   --aq-mauvais: #F4AFD1;
   --aq-inconnu: #5A6272;
-  --strong: #EEF0F3;
-  --guide: #EEF0F3;
-  --guide-bd: #EEF0F3;
-  --metro: #8CB1FF;
-  --metro-bd: #8CB1FF;
-  --neutral-bd: #8F98AB;
-  --ink: #EEF0F3;
-  --muted: #A9B0BC;
-  --line: #343A46;
-  --bg: #14171D;
-  --surface: #1C2028;
-  --soft: #0E1014;
-  --on-strong: #14171D;
-  --field: #8F98AB;
-  --btn: #1C2028;
-  --btn-bd: rgba(238, 241, 247, .32);
-  --disc: #FFB08A;
-  --add: #8FD6A5;
-  --add-bg: #1C4626;
-  --add-bd: #8FD6A5;
-  --fav: #FFDC85;
-  --fav-bg: #4A3A0E;
-  --info: #C3CAD6;
-  --info-bg: #2C3240;
-  --info-bd: #C3CAD6;
-  --danger: #FF9A92;
+  --strong: #FFD23F;
+  --guide: #FFD23F;
+  --guide-bd: #FFD23F;
+  --metro: #86ADFF;
+  --metro-bd: #86ADFF;
+  --neutral-bd: #8D93A0;
+  --ink: #F5F5F2;
+  --muted: #B4B8C0;
+  --line: #2E323B;
+  --bg: #131418;
+  --surface: #1B1D23;
+  --soft: #0B0C0F;
+  --on-strong: #111111;
+  --field: #8D93A0;
+  --btn: #1B1D23;
+  --btn-bd: rgba(255, 255, 255, .38);
+  --disc: #FF9466;
+  --add: #5FE3A1;
+  --add-bg: #14382A;
+  --add-bd: #5FE3A1;
+  --fav: #FFC24A;
+  --fav-bg: #3D3110;
+  --info: #C7CCD6;
+  --info-bg: #2A2E38;
+  --info-bd: #C7CCD6;
+  --danger: #FF7272;
   --hard: rgba(0, 0, 0, .55);
-  --focus: #8CB1FF;
-  --fav-icon: #FFDC85;
+  --focus: #86ADFF;
+  --fav-icon: #FFC24A;
   --warn-bg: #3A2A0C; --warn-bd: #6B4C12; --warn-ink: #FFD8A0;
   --rain-bg: #10283D; --rain-bd: #2A5577; --rain-ink: #A9D4FF;
   --heat-bg: #3A1F0C; --heat-bd: #7A4113; --heat-ink: #FFCFA8;
   --compass-bg: #14171D; --compass-ink: #EEF0F3; --compass-muted: #A9B0BC;
-  --float: 0 1px 4px rgba(0, 0, 0, .6);
+  --float: 0 4px 14px rgba(0, 0, 0, .55);
+  --r: 10px;
+}
+/* v452 (mon choix 1B du 25 nov.) : style « Verre », le jour seulement (data-look="verre" ; CHARTE.md § 10.1). Mêmes rôles, autres valeurs. */
+:root[data-look="verre"] {
+  --ink: #1A1D2B;
+  --strong: #1A1D2B;
+  --on-strong: #FFFFFF;
+  --guide: #1A1D2B;
+  --guide-bd: #1A1D2B;
+  --muted: #5A6072;
+  --line: rgba(26, 29, 43, .12);
+  --bg: #F3F2F8;
+  --surface: #FFFFFF;
+  --soft: #E9E7F2;
+  --field: #7B8094;
+  --btn: rgba(255, 255, 255, .72);
+  --btn-bd: rgba(255, 255, 255, .95);
+  --neutral-bd: #7B8094;
+  --disc: #8B2C7A;
+  --add: #1E6B4E;
+  --add-bd: #1E6B4E;
+  --add-bg: #DDF1E8;
+  --metro: #1F4FD6;
+  --metro-bd: #1F4FD6;
+  --danger: #B3261E;
+  --fav: #7A5A0C;
+  --fav-icon: #A87400;
+  --fav-bg: #FFF1CC;
+  --info: #5A6072;
+  --info-bd: #5A6072;
+  --info-bg: #E6E4F0;
+  --focus: #1F4FD6;
+  --r: 14px;
+  --display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --float: 0 8px 28px rgba(40, 30, 90, .18), 0 1px 2px rgba(40, 30, 90, .12);
+  /* propres à Verre : bord clair, ombre douce, flou des panneaux posés sur la carte, plaque en dégradé */
+  --glass-edge: rgba(255, 255, 255, .95);
+  --glass-shadow: 0 6px 18px rgba(40, 30, 90, .14), inset 0 1px 0 rgba(255, 255, 255, .9);
+  --glass-blur: blur(18px) saturate(1.6);
+  --sheet-glass: rgba(248, 247, 252, .86);
+  --sheet-shadow: 0 -12px 40px rgba(40, 30, 90, .22);
+  --plaque-img: linear-gradient(120deg, #C8381F, #8A1F6E);
+  --plaque-shadow: 0 10px 24px rgba(138, 31, 110, .32);
 }
 /* Taille du texte (Réglages, v144) : l'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26 multipliée par --ts. */
 :root[data-text="grand"] { --ts: 1.15; --tools-cols: 3; }
@@ -1430,3 +1474,35 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 .mesure-mid { margin: 0; text-align: center; font-size: var(--t18); }
 .mesure-res { margin: 8px 0 0; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: var(--t26); }
 .mesure-state { margin: 0; padding: 8px 10px; border-left: 4px solid var(--ink); border-radius: var(--r); background: var(--info-bg); font-size: var(--t16); }
+
+/* ---- Style « Verre » (le jour, v452, mon choix 1B du 25 nov. ; CHARTE.md § 10.1) ----
+   Seulement dans l'appli posée sur la carte (barres, colonne, bandeaux, feuille) ; la boussole et la photo en grand gardent les leurs.
+   Les couleurs sont des jetons du bloc :root[data-look="verre"] ; les boutons ne changent ni de place ni de taille. */
+:root[data-look="verre"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(.solid):not(.primary):not([aria-pressed="true"]):not(.on):not(:disabled) {
+  border: 1px solid var(--glass-edge); background-color: var(--btn); box-shadow: var(--glass-shadow);
+}
+:root[data-look="verre"] :is(.map-btn, .big-btn) { border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
+:root[data-look="verre"] :is(.chip, .tag) { border-radius: 999px; }
+:root[data-look="verre"] :is(.map-btn, .icon-btn) { border-radius: 50%; }
+:root[data-look="verre"] :is(.top .chip, .map-btn, .big-btn, .peek-card, .now-card) { -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+:root[data-look="verre"] :is(.btn.primary, .big-btn.primary):not(:disabled) { background-image: var(--plaque-img); border-color: transparent; box-shadow: var(--plaque-shadow); }
+:root[data-look="verre"] .sheet { border-radius: 26px 26px 0 0; background: var(--sheet-glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--sheet-shadow); }
+:root[data-look="verre"] .sheet-head { border-bottom-color: transparent; }
+:root[data-look="verre"] :is(.ring-title, .fiche-sec, .fiche-cols, .sheet-foot) { border-top-color: var(--line); }
+:root[data-look="verre"] .tabs-line { border-bottom-color: var(--line); }
+:root[data-look="verre"] #sheetTitle { font-weight: 750; letter-spacing: -.02em; }
+:root[data-look="verre"] :is(.item-name, .menu-title, .fiche-v) { letter-spacing: -.015em; }
+:root[data-look="verre"] .big-btn { padding: 0 8px; gap: 6px; letter-spacing: -.02em; }
+
+/* ---- Style « Signalétique » (le mode sombre, v452, mon choix 2A du 25 nov. ; CHARTE.md § 10.2) ----
+   Fond nuit, plaques jaunes (--strong, --guide), boutons en pilule, filets forts jaunes, titres en pleine largeur. */
+:root[data-theme="dark"] :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .go-compass, .tag) { border-radius: 999px; }
+:root[data-theme="dark"] .tag { padding: 0 8px; }
+:root[data-theme="dark"] :is(.btn, .big-btn, .chip, .tool) { font-weight: 800; }
+:root[data-theme="dark"] #sheetTitle { font-stretch: 100%; }
+:root[data-theme="dark"] .row3 .btn { font-stretch: 90%; } /* la pilule mange les coins : « Boussole » ne touche plus le bord à 360 px */
+:root[data-theme="dark"] #sheetTitle .fiche-name { font-stretch: 96%; }
+:root[data-theme="dark"] :is(.ring-title, .fiche-sec, .fiche-cols, .sheet-foot) { border-top-color: var(--strong); }
+:root[data-theme="dark"] .tabs-line, :root[data-theme="dark"] .tabs-line button[aria-pressed="true"] { border-bottom-color: var(--strong); }
+:root[data-theme="dark"] .sheet { border-radius: 26px 26px 0 0; }
+:root[data-theme="dark"] .sheet-head::before { background: var(--strong); }

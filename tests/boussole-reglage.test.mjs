@@ -30,7 +30,8 @@ test('L\'interrupteur est tout en bas de « Ce qui s\'affiche », sous Circuits 
   const b = page.indexOf("onOff('compassOn', 'compass', 'Boussole'");
   const c = page.indexOf("'Appli')");
   assert.ok(a > 0 && b > a && c > b);
-  assert.ok(!page.slice(b, c).includes('row('), 'rien entre lui et le groupe Appli');
+  const notStyle = (t) => t.replace("row('palette', 'Style de l\\'appli'", ''); // v452 : Style de l'appli, une ligne de plus tout en bas
+  assert.ok(!notStyle(page.slice(b, c)).includes('row('), 'rien entre lui et le groupe Appli');
 });
 
 test('Éteinte : chaque bouton Boussole, chaque icône de liste et chaque Balade guidée disparaissent (2A, 3A)', () => {

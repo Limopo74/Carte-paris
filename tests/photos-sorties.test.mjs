@@ -123,6 +123,7 @@ test('Autres réglages → Ce qui s\'affiche : « Photos des salles » sous Fich
   const d = page.indexOf("'ring-title menu-group' }, 'Appli')");
   assert.ok(f > 0 && c > f && b > c && a > b && d > a);
   assert.ok(!page.slice(c + 10, b).includes('row('), 'les deux lignes Photos côte à côte');
-  assert.ok(!page.slice(b, d).includes('row('), 'les interrupteurs ensemble, en bas du groupe');
+  const notStyle = (t) => t.replace("row('palette', 'Style de l\\'appli'", ''); // v452 : Style de l'appli, une ligne de plus tout en bas
+  assert.ok(!notStyle(page.slice(b, d)).includes('row('), 'les interrupteurs ensemble, en bas du groupe');
   assert.match(app, /'Dans Sorties, la photo de l\\'agenda passe toujours avant la tienne\.'/);
 });

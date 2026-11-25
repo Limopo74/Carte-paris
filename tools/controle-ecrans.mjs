@@ -347,8 +347,8 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
     { r: 'ACR0009999', t: 'Édifice d\'exemple', a: ['Exemple Jean (architecte)'], d: '1975', l: '2019', lat: 48.8820, lng: 2.3370 }] }) }));
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
-  // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie
-  await page.evaluate(([pts, plans, textSize, outings, artists, venues, notes]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, notes, layoutV: 3, lastExport: Date.now(), textSize })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES, NOTES]);
+  // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie ; LOOK=verre (v452) : avec le style Verre (le sombre est toujours Signalétique)
+  await page.evaluate(([pts, plans, textSize, outings, artists, venues, notes, look]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, notes, layoutV: 3, lastExport: Date.now(), textSize, look })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES, NOTES, process.env.LOOK || 'papier']);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });
     await page.goto(URL_APPLI); await page.waitForTimeout(600);

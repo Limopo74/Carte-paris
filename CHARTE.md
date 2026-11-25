@@ -10,20 +10,20 @@ Règles d'apparence de toute l'appli, en place depuis la v103 (16 novembre 2026)
 - **Une seule source** : toutes les couleurs et mesures sont des jetons, définis une fois en tête de `css/style.css` (`:root`, puis `:root[data-theme="dark"]`). On ne réécrit jamais une couleur en dur dans une règle d'interface, et on n'ajoute jamais une « couche » qui redéfinit une règle existante : on modifie la règle elle-même.
 
 ## 2. Couleurs (jetons)
-| Rôle | Jeton | Clair | Sombre | Usage |
+| Rôle | Jeton | Clair | Sombre (Signalétique, v452) | Usage |
 |---|---|---|---|---|
-| Encre | `--ink`, `--strong` | `#15181D` | `#EEF0F3` | texte, plaque pleine, filet fort |
-| Papier | `--bg`, `--surface`, `--btn` | `#FFFFFF` | `#14171D` / `#1C2028` | feuille, boutons |
-| Kraft | `--soft` | `#F3F0EA` | `#0E1014` | fond hors feuille |
-| Gris | `--muted` | `#5C6370` | `#A9B0BC` | légendes, sous-titres, texte atténué |
-| Filet | `--line` | `#D6D0C4` | `#343A46` | séparations (décor seulement, jamais le contour d'un bouton ou d'un champ : 1,5:1) |
-| Aller | `--guide` | encre | encre | Y aller, boussole, se guider |
-| Transport | `--metro` | `#1B56E8` | `#8CB1FF` | métro, stations, Vélib', Rentrer |
-| Découvrir | `--disc` | `#A54A28` | `#FFB08A` | Sorties, Curiosités, surtitres |
-| Garder | `--add` | `#2C5B4E` | `#8FD6A5` | Ajouter, Enregistrer, ouvert |
-| Favori | `--fav`, `--fav-icon` | `#8A6514`, `#B07B00` | `#FFDC85` | texte, étoiles |
-| Réglages | `--info` | `#5C6370` | `#C3CAD6` | Réglages, aide |
-| Supprimer | `--danger` | `#9A2620` | `#FF9A92` | supprimer, fermé |
+| Encre | `--ink`, `--strong` | `#15181D` | `#F5F5F2`, plaque `--strong` `#FFD23F` | texte, plaque pleine, filet fort |
+| Papier | `--bg`, `--surface`, `--btn` | `#FFFFFF` | `#131418` / `#1B1D23` | feuille, boutons |
+| Kraft | `--soft` | `#F3F0EA` | `#0B0C0F` | fond hors feuille |
+| Gris | `--muted` | `#5C6370` | `#B4B8C0` | légendes, sous-titres, texte atténué |
+| Filet | `--line` | `#D6D0C4` | `#2E323B` | séparations (décor seulement, jamais le contour d'un bouton ou d'un champ : 1,5:1) |
+| Aller | `--guide` | encre | jaune `#FFD23F` | Y aller, boussole, se guider |
+| Transport | `--metro` | `#1B56E8` | `#86ADFF` | métro, stations, Vélib', Rentrer |
+| Découvrir | `--disc` | `#A54A28` | `#FF9466` | Sorties, Curiosités, surtitres |
+| Garder | `--add` | `#2C5B4E` | `#5FE3A1` | Ajouter, Enregistrer, ouvert |
+| Favori | `--fav`, `--fav-icon` | `#8A6514`, `#B07B00` | `#FFC24A` | texte, étoiles |
+| Réglages | `--info` | `#5C6370` | `#C7CCD6` | Réglages, aide |
+| Supprimer | `--danger` | `#9A2620` | `#FF7272` | supprimer, fermé |
 
 Fonds légers d'un état allumé seulement (Favori, Déjà visité…) : `--fav-bg`, `--add-bg`, `--info-bg`. Messages : `--warn-*`, `--rain-*`, `--heat-*`. Qualité de l'air : `--aq-*`. Boussole : `--compass-bg`, `--compass-ink`, `--compass-muted`. Focus clavier : `--focus`.
 Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles (icônes) au moins 3:1.
@@ -119,6 +119,7 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
   | ce qu'un lieu offre en plus, coché par moi (v422) | **Café ou snack sur place**, **Boutique sur place** dans Modifier ; « Café », « Boutique » sur la fiche | |
   | les stations autour d'un lieu ou de moi (v393, v394) | **Stations proches** (page) ; **Autres stations près de toi** (sous Métro) | |
   | les fonds de carte sans clé de l'IGN (v382) | **Plan IGN**, **Photo aérienne** | |
+  | l'aspect de toute l'appli (v452) : **Papier**, **Verre** le jour, **Signalétique** le soir | **Style de l'appli** (Réglages → Autres réglages) | thème, design, apparence ; « Style de la carte » reste le fond de carte |
 - **Deux voix** : les noms d'écrans et de boutons parlent comme moi (Mon planning, Autour de moi, J'ai du temps, Où suis-je ?) ; les phrases me tutoient (« touche… », « tes lieux »). Jamais de vouvoiement. Claude est toujours nommé à la 3e personne.
 - **Accords au féminin** : l'appli s'adresse à moi au féminin (« Tu y es allée ? », « Tu es déjà passée ici ») ; l'autre personne, un homme, allume « Écrire au masculin » (v286 ; les phrases sont dans `ACCORDS` de js/typo.js).
 - **Typographie à l'affichage** (`js/typo.js`, appliquée par `el()` et `toast()`, jamais dans un champ) : espace insécable avant « : ; ? ! » % » et après « « » ; heures « 9 h 30 » (un module peut écrire « 9h30 », l'écran montre « 9 h 30 ») ; « 1er » pour le premier jour du mois. Un texte posé autrement (`textContent`) passe aussi par `typo()`.
@@ -127,3 +128,23 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 
 ## 9. Contrôle après chaque changement
 `npm test` (dont ce test de charte), puis `node tools/controle-ecrans.mjs` (voir `tools/README.md`) : 14 écrans à 360 et 412 px, en clair et en sombre, boutons d'au moins 44 px, contraste d'au moins 4,5:1, contrôle axe sans erreur.
+
+## 10. Styles de l'appli (v452, mes choix 1B 2A 3A 4A du 25 novembre 2026)
+Trois styles, **mêmes écrans, mêmes boutons aux mêmes places, mêmes tailles** (hauteurs `--h`, `--h-s`, `--h-l`, échelle du texte) ; seuls changent couleurs, formes, ombres et police des titres. Le jour : **Papier** (§ 1 à 8, au départ) ou **Verre**, au choix dans Réglages → Autres réglages → Style de l'appli (tout en bas de « Ce qui s'affiche ») ; le soir, le mode sombre est toujours **Signalétique**. L'attribut `data-look` (`papier`, `verre`, `signal`) porte le style affiché, `data-theme` reste clair ou sombre. Le style va dans la sauvegarde, les réglages de référence et le fichier de réglages. Vérifié par `tests/styles.test.mjs` et `tests/charte.test.mjs` ; contrôle des écrans : `LOOK=verre node tools/controle-ecrans.mjs` (Verre), `THEMES=dark` (Signalétique).
+- **Règles communes** : les couleurs restent des jetons ; chaque style a **un seul bloc de jetons** (`:root`, `:root[data-look="verre"]`, `:root[data-theme="dark"]`) et une **section de règles à part, en fin de `css/style.css`**, dont chaque sélecteur commence par son attribut. Exception voulue au § 1 (« pas de couche ») : c'est la seule couche permise, une par style. Un style ne touche jamais une hauteur, une largeur ni une taille de texte. Les sens restent : bleu = métro, vert = garder et ouvert, rouge = fermé et supprimer, or = favori, une seule plaque pleine par écran, tirets = inactif. Contrastes : textes 4,5:1 sur la feuille, le papier et le kraft, étoiles et contours de champ 3:1, texte de plaque 4,5:1.
+
+### 10.1 Verre (le jour)
+- **Esprit** : panneaux clairs et translucides posés sur la carte, formes douces, une seule police (Inter, `--display` aussi), pas de filets forts.
+- **Couleurs** : encre `#1A1D2B`, gris `#5A6072`, feuille `#F3F2F8` (translucide à 86 % sur la carte), kraft `#E9E7F2`, Découvrir prune `#8B2C7A`, métro `#1F4FD6`, vert `#1E6B4E`, fermé `#B3261E`, favori `#7A5A0C` (étoiles `#A87400`).
+- **Formes** : rayon `--r` 14 px ; puces et tampons en pilule ; boutons ronds de la carte et boutons ronds des titres en cercle ; feuille arrondie de 26 px en haut. Boutons au repos : fond blanc translucide `--btn`, bord clair 1 px `--glass-edge`, ombre douce `--glass-shadow` ; la couleur de la famille reste sur le texte et l'icône. Un choix allumé, une plaque, un bouton inactif gardent l'aspect Papier.
+- **La plaque** (Y aller, Autour de moi, toute `.primary`) : dégradé corail-prune `--plaque-img` (`#C8381F` → `#8A1F6E`), texte blanc, ombre `--plaque-shadow`. Enregistrer reste la plaque verte.
+- **Flou** (`--glass-blur`) seulement sur ce qui flotte sur la carte (barre du haut, colonne, barre du bas, bandeaux) et la feuille : jamais sur chaque bouton d'une page (il coûte sur un vieux téléphone).
+- **Pas touchés** : la boussole et la photo en grand ; ce qui est dessiné sur la carte (gouttes, tracés, cercles).
+- **Défaut connu** : sur une carte très chargée et en plein soleil, un panneau translucide se lit moins bien que le papier ; d'où une feuille presque opaque (86 %).
+
+### 10.2 Signalétique (le soir, mode sombre)
+- **Esprit** : panneaux de signalisation la nuit : fond nuit, grandes plaques jaunes, boutons en pilule, filets forts jaunes. Remplace « papier de nuit » (avant la v452).
+- **Couleurs** : voir le tableau du § 2 (colonne Sombre). La plaque pleine (`--strong`) et la famille Aller (`--guide` : Y aller, Boussole, bouton allumé de la barre du haut) sont jaunes `#FFD23F`, texte `#111111` (13:1).
+- **Formes** : boutons, puces, boutons de la carte et tampons en pilule (999 px) ; rayon `--r` 10 px pour le reste ; feuille arrondie de 26 px en haut, poignée jaune ; intertitres, colonnes de la fiche, barre du bas et onglets soulignés en jaune. Titres d'Archivo en pleine largeur (100 %, le nom d'un lieu 96 %) ; boutons en gras 800.
+- **Défaut connu** : un fond sombre se lit moins bien en plein soleil (le mode sombre suit le téléphone par défaut) ; le jaune des étoiles est proche du jaune des plaques (l'étoile garde sa forme).
+

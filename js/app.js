@@ -12,7 +12,8 @@ import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, re
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
-  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote
+  fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote,
+  cleanLook, LOOKS,
 } from './store.js';
 import { timeAgo, formatDate, todoSummary, categoryCounts, nearestStation, nearestStations } from './stats.js';
 import { searchAddress, reverseAddress, reverseInfo, looksLikeAddress } from './adresse.js';
@@ -74,7 +75,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (451)';
+const VERSION = '25 novembre 2026 (452)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -472,9 +473,14 @@ const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && dark
 /** Couleur des traits dessinés sur la carte (cercles, chemins), lisible sur le fond clair comme sombre. */
 const ink = () => (isDark() ? '#e9edf5' : '#1f2a44');
 setMasculin(state.masculin === true); // v286 : avant le premier écran
+/** v452 (mes choix 1B 2A du 25 nov.) : le style de l'appli. Le jour : Papier ou Verre (Réglages → Autres réglages → Style de l'appli) ;
+ *  le soir (mode sombre) : toujours Signalétique. `data-look` porte le style affiché, `data-theme` reste clair ou sombre. */
+const LOOK_NAME = { papier: 'Papier', verre: 'Verre', signal: 'Signalétique' };
+const lookNow = () => (isDark() ? 'signal' : cleanLook(state.look));
 function applyTheme() {
   document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark() ? '#14171D' : '#15181D');
+  document.documentElement.dataset.look = lookNow();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark() ? '#131418' : lookNow() === 'verre' ? '#F3F2F8' : '#15181D');
 }
 applyTheme();
 darkQuery.addEventListener?.('change', () => { if (state.theme === 'auto' || !state.theme) { applyTheme(); refresh?.(); } });
@@ -10078,7 +10084,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'];
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'look'];
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
@@ -10764,6 +10770,19 @@ function openSettings(section = null, from = null) {
     ));
     return;
   }
+  if (section === 'look') { // v452 (mes choix 1B 2A 3A du 25 nov.) : le style de l'appli le jour ; le soir, Signalétique
+    const cur = cleanLook(state.look);
+    const LOOK_SUB = { papier: 'Encre sur papier blanc, traits nets, angles droits', verre: 'Panneaux clairs et translucides sur la carte, formes arrondies' };
+    const choose = (k) => { state.look = k; persist(); applyTheme(); refresh(); openSettings('look'); toast(`Style de l'appli : ${LOOK_NAME[k]}`); };
+    openSheet([ico('palette'), ' Style de l\'appli'], el('div', { class: 'stack' },
+      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Style de l\'appli, le jour' }, LOOKS.map((k) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(cur === k), onclick: () => { if (cur !== k) choose(k); } },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(cur === k ? 'check' : k === 'verre' ? 'layers' : 'file-text')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, LOOK_NAME[k]), el('span', { class: 'menu-sub' }, LOOK_SUB[k]))))),
+      el('p', { class: 'help tip' }, 'Le soir, en mode sombre : Signalétique, fond nuit et plaques jaunes, quel que soit ce choix. Les boutons restent à leur place.'),
+      backBtn,
+    ));
+    return;
+  }
   if (section === 'vu') { // v308 : Réglages → Vu en passant
     const startSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Au départ, ranger dans' },
       [['vu', 'Vu en passant'], ['street', 'Street art'], ['last', 'La dernière']].map(([k, label]) => el('button', { type: 'button', 'aria-pressed': String((state.seenStart ?? 'vu') === k), onclick: () => { state.seenStart = k; persist(); openSettings('vu'); toast(`Au départ : ${label}`); } }, label)));
@@ -10949,6 +10968,8 @@ function openSettings(section = null, from = null) {
       state.compassOn = compassOff();
       toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
     }),
+    // v452 (mon choix 3A du 25 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; Papier au départ
+    row('palette', 'Style de l\'appli', `${LOOK_NAME[cleanLook(state.look)]} · le soir : Signalétique`, () => openSettings('look'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
@@ -12327,7 +12348,7 @@ function mySettingsBlock() {
   return el('div', { class: 'my-settings' },
     !ms ? [
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer mes réglages de référence'),
-      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons, filtres, style de la carte, mode sombre) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
+      el('p', { class: 'help tip' }, 'Chaque changement est déjà gardé tout de suite. Ce bouton fixe ta configuration préférée (cercles, voix, favoris, boutons, filtres, style de la carte, mode sombre, style de l\'appli) pour pouvoir y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux n\'y sont pas.'),
     ] : sameAsMySettings(state) ? [
       el('p', { class: 'ok-line' }, ico('check'), ` Réglages de référence enregistrés le ${when}, sans tes lieux.`),
       el('button', { type: 'button', class: 'btn c-info', onclick: save }, 'Les enregistrer à nouveau'),
@@ -12585,7 +12606,7 @@ const HELP = [
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
-    '{moon} **Fond sombre** : {settings} → Mode sombre ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '{moon} **Fond sombre** : {settings} → Mode sombre (style Signalétique : fond nuit, plaques jaunes) ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Style de l\'appli** le jour, Papier ou Verre : {settings} → Autres réglages → Style de l\'appli. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages de référence », en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -12628,6 +12649,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
     '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
     '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
@@ -12637,7 +12659,6 @@ const HELP = [
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',
     '{image} **Photo sous la goutte** : de près, quand tu as mis ta photo sur un lieu, la même petite image que dans tes listes s\'affiche devant son nom, sous la goutte.',
-    '{panel-top} **Les boutons comme au début** : Réglages → Barre du haut, « Barre du haut comme au début » : en haut Dans la rue et Lignes ; Vu en passant, Favoris, tes catégories, Fontaines, Jardins, TTB, Vélib\' et Passages dans ⋯ Plus ; Mes lignes de bus et Pistes à vélo masqués. « Boutons comme au début » (Réglages → Boutons de la carte) : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; Circuits masqué. Une appli neuve part de là.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

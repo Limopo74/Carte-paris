@@ -38,7 +38,7 @@ test('Aucun texte ne cite un chemin qui saute « Autres réglages »', () => {
 });
 
 test('Les pages rangées ramènent à Autres réglages', () => {
-  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'\];/);
+  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'look'\];/); // v452 : Style de l'appli
   assert.match(app, /inOthers \? '← Autres réglages' : '← Réglages'/);
   for (const f of ['function openFavStyle', 'function openUsage', 'async function openMyBusLines', 'function openWordSeries', 'function openPrepList']) {
     const i = app.indexOf(f);

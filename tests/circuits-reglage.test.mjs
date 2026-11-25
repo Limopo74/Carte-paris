@@ -30,7 +30,8 @@ test('L\'interrupteur est tout en bas de « Ce qui s\'affiche », après Écrire
   const b = page.indexOf("onOff('circuitsOn', 'signpost', 'Circuits de visite'");
   const c = page.indexOf("'Appli')");
   assert.ok(a > 0 && b > a && c > b, 'sous Écrire au masculin, au-dessus du groupe Appli');
-  assert.ok(!page.slice(b, c).includes('row('), 'rien entre lui et le groupe Appli');
+  const notStyle = (t) => t.replace("row('palette', 'Style de l\\'appli'", ''); // v452 : Style de l'appli, une ligne de plus tout en bas
+  assert.ok(!notStyle(page.slice(b, c)).includes('row('), 'rien entre lui et le groupe Appli');
 });
 
 test('Éteints : bouton, ⋯ Plus, L\'essentiel, Itinéraire, + Ajouter, Mes parcours, Distances et durées suivent le réglage (1A)', () => {

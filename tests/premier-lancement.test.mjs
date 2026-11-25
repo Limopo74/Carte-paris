@@ -47,7 +47,9 @@ test('v442 : « comme au début » range TTB et toutes mes catégories dans ⋯ 
 test('v440 : Nouveautés, la ligne en tête', () => {
   const i = app.indexOf("['sparkles', 'Nouveautés', [");
   const lines = app.slice(i, app.indexOf(']],', i)).split('\n').filter((l) => l.trim().startsWith("'{"));
-  assert.ok(lines.slice(0, 10).some((l) => l.includes('**Les boutons comme au début**'))); // v441 : « Photo sous la goutte » au-dessus ; v443, v444 : « Le démarrage d'un proche », « Sauvegarde » ; v445 : « Mon Paris plus court » ; v446 : une ligne de plus ; v447 : « Sorties, une ligne de moins » ; v448 : « Des boutons à la place des chemins » en tête ; v450 : « Grands lieux, depuis toi » ; v450, v451 : deux lignes de plus
+  // v452 : sa ligne des Nouveautés est sortie (10 au plus, « Deux nouveaux styles » en tête) ; Réglages → Barre du haut garde « Barre du haut comme au début »
+  assert.ok(!lines.some((l) => l.includes('**Les boutons comme au début**')));
+  assert.match(app, /chipsAsFresh\(state, catIds\)/);
 });
 
 test('v440 : la préparation d\'un proche part du même départ', () => {

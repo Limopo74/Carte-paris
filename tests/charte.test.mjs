@@ -9,7 +9,8 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 /** Règles CSS les plus internes : [{ sel, body }] (les @media sont ouvertes). */
 const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].replace(/@media[^{]*$/, '').trim().replace(/\s+/g, ' '), body: m[2] }));
 const decls = (r, prop) => [...r.body.matchAll(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'g'))].map((m) => m[1].trim());
-const isTokens = (r) => r.sel === ':root' || r.sel === ':root[data-theme="dark"]';
+// v452 : un troisième bloc de jetons, le style Verre (CHARTE.md § 10.1) ; le sombre est le style Signalétique (§ 10.2)
+const isTokens = (r) => r.sel === ':root' || r.sel === ':root[data-theme="dark"]' || r.sel === ':root[data-look="verre"]';
 
 // Ce qui est dessiné SUR la carte (épingles, tracés, cercles…) et les aperçus garde ses couleurs propres.
 const MAP = /pin|line-|st-dot|st-name|st-line|me-dot|me-cone|ring-label|swatch|\.s-|\.arr|crosshair|viewer|qr-box|thumb|photo|cat-ico|step-|compass-arrow|\.chips|#map|leaflet|\.dot\b|knob|\.toast|\.sheet\b/;
@@ -17,6 +18,7 @@ const MAP = /pin|line-|st-dot|st-name|st-line|me-dot|me-cone|ring-label|swatch|\
 test('charte : un seul bloc de jetons clair et un seul sombre, en tête', () => {
   assert.equal(rules.filter((r) => r.sel === ':root').length, 1, ':root doit être défini une seule fois');
   assert.equal(rules.filter((r) => r.sel === ':root[data-theme="dark"]').length, 1);
+  assert.equal(rules.filter((r) => r.sel === ':root[data-look="verre"]').length, 1, 'v452 : un seul bloc de jetons Verre');
   assert.ok(css.trimStart().startsWith(':root'), 'les jetons doivent être en tête du fichier');
 });
 
@@ -30,7 +32,7 @@ test('charte : aucune couleur écrite en dur dans une règle d\'interface', () =
 });
 
 test('charte : un seul rayon (4 px), rond pour les pastilles', () => {
-  const KEEP = /^(\.sheet|\.pin|\.line-badge|\.line-tag|\.st-line|\.hbar)\b/;
+  const KEEP = /^(?::root\[data-(?:look|theme)="[a-z]+"\] )?(\.sheet|\.pin|\.line-badge|\.line-tag|\.st-line|\.hbar)\b/;
   const ok = /^(var\(--r\)|50%|999px|0)( (var\(--r\)|0))*$/;
   const bad = [];
   for (const r of rules) for (const v of decls(r, 'border(?:-top|-bottom)?(?:-left|-right)?-radius')) if (!KEEP.test(r.sel) && !ok.test(v)) bad.push(`${r.sel} → ${v}`);
