@@ -79,7 +79,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (470)';
+const VERSION = '25 novembre 2026 (471)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1500,6 +1500,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   if (filt.arr && name !== 'arrlist' && !String(name).startsWith('detail:')) { filt.arr = 0; renderChips(); renderMarkers(); drawArrOutline(); updateNow(true); }
   const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
+  sheet.classList.toggle('swipe-tabs', name === 'events'); // v459 : la page de Sorties laisse le doigt glisser de côté (onglets)
   markOpen(true); // v331 : la goutte du lieu de cette fiche se distingue (ou plus aucune)
   fill(sheetTitle, ...[title].flat().filter(Boolean));
   setListen(listen); // v432 : « Écouter » dans l'en-tête, seulement pour une page qui a un texte à lire
@@ -1663,6 +1664,22 @@ function setSheetMini(on) {
   };
   head.addEventListener('pointerup', end);
   head.addEventListener('pointercancel', reset);
+}
+{ // v459 : glisser de côté sur Sorties (barre du titre ou page) change d'onglet ; une rangée qui défile de côté, un champ ou une carte gardent leur geste
+  let sw = null; let swiped = false;
+  const sideScroll = (t) => { for (let q = t; q && q !== sheet; q = q.parentElement) if (q.scrollWidth > q.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(q).overflowX)) return true; return false; };
+  sheet.addEventListener('pointerdown', (e) => {
+    swiped = false;
+    sw = view === 'events' && e.isPrimary && !e.target.closest('input, textarea, select, .leaflet-container') && !sideScroll(e.target) ? { x: e.clientX, y: e.clientY } : null;
+  });
+  sheet.addEventListener('pointerup', (e) => {
+    if (!sw) return;
+    const step = swipeStep(e.clientX - sw.x, e.clientY - sw.y);
+    sw = null;
+    if (step && view === 'events') { swiped = true; swipeEventsTab(step); }
+  });
+  sheet.addEventListener('pointercancel', () => { sw = null; });
+  sheet.addEventListener('click', (e) => { if (swiped) { swiped = false; e.stopPropagation(); e.preventDefault(); } }, true); // le doigt levé sur une ligne n'ouvre pas la sortie
 }
 
 /* ---------- Localisation ---------- */
@@ -7722,10 +7739,23 @@ function evFromBtn(o, again) {
     ico(o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, label[0], el('b', {}, label[1])), ico('chevron-down'));
 }
 /** Les onglets de Sorties, soulignés, toujours à la même place (aussi quand l'agenda ne répond pas, v298). */
+const evTabList = () => [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false); /* v282 : le dernier, les autres ne bougent pas */
 function evTabs(mode) {
   return el('div', { class: 'tabs-line', role: 'group', 'aria-label': 'Sorties à afficher' },
-    [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false).map(([m, label]) => /* v282 : le dernier, les autres ne bougent pas */
+    evTabList().map(([m, label]) =>
       el('button', { type: 'button', 'aria-pressed': String(mode === m), onclick: () => { eventsMode = m; openEvents(); } }, label)));
+}
+/** v459 (ma demande du 25 nov.) : glisser de côté sur la fenêtre de Sorties passe à l'onglet voisin, à toutes les hauteurs (réduite comprise) ;
+ *  le même geste que les photos en grand et le bandeau de la carte (`swipeStep`) ; au bout, rien ne boucle. Réduite, elle le reste et un message dit l'onglet. */
+async function swipeEventsTab(step) {
+  const tabs = evTabList();
+  const i = tabs.findIndex(([m]) => m === eventsMode);
+  const j = swipeIndex(Math.max(i, 0), tabs.length, step);
+  if (j === i) return;
+  const mini = sheet.classList.contains('mini');
+  eventsMode = tabs[j][0];
+  await openEvents();
+  if (mini && view === 'events') { setSheetMini(true); toast(`Sorties : ${tabs[j][1]}`); }
 }
 
 async function openEvents(start = null) {
@@ -13099,7 +13129,7 @@ const HELP = [
   ]],
   ['calendar-days', 'Trouver une sortie', [
     '{calendar-days} **Sorties**, dans la colonne de droite : ce qui se passe aujourd\'hui autour du centre de la carte. La carte ne bouge pas.',
-    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Sans passe Navigo : {settings} → Autres réglages → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
+    '**Quatre onglets** : Tout, Gratuit, Expos, Navigo. Glisse le doigt de côté sur la fenêtre pour passer à l\'onglet voisin, à toutes les hauteurs. Sans passe Navigo : {settings} → Autres réglages → « J\'ai un passe Navigo », éteint, retire l\'onglet.',
     '**Le point de départ** est écrit sous les onglets. Touche-le pour choisir : centre de la carte, ta position ou un autre quartier.',
     '**Un autre quartier** : une croix apparaît au centre. Déplace la carte, puis touche le bandeau.',
     '{search} **Chercher**, juste dessous (Tout, Gratuit, Expos) : tape un titre, un lieu ou un artiste. L\'appli cherche dans l\'agenda de la semaine de la Ville, tout Paris, seulement ce que montre l\'onglet : « Chercher du gratuit » ne montre que le gratuit, « Chercher une expo » que les expos. Pas dans Navigo. Ce que tu tapes reste sur le téléphone.',
@@ -13336,6 +13366,8 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
+    '{palette} **Quatre styles** : Réglages → Apparence → Le jour : Papier, Verre (panneaux translucides), Signalétique (fond nuit, plaques jaunes, même le jour) ou Pop (contours noirs, couleurs vives). En sombre, toujours Signalétique. Les boutons restent à leur place.',
     '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
     '{map-pinned} **À mettre à jour sur place** : Réglages → Autres réglages, sous Photos des salles. Les 5 lieux à vérifier les plus proches de toi : salles et points de vue sans ta photo, une tombe célèbre, restos et commerces qui ont pu fermer, horaires de plus d\'un an. Touche-en un : ce qu\'il faut faire, puis Y aller. Fait, il sort de la liste.',
     '{save} **Réglages de référence** : en bas de Réglages, une ligne dit s\'ils sont enregistrés ou changés depuis ; touche-la pour les enregistrer ou y revenir. Plus de gros bouton vert.',
@@ -13344,8 +13376,6 @@ const HELP = [
     '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
     '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
-    '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
-    '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas et Alertes et bandeau ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

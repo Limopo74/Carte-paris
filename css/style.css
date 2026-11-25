@@ -971,6 +971,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; flex-direction: column; border-radius: 18px 18px 0 0; padding-bottom: var(--safe-b); max-height: 58vh; background: var(--bg); box-shadow: 0 -3px 0 var(--hard), 0 -10px 30px rgba(20, 30, 60, .12); }
 .sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 18px; border-bottom: 1px solid var(--line); position: relative; touch-action: none; user-select: none; -webkit-user-select: none; } /* la barre se fait glisser (v166), sans sélectionner le titre */
 .sheet-head::before { content: ''; position: absolute; top: 4px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 999px; background: var(--line); } /* poignée : la barre se fait glisser */
+.sheet.swipe-tabs .sheet-body { touch-action: pan-y; } /* v459 : Sorties, glisser de côté = onglet voisin (le navigateur garde le défilement vertical) */
 .sheet.mini .sheet-body { display: none; } /* réduite (v166) : seule la barre du titre reste, la carte se voit */
 .sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 2px solid var(--ink); background: transparent; }
 #sheetClose .ico svg { width: 24px; height: 24px; } /* v453 : croix dessinée, trait 3 */
