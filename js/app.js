@@ -33,6 +33,7 @@ import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, sms
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
+import { FICHES, FICHES_CHECKED, ficheOf } from './fiches.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
@@ -87,7 +88,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (508)';
+const VERSION = '25 novembre 2026 (509)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5868,6 +5869,8 @@ function crisisBlock() {
     home
       ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
+    // v509 (ma réponse 18, maquette validée) : les bons gestes de la crise, juste sous Rentrer à pied (pas de fiche Grève)
+    ficheOf(crisis.k) ? el('div', { class: 'menu' }, row('list', `Les bons gestes · ${crisisShort(crisis.k)}`, `${ficheOf(crisis.k).gestes.length} gestes, sans réseau`, () => openFiche(crisis.k, back))) : null,
     crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v502 (choix 7 A et 9 A)
     ...(crisis.k === 'crue' ? [floodRows(pos, back)].flat() : []),
     // v508 (ma réponse 20 A) : en Coupure, la radio FM (piles) ; (26 A) en Abri, le lien du niveau Vigipirate, jamais le niveau lui-même
@@ -5890,6 +5893,20 @@ function crisisBlock() {
       offlineRow(() => { if (view === 'near') renderNear(); }), // v493 (réponse 21)
       row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
     el('h3', { class: 'ring-title' }, el('span', {}, 'Autour de moi'), el('span', {}, '')));
+}
+/** v509 (18 A et B) : une fiche « Les bons gestes » ; en bas, la source, le guide officiel et les autres fiches. */
+function openFiche(k, back) {
+  const f = ficheOf(k); if (!f) return;
+  track('Bons gestes');
+  openSheet([ico('list'), ` Les bons gestes · ${crisisShort(k)}`], el('div', { class: 'stack fiche' },
+    el('ol', { class: 'items' }, f.gestes.map(([t, sub], i) => el('li', { class: 'item fiche-geste' },
+      el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, t), sub ? el('span', { class: 'item-sub' }, sub) : null)))),
+    el('a', { class: 'btn', href: f.url, target: '_blank', rel: 'noopener' }, ico('external-link'), f.label),
+    el('p', { class: 'help tip' }, `D'après ${f.source}. Relu le ${FICHES_CHECKED}.`),
+    el('div', { class: 'row fiche-autres' }, Object.keys(FICHES).filter((x) => x !== k).map((x) => el('button', { type: 'button', class: 'btn', onclick: () => openFiche(x, back) }, crisisShort(x)))),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'fiche', again: () => openFiche(k, back) });
 }
 /** v508 (12 bis A, 13 A) : les urgences adultes de l'AP-HP dans Paris, de la plus proche ; Y aller, Appeler ; en bas, la pharmacie de garde. */
 function openUrgences(pos, back) {
@@ -14263,6 +14280,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
     '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
@@ -14272,7 +14290,6 @@ const HELP = [
     '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
     '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
     '{triangle-alert} **Plan de secours** : en mode crise, si le fond de carte ne se charge plus (pas de réseau), les rues gardées sur le téléphone se dessinent à l\'encre, dès que tu zoomes sur ta rue. Prépare-le avant : Mon Paris → Préparer hors ligne.',
-    '{palette} **Le petit point** en haut à droite, dans le coin : chaque appui passe au style suivant, Papier, Verre, Signalétique, Pop, puis de nouveau Papier.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
