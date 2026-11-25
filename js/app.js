@@ -38,6 +38,7 @@ import { RESPIRE_CHECKED, RESPIRE_PAGE, respireSectors, respireOn, respireNow, r
 import { CIRCUIT_THEMES, CIRCUIT_DURATIONS, STOP_MIN, cleanCircuits, circuitTimes, minText, kmText, circuitsFor, pointsNearTrace, circuitOutingId, circuitDone, STEP_PROBLEMS, ROUTE_PROBLEMS, problemLabel, NOTE_TEXT_MAX, cleanCircuitNotes, cleanHiddenCircuits, circuitNoteId, notesOf, notesText } from './circuits.js';
 import { groupPoints, groupCenter, groupLabel, GROUP_MAX_ZOOM } from './groupes.js';
 import { openIdOf, needsCenter } from './lieu-ouvert.js';
+import { rueTraitShown, rueNote } from './rues-calque.js';
 import { sheetStep, SHARE } from './hauteurs.js';
 import { remoteVersionOf, isNewer, shouldCheck, versionNote } from './nouvelle-version.js';
 import { cleanVelo, veloNoteText, veloWeight, VELO_CALM_ZOOM } from './velo.js';
@@ -73,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (428)';
+const VERSION = '25 novembre 2026 (429)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -651,6 +652,7 @@ const initialOf = (name) => (String(name).match(/\p{L}|\p{N}/u)?.[0] ?? '?').toL
 
 // Zoom auquel les gouttes ont été dessinées : à la vue « rue », zoomer encore ne change rien aux groupes (v178).
 let drawnZoom = null;
+let rueShown = null; // v429 : la rue dont le trait est dessiné filtre éteint (sa fiche est ouverte)
 function renderMarkers() {
   pointsLayer.clearLayers();
   markerEls = new Map();
@@ -658,8 +660,10 @@ function renderMarkers() {
   // v384 (mes choix 1A 2A du 24 nov.) : une rue d'intérêt, un trait de la couleur de sa catégorie sous les gouttes ; un appui ouvre sa fiche.
   // v402 (mon choix A du 24 nov.) : couleur pleine bordée d'encre (de clair en sombre), pour ne plus se confondre avec la bande
   // pâle terre cuite d'un passage couvert ; aucun autre trait de la carte n'a ce liseré.
+  // v429 (ma demande du 25 nov.) : le trait n'est dessiné que filtre « Rues d'intérêt » allumé, ou pour la rue dont la fiche est ouverte ; sa goutte reste toujours
+  rueShown = state.showRues ? null : openIdOf(view);
   for (const p of onMap()) {
-    if (!p.line || p.id === moving?.id) continue;
+    if (!rueTraitShown(p, state.showRues, rueShown) || p.id === moving?.id) continue;
     const tap = (e) => { L.DomEvent.stopPropagation(e); if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } if (view === 'rue') { rueTap(e.latlng.lat, e.latlng.lng); return; } if (!moving) openDetail(p.id, arrBack()); };
     const op = p.gone ? 0.35 : 1;
     L.polyline(p.line, { color: ink(), weight: 11, opacity: op, lineCap: 'round', className: 'rue-casing' }).on('click', tap).addTo(pointsLayer);
@@ -1066,6 +1070,12 @@ function centerOn(lat, lng, zoom = map.getZoom(), top = 0) {
 function markOpen(pulse) {
   const id = openIdOf(view);
   if (hideAll && id !== hideShown) { hideShown = id; renderMarkers(); } // v427 (mon choix 4A) : lieux masqués, la goutte de la fiche ouverte seule
+  else if (!state.showRues && (id ?? null) !== rueShown && [id, rueShown].some((x) => x != null && state.points.some((p) => String(p.id) === String(x) && p.line))) { // v429 : filtre éteint, le trait de la rue ouverte paraît, puis s'en va à la fermeture
+    const was = openMarked; renderMarkers(); // redessine, et marque la goutte ouverte (sans palpiter)
+    const n0 = id ? markerEls.get(id)?.m.getElement() : null;
+    if (pulse && n0 && was !== id) { n0.classList.add('pulse'); n0.addEventListener('animationend', () => n0.classList.remove('pulse'), { once: true }); }
+    return;
+  }
   for (const [k, r] of markerEls) {
     const n = r.m.getElement();
     if (k === id) continue;
@@ -1224,6 +1234,9 @@ function renderChips() {
 function openChipsSettings() { openSettings('barre'); } // v304 : sa propre page
 
 /** De qui afficher les lieux : tous, moi, ou une personne dont j'ai importé les lieux. */
+/** v429 : le nombre de mes rues d'intérêt (lieux avec un tracé), et le filtre qui montre leur trait (gardé d'un jour à l'autre). */
+const rueCount = () => state.points.filter((p) => p.line).length;
+function setRueLayer(on) { state.showRues = Boolean(on); persist(); renderMarkers(); drawLayerNote(); }
 /** Les filtres en une feuille : chaque ligne s'allume ou s'éteint d'un appui, le nombre de lieux suit. */
 function openFilters() {
   if (filt.arr) { filt.arr = 0; refresh(); } /* v202 : l'arrondissement ne dure que le temps de sa liste */
@@ -1268,7 +1281,7 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
+    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) || keep('rues', state.showRues) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Touche pour choisir tes lignes', () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
@@ -1281,6 +1294,8 @@ function openFilters() {
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
     !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', 'Trait plein : sans voitures. Pointillé : rue calme', async () => { await setVeloLayer(!state.showVelo); }),
     !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', 'Squares, jardins, parcs et bois de la Ville, en zoomant ; vert clair : ouverts maintenant', () => { setJardinLayer(!state.showJardins); }),
+    // v429 (ma demande du 25 nov.) : le trait de mes rues d'intérêt, éteint au départ, comme les passages couverts ; la goutte reste
+    !keep('rues', state.showRues) ? null : sw(Boolean(state.showRues), 'git-commit-horizontal', 'Rues d\'intérêt', rueCount() ? `Le trait ${rueCount() === 1 ? 'de ta rue' : `de tes ${rueCount()} rues`} ; la goutte reste toujours` : 'Aucune encore : + Ajouter → Un tracé sur la carte', () => { setRueLayer(!state.showRues); }),
     // v364 (mon choix B du 21 nov.) : l'arrondissement en dernier : le plus gros, le moins utile en marchant ; les calques remontent
     ...withTitle('Arrondissement', [
       !keep('arr', false) ? null : arrPicker(),
@@ -1333,7 +1348,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['rues', 'git-commit-horizontal', 'Rues d\'intérêt'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
   openSheet([ico('sliders-horizontal'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -2912,7 +2927,7 @@ function openForm(draft, existing = null) {
     renderMarkers();
     /* v248 : venu d'une recherche, on revient à ses résultats (le lieu y est marqué « Sur ta carte ») pour en ajouter un autre */
     if (existing) openDetail(existing.id); else if (ok && created && draft.onSaved) draft.onSaved(created); else closeSheet();
-    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${planText(draftPlan(draft))}` : ''}`);
+    if (ok) toast(existing ? 'Modifications enregistrées' : `« ${n} » est sur ta carte${Number.isFinite(draft.ticketAt) ? ` · dans Mon planning ${planText(draftPlan(draft))}` : ''}${created?.line && !state.showRues ? ' · son trait : Filtres → Rues d\'intérêt' : ''}`); // v429 : filtre éteint, la nouvelle rue n'a que sa goutte
     if (ok && Number.isFinite(draft.ticketAt)) updateNow(true);
     if (ok && !existing) refreshParkHours().catch(() => {});
   };
@@ -5468,6 +5483,9 @@ function busNote() {
   return drawn.length ? { text: `Bus ${refsText(drawn)} · sans horaires ni sens`, act: 'buslines' }
     : { text: 'Bus : le chemin n\'est pas encore chargé (il faut du réseau)', act: 'buslines' };
 }
+/** v429 : Rues d'intérêt allumées, aucune de mes rues affichées dans le cadre ; un appui montre toutes celles qui sont affichées. */
+const mapBox = () => (({ _southWest: sw, _northEast: ne }) => ({ s: sw.lat, w: sw.lng, n: ne.lat, e: ne.lng }))(map.getBounds());
+const rueNoteNow = () => rueNote(onMap(), state.showRues, mapBox());
 /** v275 : passages couverts allumés, aucun dans le cadre de la carte. */
 const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _southWest: sw, _northEast: ne }) => ({ s: sw.lat, w: sw.lng, n: ne.lat, e: ne.lng }))(map.getBounds())) : null);
 /** v287 (mon choix 1A du 20 nov.) : une rubrique ou un budget choisi dans la liste TTB trie aussi la carte ; l'étiquette le dit tant que TTB est sur la carte (rond marqué « TTB », « Seulement La Table · Tout voir »), un appui remet tout. */
@@ -5476,12 +5494,12 @@ const ttbNote = () => {
 };
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? busNote() ?? veloNote() ?? rueNoteNow();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'rues' ? 'git-commit-horizontal' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
@@ -5495,6 +5513,7 @@ layerNoteBtn.addEventListener('click', () => {
   else if (n?.act === 'refresh') loadVelibLayer();
   else if (n?.act === 'buslines') openMyBusLines();
   else if (n?.act === 'velo') openFilters();
+  else if (n?.act === 'rues') { const ls = onMap().filter((p) => p.line).flatMap((p) => p.line); if (ls.length) map.fitBounds(L.latLngBounds(ls).pad(0.15), { paddingTopLeft: [10, 90], paddingBottomRight: [70, (sheet.hidden ? 0 : sheet.offsetHeight) + 10], maxZoom: 17, animate: false }); } // v429 : comme « Voir les 12 » des passages
   else if (n?.act === 'ttb') { // v287 : toutes les rubriques et tous les budgets, comme en ouvrant l'appli ; « Annuler » remet le tri
     const r = [...ttbRubs], b = [...ttbBudgets];
     const redo = () => { drawTtb(); if (!sheet.hidden && (view === 'ttb-list' || view === 'near')) navStack.at(-1)?.again?.(); };
@@ -12171,7 +12190,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{git-commit-horizontal} **Une rue d\'intérêt** : + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, un trait de la couleur de sa catégorie ; touche-le pour sa fiche.',
+    '{git-commit-horizontal} **Une rue d\'intérêt** : + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, sa goutte ; son trait, de la couleur de sa catégorie, quand Filtres → Rues d\'intérêt est allumé, ou quand sa fiche est ouverte ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment » ; tout en bas, « Café ou snack sur place » et « Boutique sur place » (pas pour un resto ni une boutique), chacun avec une ligne de commentaire quand il est allumé.',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -12195,7 +12214,7 @@ const HELP = [
     '{list} **Une liste** dit pourquoi, quand ou avec qui tu vas dans un lieu, et peut mélanger les catégories (une catégorie dit ce qu\'est le lieu) : « Pour fêter » (un resto, une pâtisserie, un spectacle), « Quand on reçoit des amis », « Avec des enfants », « Idées cadeaux », « Avant le théâtre ». « Nouvelle liste », puis coche ses lieux ; un lieu peut être dans plusieurs listes. Pas besoin de liste pour Favori, À faire, Abrité ou un arrondissement : l\'appli les a déjà.',
     '**Icônes seules en haut** : la barre n\'affiche que les logos. Même page.',
     '**Favori** : étoile ou cœur, et la couleur du contour, dans {settings} → Autres réglages → Favoris.',
-    '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, Vu en passant, tes listes et les lieux de tes proches.',
+    '{list-filter} **Filtres** : Ouvert maintenant, Mes mieux notés (4 étoiles et plus), Abrités, tes listes et les lieux de tes proches.',
     '{map} **Arrondissement** (en bas de Filtres) : touche une case du plan. La carte se place sur l\'arrondissement, le reste de Paris est voilé de gris, et la liste de tes lieux s\'ouvre dessous, rangée par catégorie. Les boutons de catégories du haut filtrent la carte et la liste ensemble. Pour un autre arrondissement : touche-le sur la carte, dans le gris. La flèche réduit la liste pour voir la carte ; la croix la ferme et tous tes lieux reviennent. Calculé sur ton téléphone, même sans réseau.',
     '**Ouvert maintenant** ne garde que les lieux dont on connaît les horaires.',
     '**Les filtres** valent pour la carte, la recherche, Autour de moi et J\'ai du temps. Le chiffre sur le bouton dit combien sont actifs.',
@@ -12204,6 +12223,7 @@ const HELP = [
     '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
+    '{git-commit-horizontal} **Rues d\'intérêt** (Filtres → Afficher aussi sur la carte) : le trait de tes rues d\'intérêt, éteint au départ. Éteint, chaque rue garde sa goutte, et sa fiche ouverte montre son trait. Allumé loin de tes rues, « Aucune rue ici » sous la barre du haut : touche-le pour les voir.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Autres réglages → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
   ['book-open-text', 'TTB', [
@@ -12293,6 +12313,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
     '{lines} **Aller jusqu\'à la station** : dans « Autour de Ⓜ … » (une station touchée sur la carte ou choisie par M), la station s\'affiche sous les boutons, avec Y aller et, si ta position est connue, la distance.',
     '{eye-off} **Masquer tes lieux** : Tout déjà allumé, touche-le : tes lieux disparaissent de la carte (Autour de moi, la loupe et tes listes les gardent). Touche Tout, une catégorie ou « Afficher » sous la barre pour les remettre. À la réouverture de l\'appli, ils reviennent.',
     '{book-open-text} **Mon journal en calendrier**, en haut de Mon Paris : un point sous chaque jour où tu as noté quelque chose (passage, sortie, note du jour). Touche le jour pour le revoir ; ‹ › changent de mois ; « Liste » montre le journal d\'avant. Mon Paris est aussi dans ⋯ Plus de la colonne.',
@@ -12302,7 +12323,6 @@ const HELP = [
     '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
     '{map-pin} **L\'adresse cherchée sur la carte** : dans la loupe, une adresse touchée est marquée d\'un petit rond terre cuite et la carte se place dessus, au-dessus de sa page. Le rond part quand la page se ferme.',
     '{map-pinned} **Les étiquettes des cercles** (« 100 m »…) ne cachent plus ton point bleu : de loin, celle qui le toucherait ne s\'affiche pas ; elle revient quand tu zoomes.',
-    '{locate-fixed} **Un seul point bleu** : dans Sorties, Autour de moi, Vélib\' et les autres listes, ta position n\'est plus dessinée deux fois.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
