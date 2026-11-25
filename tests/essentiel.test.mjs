@@ -29,7 +29,7 @@ test('appliqué deux fois : la disposition d\'avant reste celle d\'origine', () 
 test('une disposition abîmée est nettoyée ou ignorée', () => {
   assert.equal(cleanLayout(null), null);
   assert.equal(cleanLayout([1]), null);
-  assert.deepEqual(cleanLayout({ mapTools: ['x'], hiddenTools: ['home', 'x'], moreTools: ['home', 'velib'] }).moreTools, ['velib', 'circuits', 'notes', 'myparis'], 'un bouton caché n\'est pas aussi dans Plus');
+  assert.deepEqual(cleanLayout({ mapTools: ['x'], hiddenTools: ['home', 'x'], moreTools: ['home', 'velib'] }).moreTools, ['velib', 'circuits', 'notes', 'myparis', 'crise'], 'un bouton caché n\'est pas aussi dans Plus');
 });
 
 test('l\'essentiel et la disposition d\'avant sont gardés ; l\'essentiel part avec la sauvegarde', () => {
@@ -42,6 +42,6 @@ test('l\'essentiel et la disposition d\'avant sont gardés ; l\'essentiel part a
   const back = loadState(st);
   assert.deepEqual(back.essentials, ['home', 'locate']);
   assert.deepEqual(back.moreTools, MAP_TOOLS.filter((t) => !['home', 'locate'].includes(t)));
-  assert.deepEqual(back.layoutBefore.moreTools, ['paris', 'pratique', 'metro', 'velib', 'notes', 'myparis'], 'v440 : la disposition d\'un nouveau venu (Circuits masqué)');
+  assert.deepEqual(back.layoutBefore.moreTools, ['paris', 'pratique', 'metro', 'velib', 'notes', 'myparis', 'crise'], 'v440 : la disposition d\'un nouveau venu (Circuits masqué)');
   assert.deepEqual(readSettings(JSON.parse(exportJSON(back))).essentials, ['home', 'locate']);
 });

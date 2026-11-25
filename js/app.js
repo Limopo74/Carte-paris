@@ -30,6 +30,7 @@ import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, 
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
 import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
+import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
 import { cleanAcces, exitFor, entryFor } from './acces.js';
@@ -83,7 +84,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (489)';
+const VERSION = '25 novembre 2026 (490)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4396,6 +4397,7 @@ function renderNear(fit = false) {
   const maxRing = nearRings().at(-1);
 
   const body = [];
+  if (crisis) body.push(crisisBlock()); // v490 : en mode crise, Autour de moi commence par les gestes utiles (réponse 1)
   // Outils pour se déplacer, en haut pour les voir tout de suite
   const tool = (icon, label, onclick, pressed = null, family = 'c-guide') => el('button', {
     type: 'button', class: `tool ${family}${pressed ? ' on' : ''}`, onclick, 'aria-pressed': pressed == null ? null : String(pressed),
@@ -5774,20 +5776,114 @@ const arcadeNoteNow = () => (state.showPassages ? arcadeNote(arcadesData, (({ _s
 const ttbNote = () => {
   try { return state.showTtb && ttbList().length && (ttbRubs.size || ttbBudgets.size) ? { text: `Seulement ${ttbFilterText(ttbRubs, ttbBudgets)}\u00a0· Tout\u00a0voir`, act: 'ttb' } : null; } catch { return null; } // au démarrage, avant que la partie TTB soit lue
 };
+/* ---------- v490 : Mode crise (js/crise.js ; claude/idee-mode-crise.md, réponses 1 à 6, 11, 14, 16 ; maquette, mon choix 29 A) ----------
+   Gardé sur le téléphone (clé à part, jamais dans la sauvegarde ni chez un proche) ; l'étiquette du haut le dit tant qu'il est allumé. */
+const CRISIS_KEY = 'carte-paris.crise';
+let crisis = (() => { try { return cleanCrisis(JSON.parse(storage.getItem(CRISIS_KEY) ?? 'null')); } catch { return null; } })();
+function saveCrisis() { try { if (crisis) storage.setItem(CRISIS_KEY, JSON.stringify(crisis)); else storage.removeItem(CRISIS_KEY); } catch { /* rien */ } }
+/** Allumer (ou changer de crise). Fontaines et toilettes s'allument pour une crue, une coupure, une canicule (réponse 11). */
+function setCrisis(k) {
+  const c = crisisOf(k); if (!c) return;
+  const pratBefore = crisis ? crisis.pratBefore : state.showPratique === true;
+  crisis = { k, since: crisis?.since ?? Date.now(), pratBefore };
+  saveCrisis();
+  if (c.water && !state.showPratique) setPratLayer(true);
+  if (!c.water && state.showPratique && !pratBefore) setPratLayer(false);
+  drawLayerNote(); renderChips();
+  toast(`Mode crise : ${c.name.toLowerCase()}. Autour de moi commence par les gestes utiles.`);
+}
+/** Terminer : Fontaines et toilettes reviennent comme avant ; « Annuler » rallume la même crise. */
+function endCrisis() {
+  const was = crisis; if (!was) return;
+  crisis = null; saveCrisis();
+  if (state.showPratique && !was.pratBefore) setPratLayer(false);
+  drawLayerNote(); renderChips();
+  toast('Mode crise terminé', false, { label: 'Annuler', fn: () => { setCrisis(was.k); crisis = { ...crisis, since: was.since, pratBefore: was.pratBefore }; saveCrisis(); } });
+}
+/** La page « Mode crise » : toucher une crise l'allume (1 appui) ; allumé, « Terminer le mode crise ». */
+function openCrisis(back = null) {
+  const self = () => openCrisis(back);
+  openSheet([ico('triangle-alert'), ' Mode crise'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, crisis ? 'Touche une autre crise pour changer. Rien ne bouge de place.' : 'Touche la crise : le mode s\'allume. Autour de moi commence alors par les gestes utiles ; rien ne bouge de place.'),
+    el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Quelle crise ?' }, CRISES.map((c) => {
+      const on = crisis?.k === c.k;
+      return el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), 'data-crise': c.k, onclick: () => { if (!on) setCrisis(c.k); closeSheet(); } },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : c.icon)),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, c.sub)));
+    })),
+    crisis ? el('button', { type: 'button', class: 'btn', onclick: () => { endCrisis(); closeSheet(); } }, ico('x'), 'Terminer le mode crise') : null,
+    el('p', { class: 'help tip' }, 'Le mode reste allumé si tu fermes l\'appli : l\'étiquette du haut le dit, et « Terminer » l\'éteint. Il reste sur ce téléphone : ni dans ta sauvegarde, ni chez un proche.'),
+    el('p', { class: 'help' }, 'Crue, coupure, canicule : fontaines et toilettes s\'allument sur la carte. En cas de coupure d\'eau, rien ne dit qu\'elles coulent : vérifie sur place.'),
+    back ? foot(backBtn(back)) : null,
+  ), { tall: true, name: 'crise', again: self });
+}
+/** Le haut d'Autour de moi en mode crise : rentrer à pied, prévenir, alerter (réponses 1, 6, 14, 16). */
+function crisisBlock() {
+  if (!crisis) return null;
+  const home = cleanHome(state.home);
+  const people = cleanAlertContacts(state.alertContacts);
+  const pos = origin?.kind === 'gps' || origin?.kind === 'last' ? origin : freshHere();
+  const back = named('Autour de moi', () => nearAgain());
+  const row = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-guide', onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), sub ? el('span', { class: 'menu-sub' }, sub) : null),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+  return el('div', { class: 'stack crisis-block' },
+    el('h3', { class: 'ring-title' }, el('span', {}, `Mode crise · ${crisisShort(crisis.k)}`), el('span', {}, '')),
+    home
+      ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
+      : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
+    el('div', { class: 'menu' },
+      row('message-square-text', 'Je vais bien', people.length ? `SMS à ${people.map((c) => c.name || c.tel).join(', ')}` : 'Choisis d\'abord tes proches', () => openImOk(back)),
+      ...people.map((c) => el('a', { class: 'menu-row c-guide', href: `tel:${c.tel}` },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('phone')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, `Appeler ${c.name || c.tel}`), el('span', { class: 'menu-sub' }, 'Le téléphone s\'ouvre')))),
+      row('volume-x', 'Alerter en silence', 'SMS au 114, proches, sans bruit', () => (pos ? openSilentAlert(pos, () => '', () => nearAgain(), 'Autour de moi') : openWhereAmI())),
+      row('triangle-alert', 'Changer ou terminer', crisisOf(crisis.k).name, () => openCrisis(back))),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Autour de moi'), el('span', {}, '')));
+}
+/** « Je vais bien » (réponse 14) : un SMS par proche ; la position seulement si je la coche. */
+function openImOk(back) {
+  const people = cleanAlertContacts(state.alertContacts);
+  const self = () => openImOk(back);
+  if (!people.length) { openAlertContacts(self); return; }
+  let withPos = false;
+  const list = el('div', { class: 'stack' });
+  const draw = () => {
+    const at = withPos ? freshHere() : null;
+    fill(list, ...people.map((c) => el('a', { class: 'btn', href: smsHref(c.tel, smsOkText(at)) }, ico('message-square-text'), `Envoyer à ${c.name || c.tel}`)),
+      withPos && !at ? el('p', { class: 'warn' }, 'Ta position n\'est pas connue (localisation coupée ?) : le message partira sans elle. Touche Ma position, puis reviens ici.') : null);
+  };
+  const box = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': 'false', onclick: () => {
+    withPos = !withPos; box.setAttribute('aria-checked', String(withPos)); box.querySelector('.switch').classList.toggle('on', withPos);
+    if (withPos && !freshHere()) locate().then(draw).catch(draw);
+    draw();
+  } },
+  el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map-pin')),
+  el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Avec ma position'), el('span', { class: 'menu-sub' }, 'Un lien vers la carte, dans le message')),
+  el('span', { class: 'switch', 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+  draw();
+  openSheet([ico('message-square-text'), ' Je vais bien'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'L\'appli SMS s\'ouvre avec « Je vais bien. » ; c\'est toi qui touches Envoyer.'),
+    el('div', { class: 'menu' }, box), list,
+    foot(backBtn(back))), { tall: true, name: 'imok', again: self });
+}
+
 let newVersion = 0; // v333 : le numéro d'une version plus récente lue sur le site, sinon 0
 let versionCheckedAt = 0;
-const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? dmrNote() ?? busNote() ?? veloNote() ?? rueNoteNow();
+const layerNoteNow = () => (ESSAI ? { text: 'Essai en cours · Terminer', act: 'essai' } : null) ?? (crisis ? { text: `Crise ${crisisShort(crisis.k).toLowerCase()} · Terminer`, act: 'crise' } : null) ?? (prepDraft ? { text: 'Pour un proche · Arrêter', act: 'prep' } : null) ?? (hideAll ? { text: 'Lieux masqués · Afficher', act: 'showall' } : null) ?? arcadeNoteNow() ?? ttbNote() ?? versionNote(newVersion) ?? layerNoteOf({ velib: velibOn, pratique: Boolean(state.showPratique), jardins: Boolean(state.showJardins), zoom: map.getZoom(), at: velibAt, busy: velibBusy, need: velibNeed }) ?? dmrNote() ?? busNote() ?? veloNote() ?? rueNoteNow();
 function drawLayerNote() {
   const n = layerNoteNow();
   layerNoteBtn.hidden = !n;
   if (!n) return;
-  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'dmr' ? 'message-square-warning' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'rues' ? 'git-commit-horizontal' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
+  fill(layerNoteBtn, n.act === 'ttb' ? ttbDot() : ico(n.act === 'essai' || n.act === 'prep' ? 'x' : n.act === 'crise' ? 'triangle-alert' : n.act === 'update' ? 'rotate-cw' : n.act === 'zoom' ? 'zoom-in' : n.act === 'dmr' ? 'message-square-warning' : n.act === 'buslines' ? 'bus' : n.act === 'velo' ? 'spline' : n.act === 'arcades' ? 'door-open' : n.act === 'rues' ? 'git-commit-horizontal' : n.act === 'showall' ? 'eye-off' : 'bike'), typo(n.text)); // v297 : « 11 h 09 », comme partout (typo)
   layerNoteBtn.disabled = !n.act;
   if (n.act === 'ttb') layerNoteBtn.setAttribute('aria-label', `TTB : ${n.text.replace(/\u00a0/g, ' ')}`); else layerNoteBtn.removeAttribute('aria-label'); // v287 : le rond « TTB » est muet
 }
 layerNoteBtn.addEventListener('click', () => {
   const n = layerNoteNow();
   if (n?.act === 'essai') endEssai(); // v315
+  else if (n?.act === 'crise') endCrisis(); // v490 : « Terminer », avec Annuler dans le message
   else if (n?.act === 'prep') stopPrep(); // v321
   else if (n?.act === 'showall') pressAll(); // v427 : le même geste que Tout
   else if (n?.act === 'update') updateApp(); // v333 : le même geste que Réglages → Autres réglages → Mise à jour et confidentialité
@@ -6738,6 +6834,8 @@ async function openWhereAmI() {
     el('button', { type: 'button', class: 'btn', onclick: () => openSilentAlert(at, () => addrText, openWhereAmI) }, ico('volume-x'), 'Alerter en silence'),
     // v485 (mon choix C du 25 nov.) : sous Alerter en silence ; il ne pousse que les vols et le quartier
     el('button', { type: 'button', class: 'btn', onclick: () => openJeRentre(at, openWhereAmI) }, ico('house'), 'Je rentre : prévenir un proche'),
+    // v490 (mes réponses 2A et 29A du 25 nov.) : sous Je rentre ; il ne pousse que ce qui est dessous (vols, quartier)
+    el('button', { type: 'button', class: 'btn', onclick: () => openCrisis(named('Où suis-je ?', openWhereAmI)) }, ico('triangle-alert'), crisis ? `Mode crise · ${crisisShort(crisis.k)}` : 'Mode crise'),
     delinq,
     quarter,
     el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
@@ -6779,11 +6877,11 @@ async function openWhereAmI() {
    Les liens `sms:` ouvrent l'appli SMS avec le message écrit : c'est moi qui touche Envoyer (js/alerte.js, sources). */
 const ATTAQUE_URL = 'https://www.info.gouv.fr/risques/reagir-en-cas-dattaque-terroriste'; // lue le 25 nov. 2026 (modifiée le 22/06/2026)
 const MASECURITE_URL = 'https://www.masecurite.interieur.gouv.fr/fr'; // v484 : tchat avec un policier ou un gendarme, 24 h/24 (info.gouv.fr, lu le 25 nov. 2026)
-function openSilentAlert(at, addrOf = () => '', back = null) {
+function openSilentAlert(at, addrOf = () => '', back = null, backName = 'Où suis-je ?') {
   const people = cleanAlertContacts(state.alertContacts);
   const addr = addrOf() || '';
   const who = (c) => c.name || c.tel;
-  const self = () => openSilentAlert(at, addrOf, back);
+  const self = () => openSilentAlert(at, addrOf, back, backName);
   const body = el('div', { class: 'stack' },
     el('p', { class: 'warn' }, el('b', {}, 'D\'abord :'), ' mets le téléphone en silencieux, coupe la vibration, baisse la lumière. L\'appli ne peut pas le faire à ta place.'),
     el('p', { class: 'summary' }, `Tu es : ${addr || `${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`}`),
@@ -6818,7 +6916,7 @@ function openSilentAlert(at, addrOf = () => '', back = null) {
         el('p', { class: 'help tip' }, 'Méthode des 5D (association Right To Be), reprise par la RATP (ratp.fr/avecvous) et le programme Stand Up.'))),
     el('p', { class: 'help tip' }, 'Sources : info.gouv.fr, « Réagir en cas d\'attaque terroriste » ; le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr) ; 31177 : RATP et SNCF.'),
     el('p', { class: 'help tip' }, 'Ma Sécurité : ministère de l\'Intérieur, tchat avec un policier ou un gendarme à toute heure (info.gouv.fr).'),
-    foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Où suis-je ?') : null),
+    foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, `← ${backName}`) : null),
   );
   openSheet([ico('volume-x'), ' Alerter en silence'], body, { name: 'alerte', again: self, tall: true, onClose: applyTheme });
   // L'écran en sombre, le temps qu'il est ouvert (moins de lumière) ; le style de l'appli revient en le quittant
@@ -13161,6 +13259,7 @@ document.getElementById('btnPlanning').addEventListener('click', () => openPlann
 document.getElementById('btnCircuits').addEventListener('click', () => openCircuits());
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
 document.getElementById('btnMyParis').addEventListener('click', () => openMyParis('map'));
+document.getElementById('btnCrise').addEventListener('click', () => openCrisis()); // v490
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
 document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
 // v469 (mon choix 2A du 25 nov.) : un appui = « Sauvegarder maintenant » de Réglages (photos comprises), le rond part quand c'est fait
@@ -13204,6 +13303,7 @@ const TOOL_INFO = {
   notes: { el: 'btnNotes', icon: 'notebook-pen', name: 'Note du jour (sans lieu)', short: 'Note du jour' },
   vu: { el: 'btnVu', icon: 'camera', name: 'Vu en passant : une photo tout de suite', short: 'Vu en passant' },
   myparis: { el: 'btnMyParis', icon: 'map', name: 'Mon Paris (journal, planning, chiffres)', short: 'Mon Paris' }, // v426 (mon choix 0C) : arrive dans ⋯ Plus
+  crise: { el: 'btnCrise', icon: 'triangle-alert', name: 'Mode crise (crue, coupure, canicule, abri, grève)', short: 'Mode crise' }, // v490 (mes réponses 2A et 29A) : arrive dans ⋯ Plus
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
 function applyEssential() {
@@ -13536,6 +13636,7 @@ const HELP = [
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
+    '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, Je vais bien, Appeler un proche, Alerter en silence. Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13726,6 +13827,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
     '{phone} **Police 17** à côté d\'Urgences 112 et Samu 15 dans Où suis-je ? ; « Appeler le 34 30 (pas urgent) » sous les commissariats d\'Autour de moi.',
     '{users} **Témoin d\'un harcèlement** : dans Alerter en silence, tout en bas, « Tu es témoin : les 5D » (replié) dit quoi faire sans te mettre en danger.',
     '{volume-x} **On te suit, on t\'embête** : dans Alerter en silence (Où suis-je ?), sous les réflexes : rejoindre du monde, appeler un proche, Police 17, et Ma Sécurité après coup.',
@@ -13735,7 +13837,6 @@ const HELP = [
     '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et au 31177 dans le métro, le RER ou le bus, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
     '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
     '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
-    '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -13793,7 +13894,7 @@ const WELCOME_TOOL_LINES = {
   locate: 'le point bleu, c\'est toi.', sorties: 'l\'agenda.', planning: 'ce que tu as prévu.',
   vu: 'une photo, vite.', home: 'le métro pour rentrer.', metro: 'la station la plus proche.',
   velib: 'la station Vélib\' la plus proche.', pratique: 'fontaine et toilettes les plus proches.', paris: 'la carte revient au centre de Paris.',
-  notes: 'une note du jour, sans lieu.', myparis: 'ton journal, ton planning, tes chiffres.', circuits: 'des balades toutes prêtes.',
+  notes: 'une note du jour, sans lieu.', myparis: 'ton journal, ton planning, tes chiffres.', circuits: 'des balades toutes prêtes.', crise: 'crue, coupure, canicule, abri, grève.',
 };
 function welcomeLines() {
   const hidden = hiddenNow(); const more = moreList();

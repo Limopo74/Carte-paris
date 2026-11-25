@@ -18,7 +18,7 @@ test('1A : son ordre des boutons du haut, de la colonne et des catégories part 
   assert.deepEqual(back.chipOrder.slice(0, 2), ['lines', 'street']);
   const s = applyPreset(fresh(), back);
   assert.deepEqual(barOrderOf(s.chipOrder, []).slice(0, 2), ['lines', 'street']);
-  assert.deepEqual(s.mapTools.filter((t) => t !== 'myparis').slice(0, 3), ['vu', 'paris', 'locate']); // v381 : Vu en passant, nouveau, arrive en tête
+  assert.deepEqual(s.mapTools.filter((t) => t !== 'myparis' && t !== 'crise').slice(0, 3), ['vu', 'paris', 'locate']); // v381 : Vu en passant, nouveau, arrive en tête
   assert.ok(s.moreTools.includes('myparis'), 'v426 : Mon Paris, plus récent que la préparation, arrive dans ⋯ Plus, pas sur la carte');
   assert.deepEqual(s.categories.slice(0, 3).map((c) => c.id), p.categories.map((c) => c.id));
   assert.equal(cleanPreset({}).chipOrder, null, 'ordre de départ');

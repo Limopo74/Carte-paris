@@ -34,7 +34,7 @@ test('les mots comparent seulement à Paris, jamais de classement ni de « dange
 });
 
 test('Où suis-je ? : le bloc sous les boutons (rien ne bouge), arrondissement trouvé sur le téléphone, source et réserve dans l\'Aide', () => {
-  assert.match(app, /secoursRow\(\),\n(?:.*\n){0,4}?\s+delinq,\n\s+quarter,/);
+  assert.match(app, /secoursRow\(\),\n(?:.*\n){0,6}?\s+delinq,\n\s+quarter,/);
   assert.match(app, /showDelinq\(arrOfPoint\(at\)\);/);
   assert.match(app, /fetch\('data\/delinquance\.json'\)/);
   assert.match(app, /leurs barres sont gonflées\. Rien ne dit ce qui se passe dans une rue\. Source : SSMSI/);
