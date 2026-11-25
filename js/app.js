@@ -54,7 +54,7 @@ import { byDay, monthCells, addMonth, monthRange, clampMonth, sameMonth, monthLa
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
-import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList } from './planning.js';
+import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList, legText, dayWalkText } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, searchArtists, fold } from './search.js';
@@ -82,7 +82,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (482)';
+const VERSION = '25 novembre 2026 (483)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4833,6 +4833,21 @@ function placeSteps(steps) {
   return { steps: out, legs };
 }
 
+/** v479 : les bouts de la liste du jour par les rues (plan des rues déjà sur le téléphone) ; la page ouverte se met à jour sur place.
+ *  Un bout introuvable garde son estimation (et le total reste « ≈ »). */
+let dayLegsRun = 0; // la dernière page ouverte seulement : une page redessinée entre-temps ne reçoit pas d'anciens bouts
+async function dayLegsByStreets(list, legs) {
+  const run = ++dayLegsRun;
+  if (!(streets ?? await loadStreets())) return;
+  for (let i = 1; i < list.length; i++) {
+    const r = await walkRouteTo(list[i], { lat: list[i - 1].lat, lng: list[i - 1].lng });
+    if (r) legs[i - 1] = { m: r.m, min: routeMinutes(r.m), exact: true };
+  }
+  if (view !== 'planning' || run !== dayLegsRun) return;
+  document.querySelectorAll('#sheet .day-leg').forEach((s) => { const k = Number(s.dataset.leg); const t = legText(legs[k - 1], k); if (t) s.textContent = t; });
+  const tot = document.querySelector('#sheet .day-walk');
+  if (tot) fill(tot, ico('footprints'), ` ${dayWalkText(legs, fmtDist)}`);
+}
 /** v383 (mes choix 3A 4A du 24 nov.) : le chemin à pied par les rues de `pos` (ma position, ou chez moi) jusqu'au lieu, calculé sur le
  *  téléphone avec le plan des rues s'il y est déjà (jamais téléchargé ici). null sans plan, ou si un bout est à plus de 60 m d'une rue :
  *  la plaque garde alors son estimation. */
@@ -6243,7 +6258,11 @@ function openPlanning(from = null) {
   const next = list[0] ?? null;
   const pos = startHere();
   const dNext = next && pos ? distanceM(pos, next) : null;
-  const tagNext = next ? hoursTag(next) : null; // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
+  const tagNext = next ? hoursTag(next) : null;
+  // v479 (mes choix 1A 2A 3A 4A du 25 nov.) : la marche d'un lieu de la liste au suivant ; d'abord estimée (≈), puis par les rues
+  // si le plan des rues est déjà sur le téléphone (jamais téléchargé ici, rien ne part : le calcul se fait sur le téléphone)
+  const legs = list.slice(1).map((p, i) => ({ min: walkMinutes(placeDistM(list[i], p)), exact: false }));
+  if (legs.length) dayLegsByStreets(list, legs); // dit seulement ce qui demande d'y penser : « Ouvre à 14h », « Ferme dans 20 min », « Fermé »
   const todayBlock = [
     el('h3', { class: 'ring-title' }, el('span', {}, todayLabel), list.length + timed.length ? el('span', {}, String(list.length + timed.length)) : null),
     next ? el('p', { class: 'summary day-next' }, `Prochain lieu : ${next.name}`, tagNext && !tagNext.classList.contains('open') ? [' ', tagNext] : null) : null,
@@ -6258,8 +6277,9 @@ function openPlanning(from = null) {
         el('span', { class: 'step-num', 'aria-hidden': 'true' }, String(i + 1)),
         el('span', { class: 'item-text' },
           el('span', { class: 'item-name' }, p.name),
-          el('span', { class: 'item-sub' }, [catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · '), ' ', hoursTag(p))),
+          el('span', { class: 'item-sub' }, i ? el('span', { class: 'day-leg', 'data-leg': String(i) }, legText(legs[i - 1], i)) : null, [i ? '' : catOf(p.cat).name, arrLabel(p)].filter(Boolean).map((x) => (i ? ` · ${x}` : x)).join(i ? '' : ' · '), ' ', hoursTag(p))), /* v479 : du n° 2, les minutes depuis le précédent à la place de la catégorie (une ligne à 360 px) */
         el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right')))))) : null,
+    list.length >= 2 ? el('p', { class: 'summary day-walk' }, ico('footprints'), ` ${dayWalkText(legs, fmtDist)}`) : null, /* v479 : le total, juste sous la liste numérotée, avant les sorties à heure fixe */
     next ? null : el('p', { class: 'help' }, 'Note ici les lieux que tu veux faire aujourd\'hui : tu iras de l\'un à l\'autre d\'un appui.'),
     timed.length ? el('ul', { class: 'items' }, timed.map(planLine)) : null,
     list.length >= 2 && list.length <= MAX_ROUTE ? el('a', { class: 'btn', href: routeUrl(list), target: '_blank', rel: 'noopener' }, ico('route'), 'Tout le parcours · Google Maps') : null,
@@ -13427,6 +13447,7 @@ const HELP = [
     '{alarm-clock} **Mon planning** : tes sorties prévues, jour par jour : tes lieux et les sorties de l\'agenda.',
     '{check} **Aujourd\'hui**, en tête de Mon planning : la liste des lieux que tu veux faire dans la journée, 8 au plus. « Ajouter des lieux » : coche-les, ou cherche un nom ; un lieu pas encore sur ta carte : « Chercher … dans Paris », il revient coché. Depuis une fiche : Prévoir → Aujourd\'hui → Enregistrer, sans choisir de moment.',
     '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
+    '{footprints} **Entre deux lieux du jour** : sous chaque lieu, les minutes à pied depuis le précédent (« 8 min du n° 1 ») ; sous la liste, le total. Par les rues si le plan des rues de Mes parcours est sur ton téléphone, sinon estimées (« ≈ »).',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
@@ -13634,6 +13655,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{footprints} **Mon planning, entre tes lieux** : sous chaque lieu du jour, les minutes à pied depuis le précédent ; sous la liste, la distance et la durée de tout le parcours.',
     '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
     '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
     '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
@@ -13643,7 +13665,6 @@ const HELP = [
     '{locate} **Vols enregistrés, en un coup d\'œil** : dans Où suis-je ?, sous les boutons, deux barres comparent ton arrondissement à Paris (vols violents sans arme, vols sans violence). Chiffres du ministère de l\'Intérieur, une fois par an : rien de plus fin que l\'arrondissement n\'est publié.',
     '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
-    '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
