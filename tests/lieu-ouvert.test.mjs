@@ -33,7 +33,7 @@ test('lieu ouvert : app.js marque la goutte et ne centre depuis une liste que si
 });
 
 test('lieu ouvert : la marque se voit, la palpitation respecte « Supprimer les animations »', () => {
-  assert.match(css, /\.pin-wrap\.is-open \.pin \{[^}]*scale\(1\.4\)/);
+  assert.match(css, /\.pin-wrap\.is-open \.pin \{[^}]*scale\(calc\(1\.4 \* var\(--pk, 1\)\)\)/); // 3A (25 nov.) : 1,4 fois la goutte, normale ou grande
   assert.match(css, /\.pin-wrap\.is-open \.pin \{[^}]*var\(--ink\)[^}]*!important/, 'anneau encre, même sur un favori');
   const reduced = css.match(/@media \(prefers-reduced-motion: no-preference\) \{[^@]*open-pulse/);
   assert.ok(reduced, 'animation seulement sans réduction des mouvements');

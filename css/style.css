@@ -1013,7 +1013,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .wx-badge { position: fixed; display: inline-flex; align-items: center; padding: 0 12px; color: var(--ink); font: inherit; font-size: var(--t14); z-index: 499; left: 10px; top: 66px; min-height: var(--h-s); gap: 6px; border-radius: var(--r); border: 2px solid var(--btn-bd); background: var(--bg); box-shadow: var(--float); font-family: var(--display); font-weight: 600; }
 
 /* ---- Épingles : goutte qui pointe le lieu exact ---- */
-.pin { position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; color: #fff; width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg); border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); }
+.pin { position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; color: #fff; width: 32px; height: 32px; border-radius: 50% 50% 50% 6px; transform: translateY(calc(-22.6px * (var(--pk, 1) - 1))) rotate(-45deg) scale(var(--pk, 1)); border: none; box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); }
 .pin > svg, .pin > .pin-in { transform: rotate(45deg); }
 .pin-fav { position: absolute; font-size: 13px; line-height: 1; border-radius: 50%; padding: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); display: inline-flex; align-items: center; justify-content: center; transform: rotate(45deg); top: -8px; right: -8px; }
 /* Lieu d'un proche : son initiale dans une pastille, côté droit de la goutte (le favori est en haut) */
@@ -1034,15 +1034,17 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
   width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: var(--disc); color: var(--bg); box-shadow: 0 0 0 1.5px var(--bg);
 }
-.z-far .pin { transform: rotate(-45deg) scale(.72); }
+.z-far .pin { transform: translateY(calc(-16.3px * (var(--pk, 1) - 1))) rotate(-45deg) scale(calc(.72 * var(--pk, 1))); }
+/* 3A (25 nov.) : taille des gouttes ; la pointe reste sur le lieu */
+:root:is([data-pins="grand"]) #map { --pk: 1.3; }
 .pin.gone { filter: grayscale(1); opacity: .6; } /* œuvre disparue ou recouverte (v161) : grise, toujours touchable */
 /* Plusieurs de mes lieux vus de loin (v178) : goutte encre un peu plus grande, avec leur nombre ; jamais réduite de loin. */
 .pin.pin-group { width: 36px; height: 36px; background: var(--ink); box-shadow: 0 0 0 2.5px #fff, 0 3px 0 rgba(0, 0, 0, .25); cursor: pointer; }
 .pin.pin-group .pin-in { color: var(--bg); font: 800 15px/1 var(--display); }
 .pin.pin-group.big .pin-in { font-size: 13px; }
-.z-far .pin.pin-group { transform: rotate(-45deg); }
+.z-far .pin.pin-group { transform: translateY(calc(-25.5px * (var(--pk, 1) - 1))) rotate(-45deg) scale(var(--pk, 1)); }
 /* v331 : la goutte du lieu dont la fiche est ouverte : plus grosse (pointe au même endroit), anneau encre, devant les autres ; deux palpitations à l'ouverture */
-.pin-wrap.is-open .pin { transform: translateY(-9px) rotate(-45deg) scale(1.4); box-shadow: 0 0 0 2.5px #fff, 0 0 0 6px var(--ink), 0 3px 6px rgba(0, 0, 0, .35) !important; }
+.pin-wrap.is-open .pin { transform: translateY(calc(-22.6px * (1.4 * var(--pk, 1) - 1))) rotate(-45deg) scale(calc(1.4 * var(--pk, 1))); box-shadow: 0 0 0 2.5px #fff, 0 0 0 6px var(--ink), 0 3px 6px rgba(0, 0, 0, .35) !important; }
 .pin-wrap.is-open .seen-pin { transform: scale(1.35); border-radius: 50%; box-shadow: 0 0 0 6px var(--ink); }
 @media (prefers-reduced-motion: no-preference) {
   .pin-wrap.is-open.pulse .pin { animation: open-pulse .7s ease-in-out 2; }

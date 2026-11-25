@@ -9,7 +9,7 @@ import { startOk as mesureStartOk, progress as mesureProgress, result as mesureR
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
-import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize,
+import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize, PIN_SIZES, cleanPinSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
   addCategory, DEFAULT_FAV, updateCategory, deleteCategory, moveCategory, moveChip, moveChipIn, chipGroupOf, chipOrderOf, barOrderOf, addSub, renameSub, deleteSub, moveSub, seenOrderOf, subNameOf, SUB_MAX, foldName, cleanChipOrder, MOVABLE_CHIPS, moveTool, moveToolIn, cleanLine, normalizeTools, cleanHidden, addList, addMyStation, removeMyStation, setMyStationBus, stationBusStops, BUS_STOPS_MAX, saveMySettings, applyMySettings, sameAsMySettings, renameList, deleteList, setListMembers, setFavStyle, setDone, exportFileName, exportSettingsJSON, settingsFileName, readSettingsFile, settingsAdds, applySettingsFile, suggestedPresets, backupDue, trackChange, backupHash, savedBackup,
   fileOwner, owners, exportForFriend, sendPoints, sendPlans, friendFileName, ttbFileName, SEND_DEFAULT, mergeFriend, startViewOf, cleanCartoKey, cleanServeNote,
@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (460)';
+const VERSION = '25 novembre 2026 (461)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -163,7 +163,7 @@ function ficheShows(key) { return !cleanFicheHidden(state.ficheHidden).includes(
 setWalkSpeed(paceKmh(state.pace)); // Mon pas : toutes les durées à pied de l'appli
 setWalkLimit(tune('walkM')); // Y aller : à pied jusqu'à la distance réglée (v214)
 /** Taille du texte (v144) : le CSS multiplie l'échelle selon :root[data-text]. */
-function applyTextSize() { document.documentElement.dataset.text = cleanTextSize(state.textSize); }
+function applyTextSize() { document.documentElement.dataset.text = cleanTextSize(state.textSize); document.documentElement.dataset.pins = cleanPinSize(state.pinSize); } /* 3A : la taille des gouttes, avec celle du texte */
 applyTextSize();
 /** Horaires de la Ville pour mes lieux qui sont des parcs sans horaires (id → horaires), recalculés quand la liste des parcs arrive. */
 const parkHoursById = new Map();
@@ -10817,6 +10817,15 @@ function openSettings(section = null, from = null) {
       el('div', { class: 'text-preview' },
         el('p', { class: 'menu-title' }, 'Musée Carnavalet'),
         el('p', { class: 'menu-sub' }, 'Musée · 3e · ouvert jusqu\'à 18h · 12 min à pied')),
+      // 3A (25 nov.) : sous l'aperçu, il ne pousse rien ; Normales au départ
+      el('p', { class: 'legend' }, 'Gouttes de mes lieux sur la carte'),
+      el('div', { class: 'seg', role: 'group', 'aria-label': 'Gouttes de mes lieux sur la carte' },
+        ...PIN_SIZES.map((k) => el('button', { type: 'button', 'aria-pressed': String(cleanPinSize(state.pinSize) === k), 'data-pin-size': k, onclick: () => {
+          if (cleanPinSize(state.pinSize) === k) return;
+          state.pinSize = k; persist(); applyTextSize(); openSettings('texte'); toast(k === 'grand' ? 'Gouttes plus grandes sur la carte' : 'Gouttes de taille normale sur la carte');
+          requestAnimationFrame(() => document.querySelector(`[data-pin-size="${k}"]`)?.focus());
+        } }, PIN_NAME[k]))),
+      el('p', { class: 'help' }, 'Plus faciles à toucher, mais elles se chevauchent plus.'),
       backBtn,
     ), { tall: true, name: 'settings:texte', again: () => openSettings('texte') });
     requestAnimationFrame(() => document.querySelector(`[data-text-size="${cur}"]`)?.focus());
@@ -11451,7 +11460,7 @@ function openSettings(section = null, from = null) {
     } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('rotate-ccw')), /* une action, pas une page : pas de › */
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Comme le téléphone'), el('span', { class: 'menu-sub' }, 'Clair ou sombre selon son réglage'))) : null,
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
-    row('a-large-small', 'Taille du texte', TEXT_NAME[cleanTextSize(state.textSize)], () => openSettings('texte'), false, 'c-guide'),
+    row('a-large-small', 'Taille du texte', `${TEXT_NAME[cleanTextSize(state.textSize)]} · gouttes ${PIN_NAME[cleanPinSize(state.pinSize)].toLowerCase()}`, /* 3A */ () => openSettings('texte'), false, 'c-guide'),
     row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
     row('arrow-up-down', 'Boutons de la carte', 'Ordre, côté, noms, carte, Plus ou masqué', () => openSettings('outils'), false, 'c-guide'),
     // v322 (mon choix 1a) : les 18 réglages qu'on fait une fois ; en dernier de « Ce qui s'affiche », il ne pousse rien d'autre
@@ -12581,6 +12590,7 @@ function restoreLayout() {
 }
 /** Taille du texte (v144) : noms des trois tailles. */
 const TEXT_NAME = { normal: 'Normal', grand: 'Grand', tresgrand: 'Très grand' };
+const PIN_NAME = { normal: 'Normales', grand: 'Grandes' }; // 3A (25 nov.)
 /** Mon pas (v142) : noms des trois modes et vitesse écrite à la française (« 3,5 »). */
 const PACE_NAME = { rapide: 'Rapide', normal: 'Normal', tranquille: 'Tranquille' };
 const kmhText = (k) => String(k).replace('.', ',');
@@ -13074,6 +13084,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
@@ -13083,7 +13094,6 @@ const HELP = [
     '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place. Le soir, ⌄ à côté a le même contour.',
     '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
-    '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
