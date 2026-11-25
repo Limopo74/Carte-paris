@@ -43,3 +43,24 @@ export function smsProcheText(at, addr = '') {
 
 /** Lien qui ouvre l'appli SMS (Android) avec le numéro et le message. */
 export const smsHref = (tel, text) => `sms:${tel}?body=${encodeURIComponent(text)}`;
+
+/* v485 (mon choix C du 25 nov.) : SMS au 31177, le numéro d'alerte de la RATP et de la SNCF en Île-de-France (agression, harcèlement,
+   danger dans les transports ; ratp.fr « Comment signaler une agression ou un comportement déplacé ? », iledefrance-mobilites.fr).
+   Aucune heure d'ouverture écrite : Île-de-France Mobilités et Transilien ne disent pas la même chose. */
+export const TRANSPORT_SMS = '31177';
+/** Le message prêt : je ne peux pas parler ; la ligne et la station, je les écris (ma position seule ne dit pas dans quel train je suis). */
+export const sms31177Text = () => 'Je ne peux pas parler. Ligne : … Station ou direction : … Ce qui se passe : ';
+
+/** v485 : « Je rentre », avec l'heure d'arrivée arrondie aux 5 minutes du dessus, seulement si elle a un sens (90 min à pied au plus). */
+export const JE_RENTRE_MAX_MIN = 90;
+export function arrivalText(minutes, now = new Date()) {
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > JE_RENTRE_MAX_MIN) return '';
+  const t = new Date(now.getTime() + minutes * 60000);
+  const m = Math.ceil(t.getMinutes() / 5) * 5;
+  t.setMinutes(m, 0, 0); // 60 passe à l'heure suivante
+  return `${t.getHours()} h ${String(t.getMinutes()).padStart(2, '0')}`;
+}
+export function jeRentreText(minutes, now = new Date()) {
+  const at = arrivalText(minutes, now);
+  return at ? `Je rentre à pied, j'arrive vers ${at}.` : 'Je rentre.';
+}
