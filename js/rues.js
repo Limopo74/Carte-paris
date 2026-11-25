@@ -135,7 +135,9 @@ export function snap(P, pt, maxM = SNAP_MAX_M) {
 }
 
 /** Coût d'un tronçon : sa longueur, multipliée si c'est un parc ou un passage couvert qu'on n'a pas choisi. */
-const cost = (P, i, allow) => P.em[i] * ((P.ef[i] & (PARK | COVERED)) & ~allow ? AVOID : 1) * (P.pen ? P.pen[i] : 1); // pen : outil des circuits (tools/circuits/sans-retour.mjs), jamais dans l'appli
+/** v505 suite (mon choix 1A du 25 nov.) : `P.okPark` (Uint8Array, un octet par tronçon), posé le temps d'une Boucle à courir :
+ *  un tronçon de parc marqué 1 (parc ouvert maintenant et jusqu'au retour, d'après ses horaires publiés) n'est plus évité. */
+const cost = (P, i, allow) => P.em[i] * ((P.ef[i] & (PARK | COVERED)) & ~allow & ~(P.okPark?.[i] ? PARK : 0) ? AVOID : 1) * (P.pen ? P.pen[i] : 1); // pen : outil des circuits (tools/circuits/sans-retour.mjs), jamais dans l'appli
 
 /** Petit tas binaire (nœud, coût). */
 class Heap {

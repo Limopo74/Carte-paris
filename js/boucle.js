@@ -60,8 +60,13 @@ function cornerAt(aim, side, waters) {
  * water (coins posés sur une fontaine), corners (les deux coins, posés sur une rue : pour la garder dans Mes parcours) } ou null si aucune n'est à 10 % près de `targetM` sans trop revenir sur ses pas.
  * `start` : le départ posé sur le plan (snap). `fountains` : [{ lat, lng, ok }] ; seules celles en service comptent.
  */
-export function planLoop(P, start, targetM, { fountains = [], bearings = BEARINGS, tries = TRIES } = {}) {
+export function planLoop(P, start, targetM, { fountains = [], bearings = BEARINGS, tries = TRIES, okPark = null } = {}) {
   if (!P || !start || !(targetM > 0)) return null;
+  // Choix 1A : les parcs ouverts jusqu'au retour (okPark, voir parksOpen) ne sont plus évités, le temps du calcul seulement
+  const saved = P.okPark; P.okPark = okPark;
+  try { return loopIn(P, start, targetM, fountains, bearings, tries); } finally { P.okPark = saved; }
+}
+function loopIn(P, start, targetM, fountains, bearings, tries) {
   const waters = fountains.filter((f) => f && f.ok !== false && Number.isFinite(f.lat) && Number.isFinite(f.lng) && dist(start, f) < targetM);
   const found = [];
   for (let k = 0; k < bearings; k++) {
@@ -92,6 +97,32 @@ export function planLoop(P, start, targetM, { fountains = [], bearings = BEARING
   const best = found[0];
   const line = best.legs.flatMap((l, i) => (i ? l.line.slice(1) : l.line));
   return { ...best, line };
+}
+
+/**
+ * Choix 1A : les tronçons de parc permis pour la boucle : Uint8Array (1 = permis) des tronçons marqués parc dont le milieu
+ * est dans un jardin de `jardins` (contours de data/jardins.json) pour lequel `isOpen(jardin)` est vrai (ouvert maintenant et
+ * jusqu'au retour, d'après ses horaires publiés ; l'appli écarte aussi les cimetières et le grand vent). Seulement à `radiusM`
+ * du départ. `inside(point, rings)` : le test du contour (js/jardins.js).
+ */
+export function parksOpen(P, start, radiusM, jardins, isOpen, inside, PARK_FLAG) {
+  if (!P || !start || !Array.isArray(jardins) || !jardins.length) return null;
+  const open = jardins.filter((j) => j?.rings?.length && dist(start, j) <= radiusM + 2000 && isOpen(j));
+  if (!open.length) return null;
+  const boxes = open.map((j) => { const pts = j.rings.flat(); const la = pts.map((q) => q[0]); const lo = pts.map((q) => q[1]); return [Math.min(...la), Math.max(...la), Math.min(...lo), Math.max(...lo)]; });
+  const ok = new Uint8Array(P.E); let any = false;
+  for (let i = 0; i < P.E; i++) {
+    if (!(P.ef[i] & PARK_FLAG)) continue;
+    const a = P.ea[i]; const b = P.eb[i];
+    const mid = { lat: (P.lat[a] + P.lat[b]) / 2, lng: (P.lng[a] + P.lng[b]) / 2 };
+    if (dist(start, mid) > radiusM) continue;
+    for (let k = 0; k < open.length; k++) {
+      const [s0, n0, w0, e0] = boxes[k];
+      if (mid.lat < s0 || mid.lat > n0 || mid.lng < w0 || mid.lng > e0) continue;
+      if (inside(mid, open[k].rings)) { ok[i] = 1; any = true; break; }
+    }
+  }
+  return any ? ok : null;
 }
 
 /**

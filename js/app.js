@@ -8,7 +8,7 @@ const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, durText, walkWhen, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
 import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints, edgesInBox , routeOut, OFFGROUND } from './rues.js';
-import { LOOP_KM, planLoop, alongLine, cleanRunPace, stepRunPace, runPaceText, runKmhText, runMinutes } from './boucle.js'; // v505 : Boucle à courir, mon allure
+import { LOOP_KM, planLoop, parksOpen, alongLine, cleanRunPace, stepRunPace, runPaceText, runKmhText, runMinutes } from './boucle.js'; // v505 : Boucle à courir, mon allure
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize, PIN_SIZES, cleanPinSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -78,7 +78,7 @@ import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
 import { cleanCimetieres, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
 import { cleanDelinq, delinqRows } from './delinquance.js';
-import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks } from './jardins.js';
+import { JARDIN_ZOOM, NEAR_M as JARDIN_NEAR_M, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks, inRings } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
@@ -86,7 +86,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (506)';
+const VERSION = '25 novembre 2026 (507)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2092,6 +2092,7 @@ function setHomeOn(on, { quiet = false } = {}) {
   drawWx();
   if (view === 'weather') openWeather(true); // v239 : la ligne Chez moi de la page Météo suit
   else if (view === 'settings:chezmoi') openHomeSettings(); // v241 : l'interrupteur de Réglages → Chez moi suit aussi « Annuler » du message
+  else if (view === 'runloop') openRunLoop(loopBack ?? undefined); // v507 : la Boucle à courir aussi
   if (!quiet) toast(next ? `Distances depuis chez toi (${homeShort(state.home)})` : 'Distances depuis ta position', false, { label: 'Annuler', fn: () => setHomeOn(!next, { quiet: true }) });
 }
 
@@ -10156,17 +10157,32 @@ function openFreeTime() {
    Rien n'est proposé si aucune boucle n'est à 10 % près de la longueur choisie. Ma position ne part nulle part. ---------- */
 let loopKm = 5;
 let loopRun = 0; // la dernière page ouverte seulement reçoit sa boucle
-const LOOP_PAUSE_M = PAUSE_DETOUR_M / 2; // à 75 m du tracé au plus : 2 min de détour aller-retour, comme Sur mon chemin
+let loopBack = null; // le retour de la page ouverte, pour la redessiner quand « Partir de chez moi » change
+const LOOP_PAUSE_M = PAUSE_DETOUR_M / 2;
+const LOOP_TOL_APP = 0.1; // la boucle peut faire 10 % de plus (LOOP_TOL) : le parc doit rester ouvert jusque-là // à 75 m du tracé au plus : 2 min de détour aller-retour, comme Sur mon chemin
 function openRunLoop(back = named('Itinéraire', openRoutes)) {
   track('Boucle à courir');
-  if (!origin) { openNear(); return; }
+  loopBack = back;
+  if (!homeOn() && origin?.kind === 'home') { const fix = freshHere(); origin = fix ? { ...fix, kind: 'gps' } : null; } // Chez moi éteint (aussi par « Annuler ») : de nouveau ma position
+  const start0 = homeOn() ? atHome() : origin; // « Partir de chez moi » allumé : la boucle part de chez toi (v505 suite, choix 2A)
+  if (!start0) { openNear(); return; }
   if (!streets) { openMyRoutes({ title: ' Boucle à courir', icon: 'repeat', fn: () => openRunLoop(back), back }); return; }
-  const run = ++loopRun; const from = { lat: origin.lat, lng: origin.lng };
+  const run = ++loopRun; const from = { lat: start0.lat, lng: start0.lng, home: start0.kind === 'home' };
+  const home = cleanHome(state.home);
+  const onHome = homeOn();
+  /* choix 2A : le même interrupteur que Réglages → Chez moi et la page Météo, même nom, même geste ; sous les longueurs (rien ne bouge au-dessus) */
+  const homeRow = home ? el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(onHome), onclick: () => {
+    setHomeOn(!onHome); // setHomeOn redessine la page (v507), aussi après « Annuler » du message
+  } },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('sofa')),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Partir de chez moi'), el('span', { class: 'menu-sub' }, onHome ? `La boucle part de chez toi · ${homeShort(home)}` : 'La boucle part de ta position')),
+    el('span', { class: `switch${onHome ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })))) : null;
   const box = el('div', { class: 'stack' }, el('p', { class: 'help', 'aria-live': 'polite' }, 'Calcul de la boucle par les rues…'));
   const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Longueur de la boucle' },
     LOOP_KM.map((k) => el('button', { type: 'button', 'aria-pressed': String(k === loopKm), onclick: () => { if (k !== loopKm) { loopKm = k; openRunLoop(back); } } }, `${k} km`)));
   openSheet([ico('repeat'), ' Boucle à courir'], el('div', { class: 'stack' },
     el('div', {}, el('div', { class: 'legend' }, 'Longueur de la boucle'), seg),
+    homeRow,
     box,
     foot(backBtn(back)),
   ), { tall: true, name: 'runloop', again: () => openRunLoop(back) });
@@ -10180,8 +10196,13 @@ async function fillRunLoop(box, from, km, run, back) {
   const start = snap(streets, from);
   if (!start) { fill(box, el('p', { class: 'empty' }, 'Aucune rue du plan à moins de 60 m de toi : rapproche-toi d\'une rue.')); return; }
   const fontaines = await loadPratique('fontaines').catch(() => []); // sans réseau : une boucle quand même, sans viser les fontaines
+  // Choix 1A : les parcs ouverts maintenant et jusqu'au retour (horaires publiés de la Ville ; ni cimetière, ni grand vent) ne sont plus évités
+  const [jards, parcs] = await Promise.all([loadJardins(), loadPratique('fraisParcs').catch(() => [])]); // parcs : aussi pour les toilettes dans un parc
   if (!live()) return;
-  const plan = planLoop(streets, start, km * 1000, { fountains: fontaines });
+  const back0 = runMinutes(km * 1000 * (1 + LOOP_TOL_APP), state.runPace) ?? routeMinutes(km * 1000 * (1 + LOOP_TOL_APP)); // sans allure : à pied (plus long, donc plus prudent)
+  const parkOk = (j) => j.kind !== 'c' && !windy() && openState(jardinHours(j, parcs))?.open === true && !closedOnArrival(jardinHours(j, parcs), back0);
+  const okPark = parksOpen(streets, start, km * 600, jards ?? [], parkOk, inRings, PARK);
+  const plan = planLoop(streets, start, km * 1000, { fountains: fontaines, okPark });
   if (!live()) return;
   if (!plan) { fill(box, el('p', { class: 'empty' }, `Pas de boucle de ${km} km trouvée ici. Essaie une autre longueur.`)); return; }
   const runMin = runMinutes(plan.m, state.runPace);
@@ -10194,7 +10215,7 @@ async function fillRunLoop(box, from, km, run, back) {
   } }, ico('route'), 'Dans Mes parcours');
   const pauses = el('div', { class: 'stack' }, el('p', { class: 'help', 'aria-live': 'polite' }, 'Recherche des toilettes et fontaines sur la boucle…'));
   fill(box,
-    el('p', { class: 'summary' }, [`${fmtDist(plan.m)} par les rues, retour ici`, runMin === null ? null : `≈ ${durText(runMin)} en courant`].filter(Boolean).join(' · ')),
+    el('p', { class: 'summary' }, [`${fmtDist(plan.m)} par les rues, retour ${from.home ? 'chez toi' : 'ici'}`, /* v505 suite : partie de chez moi, elle le dit */ runMin === null ? null : `≈ ${durText(runMin)} en courant`].filter(Boolean).join(' · ')),
     crossingNote(plan.legs, true),
     runMin === null ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openSettings('pas', named('Boucle à courir', () => openRunLoop(back))) }, ico('footprints'), 'Régler mon allure') : nightLine(runMin), // un bouton plutôt qu'un chemin (v365)
     el('a', { class: 'btn', href: loopUrl(start, plan.corners), target: '_blank', rel: 'noopener' }, 'Google Maps'),
@@ -10208,7 +10229,7 @@ async function fillRunLoop(box, from, km, run, back) {
   L.polyline(plan.line, { color: ink(), weight: 5, interactive: false }).addTo(nearLayer);
   map.fitBounds(L.latLngBounds(plan.line).pad(0.15), { paddingTopLeft: [10, 60], paddingBottomRight: [10, sheet.offsetHeight + 10], animate: false });
   // Toilettes et fontaines le long de la boucle (comme Sur mon chemin : fermées en ce moment ou à mon arrivée écartées)
-  const [fts, tv, tr, parcs] = await Promise.all([Promise.resolve(fontaines), loadPratique('toilettes'), loadRatpToilets(), loadPratique('fraisParcs')]).catch(() => [[], [], [], []]);
+  const [fts, tv, tr] = await Promise.all([Promise.resolve(fontaines), loadPratique('toilettes'), loadRatpToilets()]).catch(() => [[], [], []]); // les parcs (horaires) sont déjà là
   if (!live() || !pauses.isConnected) return;
   if (!fts.length && !tv.length && !tr.length) { fill(pauses, el('p', { class: 'help' }, 'Toilettes et fontaines : les données de la Ville ne répondent pas.')); return; }
   const parkOf = (x) => parcs.filter((pk) => pk.hours).map((pk) => ({ pk, d: distanceM(x, pk) })).filter((y) => y.d <= 150).sort((a, b) => a.d - b.d)[0]?.pk;
@@ -14034,7 +14055,7 @@ const HELP = [
     '{check} **Je l\'ai fait** : le circuit va dans Mon journal, avec un mot si tu veux. Ton trajet n\'est jamais gardé.',
     '{footprints} **Rues sans voitures** (Itinéraire) : les secteurs « Paris Respire » prévus aujourd\'hui, sinon le prochain jour, avec leurs heures ; un appui montre le secteur sur la carte. Un samedi ou un dimanche, « Maintenant » signale celui qui est à 10 min au plus. Toujours « prévu » : la Ville peut ajourner une opération. Jours et heures lus sur paris.fr ; contours rangés dans l\'appli par le robot.',
     '{hourglass} **J\'ai du temps** : choisis ta durée. L\'appli trace une boucle par tes lieux ouverts, les mieux notés d\'abord.',
-    '{repeat} **Boucle à courir** (Itinéraire) : 3, 5 ou 10 km par les rues, retour à ton point de départ, calculée sur le téléphone. Elle passe par une fontaine en service quand c\'est possible ; dessous, les toilettes et fontaines à moins de 2 min de détour, avec leur kilomètre. Rien si aucune boucle n\'est à 10 % près. « Dans Mes parcours » la garde.',
+    '{repeat} **Boucle à courir** (Itinéraire) : 3, 5 ou 10 km par les rues, retour à ton point de départ, calculée sur le téléphone. Elle passe par une fontaine en service quand c\'est possible, et par un parc s\'il est ouvert jusqu\'à ton retour (horaires de la Ville) ; « Partir de chez moi » la fait partir de chez toi. Dessous, les toilettes et fontaines à moins de 2 min de détour, avec leur kilomètre. Rien si aucune boucle n\'est à 10 % près. « Dans Mes parcours » la garde.',
     '{footprints} **Sur mon chemin** : tes lieux sur ton trajet ; dessous, les toilettes publiques et les fontaines à moins de 2 min de détour, sans celles fermées à ton arrivée (horaires publiés par la Ville).',
     '{route} **Mes parcours** : touche la carte pour poser tes étapes (20 au plus), dans Paris et ses abords ; avant la première, « Partir de ma position » la pose là où tu es ; une épingle (Vélib\', marché, TTB…) pose aussi une étape ; le chemin suit les rues (plan des rues téléchargé la première fois) et évite les parcs et les passages couverts, sauf si tu y poses une étape. Près d\'un de tes lieux, l\'étape prend son nom. Touche un numéro pour retirer une étape ; « Retirer la dernière », « Meilleur ordre », puis Enregistrer. Dès 2 étapes, Annuler ou la croix demandent confirmation. Sous le chemin, « monte de 40 m » quand il monte de 15 m ou plus.',
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
@@ -14216,7 +14237,7 @@ const HELP = [
   ]],
   ['sparkles', 'Nouveautés', [
     '{trees} **Canicule** : en mode crise Canicule, Autour de moi propose « Lieux frais près de moi » : la fontaine, les toilettes et le lieu frais les plus proches (îlots de fraîcheur de la Ville), même sous 28°. Préparer hors ligne les garde aussi.',
-    '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
+    '{repeat} **Courir** : Itinéraire → Boucle à courir, une boucle de 3, 5 ou 10 km par les rues, avec les fontaines et toilettes sur le chemin. Elle passe par un parc ouvert jusqu\'à ton retour, et peut partir de chez toi. Règle ton allure dans Réglages → Autres réglages → Mon pas : Mes parcours dit aussi la durée en courant.',
     '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',

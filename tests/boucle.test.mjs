@@ -2,12 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readPlan, snap } from '../js/rues.js';
-import { planLoop, alongLine, overlapM, offset, LOOP_KM, LOOP_TOL, LOOP_OVERLAP_MAX, cleanRunPace, stepRunPace, runPaceText, runKmhText, runMinutes, RUN_START_S } from '../js/boucle.js';
+import { readPlan, snap, route, PARK } from '../js/rues.js';
+import { inRings } from '../js/jardins.js';
+import { planLoop, parksOpen, alongLine, overlapM, offset, LOOP_KM, LOOP_TOL, LOOP_OVERLAP_MAX, cleanRunPace, stepRunPace, runPaceText, runKmhText, runMinutes, RUN_START_S } from '../js/boucle.js';
 import { cleanSettings, SETTINGS_OWN, exportSettingsJSON } from '../js/store.js';
 
 /** Un plan inventé (format 2 de tools/maj-rues.py) : une grille de n × n croisements, environ 100 m entre deux. */
-function grid(n) {
+function grid(n, flag = () => 0) {
   const LAT0 = 48.85; const LNG0 = 2.33; const DLA = 0.0009; const DLN = 0.00137;
   const nodes = []; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) nodes.push([Math.round((LAT0 + i * DLA) * 1e5), Math.round((LNG0 + j * DLN) * 1e5)]);
   const flat = []; let p = [0, 0]; for (const q of nodes) { flat.push(q[0] - p[0], q[1] - p[1]); p = q; }
@@ -15,7 +16,7 @@ function grid(n) {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { if (j + 1 < n) edges.push([i * n + j, i * n + j + 1]); if (i + 1 < n) edges.push([i * n + j, (i + 1) * n + j]); }
   const ea = []; const eb = []; let pa = 0;
   for (const [a, b] of edges) { ea.push(a - pa); eb.push(b - a); pa = a; }
-  return readPlan({ v: 2, names: [], nodes: flat, ea, eb, ef: edges.map(() => 0), ek: edges.map(() => 0), en: edges.map(() => 0), shape: [] });
+  return readPlan({ v: 2, names: [], nodes: flat, ea, eb, ef: edges.map(([a, b]) => flag(a, b, n)), ek: edges.map(() => 0), en: edges.map(() => 0), shape: [] });
 }
 const P = grid(40); // 4 km de côté
 const CENTER = { lat: 48.85 + 20 * 0.0009, lng: 2.33 + 20 * 0.00137 };
@@ -121,4 +122,43 @@ test('l\'appli : la ligne d\'Itinéraire sous les anciennes, mon allure dans Mon
   assert.match(app, /n > 1 && t\.legs\.every\(Boolean\) \? runLine\(total\) : null/); // Mes parcours, en traçant
   assert.match(app, /ok \? runLine\(total\) : null/); // un parcours enregistré
   assert.match(app, /'Dans Mes parcours'\)/); // choix 4A : pas « Garder », qui sert déjà dans Mes parcours
+});
+
+// v505 suite (mon choix 1A du 25 nov.) : un parc ouvert jusqu'au retour n'est plus évité ; un parc fermé, si.
+test('parcs : seuls ceux ouverts jusqu\'au retour deviennent permis, et le chemin les prend alors', () => {
+  // une grille de 9 × 9 dont la colonne du milieu (j = 4) est un parc, sauf ses deux bouts
+  const PG = grid(9, (a, b, n) => (a % n === 4 && b % n === 4 && Math.floor(a / n) >= 1 && Math.floor(b / n) <= 7 ? PARK : 0));
+  const at = (i, j) => ({ lat: 48.85 + i * 0.0009, lng: 2.33 + j * 0.00137 });
+  const ring = [[48.85 + 0.5 * 0.0009, 2.33 + 3.5 * 0.00137], [48.85 + 7.5 * 0.0009, 2.33 + 3.5 * 0.00137], [48.85 + 7.5 * 0.0009, 2.33 + 4.5 * 0.00137], [48.85 + 0.5 * 0.0009, 2.33 + 4.5 * 0.00137]];
+  const parc = { id: 'p1', kind: 'j', lat: at(4, 4).lat, lng: at(4, 4).lng, rings: [ring] };
+  const s1 = snap(PG, at(1, 4)); const s2 = snap(PG, at(7, 4)); // posés hors du parc : le bout du milieu
+  const s1b = { ...s1 }; const s2b = { ...s2 };
+  const start = snap(PG, at(4, 0));
+  const closed = parksOpen(PG, start, 3000, [parc], () => false, inRings, PARK);
+  assert.equal(closed, null);
+  const ok = parksOpen(PG, start, 3000, [parc], () => true, inRings, PARK);
+  assert.ok(ok && ok.some(Boolean));
+  assert.ok([...ok].every((v, i) => !v || PG.ef[i] & PARK), 'seulement des tronçons de parc');
+  const parkM = (r) => r.segs.reduce((t, [e, a, b]) => t + (PG.ef[e] & PARK ? Math.abs(b - a) : 0), 0);
+  // de (0,4) à (8,4), les deux bouts hors du parc : tout droit par le parc seulement s'il est permis
+  void s1b; void s2b;
+  const a = snap(PG, at(0, 4)); const b = snap(PG, at(8, 4));
+  const avoid = route(PG, a, b);
+  PG.okPark = ok; const through = route(PG, a, b); PG.okPark = null;
+  assert.ok(avoid && through);
+  assert.equal(parkM(avoid), 0);
+  assert.ok(parkM(through) > 500, String(parkM(through)));
+  assert.ok(through.m < avoid.m);
+  // planLoop remet le plan comme avant (okPark posé seulement le temps du calcul)
+  planLoop(PG, start, 2000, { okPark: ok });
+  assert.equal(PG.okPark ?? null, null);
+});
+
+test('la boucle partie de chez moi le dit, et l\'interrupteur « Partir de chez moi » est le même qu\'ailleurs', () => {
+  const app = readFileSync('js/app.js', 'utf8');
+  assert.match(app, /retour \$\{from\.home \? 'chez toi' : 'ici'\}/);
+  assert.match(app, /const start0 = homeOn\(\) \? atHome\(\) : origin;/);
+  assert.match(app, /'Partir de chez moi'\), el\('span', \{ class: 'menu-sub' \}, onHome \? `La boucle part de chez toi/);
+  assert.match(app, /const okPark = parksOpen\(streets, start, km \* 600, jards \?\? \[\], parkOk, inRings, PARK\);/);
+  assert.match(app, /j\.kind !== 'c' && !windy\(\) && openState\(jardinHours\(j, parcs\)\)\?\.open === true && !closedOnArrival/);
 });

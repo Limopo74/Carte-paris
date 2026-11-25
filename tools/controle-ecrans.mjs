@@ -252,6 +252,15 @@ const ECRANS = {
     if (await get.count()) await get.click();
     await p.waitForSelector('#sheet .summary, #sheet .empty', { timeout: 30000 }); await p.waitForTimeout(800);
   },
+  // v507 : Chez moi enregistré (rue de Douai, près du point de test) et « Partir de chez moi » allumé depuis la page de la boucle
+  bouclechezmoi: async (p) => {
+    await p.evaluate(() => { const k = 'carte-paris.v1'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.home = { lat: 48.8830, lng: 2.3330, label: '10 rue de Douai' }; o.homeOn = false; localStorage.setItem(k, JSON.stringify(o)); });
+    await p.reload(); await p.waitForTimeout(600); if (await p.locator('#sheet:not([hidden])').count()) await p.locator('#sheetClose').click();
+    await ECRANS.boucle(p); await feuille(p).locator('.menu-row[role="switch"]', { hasText: 'Partir de chez moi' }).click();
+    await p.waitForSelector('#sheet .summary, #sheet .empty', { timeout: 30000 }); await p.waitForTimeout(800);
+  },
+  // v507 : « Annuler » du message remet ma position, la page de la boucle le dit
+  bouclechezmoiannule: async (p) => { await ECRANS.bouclechezmoi(p); await p.locator('#toast button, .toast button', { hasText: 'Annuler' }).first().click(); await p.waitForSelector('#sheet .summary, #sheet .empty', { timeout: 30000 }); await p.waitForTimeout(800); },
   boucleallure: async (p) => { await ECRANS.pasallure(p); await p.locator('#sheetClose').click(); await p.waitForTimeout(300); await ECRANS.boucle(p); },
   boucleparcours: async (p) => {
     await ECRANS.boucleallure(p); await feuille(p).locator('button', { hasText: 'Dans Mes parcours' }).click(); await p.waitForTimeout(300);
