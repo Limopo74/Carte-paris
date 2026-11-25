@@ -66,9 +66,10 @@ test('valeurs écrites en clair', () => {
   assert.equal(tuningText('askDays', 30), '30 jours');
 });
 
-test('Fiche d\'un lieu : seuls QR code, Avis Google et Uber se masquent', () => {
-  assert.deepEqual(FICHE_LINES, ['qr', 'avis', 'uber', 'stars']);
-  assert.deepEqual(cleanFicheHidden(['uber', 'qr', 'horaires', 'qr', 7]), ['qr', 'uber']);
+test('Fiche d\'un lieu : seules les lignes prévues se masquent (2A du 25 nov. : Chemin à pied, Horaires, Partager au bout)', () => {
+  assert.deepEqual(FICHE_LINES, ['qr', 'avis', 'uber', 'stars', 'chemin', 'horaires', 'partager']);
+  assert.deepEqual(cleanFicheHidden(['uber', 'qr', 'modifier', 'rangement', 'qr', 7]), ['qr', 'uber'], 'Modifier et Rangement ne se masquent jamais');
+  assert.deepEqual(cleanFicheHidden(['partager', 'horaires', 'chemin']), ['chemin', 'horaires', 'partager']);
   assert.deepEqual(cleanFicheHidden(undefined), []);
   assert.deepEqual(cleanFicheHidden('qr'), []);
 });
@@ -238,5 +239,5 @@ test('Fiche d\'un lieu (v281) : Mes étoiles peut se masquer ; gardé, remis à 
   assert.deepEqual(readSettings(JSON.parse(exportJSON(back))).ficheHidden, ['stars']);
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /!ficheShows\('stars'\) \? null : starPicker\(p\.stars/, 'la fiche suit le réglage');
-  assert.match(app, /\['stars', 'star', 'Mes étoiles', [^\]]+\]\];/, 'la ligne est en dernier sur la page Fiche d\'un lieu');
+  assert.match(app, /\['stars', 'star', 'Mes étoiles', [^\]]+\], \/\* v281 : en dernier, rien ne bouge \*\/\n\s*\['chemin'/, 'la ligne est après les trois premières ; 2A : les nouvelles viennent après elle');
 });

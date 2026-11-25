@@ -41,8 +41,9 @@ export function tuningText(key, v) {
   return v < 1000 ? `${v} m` : `${String(v / 1000).replace('.', ',')} km`;
 }
 
-/** Lignes de la fiche d'un lieu qu'on peut masquer : QR code, Avis Google, Uber jusqu'ici, Mes étoiles (v281). */
-export const FICHE_LINES = Object.freeze(['qr', 'avis', 'uber', 'stars']);
+/** Lignes de la fiche d'un lieu qu'on peut masquer : QR code, Avis Google, Uber jusqu'ici, Mes étoiles (v281) ;
+ *  2A (25 nov.) : Chemin à pied, Horaires, Partager, au bout (les anciens réglages ne changent pas). Modifier et Rangement restent toujours. */
+export const FICHE_LINES = Object.freeze(['qr', 'avis', 'uber', 'stars', 'chemin', 'horaires', 'partager']);
 export const cleanFicheHidden = (list) => FICHE_LINES.filter((k) => Array.isArray(list) && list.includes(k));
 
 /* v390 (mes choix 1A 2A 3A 4A du 24 nov.) : « Circuits de visite » éteint dans Autres réglages. L'Aide ne cite que ce qui existe :

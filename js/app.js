@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (459)';
+const VERSION = '25 novembre 2026 (460)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3280,7 +3280,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'fiche-toc' },
       p.artist ? row('user', p.artist, 'L\'artiste : ses autres œuvres, son site', () => openArtist(p.artist, here)) : null,
       row('pencil', 'Modifier', vanish ? 'Nom, catégorie, commentaire, artiste, listes' : 'Nom, catégorie, commentaire, listes', () => openForm({ lat: p.lat, lng: p.lng, address: p.address }, p)),
-      row('share-2', 'Partager', 'Envoyer à un proche', () => (p.note ? openSharePlace(p, back) : sharePlace(p))),
+      ficheShows('partager') ? row('share-2', 'Partager', 'Envoyer à un proche', () => (p.note ? openSharePlace(p, back) : sharePlace(p))) : null, /* 2A (25 nov.) : masquable */
       ficheShows('qr') ? row('qr-code', 'QR code', 'À scanner par un proche', () => showQr(p, back)) : null,
       row('wrench', 'Rangement', tidySub, openTidy)),
     el('h3', { class: 'fiche-sec' }, 'Pratique'),
@@ -3288,8 +3288,8 @@ function openDetail(id, back = null) {
       state.navigo !== false && navigoOf(p) ? row('badge-percent', 'Avantage Navigo', /* v282 : « J'ai un passe Navigo » éteint, rien */ shortOffer(navigoOf(p).offer), () => openNavigo(navigoOf(p), named(p.name, () => openDetail(id, back)))) : null,
       ttbOf(p) ? row(ttbDotFor(ttbOf(p).rub), 'TTB', ttbKicker(ttbOf(p)), () => openTtbPlace(ttbOf(p), named(p.name, () => openDetail(id, back)))) : null,
       // v383 (mon choix 3A du 24 nov.) : le chemin par les rues dessiné sur la carte, en tête de Pratique (Y aller garde Google Maps)
-      d != null && walkGo(d) ? row('route', 'Chemin à pied', 'Par les rues, dessiné sur la carte', () => showWalkRoute(p, pos, named(p.name, () => openDetail(id, back)))) : null,
-      row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)), /* v244 : une page avec les deux choix */
+      d != null && walkGo(d) && ficheShows('chemin') ? row('route', 'Chemin à pied', 'Par les rues, dessiné sur la carte', () => showWalkRoute(p, pos, named(p.name, () => openDetail(id, back)))) : null,
+      ficheShows('horaires') ? row('clock', 'Horaires', p.hours ? 'Les corriger ou les chercher' : 'Les noter ou les chercher', () => openHours(p, back)) : null, /* v244 : une page avec les deux choix ; 2A : masquable (ouvert ou fermé reste en haut) */
       !ficheShows('avis') ? null : el('a', { class: 'fiche-row', href: reviewsUrl(p), target: '_blank', rel: 'noopener' },
         ico('star'), el('span', {}, 'Avis Google', el('small', {}, reviewsSub(catOf(p.cat)))), el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))),
       uberRow(p)),
@@ -11284,7 +11284,8 @@ function openSettings(section = null, from = null) {
 
   if (section === 'fiche') {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
-    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Fiche, sorties, salles'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »']]; /* v281 : en dernier, rien ne bouge */
+    const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Fiche, sorties, salles'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »'], /* v281 : en dernier, rien ne bouge */
+      ['chemin', 'route', 'Chemin à pied', 'Dans « Pratique »'], ['horaires', 'clock', 'Horaires', 'Les noter ; ouvert ou fermé reste en haut'], ['partager', 'share-2', 'Partager', 'Dans « Sur ce lieu »']]; /* 2A (25 nov.) : au bout, rien ne bouge */
     openSheet([ico('file-text'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager pour un lieu avec un commentaire.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
@@ -11363,7 +11364,7 @@ function openSettings(section = null, from = null) {
     }),
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Autres réglages', () => openSettings('autres'))), false, 'c-guide'),
-    row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis Google, Uber, étoiles : les afficher ou non', () => openSettings('fiche'), false, 'c-guide'),
+    row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis, Uber, étoiles, Chemin, Horaires, Partager', () => openSettings('fiche'), false, 'c-guide'),
     // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
     row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
     // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
@@ -12957,7 +12958,7 @@ const HELP = [
     '**Mes étoiles** : de 1 à 5. Touche la même étoile pour la retirer. Masquées ({settings} → Autres réglages → Fiche d\'un lieu), elles se changent encore dans Modifier.',
     '{copy} **L\'adresse** se copie d\'un appui, pour un taxi ou un message.',
     '{pencil} **L\'adresse** se corrige dans Modifier. Le point ne bouge pas ; pour le déplacer : Rangement → Déplacer le point.',
-    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici (aussi en bas d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle). Pour masquer QR code, Avis Google, Uber ou Mes étoiles : {settings} → Autres réglages → Fiche d\'un lieu.',
+    '**En bas de la fiche**, Sur ce lieu : Modifier, Partager, QR code, {wrench} Rangement (Fermé définitivement, Déplacer, Supprimer). Pratique : l\'avantage Navigo ou TTB s\'il y en a, Horaires, Avis Google, Uber jusqu\'ici (aussi en bas d\'une sortie, d\'un musée, d\'une galerie ou d\'une salle). Pour masquer QR code, Avis Google, Uber, Mes étoiles, Chemin à pied, Horaires ou Partager : {settings} → Autres réglages → Fiche d\'un lieu (Modifier et Rangement restent toujours).',
     '{clock} **Horaires** (Pratique) : les chercher sur OpenStreetMap, ou les noter toi-même (jours ouverts, heure d\'ouverture et de fermeture par − et +, « Fermé à midi »). Des horaires notés gardent leur date ; un jour férié, la fiche ne dit alors ni ouvert ni fermé.',
     '{camera} **Les photos** restent sur ton téléphone, sans leur position GPS. Touche une photo pour la voir en grand ; « Supprimer » est sous la photo. Pour en ajouter : {camera} Photo, puis la galerie ou l\'appareil photo. En grand, le repère « 2 / 6 » dit où tu en es : glisse le doigt de côté pour voir la suivante ou la précédente, touche pour fermer.',
     '{image} **La marque photo** : dans les listes de tes lieux (Autour de moi, la loupe, Sur mon chemin, un arrondissement, la liste du jour, Temps libre), elle dit que le lieu a au moins une de tes photos. Touche le lieu, puis sa photo.',
@@ -13073,6 +13074,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
     '{rotate-ccw} **Remettre au départ** : Distances et durées, Mon pas, Alertes et bandeau, Fiche d\'un lieu et Filtres affichés ont le même bouton, juste au-dessus du retour, seulement quand un réglage a changé.',
     '{user} **Tout ce qui porte un nom, relié** : sur une plaque, une œuvre dans la rue ou une tombe, touche le nom sous les boutons. Sa page réunit sa tombe, ses plaques, la rue à son nom et ses œuvres dans la rue. Seul un nom complet relie : « Rodin » seul ne relie rien.',
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
@@ -13082,7 +13084,6 @@ const HELP = [
     '{palette} **Deux nouveaux styles** : le soir, le mode sombre devient Signalétique, fond nuit et plaques jaunes. Le jour, Papier ou Verre (panneaux translucides, formes arrondies) : Réglages → Autres réglages → Style de l\'appli. Les boutons restent à leur place.',
     '{map} **Un rond touché sur la carte change la page** : dans Sorties (Carte, Gratuit, Expos, Navigo, Grands lieux…), la page d\'un lieu ouverte, touche un autre rond : sa page s\'ouvre à sa place. Le retour ramène au bandeau.',
     '{landmark} **Grands lieux, depuis toi** : sous « Voir sur la carte », « Autour de toi ▾ » dit d\'où partent les distances et se change, comme dans Sorties. Une position de plus de 10 min ne sert plus : Sorties, ses pages et Autour de moi la redemandent.',
-    '{settings} **Des boutons à la place des chemins** : là où une page écrivait « Réglages → … », un bouton y mène, dans l\'Aide de la page (Prévoir, impression, catégorie, remarque, Ce que j\'utilise) ; ce que tu avais écrit t\'attend au retour. Sur le bandeau de Chemin à pied, la petite roue après « Chemin à pied » ouvre Mon pas.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -13472,7 +13473,7 @@ function openPrep(step = 1) {
     ],
     9: [
       el('p', { class: 'legend' }, 'Sur la fiche d\'un lieu'),
-      el('div', { class: 'menu' }, [['qr', 'qr-code', 'QR code'], ['avis', 'star', 'Avis Google'], ['uber', 'car-taxi-front', 'Uber'], ['stars', 'star', 'Mes étoiles']].map(([k, icon, name]) =>
+      el('div', { class: 'menu' }, [['qr', 'qr-code', 'QR code'], ['avis', 'star', 'Avis Google'], ['uber', 'car-taxi-front', 'Uber'], ['stars', 'star', 'Mes étoiles'], ['chemin', 'route', 'Chemin à pied'], ['horaires', 'clock', 'Horaires'], ['partager', 'share-2', 'Partager']].map(([k, icon, name]) =>
         sw(icon, name, '', !p.ficheHidden.includes(k), () => { p.ficheHidden = p.ficheHidden.includes(k) ? p.ficheHidden.filter((x) => x !== k) : [...p.ficheHidden, k]; }))),
       el('p', { class: 'legend' }, 'Alertes et bandeau'),
       el('div', { class: 'menu' },
