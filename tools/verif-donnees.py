@@ -37,6 +37,7 @@ SOFT = {
     'data/jardins.json': ('items', 500),      # v261 : jardins publics de la Ville (contours ; vide tant que le robot n'est pas passé)
     'data/dansmarue.json': ('cells', 1000),   # v471 : carrés de 100 m des signalements DansMaRue (vide tant que le robot n'est pas passé)
     'data/jardins-liens.json': ('items', 50), # v273 : pages paris.fr des jardins (vide tant que le robot n'est pas passé)
+    'data/ppri.json': ('zones', 1),           # v503 : zone inondable du PPRI, réunie (vide tant que le robot n'est pas passé)
 }
 
 

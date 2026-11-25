@@ -872,6 +872,8 @@ a.item-main .item-name { text-decoration: underline; text-decoration-color: var(
 .arr-limit { stroke: var(--muted); stroke-opacity: .55; }
 /* Secteur sans voitures montré sur la carte (v197) : contour terre cuite, intérieur à peine teinté */
 .respire-zone { stroke: var(--disc); fill: var(--disc); fill-opacity: .12; }
+/* v503 : zone inondable du PPRI (crue de 1910) : gris encre, jamais bleu (le bleu veut dire métro) */
+.ppri-zone { stroke: var(--ink); stroke-opacity: .35; fill: var(--ink); fill-opacity: .10; }
 .arr-num { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 800; font-size: var(--t26); line-height: 1; color: var(--ink); white-space: nowrap;
   -webkit-text-stroke: 8px var(--bg); paint-order: stroke fill; /* v194 : halo plein, qui cache le petit nom gris écrit par la carte dessous */
   text-shadow: 0 0 6px var(--bg), 0 0 10px var(--bg), 0 0 14px var(--bg); }

@@ -30,7 +30,7 @@ test('« Je vais bien » : la position seulement si elle est donnée (réponse 1
 });
 
 test('le bouton arrive dans ⋯ Plus de la colonne, jamais sur la carte tout seul (réponse 2)', () => {
-  assert.deepEqual(MAP_TOOLS.slice(-2), ['crise', 'locate']);
+  assert.deepEqual(MAP_TOOLS.slice(-3), ['crise', 'crue', 'locate']);
   assert.ok(DEFAULT_MORE.includes('crise') && NEW_IN_MORE.includes('crise') && FRESH_TOOLS.moreTools.includes('crise'));
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   const mine = loadState(mem(JSON.stringify({ points: [], layoutV: 4, mapTools: ['vu', 'paris', 'locate'], moreTools: [], hiddenTools: [] })));

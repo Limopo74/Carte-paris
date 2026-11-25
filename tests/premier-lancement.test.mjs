@@ -23,7 +23,7 @@ test('Mémoire vide : le départ d\'un nouveau venu (v440, d\'après mes capture
   assert.deepEqual(s.hiddenFilters, ['buslines', 'velo'], 'Filtres : les mêmes lignes masquées');
   // Colonne : Ma position, Sorties, Mon planning, Vu en passant, Rentrer ; ⋯ Plus : Mon Paris, Métro, Centre de Paris, Note du jour, Vélib', Fontaine et WC ; Circuits masqué
   assert.deepEqual(s.mapTools.filter((t) => !s.moreTools.includes(t) && !s.hiddenTools.includes(t)), ['locate', 'sorties', 'planning', 'vu', 'home']);
-  assert.deepEqual(s.mapTools.filter((t) => s.moreTools.includes(t)), ['myparis', 'metro', 'paris', 'notes', 'velib', 'pratique', 'crise']); // v490 : Mode crise dans ⋯ Plus
+  assert.deepEqual(s.mapTools.filter((t) => s.moreTools.includes(t)), ['myparis', 'metro', 'paris', 'notes', 'velib', 'pratique', 'crise', 'crue']); // v490 : Mode crise dans ⋯ Plus
   assert.deepEqual(s.hiddenTools, ['circuits']);
   assert.ok(s.categories.some((c) => c.id === 'vu'), 'Vu en passant existe dès le départ');
   assert.deepEqual(s.categories.filter((c) => c.id !== 'vu').map((c) => c.id), ['resto', 'boutique', 'culture']);

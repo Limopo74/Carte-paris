@@ -1,4 +1,4 @@
-// v498 (mes choix 7 A et 9 A du 25 nov.) : la hauteur de la Seine à Austerlitz (Hub'Eau), dans la pastille (interrupteur,
+// v502 (mes choix 7 A et 9 A du 25 nov.) : la hauteur de la Seine à Austerlitz (Hub'Eau), dans la pastille (interrupteur,
 // éteint au départ ; toujours en mode crise Crue), sur la page Météo et en haut d'Autour de moi en mode Crue, avec Vigicrues.
 // Rien si la mesure a plus de 2 h. Pas de repère de 1910.
 import { test } from 'node:test';

@@ -68,7 +68,7 @@ test('Mon Paris : le calendrier prend la place de la ligne « Mon journal », la
 });
 
 test('Mon Paris dans ⋯ Plus : jamais posé sur la carte tout seul, ni chez moi, ni chez un nouveau venu, ni par une préparation', () => {
-  assert.deepEqual(MAP_TOOLS.slice(-3), ['myparis', 'crise', 'locate']); // v490 : Mode crise entre Mon Paris et Ma position
+  assert.deepEqual(MAP_TOOLS.slice(-4), ['myparis', 'crise', 'crue', 'locate']); // v490 : Mode crise entre Mon Paris et Ma position
   assert.ok(DEFAULT_MORE.includes('myparis') && NEW_IN_MORE.includes('myparis') && FRESH_TOOLS.moreTools.includes('myparis'));
   const mem = (v) => { let x = v; return { getItem: () => x, setItem: (_k, val) => { x = val; } }; };
   const mine = loadState(mem(JSON.stringify({ points: [], layoutV: 4, mapTools: ['vu', 'paris', 'metro', 'sorties', 'planning', 'pratique', 'velib', 'home', 'circuits', 'notes', 'locate'], moreTools: ['velib', 'home', 'circuits', 'notes'], hiddenTools: ['pratique'] })));

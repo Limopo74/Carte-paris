@@ -40,6 +40,7 @@ jobs:
           cp data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/jardins.json /tmp/avant/
           cp data/velo.json /tmp/avant/ 2>/dev/null || true # v259 : absent avant le premier passage
           cp data/jardins-liens.json /tmp/avant/ 2>/dev/null || true # v273
+          cp data/ppri.json /tmp/avant/ 2>/dev/null || true # v503
           IDFM=https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets
           RATP=https://data.ratp.fr/api/explore/v2.1/catalog/datasets
           PARIS=https://opendata.paris.fr/api/explore/v2.1/catalog/datasets
@@ -52,6 +53,8 @@ jobs:
           get /tmp/src/plaques.geojson "$PARIS/plaques_commemoratives/exports/geojson"
           # Secteurs « Paris Respire » (v197) : jamais bloquant, et hors du contrôle des .geojson ci-dessous
           get /tmp/src/respire.json "$PARIS/secteurs-paris-respire/exports/geojson" || rm -f /tmp/src/respire.json
+          # Zone inondable du PPRI (v503, mode crise Crue) : jamais bloquant
+          get /tmp/src/ppri.geojson "$PARIS/plub_pprizone/exports/geojson" || rm -f /tmp/src/ppri.geojson
           # Sorties du métro (v199) : accès RATP du référentiel IDFM ; jamais bloquant
           curl -fsSL --compressed --retry 3 --retry-delay 20 --max-time 300 -G -o /tmp/src/acces.json "$IDFM/acces/exports/json" \
             --data-urlencode 'where=fournisseurname="RATP"' --data-urlencode 'select=accname,accshortname,accgeopoint,accisentry,accisexit' || rm -f /tmp/src/acces.json
@@ -193,6 +196,8 @@ jobs:
           python3 -I tools/maj-plaques.py /tmp/src/plaques.geojson "$TODAY"
           # Jamais bloquant : si la source manque ou a changé, data/respire.json reste tel quel
           if [ -s /tmp/src/respire.json ]; then python3 -I tools/maj-respire.py /tmp/src/respire.json "$TODAY" || echo "Paris Respire : fichier d'avant gardé"; else echo "Paris Respire : pas de réponse, fichier d'avant gardé"; fi
+          # v503 : réunir les morceaux du PPRI demande shapely ; jamais bloquant
+          if [ -s /tmp/src/ppri.geojson ]; then { python3 -m pip install -q --break-system-packages shapely && python3 -I tools/maj-ppri.py /tmp/src/ppri.geojson "$TODAY"; } || echo "Zone inondable : fichier d'avant gardé"; else echo "Zone inondable : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/acces.json ]; then python3 -I tools/maj-acces.py /tmp/src/acces.json "$TODAY" || echo "Sorties du métro : fichier d'avant gardé"; else echo "Sorties du métro : pas de réponse, fichier d'avant gardé"; fi
           if [ -d /tmp/src/arch ]; then python3 -I tools/maj-architectes.py /tmp/src/arch "$TODAY" || echo "Auteurs des monuments : fichier d'avant gardé"; else echo "Auteurs des monuments : pas de réponse, fichier d'avant gardé"; fi
           if [ -s /tmp/src/dansmarue.csv ]; then python3 -I tools/maj-dansmarue.py /tmp/src/dansmarue.csv "$TODAY" || echo "Dans ma rue : fichier d'avant gardé"; else echo "Dans ma rue : pas de réponse, fichier d'avant gardé"; fi
@@ -216,8 +221,8 @@ jobs:
           set -euo pipefail
           git config user.name "Robot des données"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/dansmarue.json data/delinquance.json data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json data/jardins.json data/jardins-liens.json"
-          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo, jardins publics et leurs pages paris.fr (robot)"
+          FILES="data/dansmarue.json data/delinquance.json data/lignes.json data/stations.json data/navigo.json data/sanitaires-ratp.json data/arrondissements.json data/bus.json data/plaques.json data/oeuvres.json data/galeries.json data/respire.json data/voies.json data/architectes.json data/acces.json data/gares.json data/bus-traces.json data/patrimoine.json data/acr.json data/velo.json data/jardins.json data/jardins-liens.json data/ppri.json"
+          MSG="Données du $(TZ=Europe/Paris date +%-d/%m/%Y) : lignes, gares, Navigo, toilettes RATP, arrondissements, arrêts de bus, plaques, œuvres, galeries, rues sans voitures, noms des rues, auteurs des monuments, sorties du métro, RER et tram, chemin des bus, immeubles protégés par la Ville, architecture contemporaine, pistes à vélo, jardins publics et leurs pages paris.fr, zone inondable (robot)"
           # Seuls les fichiers refaits par ce passage repartent : une liste gardée telle quelle (serveur muet)
           # n'écrase jamais une version plus récente arrivée entre-temps.
           # v259 : un fichier nouveau (data/velo.json au premier passage) n'est pas encore suivi par git : il compte aussi

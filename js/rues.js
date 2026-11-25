@@ -230,6 +230,42 @@ export function route(P, s1, s2) {
   return { m, line, flags, names: [...new Set(uniq)], segs, run };
 }
 
+/**
+ * v503 (mon choix 23 A du 25 nov.) : le chemin à pied le plus court depuis un point posé (snap) jusqu'au premier croisement
+ * où `out(lat, lng)` est vrai (en mode Crue : hors de la zone inondable). Ponts et tunnels coûtent 20 fois leur longueur
+ * (un souterrain se remplit, un pont peut être fermé) : on ne les prend que s'il n'y a pas d'autre sortie (les îles).
+ * Résultat : celui de route(), ou { m: 0, … } déjà dehors, ou null (aucune sortie à moins de maxM mètres).
+ */
+export const OUT_BRIDGE = 20;
+export function routeOut(P, s1, out, maxM = 8000) {
+  if (!P || !s1) return null;
+  if (out(s1.lat, s1.lng)) return { m: 0, line: [[s1.lat, s1.lng]], flags: 0, names: [], segs: [], run: [], already: true };
+  const c = (i) => cost(P, i, 0) * (P.ef[i] & OFFGROUND ? OUT_BRIDGE : 1);
+  const dist = new Float64Array(P.N).fill(Infinity); const h = new Heap();
+  const L1 = P.em[s1.edge]; const k1 = c(s1.edge) / (L1 || 1);
+  for (const [node, d] of [[P.ea[s1.edge], s1.t * k1], [P.eb[s1.edge], (L1 - s1.t) * k1]]) if (d < dist[node]) { dist[node] = d; h.push(node, d); }
+  let goal = -1;
+  while (h.size) {
+    const u = h.pop(); const du = dist[u];
+    if (du > maxM * OUT_BRIDGE) break;
+    if (out(P.lat[u], P.lng[u])) { goal = u; break; }
+    for (let j = P.deg[u]; j < P.deg[u + 1]; j++) {
+      const i = P.adj[j]; const v = P.ea[i] === u ? P.eb[i] : P.ea[i];
+      const nd = du + c(i);
+      if (nd < dist[v]) { dist[v] = nd; h.push(v, nd); }
+    }
+  }
+  if (goal < 0) return null;
+  // Le dernier bout : le même chemin, calculé par route() vers ce croisement (posé sur un tronçon qui y arrive, hors pont)
+  let e = -1;
+  for (let j = P.deg[goal]; j < P.deg[goal + 1]; j++) { const i = P.adj[j]; if (e < 0 || (!(P.ef[i] & OFFGROUND) && P.ef[e] & OFFGROUND)) e = i; }
+  const s2 = { edge: e, t: P.ea[e] === goal ? 0 : P.em[e], lat: P.lat[goal], lng: P.lng[goal], d: 0, name: edgeName(P, e) };
+  const saved = P.pen; const pen = new Float64Array(P.E).fill(1);
+  for (let i = 0; i < P.E; i++) if (P.ef[i] & OFFGROUND) pen[i] = OUT_BRIDGE;
+  P.pen = saved ? pen.map((x, i) => x * saved[i]) : pen;
+  try { return route(P, s1, s2); } finally { P.pen = saved; }
+}
+
 /* ---------- Mes parcours enregistrés (v1) : seulement les étapes ; le chemin se recalcule avec le plan ---------- */
 export const ROUTE_STEPS_MAX = 20;
 export const ROUTES_MAX = 50;

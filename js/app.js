@@ -7,7 +7,7 @@ import { plaquesOf, plaquesNear, plaquesFor, plaqueStart } from './plaques.js';
 const ICON_NAMES = new Set(Object.keys(ICON_SVG));
 import { startOk as mesureStartOk, progress as mesureProgress, result as mesureResult, chronoText, perKmText, MESURE_ACC } from './mesure-pas.js';
 import { distanceM, walkMinutes, setWalkSpeed, setWalkLimit, normalizeRings, groupByRings, mapsUrl, reviewsUrl, reviewsSub, isRestoCat, uberUrl, minutesToMeters, normalizeMinuteRings, walkLabel, durText, walkWhen, FAR_WALK_MIN, walkGo, distText, routeMinutes, lineLengthM, nearestOnLine, goTarget, placeDistM } from './geo.js';
-import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints, edgesInBox } from './rues.js';
+import { readPlan, snap, onPlan, route, repeated, PARK, COVERED, STEPS, SNAP_MAX_M, cleanRoutes, autoName, ROUTE_STEPS_MAX, routeId, wholeStreet, routeClimb, altHere, edgeName, edgePoints, edgesInBox , routeOut, OFFGROUND } from './rues.js';
 import { cleanMyCircuits, asCircuit, encodeTrace, myCircuitId, myCircuitLink, readMyCircuitLink, STEP_TEXT_MAX, circuitFp, splitTrace } from './mescircuits.js';
 import { cleanMore, cleanChips, cleanMoreChips, freshChips, chipsAsFresh, FRESH_TOOLS, cleanEssentials, cleanLayout, essentialLayout, cleanToolName, TOOL_NAME_MAX, PACES, paceKmh, cleanPace, TEXT_SIZES, cleanTextSize, PIN_SIZES, cleanPinSize,
   KEY, PALETTE, ICONS, FAV_ICONS, FAV_COLORS, newPoint, loadState, saveState, exportJSON, mergeImport,
@@ -30,7 +30,7 @@ import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, 
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
 import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
-import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend } from './crue.js';
+import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
@@ -85,7 +85,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (502)';
+const VERSION = '25 novembre 2026 (503)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -5812,7 +5812,8 @@ function setCrisis(k) {
   if (c.water && !state.showPratique) setPratLayer(true);
   if (!c.water && state.showPratique && !pratBefore) setPratLayer(false);
   drawLayerNote(); renderChips(); rescueSoon(); drawWx();
-  if (k === 'crue') checkSeine(); // v498 : la hauteur de la Seine, dans la pastille et en haut d'Autour de moi
+  if (k === 'crue') checkSeine(); // v502 : la hauteur de la Seine, dans la pastille et en haut d'Autour de moi
+  drawPpri(); // v503 : la zone inondable, seule en mode Crue
   toast(`Mode crise : ${c.name.toLowerCase()}. Autour de moi commence par les gestes utiles.`);
 }
 /** Terminer : Fontaines et toilettes reviennent comme avant ; « Annuler » rallume la même crise. */
@@ -5820,7 +5821,7 @@ function endCrisis() {
   const was = crisis; if (!was) return;
   crisis = null; saveCrisis(); markCrisis();
   if (state.showPratique && !was.pratBefore) setPratLayer(false);
-  drawLayerNote(); renderChips(); rescueSoon(); drawWx();
+  drawLayerNote(); renderChips(); rescueSoon(); drawWx(); drawPpri();
   toast('Mode crise terminé', false, { label: 'Annuler', fn: () => { setCrisis(was.k); crisis = { ...crisis, since: was.since, pratBefore: was.pratBefore }; saveCrisis(); } });
 }
 /** La page « Mode crise » : toucher une crise l'allume (1 appui) ; allumé, « Terminer le mode crise ». */
@@ -5857,7 +5858,8 @@ function crisisBlock() {
     home
       ? el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => (pos ? showWalkRoute(homeOrigin(home), pos, back) : toast('Ta position n\'est pas encore connue : touche Ma position, puis reviens ici.', true)) }, ico('house'), 'Rentrer à pied chez moi')
       : el('button', { type: 'button', class: 'btn', onclick: () => openHomeSettings() }, ico('house'), 'Rentrer à pied : pose d\'abord Chez moi'),
-    crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v498 (choix 7 A et 9 A)
+    crisis.k === 'crue' ? el('div', { class: 'menu' }, seineRow()) : null, // v502 (choix 7 A et 9 A)
+    ...(crisis.k === 'crue' ? [floodRows(pos, back)].flat() : []), // v503 (choix 8 A et 23 A)
     // v491 (mes réponses 15 et 22, choix 30 B) : mon point de repli et nos deux rendez-vous, sous Rentrer à pied
     el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => {
       const p = (cleanCrisisPoints(state.crisisPoints) ?? {})[c.k];
@@ -5979,6 +5981,73 @@ async function prepareOffline(again = null) {
 const offlineRow = (again, family = 'c-guide') => el('button', { type: 'button', class: `menu-row ${family}`, onclick: () => prepareOffline(again) },
   el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(offlineAt() && !offlineBusy ? 'circle-check' : 'download')),
   el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Préparer hors ligne'), el('span', { class: 'menu-sub' }, offlineSub())));
+
+/* v503 (mes choix 8 A et 23 A du 25 nov.) : la zone inondable du PPRI de Paris (crue de référence de 1910), apportée par le
+   robot des données (data/ppri.json). Sur la carte en gris (le bleu veut dire métro), sous les gouttes : allumée par
+   ⋯ Plus → Zones inondables, et toute seule en mode crise Crue. Où je suis et chez moi se calculent sur le téléphone. */
+let ppri = null;
+let ppriRead = false; // le fichier a été lu (même vide) : pas de nouvel essai
+async function loadPpri() {
+  if (ppriRead) return ppri;
+  const j = await fetch('data/ppri.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (j) { ppriRead = true; ppri = readPpri(j); }
+  return ppri;
+}
+map.createPane('ppri').style.zIndex = 245; // au-dessus du fond (200), sous le plan de secours (250) et les gouttes
+map.getPane('ppri').style.pointerEvents = 'none';
+const ppriLayer = L.layerGroup().addTo(map);
+const ppriShown = () => state.showPpri === true || crisis?.k === 'crue';
+async function drawPpri() {
+  ppriLayer.clearLayers();
+  if (!ppriShown()) return;
+  const P = await loadPpri();
+  if (!P || !ppriShown()) return;
+  ppriLayer.clearLayers();
+  for (const z of P.zones) L.polygon(z.rings, { pane: 'ppri', className: 'ppri-zone', weight: 1, interactive: false }).addTo(ppriLayer);
+}
+const PPRI_WORD = { in: 'dedans', out: 'dehors', edge: `au bord, à moins de ${PPRI_EDGE_M} m` };
+/** « chez toi : dehors » (rien si Chez moi n'est pas posé ou si la zone n'est pas connue). */
+const ppriHome = (P) => { const h = cleanHome(state.home); const st = h ? ppriState(P, h.lat, h.lng) : null; return st ? `chez toi est ${PPRI_WORD[st]}` : ''; };
+async function togglePpri() {
+  track('Zones inondables');
+  if (state.showPpri) { state.showPpri = false; persist(); drawPpri(); toast('Zones inondables : masquées'); return; }
+  const P = await loadPpri();
+  if (!P) { toast('La carte des zones inondables n\'est pas encore dans l\'appli.', true); return; }
+  state.showPpri = true; persist(); drawPpri();
+  const home = ppriHome(P);
+  toast(`Zone inondable de la crue de 1910 sur la carte, en gris${home ? ` · ${home}` : ''}`);
+}
+/** En mode Crue, sous la Seine : où je suis par rapport à la zone, chez moi, et « Sortir de la zone inondable ». */
+function floodRows(pos, back) {
+  if (!ppriRead) { loadPpri().then(() => { if (view === 'near' && crisis?.k === 'crue') renderNear(); }); return null; }
+  if (!ppri) return el('p', { class: 'help' }, 'La carte des zones inondables n\'est pas encore dans l\'appli.');
+  const here = pos ? ppriState(ppri, pos.lat, pos.lng) : null;
+  const home = ppriHome(ppri);
+  const words = [here ? `tu es ${PPRI_WORD[here]}` : 'ta position n\'est pas connue', home].filter(Boolean).join(' ; ');
+  return [el('p', { class: 'help' }, `Zone inondable de la crue de 1910, en gris sur la carte. ${words[0].toUpperCase()}${words.slice(1)}.`),
+    here === 'in' || here === 'edge' ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => showExitRoute(pos, back) }, ico('route'), 'Sortir de la zone inondable') : null];
+}
+/** 23 A : le chemin à pied le plus court vers une rue hors de toute la zone de 1910 (à 50 m au moins du bord), calculé sur le
+ *  téléphone ; ponts et souterrains seulement s'il n'y a pas d'autre sortie. */
+async function showExitRoute(pos, back) {
+  if (!streets && !(await loadStreets())) {
+    openMyRoutes({ title: ' Sortir de la zone inondable', icon: 'route', fn: () => showExitRoute(pos, back), back });
+    return;
+  }
+  const P = await loadPpri();
+  const a = P ? snap(streets, pos) : null;
+  const r = a ? routeOut(streets, a, ppriOut(P)) : null;
+  if (r?.already) { toast(`Tu es déjà hors de la zone inondable, à plus de ${PPRI_EDGE_M} m du bord.`); return; }
+  if (!r) { toast('Pas de chemin trouvé dans les rues pour sortir de la zone. Suis les consignes des secours.', true); return; }
+  closeSheet(); endPeek(); drawPpri();
+  const line = L.polyline(r.line, { color: ink(), weight: 5, opacity: 0.9, interactive: false }).addTo(peekLayer);
+  L.circleMarker(r.line[0], { radius: 6, color: ink(), weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(peekLayer);
+  L.circleMarker(r.line.at(-1), { radius: 8, color: ink(), weight: 3, fillColor: ink(), fillOpacity: 1, interactive: false }).addTo(peekLayer);
+  const bridge = r.flags & OFFGROUND ? 'passe par un pont ou un souterrain' : '';
+  showPeekCard('Sortir de la zone inondable', r.names.at(-1) ? `Jusqu'à ${r.names.at(-1)}` : 'Jusqu\'à la première rue hors zone',
+    back, [`${fmtDist(r.m)} · ${routeMin(r.m)}`, bridge, 'touche ici pour revenir'].filter(Boolean).join(' · '));
+  map.fitBounds(line.getBounds(), { padding: [40, 40], paddingBottomRight: [70, 170], maxZoom: 17, animate: false });
+}
 
 /* v494 : le plan de secours (ma réponse 5, mon choix 31 A) : en mode crise, quand le fond de carte ne se charge plus
    (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent en encre, à partir du zoom 15.
@@ -9240,7 +9309,7 @@ const arrHere = () => (arrData ? arrSure(here, arrData) : null);
 const wxOn = (k) => wxPart(state, k);
 const NOMINIS = 'https://nominis.cef.fr/'; // v481 : la page d'accueil montre le saint du jour (vérifié le 25 nov. 2026 : sainte Catherine d'Alexandrie)
 const WX_NAME = { arr: 'arrondissement', day: 'dimanche', temp: 'température', rain: 'pluie', air: 'air', sun: 'soleil', seine: 'Seine' };
-/* v498 (mes choix 7 A et 9 A du 25 nov.) : hauteur de la Seine à Austerlitz (Hub'Eau). Éteinte au départ ; toujours montrée
+/* v502 (mes choix 7 A et 9 A du 25 nov.) : hauteur de la Seine à Austerlitz (Hub'Eau). Éteinte au départ ; toujours montrée
    en mode crise Crue. Lue au plus tous les quarts d'heure, seulement quand elle sert (pastille, page Météo, mode Crue). */
 let seine = null;
 let seineAt = 0;
@@ -9261,7 +9330,7 @@ function seineRow() {
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('waves')),
     el('span', { class: 'menu-text' },
       el('span', { class: 'menu-title' }, seine ? `Seine : ${seineText(seine)}${seine.trend ? `, ${seineTrend(seine)}` : ''}` : 'Seine : pas de mesure récente'),
-      el('span', { class: 'menu-sub' }, seine ? `À Austerlitz, ${seineAgo(seine)} · Vigicrues` : 'Voir Vigicrues')),
+      el('span', { class: 'menu-sub' }, seine ? `À Austerlitz, ${seineAgo(seine)} · zones selon la hauteur : Vigicrues` : 'Zones selon la hauteur : Vigicrues')), // v503 (23 A) : le lien des zones selon la hauteur
     el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('external-link')));
 }
 /** La petite ligne de « Pastille météo » dans Autres réglages : ce qui est allumé. */
@@ -10021,7 +10090,7 @@ async function checkMeteo(at) {
 }
 // Au lancement et toutes les 30 min : météo du dernier endroit connu (ou du centre de Paris), sans demander la position.
 setTimeout(() => checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }), 1500);
-setTimeout(() => checkSeine(), 2500); // v498 : seulement si la Seine est allumée ou en mode Crue
+setTimeout(() => checkSeine(), 2500); // v502 : seulement si la Seine est allumée ou en mode Crue
 setInterval(() => { if (document.visibilityState === 'visible') checkSeine(); }, 16 * 60 * 1000);
 setInterval(() => { if (document.visibilityState === 'visible') checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }); }, 31 * 60 * 1000);
 
@@ -12085,7 +12154,7 @@ function openSettings(section = null, from = null) {
         sw('rain', 'cloud-rain', 'Pluie', 'Le nuage, quand il pleut'),
         sw('air', 'wind', 'Qualité de l\'air', 'Point de couleur et mot'),
         sw('sun', 'sunrise', 'Soleil', 'Lever ou coucher'),
-        sw('seine', 'waves', 'Seine', 'Hauteur à Austerlitz')), // v498 : toujours montrée en mode crise Crue
+        sw('seine', 'waves', 'Seine', 'Hauteur à Austerlitz')), // v502 : toujours montrée en mode crise Crue
       el('p', { class: 'help tip' }, 'Le canapé de Chez moi reste dans la pastille tant que Chez moi est allumé. Tout éteint : la pastille disparaît, et la page Météo et air avec elle ; rallume un élément ici pour la retrouver.'),
       backBtn,
     ), { tall: true, name: 'settings:pastille', again: () => openSettings('pastille') });
@@ -13462,6 +13531,7 @@ document.getElementById('btnCircuits').addEventListener('click', () => openCircu
 document.getElementById('btnNotes').addEventListener('click', () => openDayNote());
 document.getElementById('btnMyParis').addEventListener('click', () => openMyParis('map'));
 document.getElementById('btnCrise').addEventListener('click', () => openCrisis()); // v490
+document.getElementById('btnCrue').addEventListener('click', togglePpri); // v503
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
 document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
 // v469 (mon choix 2A du 25 nov.) : un appui = « Sauvegarder maintenant » de Réglages (photos comprises), le rond part quand c'est fait
@@ -13505,6 +13575,7 @@ const TOOL_INFO = {
   notes: { el: 'btnNotes', icon: 'notebook-pen', name: 'Note du jour (sans lieu)', short: 'Note du jour' },
   vu: { el: 'btnVu', icon: 'camera', name: 'Vu en passant : une photo tout de suite', short: 'Vu en passant' },
   myparis: { el: 'btnMyParis', icon: 'map', name: 'Mon Paris (journal, planning, chiffres)', short: 'Mon Paris' }, // v426 (mon choix 0C) : arrive dans ⋯ Plus
+  crue: { el: 'btnCrue', icon: 'waves', name: 'Zones inondables (crue de 1910)', short: 'Zones inondables' }, // v503 (mon choix 8 A) : arrive dans ⋯ Plus
   crise: { el: 'btnCrise', icon: 'triangle-alert', name: 'Mode crise (crue, coupure, canicule, abri, grève)', short: 'Mode crise' }, // v490 (mes réponses 2A et 29A) : arrive dans ⋯ Plus
 };
 /** L'essentiel (v147) : les boutons choisis sur la carte, les autres dans Plus ; « Annuler » remet la disposition d'avant. */
@@ -13842,6 +13913,7 @@ const HELP = [
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
     '{download} **Préparer hors ligne** : en bas de Mon Paris, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
     '{triangle-alert} **Plan de secours** : en mode crise, quand le fond de carte ne se charge plus (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent à l\'encre, à partir d\'un zoom de quartier. Avec du réseau, la vraie carte reste. Les noms des rues n\'y sont pas : Où suis-je ? donne ton adresse quand le réseau revient.',
+    '{waves} **Crue** : en mode crise Crue, la hauteur de la Seine à Austerlitz (Hub\'Eau ; rien si la mesure a plus de 2 h) et la zone inondable de la crue de 1910 (PPRI de Paris, en gris) s\'allument seules. Autour de moi dit si tu es dans la zone, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied le plus court jusqu\'à une rue à 50 m au moins hors zone, calculé sur le téléphone (il faut le plan des rues : Préparer hors ligne). La zone ne dit pas où est l\'eau maintenant : suis les consignes des secours et Vigicrues.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -14032,6 +14104,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{waves} **Zones inondables** : ⋯ Plus → Zones inondables montre en gris la zone de la crue de 1910 (PPRI de Paris). En mode crise Crue, elle s\'allume seule ; Autour de moi dit si tu es dedans, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied jusqu\'à une rue hors zone.',
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
     '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
@@ -14041,7 +14114,6 @@ const HELP = [
     '{download} **Préparer hors ligne** : en bas de Mon Paris, ou dans le mode crise. Un appui garde sur le téléphone le plan des rues, les fontaines et les toilettes ; la ligne dit ensuite « Prêt · vérifié le … ».',
     '{thermometer-sun} **Météo et air rangée** : touche la pastille ; la page garde tout, rangé en quatre groupes : Ici, Météo, Air, Et aussi.',
     '{map-pin} **Point de repli et rendez-vous** : appui long sur la carte, puis « Point de crise… » : Mon point de repli, Près de chez nous ou Hors du quartier. En mode crise, Autour de moi les donne sous Rentrer à pied, avec Y aller et « Envoyer à » tes proches.',
-    '{triangle-alert} **Mode crise** : ⋯ Plus, puis Mode crise. Touche la crise : Autour de moi commence par rentrer à pied chez toi, « Je vais bien » à tes proches, les appeler, alerter en silence. Une étiquette en haut le dit ; « Terminer » l\'éteint.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
@@ -14650,6 +14722,7 @@ document.querySelector('#nowCard .now-close').addEventListener('click', () => {
 let markersDay = new Date().toDateString(); // à minuit, les pastilles agenda des épingles changent
 setInterval(() => { updateNow(true); drawWx(); updatePlanningCount(); if (new Date().toDateString() !== markersDay) { markersDay = new Date().toDateString(); nowHidden = false; /* v270 : la croix cache le bandeau pour la journée, pas pour les jours suivants (appli restée en mémoire) */ dropStaleDayList(); renderMarkers(); updateNow(true); } }, 5 * 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveJournal(true); });
+drawPpri(); // v503 : la zone inondable, si elle est allumée ou en mode Crue
 drawWx(); // le rappel dimanche / férié s'affiche même sans réseau (appelé ici, une fois tout déclaré)
 // Liste des marchés (gardée une semaine sur le téléphone) : pour que « Maintenant » propose un marché le matin
 loadMarkets().then(() => updateNow(true)).catch(() => {});
