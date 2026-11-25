@@ -7,6 +7,8 @@
    définis ») n'est pas reprise. Revue chaque 1er septembre avec les urgences (tâche annuelle). */
 
 export const COMMISSARIATS_CHECKED = '25 novembre 2026';
+/** v489 : le seul téléphone que donne chaque fiche, le même pour tous (« numéro non surtaxé - coût d'un appel local »). */
+export const POLICE_TEL = '3430';
 export const COMMISSARIATS_SOURCE = 'https://www.prefecturedepolice.interieur.gouv.fr/demarches/vos-points-daccueil';
 
 const c = (arr, name, address, lat, lng, h24, hours = '') => ({ arr, name, address, lat, lng, h24, hours });

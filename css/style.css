@@ -244,6 +244,8 @@ button { cursor: pointer; }
 .row { display: flex; gap: 10px; }
 .row.duo .btn { padding-inline: 8px; gap: 6px; } /* v297 : deux boutons côte à côte (fiche, doublon) : le texte tient sur une ligne à 360 px */
 :root:is([data-text="tresgrand"]) .secours { flex-direction: column; } /* v431 : côte à côte, « Urgences 112 » passait sur deux lignes à 360 px */
+.secours { gap: 8px; } .secours .btn { padding-inline: 4px; white-space: nowrap; } :root:is([data-text="grand"]) .secours .btn { font-stretch: 80%; } /* v489 (mon choix 2A du 25 nov.) : trois numéros sur une ligne à 360 px */
+:root:not([data-text="tresgrand"]) .secours .btn .ico { display: none; } /* sans le combiné, sinon « Urgences 112 » sort du bouton ; en Très grand (en colonne) il revient */
 .row > * { flex: 1; }
 /* Grand et Très grand texte : ces deux boutons l'un sous l'autre, toujours (« Écrire une impression » ne tient pas en demi-largeur à 360 px) ; même ordre */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .row-big { flex-direction: column; }

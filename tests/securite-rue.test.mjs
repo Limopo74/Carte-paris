@@ -65,3 +65,15 @@ test('commissariats proches : les 2 plus proches à moins de 4 km, rien loin de 
   const block = app.slice(app.indexOf('const police = commissariatsNear('), app.indexOf("openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle()"));
   assert.ok(block.length > 0 && app.indexOf('const police = commissariatsNear(') > app.indexOf('const prized = prizedNear('), 'tout en bas d\'Autour de moi');
 });
+
+test('v489 : « Appeler le 34 30 (pas urgent) » sous les commissariats ; trois numéros sur une ligne dans Où suis-je ?', async () => {
+  const { POLICE_TEL } = await import('../js/commissariats.js');
+  assert.equal(POLICE_TEL, '3430');
+  const block = app.slice(app.indexOf('const police = commissariatsNear('), app.indexOf("openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle()"));
+  assert.match(block, /href: `tel:\$\{POLICE_TEL\}`/);
+  assert.match(block, /'Appeler le 34 30 \(pas urgent\)'/);
+  assert.doesNotMatch(block, /primary|solid/, 'pas de plaque pleine');
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.secours \.btn \{ padding-inline: 4px; white-space: nowrap; \}/, 'une ligne par bouton');
+  assert.match(css, /:root:not\(\[data-text="tresgrand"\]\) \.secours \.btn \.ico \{ display: none; \}/);
+});
