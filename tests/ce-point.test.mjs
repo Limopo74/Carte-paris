@@ -22,7 +22,7 @@ test('la page : la même que pour une adresse, un rond tant qu\'elle est ouverte
   assert.match(pinFn, /class="peek-pin/);
   assert.match(app, /const closing = pin \|\| mark \? \(\) => \{ unmarkSpot\(\); onClose\?\.\(\); \} : onClose;/);
   assert.match(app, /const unmarkSpot = \(\) => \{ marked = null; pointLayer\.clearLayers\(\); \};/);
-  assert.match(app, /\), \{ tall: true, name: key, again, onClose: closing \}\);/);
+  assert.match(app, /\), \{ tall: true, name: key, again, onClose: closing(, listen)? \}\);/); // v432 : `listen` ajouté
 });
 
 test('Confidentialité dit que le point touché part à l\'IGN', () => {

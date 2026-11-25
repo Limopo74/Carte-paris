@@ -1,4 +1,4 @@
-// v430 (mon « 2 oui » du 25 nov.) : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro.
+// v431 (mon « 2 oui » du 25 nov.) : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro.
 // Numéros : service-public.gouv.fr, fiche F33954.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

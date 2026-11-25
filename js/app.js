@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (431)';
+const VERSION = '25 novembre 2026 (432)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1442,7 +1442,7 @@ new MutationObserver(() => { if (!sheet.hidden) gatherTips(); }).observe(sheetBo
 
 let userSize = null; // v332 : hauteur choisie au doigt pour l'écran affiché ('low' | 'mid' | 'tall' ; null : celle prévue pour lui)
 let sheetNatural = Infinity; // v332 : hauteur de la page entière, mesurée fenêtre ouverte (moitié et grande se confondent sur une page courte)
-function openSheet(title, body, { onClose = null, tall = false, name = null, again = null } = {}) {
+function openSheet(title, body, { onClose = null, tall = false, name = null, again = null, listen = null } = {}) {
   if (moving && name !== 'move') stopMove();
   if (!(name && name === view && !sheet.hidden)) userSize = null; // v332 : un nouvel écran prend sa hauteur prévue ; le même, redessiné, garde celle choisie au doigt
   setSheetMini(false); // un nouvel écran (ou le même redessiné) s'ouvre toujours en grand
@@ -1471,6 +1471,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   view = name;
   markOpen(true); // v331 : la goutte du lieu de cette fiche se distingue (ou plus aucune)
   fill(sheetTitle, ...[title].flat().filter(Boolean));
+  setListen(listen); // v432 : « Écouter » dans l'en-tête, seulement pour une page qui a un texte à lire
   fill(sheetBody, ...[body].flat().filter(Boolean));
   gatherTips(); // avant de remettre la hauteur de lecture : la page a déjà sa longueur finale
   setSheetSize(userSize ?? (tall ? 'tall' : 'mid'));
@@ -1499,6 +1500,7 @@ function closeSheet(fromHistory = false) {
   stopQuietNear();
   view = null;
   markOpen(false);
+  setListen(null); // v432 : la lecture s'arrête avec la page
   navStack = [];
   tipsOpen = null;
   fill(sheetBody, );
@@ -1541,6 +1543,40 @@ document.getElementById('sheetClose').addEventListener('click', () => { if (trac
    Réduite, seule la barre du titre reste ; la carte se voit et se déplace. Agrandie, la liste revient à la même hauteur. */
 const sheetMin = el('button', { type: 'button', id: 'sheetMin', class: 'icon-btn', 'aria-label': 'Réduire pour voir la carte', 'aria-expanded': 'true', onclick: () => setSheetMini(!sheet.classList.contains('mini')) }, ico('chevron-down'));
 document.getElementById('sheetClose').before(sheetMin);
+/* v432 (mon choix 1A du 25 nov., maquette « Écouter ») : un haut-parleur dans l'en-tête, à gauche de ⌄, lit à voix haute le texte
+   de la page (synthèse vocale du téléphone, rien n'est envoyé). Pendant la lecture : carré « Arrêter la lecture ». Il ne s'affiche
+   que pour une page qui le demande (`listen`) et si le téléphone sait lire ; un appui le fait lire même avec la Voix coupée
+   (la Voix règle ce que l'appli dit d'elle-même). Changer de page ou fermer arrête la lecture. Rien ne bouge sous l'en-tête. */
+const canListen = () => 'speechSynthesis' in window && typeof SpeechSynthesisUtterance === 'function';
+let listenText = null;
+let listenUtter = null;
+const sheetListen = el('button', { type: 'button', id: 'sheetListen', class: 'icon-btn', hidden: true, onclick: () => toggleListen() });
+sheetMin.before(sheetListen);
+function drawListen(on) {
+  fill(sheetListen, ico(on ? 'square' : 'volume-2'));
+  sheetListen.setAttribute('aria-label', on ? 'Arrêter la lecture' : 'Écouter');
+  sheetListen.setAttribute('aria-pressed', String(on));
+}
+function setListen(text) {
+  if (sheetListen.getAttribute('aria-pressed') === 'true') silence();
+  listenText = text && canListen() ? String(text) : null;
+  sheetListen.hidden = !listenText;
+  drawListen(false);
+}
+function toggleListen() {
+  if (sheetListen.getAttribute('aria-pressed') === 'true') { silence(); drawListen(false); return; }
+  if (!listenText) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(listenText);
+    u.lang = 'fr-FR';
+    listenUtter = u; // la fin d'une lecture arrêtée arrive parfois après le début de la suivante : seule la dernière compte
+    const done = () => { if (u === listenUtter) drawListen(false); };
+    u.onend = done; u.onerror = done;
+    speechSynthesis.speak(u);
+    drawListen(true);
+  } catch { toast('Ce téléphone ne sait pas lire à voix haute.', true); }
+}
 let miniScroll = 0;
 /** v333 : hauteur de la fenêtre ouverte : 'low' (33 %), 'mid' (58 %) ou 'tall' (85 %) ; la réduction est à part (classe mini). */
 function setSheetSize(size) {
@@ -6319,7 +6355,7 @@ function receiveMeet(m) {
 }
 
 /* ---------- Où suis-je ? ---------- */
-/** v430 (mon « 2 oui » du 25 nov.) : appeler les secours sous l'adresse. Un lien `tel:` ouvre le clavier du téléphone avec le numéro,
+/** v431 (mon « 2 oui » du 25 nov.) : appeler les secours sous l'adresse. Un lien `tel:` ouvre le clavier du téléphone avec le numéro,
    rien n'est appelé sans un second appui. Numéros : service-public.gouv.fr, fiche F33954 (vérifiée le 25 août 2026, lue le 25 nov. 2026). */
 const SECOURS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale']];
 function secoursRow() {
@@ -6519,10 +6555,10 @@ function followButton(name, again) {
   } }, ico('heart', { filled: on }), on ? 'Suivie (Mes salles)' : 'Suivre'); // v301 (mon choix 3A) : cœur plein une fois suivie, comme Favori
 }
 
-function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false, mark = false }) {
+function openSpot({ icon, title, kicker = '', lines = [], place, link = null, back = null, key, add = {}, extra = null, fav = null, mine = null, snap = null, onClose = null, pin = false, mark = false, listen = null }) {
   const d = startPos() ? distanceM(startPos(), place) : null;
   if (mine && !state.points.includes(mine)) mine = null; // lieu supprimé entre-temps : la page redit « Ajouter »
-  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin, mark });
+  const again = () => openSpot({ icon, title, kicker, lines, place, link, back, key, add, extra, fav, mine, snap, onClose, pin, mark, listen });
   /* v420 : `pin` = le petit rond terre cuite marque l'endroit tant que la page est ouverte ; il revient avec elle
      (retour depuis Métro ou Boussole) et part à sa fermeture ; v429 : `mark` = le rond choisi d'un lieu de Sorties (markSpot) */
   const closing = pin || mark ? () => { unmarkSpot(); onClose?.(); } : onClose;
@@ -6549,7 +6585,7 @@ function openSpot({ icon, title, kicker = '', lines = [], place, link = null, ba
     /* v333 : musée, galerie, salle, théâtre (les pages qui ont un Favori) : Uber en bas de page, rien ne bouge au-dessus */
     fav && uberRow(place) ? el('div', { class: 'fiche-toc' }, uberRow({ ...place, name: title })) : null,
     back ? foot(backBtn(back)) : null,
-  ), { tall: true, name: key, again, onClose: closing });
+  ), { tall: true, name: key, again, onClose: closing, listen });
   if (mark) markSpot(place.lat, place.lng, icon);
   else if (pin) showPointPin(place.lat, place.lng); // après openSheet : la page quittée (« Ce point », Métro) efface le sien en se fermant
 }
@@ -9185,7 +9221,8 @@ function openCircuitStep(c, i, back) {
   const self = named(e.n, () => openCircuitStep(c, i, back));
   openSpot({ icon: e.m ? 'train-front' : 'signpost', title: e.n, kicker: `Étape ${i + 1} sur ${c.etapes.length} · ${c.titre}`, lines: [e.t], place: e,
     extra: c.mine ? null : el('button', { type: 'button', class: 'btn c-info', onclick: () => openProblem(c, i, self) }, ico('triangle-alert'), 'Signaler un problème'),
-    link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}` });
+    link: e.s ? [e.s, `Source : ${siteName(e.s)}`] : null, back, key: `circuit:${c.id}:${i}`,
+    listen: e.t ? `${e.n}. ${e.t}` : null }); // v432 : « Écouter » lit le nom de l'étape puis son texte
 }
 
 /** Le tracé et les étapes numérotées sur la carte ; le bandeau ramène au circuit. Rien n'est demandé au GPS. */
@@ -12199,6 +12236,7 @@ const HELP = [
     '{route} **Parcours ou circuit ?** Un **parcours** mesure : tes étapes, le chemin par les rues, la distance et la durée à pied ; il peut repasser par la même rue, sans titre ni texte. Un **circuit** se visite : un titre, un thème, un texte par étape, la station de départ et d\'arrivée, jamais deux fois la même rue ; il se suit avec la Balade guidée et se partage. Un parcours peut devenir un circuit : « En faire un circuit ».',
     '**Un parcours enregistré** : Balade guidée, Google Maps (4 étapes au plus), Modifier (et le nom), Partager (un lien avec les étapes), « En faire un circuit » (titre, thème, un texte par étape si tu veux ; refusé s\'il revient sur ses pas, sauf pour aller voir une étape en retrait, 40 m au plus), Supprimer.',
     '{navigation} **Balade guidée** : la boussole te mène d\'étape en étape. « Étape suivante » passe à la suite.',
+    '{volume-2} **Écouter une étape** : sur la page d\'une étape de circuit, le haut-parleur en haut, à gauche de ⌄, lit son nom et son texte. Le carré arrête. La lecture s\'arrête aussi quand tu changes de page.',
     '**À l\'arrivée** à un de tes lieux, « Visité » le note en un appui. Rien ne se coche tout seul.',
     '{shuffle} **Surprise** : un de tes lieux au hasard, à moins de 15 min.',
     '{book-open-text} **Curiosités** : d\'abord les plaques commémoratives à moins de 5 min (touche-en une pour lire son texte et savoir où regarder), puis les passages couverts à moins de 15 min, puis les articles Wikipédia à moins de 1 km. + pour en faire un lieu.',
@@ -12359,6 +12397,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{volume-2} **Écouter une étape** : ouvre une étape d\'un circuit, touche le haut-parleur en haut, à gauche de ⌄ : le téléphone lit son texte. Touche le carré pour arrêter.',
     '{phone} **Appeler les secours** : Autour de moi → Où suis-je ?, sous « Ajouter ce lieu », « Urgences 112 » et « Samu 15 ». Le téléphone s\'ouvre avec le numéro, ton adresse reste affichée au-dessus pour la dicter.',
     '{map-pin} **Les lieux de Sorties sur la carte** : touche une sortie, un musée gratuit, un marché ou une galerie dans Sorties : son rond est marqué sur la carte (bord noir, plus gros), et la carte se place sur lui s\'il était hors de vue.',
     '{git-commit-horizontal} **Rues d\'intérêt : un filtre** : leur trait ne se dessine plus d\'office. Allume-le dans Filtres → Afficher aussi sur la carte → Rues d\'intérêt. Filtre éteint, la goutte reste, et la fiche ouverte d\'une rue montre son trait.',
@@ -12368,7 +12407,6 @@ const HELP = [
     '{lines} **Les stations se touchent** : avec les lignes de métro et RER affichées, zoome jusqu\'à voir les stations et touches-en une : Autour de moi s\'ouvre depuis elle, comme M → Choisir une station.',
     '{camera} **Photo propose la galerie** : sur la fiche, Photo ouvre une petite page, « Depuis ma galerie » ou « Prendre une photo ». « Depuis ma galerie » n\'est plus dans Rangement.',
     '{star} **Le favori à droite du nom** : dans Lieux du jour, la loupe, Autour de moi, J\'ai du temps et tes autres listes de lieux, la marque du favori suit le nom au lieu de le précéder. Un nom long sur deux lignes la garde.',
-    '{pencil} **Café ou snack, boutique sur place** : fiche → Modifier, tout en bas, deux interrupteurs (pas pour un resto, une boutique ou un café), chacun avec une ligne de commentaire. La fiche l\'écrit sur la ligne de « Abrité » et de tes listes : « Café · Boutique », ou sur sa propre ligne avec ton commentaire (« Café : salon de thé dans le jardin »).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

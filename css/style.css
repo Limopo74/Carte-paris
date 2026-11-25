@@ -146,7 +146,7 @@ button { cursor: pointer; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .row { display: flex; gap: 10px; }
 .row.duo .btn { padding-inline: 8px; gap: 6px; } /* v297 : deux boutons côte à côte (fiche, doublon) : le texte tient sur une ligne à 360 px */
-:root:is([data-text="tresgrand"]) .secours { flex-direction: column; } /* v430 : côte à côte, « Urgences 112 » passait sur deux lignes à 360 px */
+:root:is([data-text="tresgrand"]) .secours { flex-direction: column; } /* v431 : côte à côte, « Urgences 112 » passait sur deux lignes à 360 px */
 .row > * { flex: 1; }
 /* Grand et Très grand texte : ces deux boutons l'un sous l'autre, toujours (« Écrire une impression » ne tient pas en demi-largeur à 360 px) ; même ordre */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .row-big { flex-direction: column; }
@@ -863,6 +863,7 @@ body { -webkit-tap-highlight-color: transparent; background: var(--soft); }
 .sheet-head::before { content: ''; position: absolute; top: 4px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 999px; background: var(--line); } /* poignée : la barre se fait glisser */
 .sheet.mini .sheet-body { display: none; } /* réduite (v166) : seule la barre du titre reste, la carte se voit */
 .sheet-head .icon-btn { box-shadow: none; width: 48px; height: 48px; border-radius: var(--r); border: 2px solid var(--ink); background: transparent; }
+.sheet-head #sheetListen[aria-pressed="true"] { background: var(--info-bg); } /* v432 : lecture en cours, comme un choix sélectionné (charte § 4) */
 
 /* ---- Boutons : secondaire = contour 2 px ---- */
 .btn.c-metro { color: var(--metro); border-color: var(--metro); }

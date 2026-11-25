@@ -39,5 +39,5 @@ test('Loupe : l\'adresse touchée a son rond sur la carte et la carte se place d
   assert.ok(spot.indexOf('if (pin) showPointPin(') > spot.indexOf('openSheet('), 'rond posé après l\'ouverture de la page');
   assert.match(spot, /const closing = pin \|\| mark \? \(\) => \{ unmarkSpot\(\); onClose\?\.\(\); \}/);
   assert.match(spot, /onClose: closing/);
-  assert.match(spot, /const again = \(\) => openSpot\(\{[^}]*pin, mark \}\)/, 'le rond revient avec la page (retour depuis Métro)');
+  assert.match(spot, /const again = \(\) => openSpot\(\{[^}]*pin, mark(, listen)? \}\)/, 'le rond revient avec la page (retour depuis Métro)');
 });
