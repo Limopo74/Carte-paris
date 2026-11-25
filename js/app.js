@@ -74,7 +74,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (447)';
+const VERSION = '25 novembre 2026 (448)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -12527,7 +12527,7 @@ const HELP = [
   ]],
   ['sparkles', 'Nouveautés', [
     '{umbrella} **Sorties, une ligne de moins** : le soleil (dehors) et le parapluie (à l\'abri) sont à droite de « Chercher une sortie ». Allumé, une ligne le dit sous les boutons. En Grand et Très grand, ils restent dessous, avec leur mot.',
-    '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter. Réglages → Aide de l\'appli → Prise en main.',
+    '{hand} **Bienvenue et Prise en main** : les grandes fonctions suivent la colonne de boutons, de haut en bas (Ma position, Sorties et Mon planning, Vu en passant, Rentrer), puis Autour de moi et + Ajouter ; en Grand et Très grand, elles grandissent avec le texte. Réglages → Aide de l\'appli → Prise en main.',
     '{map} **Mon Paris plus court** : sous le calendrier, deux lignes, Mes arrondissements et Mes chiffres, chacune sa page. Touche une case des arrondissements : tes lieux de l\'arrondissement. Mes chiffres ne garde que ce qui suit la période (7 ou 30 jours).',
     '{save} **Sauvegarde** : une préparation pour un proche ou une remarque ajoutée ou changée compte maintenant dans « changements non sauvegardés ».',
     '{users} **Le démarrage d\'un proche** : un bouton du haut plus récent que ta préparation (Mes artistes, pour une préparation d\'avant le 21 novembre) arrive dans son ⋯ Plus, plus dans sa barre.',

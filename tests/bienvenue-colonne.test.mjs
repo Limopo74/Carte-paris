@@ -30,3 +30,8 @@ test('la Prise en main suit la colonne et cite Vu en passant ; Rentrer n\'est pl
   assert.doesNotMatch(first, /\(au départ dans ⋯ Plus ; tes stations/); assert.match(first, /\*\*M\*\*, la station la plus proche, est au départ dans ⋯ Plus/);
   assert.doesNotMatch(app, /Rentrer est rangé dans ⋯ Plus/);
 });
+
+test('v448 : les grandes fonctions de Bienvenue suivent la taille du texte', () => {
+  const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.welcome \.help-list \{ font-size: var\(--t16\); \}/);
+});

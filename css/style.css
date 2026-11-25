@@ -504,6 +504,7 @@ ol.items { padding: 0; }
 /* Aide */
 
 .help-list { display: flex; flex-direction: column; gap: 6px; }
+.welcome .help-list { font-size: var(--t16); } /* v448 (mon choix A du 25 nov.) : les grandes fonctions de Bienvenue suivent la taille du texte (avant : 16 px en Très grand) ; la page défile en Grand et Très grand */
 .help-item summary {
   display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 0; cursor: pointer; list-style: none;
   font-weight: 600; font-size: var(--t16);
