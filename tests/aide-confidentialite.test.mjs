@@ -27,5 +27,6 @@ test('v336 (mon choix 2A du 21 nov.) : dans l\'Aide, aucune ligne de Confidentia
   assert.ok(lines.length >= 12);
   for (const l of lines) assert.ok(l.length <= 300, `${l.length} signes : ${l.slice(0, 60)}…`);
   assert.match(lines.join(' '), /les fonds de carte \(OpenStreetMap, CARTO, OpenStreetMap France ou l'IGN .* et Vélib' \(aucune position envoyée\),/); // v502 : la Seine suit
-  assert.match(lines.join(' '), /la hauteur de la Seine à Austerlitz \(Hub'Eau, eaufrance, aucune position envoyée ; seulement si tu l'allumes dans la pastille ou en mode crise Crue\)\./); // v382 : l'IGN
+  assert.match(lines.join(' '), /la hauteur de la Seine à Austerlitz \(Hub'Eau, eaufrance, aucune position envoyée ; seulement si tu l'allumes dans la pastille ou en mode crise Crue\),/); // v382 : l'IGN
+  assert.match(lines.join(' '), /la vigilance Météo-France à Paris \(seulement si tu as tapé ta clé Météo-France ; ta clé part avec la demande, aucune position\)\./); // v511
 });

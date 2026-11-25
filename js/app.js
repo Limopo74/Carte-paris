@@ -34,6 +34,7 @@ import { COMMISSARIATS_CHECKED, COMMISSARIATS_SOURCE, POLICE_TEL, hoursText as p
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, URGENCES_SOURCE, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
 import { FICHES, FICHES_CHECKED, ficheOf } from './fiches.js';
+import { VIGI_URL, VIGI_PAGE, VIGI_PORTAL, VIGI_KEY, validVigiKey, readVigi, vigiShort, vigiText, COLOR_NAME } from './vigilance.js';
 import { KIT, KIT_IDS, KIT_SOURCE, KIT_URL, cleanKit, waterText } from './kit.js';
 import { CRISES, crisisOf, crisisShort, cleanCrisis, smsOkText, CRISIS_POINTS, cleanCrisisPoints, smsPointText } from './crise.js';
 import { voieOrigin, voieKey } from './voies.js';
@@ -89,7 +90,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (510)';
+const VERSION = '25 novembre 2026 (511)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -104,7 +105,8 @@ const PRIVACY_LINES = [
   'la liste des monuments (Wikidata, tout Paris, sans ta position),',
   'les Curiosités et le quartier d\'« Où suis-je ? » (Wikipédia, position arrondie à 100 m),',
   'la météo (Open-Meteo, position arrondie à 1 km ; les prévisions de Mon planning, et du bandeau « Maintenant » la veille d\'une sortie, sont celles de tout Paris, sans position) et Vélib\' (aucune position envoyée),',
-  'la hauteur de la Seine à Austerlitz (Hub\'Eau, eaufrance, aucune position envoyée ; seulement si tu l\'allumes dans la pastille ou en mode crise Crue).',
+  'la hauteur de la Seine à Austerlitz (Hub\'Eau, eaufrance, aucune position envoyée ; seulement si tu l\'allumes dans la pastille ou en mode crise Crue),',
+  'la vigilance Météo-France à Paris (seulement si tu as tapé ta clé Météo-France ; ta clé part avec la demande, aucune position).',
   'Y aller (Google Maps), Avis Google et Uber ne reçoivent que le lieu choisi ;',
   'un parcours ouvert dans Google Maps (liste du jour, Mes parcours, Sur mon chemin, J\'ai du temps, Parcours galeries, Boucle à courir, balade reçue) lui donne ses lieux dans l\'ordre et, pour une boucle, ton point de départ ;',
   '« Chercher … sur Google » ne reçoit que le nom tapé dans le champ Artiste ;',
@@ -9452,9 +9454,10 @@ function drawWx() {
   const aq = wxOn('air') ? air : null;
   const sun = wxOn('sun') ? nextSun() : null;
   const sn = seineShown() ? seine : null;
-  if (t == null && !rain && !aq && !day && !a && !h && !sun && !sn) { wxBadge.hidden = true; return; }
+  const vg = vigi?.color >= 3 ? vigi : null; // v511 : orange et rouge, toujours (un danger ne s'éteint pas)
+  if (t == null && !rain && !aq && !day && !a && !h && !sun && !sn && !vg) { wxBadge.hidden = true; return; }
   wxBadge.hidden = false;
-  const rest = Boolean(day || t != null || rain || aq || sun || sn);
+  const rest = Boolean(day || t != null || rain || aq || sun || sn || vg);
   fill(wxBadge,
     h ? el('b', { class: 'wx-arr wx-home' }, ico('sofa', { size: 16 })) : null,
     a ? el('b', { class: 'wx-arr' }, arrOrd(a)) : null,
@@ -9465,13 +9468,14 @@ function drawWx() {
     aq ? el('span', { class: `air-dot air-${aq.level}`, 'aria-hidden': 'true' }) : null,
     aq ? el('span', { class: 'wx-air-word' }, `Air ${aq.label.toLowerCase()}`) : null,
     sun ? el('span', { class: 'wx-sun' }, ico(sun.kind === 'rise' ? 'sunrise' : 'sunset', { size: 15 }), sunText(sun.min)) : null,
+    vg ? el('span', { class: 'wx-sun wx-vigi' }, el('span', { class: `vigi-dot vigi-${vg.color}`, 'aria-hidden': 'true' }), vigiShort(vg) || `Vigilance ${COLOR_NAME[vg.color]}`) : null,
     sn ? el('span', { class: 'wx-sun wx-seine' }, ico('waves', { size: 15 }), seineText(sn), sn.trend === 'monte' ? '↑' : sn.trend === 'baisse' ? '↓' : '') : null);
   // v479 : tout allumé, un dimanche, en Très grand, la pastille dépasserait l'écran : les mots « Air … » s'effacent, le point
   // de couleur reste (TalkBack lit toujours le niveau)
   wxBadge.classList.remove('wx-tight');
   if (aq && wxBadge.getBoundingClientRect().right > innerWidth - 6) wxBadge.classList.add('wx-tight');
   const sunSay = sun ? `${sun.kind === 'rise' ? 'lever du soleil' : 'coucher du soleil'} à ${sunText(sun.min)}` : '';
-  wxBadge.setAttribute('aria-label', [h ? 'Distances depuis chez toi' : a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', t != null ? `${t} degrés` : '', rain ? 'pluie' : '', aq ? `qualité de l'air : ${aq.label}` : '', sunSay, sn ? `Seine ${seineText(sn)}${sn.trend ? `, ${seineTrend(sn)}` : ''}` : ''].filter(Boolean).join(', ') + '. Détails');
+  wxBadge.setAttribute('aria-label', [h ? 'Distances depuis chez toi' : a ? `${arrOrd(a)} arrondissement` : '', day ? (day.short === 'Férié' ? 'jour férié' : 'dimanche') : '', t != null ? `${t} degrés` : '', rain ? 'pluie' : '', aq ? `qualité de l'air : ${aq.label}` : '', sunSay, vg ? vigiText(vg).replace(/\.$/, '') : '', sn ? `Seine ${seineText(sn)}${sn.trend ? `, ${seineTrend(sn)}` : ''}` : ''].filter(Boolean).join(', ') + '. Détails');
 }
 const AIR_ADVICE = {
   bon: 'Air de bonne qualité : aucune précaution.', correct: 'Rien à signaler pour l\'air.', moyen: 'Les personnes sensibles peuvent limiter les efforts longs.',
@@ -9526,6 +9530,15 @@ function openWeather(redraw = false) {
         filt.covered = true; refresh(); closeSheet(); toast(`Il pleut : ${plural(visible().length, 'lieu abrité', 'lieux abrités')} sur la carte`);
       } }, ico('umbrella'), `Il pleut : voir mes lieux abrités (${state.points.filter((p) => p.covered).length})`) : null,
       meteo?.temp >= 28 ? el('button', { type: 'button', class: 'btn c-guide', onclick: nearestPratique }, ico('trees'), 'Lieux frais près de moi') : null),
+    // v511 (9 B) : la vigilance Météo-France à Paris, avec ma clé ; sans clé, la ligne pour l'ajouter
+    ...group('Vigilance Météo-France',
+      vigiKey() && vigi && !vigiErr ? el('p', { class: vigi.color >= 3 ? 'warn' : 'help' }, vigi.color >= 3 ? vigiText(vigi) : 'Pas de vigilance orange ou rouge à Paris.') : null,
+      vigiKey() && vigiErr ? el('p', { class: 'warn' }, vigiErrText()) : null,
+      el('a', { class: 'btn', href: VIGI_PAGE, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Vigilance à Paris (Météo-France)'),
+      el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openVigiKey(named('Météo et air', () => openWeather())) },
+        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('triangle-alert')),
+        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Clé Météo-France'), el('span', { class: 'menu-sub' }, vigiKey() ? 'Enregistrée sur ce téléphone' : 'Pour voir la couleur ici et dans la pastille')),
+        el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
     ...group('Seine', seineShown() || seine ? el('div', { class: 'menu' }, seineRow()) : null),
     ...group('Air',
       air ? el('div', { class: `air-card air-${air.level}` }, el('b', {}, `Air ${air.label.toLowerCase()}`), el('span', {}, ` · indice européen ${air.aqi}`)) : el('p', { class: 'help' }, 'Qualité de l\'air indisponible pour le moment.'),
@@ -9538,7 +9551,7 @@ function openWeather(redraw = false) {
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Ce que montre la pastille'), el('span', { class: 'menu-sub' }, wxSub())), el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))), // v479 : un bouton plutôt qu'un chemin à lire (v365)
       // v481 (mon choix 27 A du 25 nov.) : le saint du jour sur Nominis (site de l'Église catholique en France) ; aucun prénom écrit dans l'appli
       el('a', { class: 'btn c-disc', href: NOMINIS, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Saint du jour (Nominis)')),
-    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près${seineShown() || seine ? ' ; Seine : Hub\'Eau (eaufrance), mesure brute, pas encore validée' : ''}.`),
+    el('p', { class: 'help tip' }, `Source : Open-Meteo, et le service européen CAMS pour l'air${z !== null ? ' ; altitude du sol : IGN, calculée sur le téléphone' : ''} ; lever et coucher du soleil calculés sur le téléphone, à une ou deux minutes près${seineShown() || seine ? ' ; Seine : Hub\'Eau (eaufrance), mesure brute, pas encore validée' : ''}${vigiKey() ? ' ; vigilance : Météo-France, avec ta clé' : ''}.`),
   ), { name: 'weather', again: () => openWeather(true) });
 }
 wxBadge.addEventListener('click', () => openWeather()); // v239 : toujours la météo ; Chez moi s'éteint par son interrupteur, en haut de la page (avant : un appui l'éteignait)
@@ -10190,6 +10203,60 @@ async function checkMeteo(at) {
   if (m) { const changed = m.rain !== meteo?.rain || (m.temp >= 28) !== (meteo?.temp >= 28); meteo = m; if (changed && view === 'near') renderNear(); }
   drawWx();
 }
+/* v511 (ma réponse 9 B, mes choix A et A du 25 nov.) : la vigilance Météo-France à Paris, avec MA clé (tapée dans l'appli, gardée
+   sur ce téléphone seulement). Orange et rouge seulement dans la pastille. En même temps que la météo, au plus toutes les 30 min. */
+const vigiKey = () => { try { return localStorage.getItem(VIGI_KEY) ?? ''; } catch { return ''; } };
+let vigi = null;
+let vigiErr = ''; // '' (rien à dire), 'cle' (clé refusée), 'appel' (Météo-France refuse l'appel venu de la page, ou pas de réseau)
+let vigiAt = 0;
+async function checkVigi(force = false) {
+  if (vigi && Date.now() - vigi.at > 30 * 3600 * 1000) vigi = null; // trop vieille : plus rien
+  const k = vigiKey();
+  if (!k) { vigi = null; vigiErr = ''; return; }
+  if (!navigator.onLine || (!force && Date.now() - vigiAt < 30 * 60 * 1000)) return;
+  vigiAt = Date.now();
+  try {
+    const r = await net(VIGI_URL, { headers: { apikey: k, accept: 'application/json' } });
+    if (r.status === 401 || r.status === 403) { vigi = null; vigiErr = 'cle'; }
+    else if (!r.ok) { vigiErr = 'appel'; }
+    else { vigi = readVigi(await r.json()); vigiErr = ''; }
+  } catch { vigiErr = 'appel'; }
+  drawWx();
+  if (view === 'weather') openWeather(true);
+}
+const vigiErrText = () => (vigiErr === 'cle' ? 'Météo-France refuse la clé : vérifie-la.' : vigiErr === 'appel' ? 'Météo-France ne répond pas à l\'appli (pas de réseau, ou appel refusé).' : '');
+/** La page de la clé Météo-France (comme la clé CARTO) : elle reste sur ce téléphone, jamais sur GitHub ni dans la sauvegarde. */
+function openVigiKey(back) {
+  const has = vigiKey();
+  const input = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Colle ta clé ici', 'aria-label': 'Clé Météo-France' });
+  const err = el('div', { class: 'error', role: 'alert' });
+  const save = async () => {
+    const k = input.value.trim();
+    if (!validVigiKey(k)) { err.textContent = typo('Cette clé ne ressemble pas à une clé Météo-France : vérifie le copier-coller.'); return; }
+    try { localStorage.setItem(VIGI_KEY, k); } catch { err.textContent = 'Le téléphone refuse de garder la clé.'; return; }
+    waitToast('Essai de la clé…');
+    await checkVigi(true);
+    hideToast();
+    toast(vigiErr ? vigiErrText() : vigi ? (vigi.color >= 3 ? vigiText(vigi) : 'Clé acceptée : pas de vigilance orange ou rouge à Paris.') : 'Clé enregistrée, mais la réponse de Météo-France est illisible.', Boolean(vigiErr));
+    back();
+  };
+  openSheet([ico('triangle-alert'), ' Clé Météo-France'], el('div', { class: 'stack' },
+    el('p', { class: 'help tip' }, 'La couleur de la vigilance vient de l\'API « Données Publiques Vigilance » de Météo-France, gratuite, avec un compte à ton nom.'),
+    el('ol', { class: 'steps' },
+      el('li', {}, 'Crée un compte sur le portail des API de Météo-France.'),
+      el('li', {}, 'Abonne-toi à l\'API « Données Publiques Vigilance », puis génère une clé (API Key).'),
+      el('li', {}, 'Copie la clé, colle-la ici et touche Enregistrer.')),
+    el('a', { class: 'btn c-disc', href: VIGI_PORTAL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Portail des API de Météo-France'),
+    el('label', { class: 'field' }, has ? 'Nouvelle clé' : 'Ta clé', input),
+    err,
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('save'), 'Enregistrer la clé'),
+    has ? el('button', { type: 'button', class: 'btn danger', onclick: () => { try { localStorage.removeItem(VIGI_KEY); } catch { /* rien */ } vigi = null; vigiErr = ''; drawWx(); toast('Clé Météo-France effacée'); back(); } }, ico('trash-2'), 'Effacer la clé') : null,
+    el('p', { class: 'help tip' }, 'La clé reste sur ce téléphone : ni sur GitHub, ni dans ta sauvegarde. Seule la carte de la vigilance, la même pour tous, est demandée à Météo-France.'),
+    foot(backBtn(back)),
+  ), { tall: true, name: 'vigi-key' });
+}
+setTimeout(() => checkVigi(), 2000);
+setInterval(() => { if (document.visibilityState === 'visible') checkVigi(); }, 31 * 60 * 1000);
 // Au lancement et toutes les 30 min : météo du dernier endroit connu (ou du centre de Paris), sans demander la position.
 setTimeout(() => checkMeteo(here ?? { lat: PARIS[0], lng: PARIS[1] }), 1500);
 setTimeout(() => checkSeine(), 2500); // v502 : seulement si la Seine est allumée ou en mode Crue
@@ -14327,6 +14394,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} **Vigilance Météo-France** : avec ta clé gratuite de Météo-France (touche la pastille → Clé Météo-France), la pastille montre la vigilance orange ou rouge à Paris et le danger (« Orages »…). Vert et jaune : rien. La clé reste sur ce téléphone.',
     '{backpack} **Mon kit 72 h** : en mode crise (Autour de moi) et tout en bas de Mon Paris. La liste du guide « Tous responsables » du Gouvernement, à cocher, et « Je l\'ai vérifié aujourd\'hui ». Rien n\'est rappelé tout seul ; tes coches restent sur ce téléphone et dans ta sauvegarde.',
     '{list} **Les bons gestes** : en mode crise, juste sous Rentrer à pied, la fiche de la crise : 6 ou 7 gestes, lisibles sans réseau, repris de paris.fr, du guide « Tous responsables », de sante.fr ou d\'info.gouv.fr, avec le lien vers le guide entier. Les autres fiches sont en bas.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, Autour de moi → « Urgences à l\'hôpital » : les 9 urgences adultes de l\'AP-HP dans Paris, de la plus proche, avec Appeler et Y aller ; en bas, la pharmacie de garde (32 37 ou 3237.fr). En Coupure, les radios FM ; en Abri, le lien du niveau Vigipirate.',
@@ -14336,7 +14404,6 @@ const HELP = [
     '{waves} **Hauteur de la Seine** : Réglages → Autres réglages → Pastille météo → Seine (éteinte au départ ; toujours là en mode crise Crue). La page Météo dit la hauteur à Austerlitz, si elle monte ou baisse sur 6 h, l\'heure de la mesure, et ouvre Vigicrues. Rien si la mesure a plus de 2 h.',
     '{ruler} **Distance et durée** : au-delà de 1 km, les listes donnent la distance avec la durée à pied : « 9,1 km · 2 h 22 ».',
     '{triangle-alert} **Mode crise bien visible** : tant qu\'il est allumé, une bande rayée jaune et noir en haut et en bas de l\'écran. Aucune en Confinement ou attentat, pour rester discret.',
-    '{clock} **Les durées en heures** : au-delà de 60 min, une durée s\'écrit en heures, partout dans l\'appli : « 1 h 57 » plutôt que « 117 min ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
