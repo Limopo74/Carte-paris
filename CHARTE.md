@@ -158,3 +158,11 @@ Quatre styles (v464), **mêmes écrans, mêmes boutons aux mêmes places, mêmes
 - **Pas touchés** : comme Verre (boussole, photo en grand, carte).
 - **Défaut connu** : capitales et lettres serrées moins lisibles avec des lunettes (v177, v186 l'avaient constaté) ; le style le plus chargé.
 
+
+### 10.4 Puces et icônes selon le style (v467, mes choix 1A 2A du 25 novembre 2026, sur la planche)
+- **Traits des icônes** (`--icon-stroke`, seulement dans l'appli posée sur la carte) : Papier 2, Verre 1,6, Signalétique et Pop 2,6.
+- **Icône d'une ligne de Sorties** (`.genre`, 36 px dans sa colonne de 36 px) : Papier nue ; Verre dans un disque teinté prune ; Signalétique dans un anneau de sa couleur ; Pop dans une case à contour noir et ombre dure.
+- **Tampons** : Papier rectangle à contour ; Verre pastille teintée sans contour (« Gratuit » sur fond vert pâle) ; Signalétique pilule à contour ; Pop case blanche à contour noir (« Gratuit » menthe).
+- **Choix parmi plusieurs** (`.seg`) : Verre pastilles grises, le choix en plaque encre ; Signalétique pilules, le choix en jaune ; Pop cases à contour noir, le choix jaune avec ombre. **Exception voulue au § 8** (choix sélectionné en fond léger) pour Verre, Signalétique et Pop. **Interrupteur** allumé : Verre dégradé corail-prune, Signalétique jaune (bouton nuit), Pop rose à contour noir.
+- **Colonne de la carte en Pop** : aplats des familles (métro bleu pâle, vert menthe, Découvrir pêche).
+- **Gouttes de mes lieux** : même forme et même couleur partout ; seul leur contour change (`--pin-edge`) : Verre liseré blanc et ombre douce, Signalétique liseré nuit, Pop liseré noir et ombre dure.

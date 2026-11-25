@@ -10,6 +10,8 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].replace(/@media[^{]*$/, '').trim().replace(/\s+/g, ' '), body: m[2] }));
 const decls = (r, prop) => [...r.body.matchAll(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'g'))].map((m) => m[1].trim());
 // v452 : un troisième bloc de jetons, le style Verre (CHARTE.md § 10.1) ; le sombre est le style Signalétique (§ 10.2)
+// v467 : une règle d'un style (CHARTE.md § 10, sélecteur qui commence par son attribut) suit la charte de son style, pas les §§ 4 et 8 de Papier
+const styleRule = (r) => /^:root(\[data-(look|theme)="[a-z]+"\]|:is\(\[data-(look|theme))/.test(r.sel);
 const isTokens = (r) => r.sel === ':root' || r.sel === ':root[data-theme="dark"]' || r.sel === ':root[data-look="verre"]' || r.sel === ':root[data-look="pop"]'; // v464 : Pop (§ 10.3)
 
 // Ce qui est dessiné SUR la carte (épingles, tracés, cercles…) et les aperçus garde ses couleurs propres.
@@ -89,7 +91,7 @@ test('charte « Papier » : 4 px, aucune ombre « pavé », pas de fond teinté 
   const CTRL = /\.(btn|map-btn|chip|tool|big-btn|icon-btn|go-compass)(?![\w-])|\.seg button/;
   const bad = [];
   for (const r of rules) {
-    if (!CTRL.test(r.sel) || /aria-pressed|:active|\.on\b|\.solid|\.primary|focus/.test(r.sel)) continue;
+    if (!CTRL.test(r.sel) || styleRule(r) || /aria-pressed|:active|\.on\b|\.solid|\.primary|focus/.test(r.sel)) continue;
     for (const v of decls(r, 'background(?:-color)?')) if (/--[a-z]+-bg\)/.test(v)) bad.push(`${r.sel} → fond ${v}`);
     for (const v of decls(r, 'border(?:-color)?')) if (/var\(--line\)/.test(v) && !/disabled/.test(r.sel)) bad.push(`${r.sel} → contour ${v}`);
   }
@@ -135,7 +137,7 @@ test('homogénéité : contours de bouton et filets forts à 2 px (Chrome dessin
 
 test('homogénéité : un choix sélectionné dans une page a un fond léger ; le plein reste sur la carte', () => {
   for (const r of rules) {
-    if (!/\[aria-pressed="true"\]/.test(r.sel) || !/\.chip|\.seg button|\.icon-choice/.test(r.sel)) continue;
+    if (styleRule(r) || !/\[aria-pressed="true"\]/.test(r.sel) || !/\.chip|\.seg button|\.icon-choice/.test(r.sel)) continue;
     if (/\.top |\.deck |\.chip\.(star|street|lines|velib|buslines)/.test(r.sel)) continue;
     for (const v of decls(r, 'background(?:-color)?')) assert.ok(!/--strong|--ink\)/.test(v), `${r.sel} : fond plein dans une page (CHARTE.md § 8)`);
   }

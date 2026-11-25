@@ -43,7 +43,7 @@ test('Verre : le texte blanc de la plaque en dégradé se lit sur ses deux coule
 
 test('les règles d\'un style ne valent que pour lui, et Verre ne touche que l\'appli posée sur la carte', () => {
   for (const r of rules) {
-    for (const k of ['verre', 'pop']) if (r.sel.includes(`data-look="${k}"`)) assert.ok(topLevel(r.sel).every((s) => s.startsWith(`:root[data-look="${k}"]`)), r.sel);
+    for (const k of ['verre', 'pop']) if (r.sel.includes(`data-look="${k}"`)) assert.ok(topLevel(r.sel).every((s) => s.startsWith(`:root[data-look="${k}"]`) || s.startsWith(':root:is([data-')), r.sel); // v467 : :root:is([data-look=…], …) pour plusieurs styles à la fois
   }
   const verre = rules.filter((r) => r.sel.startsWith(':root[data-look="verre"] ')).map((r) => r.sel).join('\n');
   assert.ok(!/\.compass\b|viewer/.test(verre), 'la boussole et la photo en grand gardent leur aspect');
@@ -57,7 +57,8 @@ test('les règles d\'un style ne valent que pour lui, et Verre ne touche que l\'
 
 test('les tailles ne changent pas d\'un style à l\'autre : mêmes hauteurs de bouton, même échelle de texte', () => {
   for (const [name, t] of Object.entries(STYLES)) for (const k of ['--h', '--h-s', '--h-l', '--t16', '--ts']) assert.equal(t[k], PAPIER[k], `${name} ${k}`);
-  for (const r of rules) if (/data-(look|theme)=/.test(r.sel) && /^:root\[data-(look|theme)="[a-z]+"\] /.test(r.sel)) {
+  // v467 : seule exception, le dessin des icônes de ligne de Sorties (disque, anneau, case de 36 px dans leur colonne de 36 px)
+  for (const r of rules) if (/^:root(\[data-(look|theme)="[a-z]+"\] |:is\(\[data-(look|theme))/.test(r.sel) && !/\.genre[^,]*(\.ico|svg)\s*$/.test(r.sel)) {
     assert.ok(!/(^|;)\s*(min-height|height|width|font-size)\s*:/.test(r.body), `${r.sel} : un style ne change pas les tailles`);
   }
 });

@@ -90,6 +90,9 @@
   --compass-bg: #14171D; --compass-ink: #EEF0F3; --compass-muted: #A9B0BC;
   --float: 0 4px 14px rgba(0, 0, 0, .55);
   --r: 10px;
+  /* v467 (mes choix 1A 2A du 25 nov.) : traits d'icône épais, contour nuit des gouttes */
+  --icon-stroke: 2.6;
+  --pin-edge: 0 0 0 2.5px #131418, 0 3px 0 rgba(0, 0, 0, .5);
 }
 /* v452 (mon choix 1B du 25 nov.) : style « Verre », le jour seulement (data-look="verre" ; CHARTE.md § 10.1). Mêmes rôles, autres valeurs. */
 :root[data-look="verre"] {
@@ -132,6 +135,12 @@
   --sheet-shadow: 0 -12px 40px rgba(40, 30, 90, .22);
   --plaque-img: linear-gradient(120deg, #C8381F, #8A1F6E);
   --plaque-shadow: 0 10px 24px rgba(138, 31, 110, .32);
+  /* v467 (mes choix 1A 2A du 25 nov., planche des puces et icônes) */
+  --icon-stroke: 1.6;
+  --genre-bg: rgba(139, 44, 122, .12);
+  --tag-bg: rgba(26, 29, 43, .07);
+  --seg-bg: rgba(26, 29, 43, .06);
+  --pin-edge: 0 0 0 2.5px #FFFFFF, 0 6px 12px rgba(40, 30, 90, .3);
 }
 /* v464 (mon choix A du 25 nov.) : style « Pop », le jour seulement (data-look="pop" ; CHARTE.md § 10.3). */
 :root[data-look="pop"] {
@@ -173,6 +182,9 @@
   --pop-disc: #FFD2BF;
   --plaque-img: linear-gradient(#FF7AB0, #FF7AB0);
   --plaque-ink: #0A0A0A;
+  /* v467 (mes choix 1A 2A du 25 nov.) */
+  --icon-stroke: 2.6;
+  --pin-edge: 0 0 0 2.5px #0A0A0A, 0 4.24px 0 #0A0A0A;
 }
 /* Taille du texte (Réglages, v144) : l'échelle 11,5 · 13 · 14 · 16 · 18 · 22 · 26 multipliée par --ts. */
 :root[data-text="grand"] { --ts: 1.15; --tools-cols: 3; }
@@ -1585,4 +1597,36 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="pop"] .sheet-head::before { background: var(--ink); }
 :root[data-look="pop"] .tag { border: 2px solid var(--ink); border-radius: var(--r); background: var(--pop-yellow); color: var(--ink); }
 :root[data-look="pop"] .tabs-line { border-bottom: 3px solid var(--ink); }
+
+/* ---- Puces et icônes selon le style (v467, mes choix 1A 2A du 25 nov., sur la planche) ----
+   Les gouttes de mes lieux gardent leur forme et leur couleur : seul leur contour change. */
+:root:is([data-look="verre"], [data-look="pop"], [data-theme="dark"]) :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) svg.lucide { stroke-width: var(--icon-stroke); }
+:root:is([data-look="verre"], [data-look="pop"], [data-theme="dark"]) .pin { box-shadow: var(--pin-edge); }
+/* icône d'une ligne de Sorties : disque teinté (Verre), anneau (Signalétique), case à ombre dure (Pop) */
+:root:is([data-look="verre"], [data-look="pop"], [data-theme="dark"]) .ev-main > .genre:not(.g-ttb) > .ico { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; box-sizing: border-box; }
+:root[data-look="verre"] .ev-main > .genre:not(.g-ttb) > .ico { background: var(--genre-bg); }
+:root[data-theme="dark"] .ev-main > .genre:not(.g-ttb) > .ico { border: 2.5px solid currentColor; }
+:root[data-look="pop"] .ev-main > .genre:not(.g-ttb) > .ico { border: 3px solid var(--ink); border-radius: var(--r); background: var(--pop-disc); color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+:root:is([data-look="verre"], [data-look="pop"], [data-theme="dark"]) .ev-main > .genre .ico svg { width: 20px; height: 20px; }
+/* tampons */
+:root[data-look="verre"] .tag { border-color: transparent; background: var(--tag-bg); padding: 1px 9px; }
+:root[data-look="verre"] .tag.open { background: var(--add-bg); }
+:root[data-look="pop"] :is(.map-btn.c-metro, .map-btn.metro-btn):not([aria-pressed="true"]) { background-color: var(--pop-metro); }
+:root[data-look="pop"] .map-btn.c-add:not([aria-pressed="true"]) { background-color: var(--pop-add); }
+:root[data-look="pop"] .map-btn.c-disc:not([aria-pressed="true"]) { background-color: var(--pop-disc); }
+:root[data-look="pop"] .tag { background: var(--bg); }
+:root[data-look="pop"] .tag.open { background: var(--pop-add); }
+/* choix parmi plusieurs (Matin, Midi, Soir…) et interrupteurs */
+:root[data-look="verre"] .sheet .seg button { border-color: transparent; background: var(--seg-bg); border-radius: 999px; }
+:root[data-look="verre"] .sheet .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-strong); }
+:root[data-theme="dark"] .sheet .seg button { border-radius: 999px; }
+:root[data-theme="dark"] .sheet .seg button[aria-pressed="true"] { background: var(--strong); color: var(--on-strong); border-color: var(--strong); }
+:root[data-look="pop"] .sheet .seg button { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); } /* 3 px à l'œil, 2 px comptés : « Barre, Plus, Masqué » garde sa largeur */
+:root[data-look="pop"] .sheet .seg button[aria-pressed="true"] { background: var(--pop-yellow); box-shadow: inset 0 0 0 1px var(--ink), 3px 3px 0 var(--ink); }
+:root[data-look="verre"] .switch.on { background-image: var(--plaque-img); }
+:root[data-theme="dark"] .switch.on, :root[data-theme="dark"] .menu-row.c-guide .switch.on { background: var(--strong); }
+:root[data-theme="dark"] .switch.on .knob { background: var(--on-strong); }
+:root[data-look="pop"] .switch { box-shadow: inset 0 0 0 3px var(--ink); }
+:root[data-look="pop"] .switch.on { background: var(--plaque-img); }
+:root[data-look="pop"] .switch .knob { box-shadow: 0 0 0 3px var(--ink); }
 
