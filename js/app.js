@@ -11294,7 +11294,7 @@ function openSettings(section = null, from = null) {
   if (section === 'fiche') {
     const hid = new Set(cleanFicheHidden(state.ficheHidden));
     const lines = [['qr', 'qr-code', 'QR code', 'Dans « Sur ce lieu »'], ['avis', 'star', 'Avis Google', 'Dans « Pratique »'], ['uber', 'car-taxi-front', 'Uber jusqu\'ici', 'Fiche, sorties, salles'], ['stars', 'star', 'Mes étoiles', 'Sous « Écrire une impression »'], /* v281 : en dernier, rien ne bouge */
-      ['chemin', 'route', 'Chemin à pied', 'Dans « Pratique »'], ['horaires', 'clock', 'Horaires', 'Les noter ; ouvert ou fermé reste en haut'], ['partager', 'share-2', 'Partager', 'Dans « Sur ce lieu »']]; /* 2A (25 nov.) : au bout, rien ne bouge */
+      ['chemin', 'route', 'Chemin à pied', 'Dans « Pratique »'], ['horaires', 'clock', 'Horaires', 'Ouvert ou fermé reste en haut'], ['partager', 'share-2', 'Partager', 'Dans « Sur ce lieu »']]; /* 2A (25 nov.) : au bout, rien ne bouge */
     openSheet([ico('file-text'), ' Fiche d\'un lieu'], el('div', { class: 'stack' },
       el('p', { class: 'help tip' }, 'Allumé : la ligne est dans la fiche de tes lieux. Masquer une ligne ne supprime rien : tes étoiles restent, Mes mieux notés aussi. Le QR code reste dans Partager pour un lieu avec un commentaire.'),
       el('div', { class: 'menu' }, lines.map(([key, icon, title, sub]) => onOff(key, icon, title, sub, !hid.has(key), () => {
