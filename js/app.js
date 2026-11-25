@@ -28,6 +28,7 @@ import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galle
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
+import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref } from './alerte.js';
 import { voieOrigin, voieKey } from './voies.js';
 import { isFullName, tombsOf, streetsOf, streetWorksOf, namesInTitle, personSub, groupWorks } from './personnes.js';
 import { cleanAcces, exitFor, entryFor } from './acces.js';
@@ -81,7 +82,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (481)';
+const VERSION = '25 novembre 2026 (482)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -6693,6 +6694,8 @@ async function openWhereAmI() {
     el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
     secoursRow(),
+    // v482 (mes choix 1A 2A 3A du 25 nov.) : sous Urgences 112 et Samu 15 ; il ne pousse que ce qui est dessous (vols, quartier)
+    el('button', { type: 'button', class: 'btn', onclick: () => openSilentAlert(at, () => addrText, openWhereAmI) }, ico('volume-x'), 'Alerter en silence'),
     delinq,
     quarter,
     el('p', { class: 'help' }, 'Ta position part à l\'IGN pour trouver ton adresse, et arrondie à 100 m à Wikipédia pour le quartier.'),
@@ -6727,6 +6730,62 @@ async function openWhereAmI() {
     showDelinq(a);
     if (r?.street) loadVoies().then((d) => { const o = voieOrigin(d, r.street); if (o) { fill(origLine, el('b', {}, `${r.street} : `), o); origLine.hidden = false; } });
   } catch { addr.textContent = 'Adresse indisponible (pas de connexion).'; }
+}
+
+/* ---------- v482 (mes choix 1A 2A 3A du 25 nov.) : Alerter en silence ----------
+   Ouvert depuis Où suis-je ?, sous Urgences 112. L'écran s'ouvre en sombre (moins de lumière) ; l'appli ne parle pas et ne vibre pas.
+   Les liens `sms:` ouvrent l'appli SMS avec le message écrit : c'est moi qui touche Envoyer (js/alerte.js, sources). */
+const ATTAQUE_URL = 'https://www.info.gouv.fr/risques/reagir-en-cas-dattaque-terroriste'; // lue le 25 nov. 2026 (modifiée le 22/06/2026)
+function openSilentAlert(at, addrOf = () => '', back = null) {
+  const people = cleanAlertContacts(state.alertContacts);
+  const addr = addrOf() || '';
+  const who = (c) => c.name || c.tel;
+  const self = () => openSilentAlert(at, addrOf, back);
+  const body = el('div', { class: 'stack' },
+    el('p', { class: 'warn' }, el('b', {}, 'D\'abord :'), ' mets le téléphone en silencieux, coupe la vibration, baisse la lumière. L\'appli ne peut pas le faire à ta place.'),
+    el('p', { class: 'summary' }, `Tu es : ${addr || `${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`}`),
+    el('a', { class: 'btn primary go-bar', href: smsHref('114', sms114Text(at, addr)), 'aria-label': 'SMS au 114 : message prêt, tu touches Envoyer' }, ico('message-square-text'), 'SMS au 114'),
+    el('p', { class: 'help' }, 'Message prêt : « Je ne peux pas parler », ton adresse et tes coordonnées. Ajoute ce qui se passe, puis touche Envoyer.'),
+    ...(people.length
+      ? [...people.map((c) => el('a', { class: 'btn', href: smsHref(c.tel, smsProcheText(at, addr)), 'aria-label': `Prévenir ${who(c)} par SMS` }, ico('users'), `Prévenir ${who(c)}`)),
+        el('p', { class: 'help' }, '« Je suis à l\'abri, je ne peux pas parler » et ta position.')]
+      : [el('button', { type: 'button', class: 'btn', onclick: () => openAlertContacts(self) }, ico('users'), 'Choisir mes proches à prévenir')]),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Attaque : les réflexes officiels'), el('span', {}, '')),
+    el('p', { class: 'alert-steps' }, el('b', {}, '1. T\'échapper'), ', si c\'est sans risque.', el('br'), el('b', {}, '2. Sinon, te cacher'), ', te barricader.', el('br'), el('b', {}, '3. Alerter'), ', une fois à l\'abri.'),
+    el('a', { class: 'btn c-info', href: ATTAQUE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Consignes officielles'),
+    el('p', { class: 'help tip' }, 'Source : info.gouv.fr, « Réagir en cas d\'attaque terroriste ». Le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr).'),
+    foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, '← Où suis-je ?') : null),
+  );
+  openSheet([ico('volume-x'), ' Alerter en silence'], body, { name: 'alerte', again: self, tall: true, onClose: applyTheme });
+  // L'écran en sombre, le temps qu'il est ouvert (moins de lumière) ; le style de l'appli revient en le quittant
+  document.documentElement.dataset.theme = 'dark'; document.documentElement.dataset.look = 'signal';
+}
+
+/** v482 : mes proches à prévenir (2 au plus) ; sur ce téléphone et dans ma sauvegarde, jamais chez un proche. */
+function openAlertContacts(back = () => openSettings('autres')) {
+  const now = cleanAlertContacts(state.alertContacts);
+  const rows = Array.from({ length: ALERT_MAX }, (_, i) => ({
+    name: el('input', { type: 'text', autocomplete: 'off', maxlength: '20', value: now[i]?.name ?? '', 'aria-label': `Prénom du proche ${i + 1}` }),
+    tel: el('input', { type: 'tel', autocomplete: 'off', inputmode: 'tel', value: now[i]?.tel ?? '', 'aria-label': `Numéro du proche ${i + 1}` }),
+  }));
+  const err = el('div', { class: 'error', role: 'alert' });
+  const save = () => {
+    const bad = rows.findIndex((r) => r.tel.value.trim() && !cleanTel(r.tel.value));
+    if (bad >= 0) { err.textContent = `Le numéro ${bad + 1} ne ressemble pas à un numéro de téléphone.`; return; }
+    state.alertContacts = cleanAlertContacts(rows.map((r) => ({ name: r.name.value, tel: r.tel.value })));
+    persist();
+    toast(state.alertContacts.length ? `${plural(state.alertContacts.length, 'proche', 'proches')} à prévenir` : 'Aucun proche à prévenir');
+    back();
+  };
+  openSheet([ico('users'), ' Proches à prévenir'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Pour « Alerter en silence » (Où suis-je ?) : un appui ouvre tes SMS avec le message prêt pour ce proche.'),
+    ...rows.flatMap((r, i) => [el('h3', { class: 'ring-title' }, el('span', {}, `Proche ${i + 1}`), el('span', {}, '')),
+      el('label', { class: 'field' }, 'Prénom', r.name), el('label', { class: 'field' }, 'Numéro', r.tel)]),
+    err,
+    el('p', { class: 'help tip' }, 'Un numéro effacé retire ce proche. Ils restent sur ce téléphone et dans ta sauvegarde, jamais chez un proche.'),
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
+  ), { name: 'alert-contacts', tall: true });
 }
 
 /* ---------- Ce soir près de moi : agenda « Que faire à Paris ? » ---------- */
@@ -10886,6 +10945,7 @@ const SETTINGS_FIND = [
   ['hand', 'Essayer le premier lancement', RA, 'premier lancement essai bienvenue', () => openSettings('autres')],
   ['users', 'Préparer le démarrage d\'un proche', RA, 'proche demarrage preparer lien qr', () => openPrepList()],
   ['megaphone', 'Période de test', RA, 'test remarques porte-voix', () => openSettings('autres')],
+  ['users', 'Proches à prévenir', RA, 'proches prevenir alerter silence urgence sms numeros securite', () => openAlertContacts()],
 ];
 /** Les lignes qui contiennent chaque mot tapé (accents et majuscules ignorés) ; celles dont le nom commence par le premier mot d'abord. */
 function findSettings(q) {
@@ -11894,6 +11954,9 @@ function openSettings(section = null, from = null) {
       toast(testState.on ? 'Le porte-voix est en haut à droite' : n ? `Porte-voix retiré. ${plural(n, 'remarque', 'remarques')} pas envoyée${n > 1 ? 's' : ''} : Mes remarques` : 'Porte-voix retiré');
     }),
     testState.on || testState.remarks.length ? row('megaphone', 'Mes remarques', testState.remarks.length ? `${plural(testState.remarks.length, 'remarque', 'remarques')} · envoyer, supprimer` : 'Aucune pour l\'instant', () => openRemarks(named('Autres réglages', () => openSettings('autres'))), false, 'c-info') : null,
+    // v482 (mes choix du 25 nov.) : réglé une fois, tout en bas d'Autres réglages, dans son groupe ; il ne pousse rien
+    el('h3', { class: 'ring-title menu-group' }, 'En cas d\'urgence'),
+    row('users', 'Proches à prévenir', (() => { const c = cleanAlertContacts(state.alertContacts); return c.length ? `${c.map((x) => x.name || x.tel).join(', ')} · Alerter en silence` : 'Pour Alerter en silence, 2 au plus'; })(), () => openAlertContacts(), false, 'c-info'),
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
     ), { name: 'settings:autres', again: () => openSettings('autres'), tall: true });
     return;
@@ -13380,6 +13443,7 @@ const HELP = [
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 » et « Samu 15 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
+    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures.',
@@ -13570,6 +13634,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{volume-x} **Alerter en silence** : Où suis-je ?, sous Urgences 112. Un SMS au 114 tout prêt quand tu ne peux pas parler, et tes proches prévenus en silence (Réglages → Autres réglages → Proches à prévenir).',
     '{external-link} **Saint du jour** : en bas de la page Météo et air (touche la pastille), « Saint du jour (Nominis) » ouvre le site des saints de l\'Église catholique en France.',
     '{thermometer-sun} **Pastille météo à ton goût** : {settings} → Autres réglages → Pastille météo, un interrupteur par élément. Au départ, seulement la température et l\'air ; à allumer : arrondissement, dimanche ou férié, pluie, soleil (le prochain lever ou coucher). Le lever et le coucher sont aussi dans la page Météo et air.',
     '{send} **Envoyer ma clé CARTO** : {settings} → Autres réglages → Style de la carte → Clé CARTO → « Envoyer ma clé ». Il scanne le QR code ou ouvre le lien ; son appli lui demande de la garder.',
@@ -13579,7 +13644,6 @@ const HELP = [
     '{save} **Sauvegarder en 1 appui** : quand la sauvegarde est à faire, un petit rond {save} avec sa pastille apparaît sur la carte, à côté du rond des fonds. Un appui : le fichier part dans tes Téléchargements, le rond s\'en va.',
     '{alarm-clock} **Lieux du jour, même pas encore sur ta carte** : Mon planning → Ajouter des lieux, tape son nom puis « Chercher … dans Paris ». Enregistré, il revient coché pour aujourd\'hui.',
     '{calendar-days} **Sorties, d\'un onglet à l\'autre du doigt** : glisse le doigt de côté sur la fenêtre de Sorties, même basse ou réduite : Tout, Gratuit, Expos, Navigo. Réduite, elle le reste et un message dit l\'onglet.',
-    '{map} **Aussi dans le 9e se déplie** : dans Mes lieux d\'un arrondissement, une ligne (Jardins, Plaques…) se déplie dessous au lieu d\'ouvrir une page ; touche-la encore pour la replier.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -1262,7 +1262,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .hl-line.ok .ico { color: var(--add); }
 .quarter { display: flex; flex-direction: column; gap: 8px; }
 .quarter:empty { display: none; }
-.quarter-text { margin: 0; font-size: var(--t16); line-height: 1.45; }
+.quarter-text, .alert-steps { margin: 0; font-size: var(--t16); line-height: 1.45; }
 /* Listes à 3 boutons (expos, galeries) : le texte sur toute la largeur, les boutons en dessous, à droite */
 .item.wrap { flex-wrap: wrap; }
 .item.wrap > .item-main { flex: 1 1 100%; }
