@@ -92,7 +92,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (513)';
+const VERSION = '25 novembre 2026 (514)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -15186,10 +15186,13 @@ function tipShowMe(t) {
   tipRingSoon(g.find);
 }
 function showTip() {
-  if (ESSAI || crisis || !firstDone() || !state.ok || !sheet.hidden || !document.getElementById('toast').hidden || !document.getElementById('nowCard').hidden) return;
+  // v514 : pas pendant la séance du premier lancement (mémoire vide à l'ouverture : la Bienvenue suffit) ; avant, la marque du premier lancement
+  // était exigée, et une appli d'avant la v312, qui ne l'a jamais eue, n'avait aucune astuce
+  if (ESSAI || crisis || state.fresh || !state.ok || !document.getElementById('nowCard').hidden) return 'non';
+  if (!sheet.hidden || !document.getElementById('toast').hidden || !morePanel.hidden) return 'attendre'; // un écran (Sauvegarde…), un message ou ⋯ Plus : on réessaie
   const progress = readTipsNow();
   const r = pickTip(progress, usage, tune('tipsMax'), Date.now(), tipOk);
-  if (!r) return;
+  if (!r) return 'non';
   const { tip, n, total } = r;
   const tool = tip.go.tool ? TOOL_INFO[tip.go.tool] : null;
   const icon = tool ? tool.icon : tip.icon;
@@ -15202,9 +15205,13 @@ function showTip() {
   tipCard.querySelector('.now-open').onclick = () => tipShowMe(tip);
   tipCard.hidden = false;
   saveTips(markTip(progress, tip.id)); // vue dès qu'elle s'affiche : elle ne revient pas
+  return 'vue';
 }
 tipCard.querySelector('.now-close').addEventListener('click', () => { tipCard.hidden = true; });
-if (!launched && !departCode) setTimeout(showTip, 5000); // après les messages du démarrage ; pas par-dessus un lien reçu
+// v514 : à 5 s, puis toutes les 5 s pendant 2 min tant qu'un écran ou un message est ouvert (la fenêtre Sauvegarde du démarrage la bloquait pour la journée)
+let tipTries = 0;
+const tryTip = () => { if (showTip() === 'attendre' && ++tipTries < 24) setTimeout(tryTip, 5000); };
+if (!launched && !departCode) setTimeout(tryTip, 5000); // pas par-dessus un lien reçu
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

@@ -102,8 +102,11 @@ test('branchement : carte à part de « Maintenant », jamais en même temps, so
   assert.ok(html.indexOf('id="nowCard"') < html.indexOf('id="tipCard"'));
   assert.match(css, /#nowCard:not\(\[hidden\]\) ~ #tipCard \{ display: none; \}/);
   assert.match(css, /prefers-reduced-motion: no-preference\) \{ \.tip-ring \{ animation/);
-  assert.match(app, /if \(ESSAI \|\| crisis \|\| !firstDone\(\) \|\| !state\.ok \|\| !sheet\.hidden/, 'jamais en essai, en mode crise, au premier lancement, par-dessus un écran');
-  assert.match(app, /if \(!launched && !departCode\) setTimeout\(showTip, 5000\)/, 'pas par-dessus un lien reçu');
+  assert.match(app, /if \(ESSAI \|\| crisis \|\| state\.fresh \|\| !state\.ok/, 'jamais en essai, en mode crise, ni le jour du premier lancement');
+  assert.ok(!/crisis \|\| !firstDone\(\)/.test(app), 'v513 : une appli d\'avant la v312 (sans la marque du premier lancement) a ses astuces');
+  assert.match(app, /if \(!sheet\.hidden \|\| !document\.getElementById\('toast'\)\.hidden \|\| !morePanel\.hidden\) return 'attendre';/, 'un écran ouvert : on réessaie');
+  assert.match(app, /if \(showTip\(\) === 'attendre' && \+\+tipTries < 24\) setTimeout\(tryTip, 5000\)/, 'toutes les 5 s, 2 min au plus');
+  assert.match(app, /if \(!launched && !departCode\) setTimeout\(tryTip, 5000\)/, 'pas par-dessus un lien reçu');
   assert.match(app, /saveTips\(markTip\(progress, tip\.id\)\); \/\/ vue dès qu'elle s'affiche/);
   assert.match(sw, /'js\/astuces\.js'/, 'gardé hors ligne');
   assert.ok(!/TIPS_KEY/.test(readFileSync(new URL('../js/store.js', import.meta.url), 'utf8')), 'hors sauvegarde');
