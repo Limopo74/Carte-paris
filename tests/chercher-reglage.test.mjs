@@ -42,7 +42,7 @@ test('les réglages qu\'on cherche le plus sont trouvés (noms des pages et des 
   assert.ok(find('voix').includes('Voix'));
   assert.ok(find('gouttes').includes('Gouttes de mes lieux sur la carte'));
   assert.ok(find('navigo').includes('J\'ai un passe Navigo'));
-  assert.ok(find('sombre').includes('Mode sombre'));
+  assert.ok(find('sombre').includes('Apparence') && find('sombre').includes('Clair ou sombre')); // 1A
   assert.ok(find('uber').includes('Fiche d\'un lieu'));
   assert.ok(find('vitesse').includes('Mon pas'));
   assert.ok(find('gaucher').includes('Boutons de la carte'));

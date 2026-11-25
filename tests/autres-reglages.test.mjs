@@ -12,7 +12,7 @@ const OTHERS = ['Mes lignes de bus', 'Mots tout prêts', 'Favoris', 'Vu en passa
   'Écrire au masculin', 'Mise à jour et confidentialité', 'Ce que j\\\'utilise', 'Période de test', 'Mes remarques', 'Essayer le premier lancement',
   'Préparer le démarrage d\\\'un proche']; // v322 : la ligne de la v321 d'une autre conversation, rangée aussi
 const MAIN = ['Aide de l\\\'appli', 'Sauvegarde', 'Restaurer ou importer', 'Mon Paris', 'Mes stations', 'Catégories et listes', 'Chez moi', 'TTB',
-  'Mode sombre', 'Taille du texte', 'Barre du haut', 'Boutons de la carte', 'Autres réglages'];
+  'Apparence', 'Taille du texte', /* 1A (25 nov.) : à la place de Mode sombre */ 'Barre du haut', 'Boutons de la carte', 'Autres réglages'];
 
 const autresPage = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
 const mainPage = app.slice(app.indexOf("openSheet([ico('settings'), ' Réglages'"), app.indexOf("), { name: 'settings', again: () => openSettings(), tall: true });"));
@@ -38,7 +38,7 @@ test('Aucun texte ne cite un chemin qui saute « Autres réglages »', () => {
 });
 
 test('Les pages rangées ramènent à Autres réglages', () => {
-  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'look'\];/); // v452 : Style de l'appli
+  assert.match(app, /const OTHER_SECTIONS = \['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture'\];/); // 1A (25 nov.) : Style de l'appli passe dans Apparence, qui ramène à Réglages
   assert.match(app, /inOthers \? '← Autres réglages' : '← Réglages'/);
   for (const f of ['function openFavStyle', 'function openUsage', 'async function openMyBusLines', 'function openWordSeries', 'function openPrepList']) {
     const i = app.indexOf(f);

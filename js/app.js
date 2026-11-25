@@ -78,7 +78,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (462)';
+const VERSION = '25 novembre 2026 (463)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -476,7 +476,7 @@ const isDark = () => (state.theme === 'dark' || (state.theme !== 'light' && dark
 /** Couleur des traits dessinés sur la carte (cercles, chemins), lisible sur le fond clair comme sombre. */
 const ink = () => (isDark() ? '#e9edf5' : '#1f2a44');
 setMasculin(state.masculin === true); // v286 : avant le premier écran
-/** v452 (mes choix 1B 2A du 25 nov.) : le style de l'appli. Le jour : Papier ou Verre (Réglages → Autres réglages → Style de l'appli) ;
+/** v452 (mes choix 1B 2A du 25 nov.) : le style de l'appli. Le jour : Papier ou Verre (Réglages → Apparence, 1A du 25 nov.) ;
  *  le soir (mode sombre) : toujours Signalétique. `data-look` porte le style affiché, `data-theme` reste clair ou sombre. */
 const LOOK_NAME = { papier: 'Papier', verre: 'Verre', signal: 'Signalétique' };
 const lookNow = () => (isDark() ? 'signal' : cleanLook(state.look));
@@ -10491,7 +10491,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'look'];
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture']; // 1A : Apparence revient à Réglages
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
@@ -10509,7 +10509,8 @@ const SETTINGS_FIND = [
   ['tags', 'Catégories et listes', R, 'categorie liste couleur icone sous-categorie', (b) => openSettings('categories', b)],
   ['sofa', 'Chez moi', R, 'adresse maison domicile distances depuis', () => openHomeSettings()],
   ['list', 'TTB', R, 'ttb guide adresses verifiees', (b) => openTtb(b)],
-  ['moon', 'Mode sombre', R, 'sombre nuit clair theme soir signaletique comme le telephone', () => openSettings()],
+  ['sun', 'Apparence', R, 'apparence mode sombre nuit clair theme soir signaletique comme le telephone style appli papier verre', (b) => openSettings('apparence', b)],
+  ['moon', 'Clair ou sombre', `${R} → Apparence`, 'mode sombre nuit clair theme soir signaletique comme le telephone', (b) => openSettings('apparence', b)],
   ['a-large-small', 'Taille du texte', R, 'texte police lettres grand tres grand lunettes lire', (b) => openSettings('texte', b)],
   ['a-large-small', 'Gouttes de mes lieux sur la carte', `${R} → Taille du texte`, 'gouttes epingles taille grandes toucher', (b) => openSettings('texte', b)],
   ['panel-top', 'Barre du haut', R, 'boutons du haut categories icones seules plus masquer ordre', (b) => openSettings('barre', b)],
@@ -10543,7 +10544,6 @@ const SETTINGS_FIND = [
   ['spell-check', 'Écrire au masculin', RA, 'masculin feminin homme accord', () => openSettings('autres')],
   ['signpost', 'Circuits de visite', RA, 'circuits visites eteindre', () => openSettings('autres')],
   ['compass', 'Boussole', RA, 'boussole direction eteindre', () => openSettings('autres')],
-  ['palette', 'Style de l\'appli', RA, 'style appli papier verre apparence', (b) => openSettings('look', b)],
   ['info', 'Mise à jour et confidentialité', RA, 'mise a jour version confidentialite donnees partager appli robot', (b) => openSettings('appli', b)],
   ['database', 'Données de l\'appli', `${RA} → Mise à jour et confidentialité`, 'donnees mettre a jour robot dates', (b) => openSettings('donnees', b)],
   ['chart-no-axes-column', 'Ce que j\'utilise', RA, 'utilise comptes statistiques boutons touches', () => openUsage()],
@@ -10588,6 +10588,11 @@ function openSettingsSearch(q = '') {
   requestAnimationFrame(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
 }
 
+/** 1A (25 nov.) : la petite ligne d'Apparence dans Réglages : le style du jour, puis clair ou sombre. */
+function appearanceSub() {
+  const t = state.theme === 'light' ? 'clair' : state.theme === 'dark' ? 'sombre' : 'clair ou sombre comme le téléphone';
+  return `${LOOK_NAME[cleanLook(state.look)]} · ${t}`;
+}
 /** 6A (25 nov.) : la page Alertes et bandeau est-elle comme au départ ? */
 function alertsAtStart() {
   return state.suggestNow !== false && state.vibrateNow !== true && state.alertNear !== false && state.voice !== false && state.jardinsNow !== true
@@ -11286,17 +11291,28 @@ function openSettings(section = null, from = null) {
     ));
     return;
   }
-  if (section === 'look') { // v452 (mes choix 1B 2A 3A du 25 nov.) : le style de l'appli le jour ; le soir, Signalétique
+  if (section === 'look') section = 'apparence'; // ancien nom (v452 à v462)
+  if (section === 'apparence') { // 1A (25 nov.) : v452 Style de l'appli (Papier ou Verre, le jour) + v280 Mode sombre (clair, sombre, comme le téléphone)
     const cur = cleanLook(state.look);
+    const theme = state.theme === 'light' || state.theme === 'dark' ? state.theme : 'auto';
     const LOOK_SUB = { papier: 'Encre sur papier blanc, traits nets, angles droits', verre: 'Panneaux clairs et translucides sur la carte, formes arrondies' };
-    const choose = (k) => { state.look = k; persist(); applyTheme(); refresh(); openSettings('look'); toast(`Style de l'appli : ${LOOK_NAME[k]}`); };
-    openSheet([ico('palette'), ' Style de l\'appli'], el('div', { class: 'stack' },
-      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Style de l\'appli, le jour' }, LOOKS.map((k) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(cur === k), onclick: () => { if (cur !== k) choose(k); } },
-        el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(cur === k ? 'check' : k === 'verre' ? 'layers' : 'file-text')),
-        el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, LOOK_NAME[k]), el('span', { class: 'menu-sub' }, LOOK_SUB[k]))))),
-      el('p', { class: 'help tip' }, 'Le soir, en mode sombre : Signalétique, fond nuit et plaques jaunes, quel que soit ce choix. Les boutons restent à leur place.'),
+    const radio = (on, icon, title, sub, pick, data) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), [data[0]]: data[1], onclick: () => { if (!on) pick(); } },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
+    const again = (sel) => { openSettings('apparence'); requestAnimationFrame(() => document.querySelector(sel)?.focus()); };
+    const chooseLook = (k) => { state.look = k; persist(); applyTheme(); refresh(); again(`[data-look-pick="${k}"]`); toast(`Le jour : ${LOOK_NAME[k]}`); };
+    const chooseTheme = (k) => { state.theme = k; persist(); applyTheme(); refresh(); again(`[data-theme-pick="${k}"]`); toast(k === 'auto' ? 'Clair ou sombre : comme le téléphone' : k === 'dark' ? 'Sombre : Signalétique' : 'Clair : le style du jour'); };
+    openSheet([ico('sun'), ' Apparence'], el('div', { class: 'stack' },
+      el('p', { class: 'legend' }, 'Le jour'),
+      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Le jour' }, LOOKS.map((k) => radio(cur === k, k === 'verre' ? 'layers' : 'file-text', LOOK_NAME[k], LOOK_SUB[k], () => chooseLook(k), ['data-look-pick', k]))),
+      el('p', { class: 'legend' }, 'Clair ou sombre'),
+      el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Clair ou sombre' },
+        radio(theme === 'light', 'sun', 'Clair', 'Toujours le style du jour', () => chooseTheme('light'), ['data-theme-pick', 'light']),
+        radio(theme === 'dark', 'moon', 'Sombre', 'Signalétique : fond nuit, plaques jaunes', () => chooseTheme('dark'), ['data-theme-pick', 'dark']),
+        radio(theme === 'auto', 'rotate-ccw', 'Comme le téléphone', 'Clair ou sombre selon son réglage', () => chooseTheme('auto'), ['data-theme-pick', 'auto'])),
+      el('p', { class: 'help tip' }, 'Sombre : Signalétique, quel que soit le style du jour. Les boutons restent à leur place.'),
       backBtn,
-    ));
+    ), { tall: true, name: 'settings:apparence', again: () => openSettings('apparence') });
     return;
   }
   if (section === 'vu') { // v308 : Réglages → Vu en passant
@@ -11492,8 +11508,6 @@ function openSettings(section = null, from = null) {
       state.compassOn = compassOff();
       toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
     }),
-    // v452 (mon choix 3A du 25 nov.) : tout en bas de « Ce qui s'affiche », il ne pousse rien ; Papier au départ
-    row('palette', 'Style de l\'appli', `${LOOK_NAME[cleanLook(state.look)]} · le soir : Signalétique`, () => openSettings('look'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Données de l\'appli · partager l\'appli · version', () => openSettings('appli')),
     row('chart-no-axes-column', 'Ce que j\'utilise', usage.off ? 'Éteint' : 'Les boutons touchés, ceux jamais touchés', openUsage), // v254
@@ -11540,19 +11554,9 @@ function openSettings(section = null, from = null) {
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Les distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer les adresses du guide', () => openTtb(), false, 'c-disc'),
-    el('button', { type: 'button', class: 'menu-row c-info', role: 'switch', 'aria-checked': String(isDark()), onclick: () => {
-      state.theme = isDark() ? 'light' : 'dark'; persist(); applyTheme(); refresh(); openSettings();
-      toast(isDark() ? 'Mode sombre activé' : 'Mode clair activé');
-    } },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(isDark() ? 'moon' : 'sun')),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Mode sombre'), el('span', { class: 'menu-sub' }, state.theme === 'auto' || !state.theme ? 'Suit le réglage du téléphone' : 'Choisi par toi')),
-    el('span', { class: `switch${isDark() ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' }))),
-    // v280 : après un choix à la main, le chemin pour revenir au réglage du téléphone (avant : perdu pour de bon)
-    state.theme === 'light' || state.theme === 'dark' ? el('button', { type: 'button', class: 'menu-row c-info', onclick: () => {
-      state.theme = 'auto'; persist(); applyTheme(); refresh(); openSettings();
-      toast('Mode sombre : comme le téléphone');
-    } }, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('rotate-ccw')), /* une action, pas une page : pas de › */
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Comme le téléphone'), el('span', { class: 'menu-sub' }, 'Clair ou sombre selon son réglage'))) : null,
+    // 1A (mes choix « tout conseillé » du 25 nov.) : à la place de l'interrupteur Mode sombre (v280 : et de « Comme le téléphone », qui apparaissait
+    // dessous et poussait la suite) ; le style du jour et clair ou sombre sur une seule page
+    row('sun', 'Apparence', appearanceSub(), () => openSettings('apparence'), false, 'c-guide'),
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('a-large-small', 'Taille du texte', `${TEXT_NAME[cleanTextSize(state.textSize)]} · gouttes ${PIN_NAME[cleanPinSize(state.pinSize)].toLowerCase()}`, /* 3A */ () => openSettings('texte'), false, 'c-guide'),
     row('panel-top', 'Barre du haut', (() => { const h = cleanChips(state.hiddenChips).length; const m = cleanMoreChips(state.moreChips ?? [], cleanChips(state.hiddenChips)).length; return [m ? `${m} dans ⋯ Plus` : '', h ? plural(h, 'bouton masqué', 'boutons masqués') : ''].filter(Boolean).join(' · ') || 'Tous les boutons dans la barre'; })(), () => openChipsSettings(named('Réglages', () => openSettings())), false, 'c-guide'),
@@ -13135,7 +13139,7 @@ const HELP = [
     '{check} **L\'essentiel** : même page, en bas, ligne « L\'essentiel », puis « Ne garder que l\'essentiel ». Seuls tes boutons choisis restent sur la carte, les autres passent dans Plus.',
     '**Choisir l\'essentiel** : dans la page L\'essentiel, coche tes boutons. Au départ : M, Rentrer, Sorties et Ma position. « Remettre mes boutons d\'avant », en bas de Boutons de la carte, annule.',
     '{palette} **Allure de la carte** : le petit rond {palette} en bas de la carte, du côté opposé aux boutons, ou {settings} → Autres réglages → Style de la carte. Plan IGN et Photo aérienne sont sans clé. Épuré, Très épuré et Nuit épurée demandent une clé CARTO gratuite, la même pour les trois, à coller une fois.',
-    '{moon} **Fond sombre** : {settings} → Mode sombre (style Signalétique : fond nuit, plaques jaunes) ; « Comme le téléphone », juste dessous, le remet sur le réglage du téléphone. **Style de l\'appli** le jour, Papier ou Verre : {settings} → Autres réglages → Style de l\'appli. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
+    '{sun} **Apparence** : {settings} → Apparence. Le jour, Papier ou Verre ; puis Clair, Sombre (style Signalétique : fond nuit, plaques jaunes) ou Comme le téléphone. **Boutons à gauche** : {settings} → Boutons de la carte → À gauche.',
     '**Tes réglages** sont gardés à chaque changement. « Enregistrer mes réglages de référence », en bas des Réglages, permet d\'y revenir d\'un appui. Ce n\'est pas une sauvegarde : tes lieux partent seulement avec Sauvegarde.',
     '{volume-2} **Voix** : la boussole et le suivi parlent. {settings} → Autres réglages → Alertes et bandeau → Voix pour l\'éteindre.',
     '{ruler} **Distances et durées** : {settings} → Autres réglages → Distances et durées. Avec − et + : jusqu\'où « Y aller » propose la marche (1 km au départ ; au-delà, sa plaque dit « Y aller en transports » et la distance, sans minutes), la distance des Sorties (3 km), TTB et passages couverts dans Autour de moi, les immeubles de la Ville dans Monuments (150 m), tes lieux près d\'un circuit, le nombre de jours de « Tu y es allée ? ». « Tout remettre au départ » annule. Les cercles sont sur la même page.',
@@ -13178,6 +13182,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{sun} **Apparence** : la ligne Mode sombre de Réglages devient Apparence, à la même place. Une seule page : le jour, Papier ou Verre ; puis Clair, Sombre (Signalétique) ou Comme le téléphone. Style de l\'appli quitte Autres réglages.',
     '{search} **Chercher un réglage** : la loupe dans le titre de Réglages, après ⋯. Tape un mot (voix, gouttes, Navigo, sombre…) : le réglage et son chemin s\'affichent ; touche-le, sa page s\'ouvre sur lui. Le retour ramène à ta recherche.',
     '{a-large-small} **Gouttes plus grandes** : Réglages → Taille du texte → Gouttes de mes lieux, Normales ou Grandes. Plus faciles à toucher ; la pointe reste sur le lieu.',
     '{file-text} **Une fiche plus courte** : Chemin à pied, Horaires et Partager peuvent se masquer, comme QR code, Avis Google, Uber et Mes étoiles : Réglages → Autres réglages → Fiche d\'un lieu. Ouvert ou fermé reste en haut de la fiche.',
@@ -13187,7 +13192,6 @@ const HELP = [
     '{rotate-cw} **Mettre à jour, plus visible** : dans le titre de Réglages, la flèche de mise à jour est plus grande et noire, à la même place. Le robot des données se lance en 3 appuis : Réglages → ⋯ → Mise à jour et confidentialité → « Lancer le robot (GitHub) », puis « Run workflow » sur GitHub.',
     '{flower-2} **Cimetières** : le Père-Lachaise, le Montparnasse et Montmartre sont dans Jardins publics (⋯ Plus). Touche un cimetière : ouvert ou fermé, la porte la plus proche, « Tombes célèbres » ; une tombe te mène au milieu de sa division, avec sa photo, ses plaques et son article Wikipédia.',
     '{mountain} **Points de vue** : Autour de moi → Curiosités, les points de vue à moins de 20 min, et « Tous les points de vue » : gratuits d\'abord (belvédère de Belleville, terrasses…), puis payants (tour Eiffel, tours de Notre-Dame…). Ni prix ni horaires, seulement gratuit ou payant, la réservation, les marches et les fermetures sûres. Prends ta photo sur sa page.',
-    '{x} **Croix Fermer plus visible** : en haut à droite des pages, la croix est dessinée d\'un trait plus épais, plus grande. Elle ne change pas de place. Le soir, ⌄ à côté a le même contour.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

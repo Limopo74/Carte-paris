@@ -7,13 +7,11 @@ import { loadState, saveState, readSettings, exportJSON, KEY } from '../js/store
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 
-test('Mode sombre : une ligne « Comme le téléphone » existe après un choix à la main, et remet « auto »', () => {
-  const i = app.indexOf("'Comme le téléphone'");
-  assert.ok(i > 0, 'la ligne existe');
-  const around = app.slice(i - 600, i + 100);
-  assert.match(around, /state\.theme === 'light' \|\| state\.theme === 'dark'/, 'seulement après un choix à la main');
-  assert.match(around, /state\.theme = 'auto'/, 'elle remet le réglage du téléphone');
-  assert.ok(i > app.indexOf("'Mode sombre'), 'menu-sub'"), 'juste sous l\'interrupteur Mode sombre');
+test('Mode sombre (1A du 25 nov.) : « Comme le téléphone » est un des trois choix de Réglages → Apparence, et remet « auto »', () => {
+  const page = app.slice(app.indexOf("if (section === 'apparence') {"), app.indexOf("if (section === 'vu') {"));
+  assert.match(page, /radio\(theme === 'auto', 'rotate-ccw', 'Comme le téléphone'[^\n]*chooseTheme\('auto'\)/);
+  assert.match(page, /const chooseTheme = \(k\) => \{ state\.theme = k;/);
+  assert.match(page, /const theme = state\.theme === 'light' \|\| state\.theme === 'dark' \? state\.theme : 'auto';/);
 });
 
 test('Mode sombre : « auto » est gardé, dans le téléphone et dans la sauvegarde', () => {

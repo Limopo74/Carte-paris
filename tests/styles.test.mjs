@@ -89,17 +89,19 @@ test('l\'appli : data-look porte le style affiché, Signalétique dès que le mo
   assert.match(app, /function applyAllSettings\(\) \{[^\n]*applyTheme\(\)/);
 });
 
-test('Réglages → Autres réglages → Style de l\'appli : tout en bas de « Ce qui s\'affiche », une page à deux choix', () => {
-  const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
-  const a = page.indexOf("onOff('compassOn'");
-  const b = page.indexOf("row('palette', 'Style de l\\'appli'");
-  const c = page.indexOf("'ring-title menu-group' }, 'Appli')");
-  assert.ok(a > 0 && b > a && c > b);
-  assert.ok(!page.slice(b + 10, c).includes('row(') && !page.slice(b, c).includes('onOff('), 'la dernière ligne du groupe');
-  const look = app.slice(app.indexOf("if (section === 'look') {"), app.indexOf("if (section === 'vu') {"));
-  assert.match(look, /role: 'radiogroup'/);
-  assert.match(look, /LOOKS\.map/);
-  assert.match(look, /Signalétique/);
-  assert.match(look, /backBtn/);
-  assert.match(app, /const OTHER_SECTIONS = \[[^\]]*'look'\]/);
+test('Réglages → Apparence (1A du 25 nov.) : à la place de Mode sombre ; Le jour (Papier, Verre) puis Clair ou sombre ; plus dans Autres réglages', () => {
+  const autres = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
+  assert.ok(!autres.includes("'Style de l\\'appli'"), 'plus dans Autres réglages');
+  const main = app.slice(app.indexOf("openSheet([ico('settings'), ' Réglages'"), app.indexOf("), { name: 'settings', again: () => openSettings(), tall: true });"));
+  const t = main.indexOf("'TTB'"); const a = main.indexOf("row('sun', 'Apparence', appearanceSub(), () => openSettings('apparence')"); const c = main.indexOf("'ring-title menu-group' }, 'Ce qui s\\'affiche')");
+  assert.ok(t > 0 && a > t && c > a, 'même place que Mode sombre : après TTB, avant « Ce qui s\'affiche »');
+  assert.ok(!main.slice(a, c).includes("'Comme le téléphone'"), 'plus de ligne qui apparaît et pousse la suite');
+  const page = app.slice(app.indexOf("if (section === 'apparence') {"), app.indexOf("if (section === 'vu') {"));
+  assert.ok(page.indexOf("'Le jour'") < page.indexOf("'Clair ou sombre'"));
+  assert.match(page, /LOOKS\.map/);
+  for (const k of ['light', 'dark', 'auto']) assert.match(page, new RegExp(`chooseTheme\\('${k}'\\)`));
+  assert.match(page, /Signalétique/);
+  assert.match(page, /backBtn,\n\s*\), \{ tall: true, name: 'settings:apparence'/);
+  assert.match(app, /if \(section === 'look'\) section = 'apparence';/, 'l\'ancien nom mène à la page');
+  assert.match(app, /const OTHER_SECTIONS = \[[^\]]*'ouverture'\];/, 'Apparence revient à Réglages');
 });
