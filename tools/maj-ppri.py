@@ -8,7 +8,8 @@ Usage, depuis la racine du dépôt :
 Entrée : l'export GeoJSON du jeu « PLU bioclimatique - Secteurs de risque - Inondations » de Paris Data (plub_pprizone,
 champ zonage : BC, BCH, BS, BSH, R, V ; environ 1 650 morceaux). Toutes les zones du PPRI sont inondables en 1910 : leur
 couleur réglementaire n'est pas gardée, seulement leur réunion. La source dit : « sans valeur réglementaire ».
-Les morceaux sont réunis (bibliothèque shapely), les fentes de moins d'un mètre bouchées, le contour simplifié à 3 m.
+Les morceaux sont réunis (bibliothèque shapely), les rues de moins de 40 m de large entre deux morceaux comprises
+(le zonage ne couvre que les îlots), le contour simplifié à 3 m.
 Si la source a changé (moins de 1 000 morceaux lisibles, surface hors de 5 à 60 km²), rien n'est écrit.
 """
 import json, math, sys
@@ -20,6 +21,7 @@ SRC, TODAY = sys.argv[1], sys.argv[2]
 OUT = sys.argv[3] if len(sys.argv) > 3 else 'data/ppri.json'
 SOURCE = '« PLU bioclimatique – Secteurs de risque – Inondations » (Paris Data, zonage du PPRI de la Seine, licence ODbL)'
 ZONES = {'BC', 'BCH', 'BS', 'BSH', 'R', 'V'}
+CLOSE_M = 20
 R = 6371008.8
 LAT0 = math.radians(48.86)
 K = math.cos(LAT0)
@@ -43,7 +45,10 @@ for f in src.get('features', []):
 if len(parts) < 1000:
     sys.exit(f'PPRI : {len(parts)} morceaux lisibles seulement, la source a peut-être changé : fichier d\'avant gardé')
 
-u = unary_union([p.buffer(0.5) for p in parts]).buffer(-0.5).simplify(3)
+# Le zonage couvre les îlots, pas les rues : sans rien de plus, une rue entre deux îlots inondables serait « hors zone ».
+# Fermeture de 20 m (gonfler puis dégonfler) : les rues et places de moins de 40 m de large entre deux morceaux de la zone
+# y entrent ; un bord droit de la zone ne bouge pas (25 nov. : 744 morceaux sans elle, 10 avec).
+u = unary_union([p.buffer(0.5) for p in parts]).buffer(CLOSE_M).buffer(-CLOSE_M).simplify(3)
 polys = list(u.geoms) if isinstance(u, MultiPolygon) else [u]
 polys = [p for p in polys if isinstance(p, Polygon) and p.area >= 50]
 area = sum(p.area for p in polys) / 1e6
