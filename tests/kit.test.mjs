@@ -41,7 +41,7 @@ test('sauvegarde : oui ; fichier pour un proche : jamais', () => {
 
 test('dans le mode crise et en bas de Mon Paris ; mis en cache', () => {
   assert.match(app, /kitRow\(back\), \/\/ v510/);
-  assert.match(app, /kitRow\(named\('Mon Paris', \(\) => openMyParis\(\)\), 'c-disc'\)/);
+  assert.match(app.slice(app.indexOf('function openPrepare('), app.indexOf('function openPrepPoints(')), /kitRow\(toPrepare\)/); // v536 : Mon Paris → Préparer
   assert.match(app, /'Je l\\'ai vérifié aujourd\\'hui'/);
   assert.match(sw, /'js\/kit\.js'/);
 });

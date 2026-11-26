@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (535)';
+const VERSION = '26 novembre 2026 (536)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -437,6 +437,10 @@ const named = (label, fn) => Object.assign(fn, { label });
 const BACK_NAMES = new Map([[openEvents, 'Sorties'], [openMonuments, 'Monuments'], [openFreeTime, 'J\'ai du temps'], [openRoutes, 'Itinéraire'], [openCuriosities, 'Curiosités'], [openFilters, 'Filtres'], [openWeekExpos, 'Expos de la semaine'], [openArtPlaces, 'Grands lieux'], [openCircuits, 'Circuits']]);
 const backLabel = (fn) => fn?.label ?? BACK_NAMES.get(fn) ?? 'Retour';
 const backBtn = (fn) => el('button', { type: 'button', class: 'btn', onclick: fn }, `← ${backLabel(fn)}`);
+// v536 : déclarés ici (avant tout écran ouvert au démarrage) : Chez moi et Mes stations n'ont pas de retour en paramètre,
+// « ← Préparer » quand on vient de la page Préparer (remis à zéro par closeSheet et openSettings)
+let prepBack = null;
+const toPrepare = named('Préparer', () => openPrepare());
 /** v365 (mes choix 1A 2A 3A du 21 nov.) : une roue dentée dans le titre ouvre les réglages de l'écran ; leur retour y ramène (`back`, nommé).
  *  Le dernier mot du titre et la roue restent ensemble : la roue est toujours au bout du titre, jamais seule à la ligne. */
 const settingsGear = (section, label, back) => el('button', { type: 'button', class: 'title-maj', 'aria-label': label, title: label, onclick: () => openSettings(section, back) }, ico('settings', { size: 18 }));
@@ -1613,6 +1617,7 @@ function closeSheetThen(fn) {
 
 function closeSheet(fromHistory = false) {
   if (sheet.hidden) return;
+  prepBack = null; // v536
   sheet.hidden = true;
   stopQuietNear();
   view = null;
@@ -6690,6 +6695,7 @@ function myArrCounts() {
 /* v445 (mes choix 1A 2A 3B 4A du 25 nov.) : Mon Paris tient sur un écran (planning, calendrier, deux lignes) ;
    les arrondissements et Mes chiffres ont chacun leur page, « ← Mon Paris » y ramène. */
 async function openMyParis(from = null) {
+  prepBack = null; // v536 : Chez moi et Mes stations ne ramènent à Préparer que si l'on vient de là
   if (from) { myParisBack = from; calMonth = null; } // v426 : rouvert par un bouton, le calendrier repart du mois en cours
   await loadArr();
   const { explored } = myArrCounts();
@@ -6704,7 +6710,7 @@ async function openMyParis(from = null) {
     el('div', { class: 'menu' },
       row('map', 'Mes arrondissements', arrData ? `${explored} sur 20 visité${explored > 1 ? 's' : ''}` : null, () => openMyArr()),
       row('timer', 'Mes chiffres', 'Marche, air et lieux', () => openMyStats(toMyParis))),
-    el('div', { class: 'menu' }, offlineRow(() => { if (view === 'myparis') openMyParis(); }, 'c-disc'), kitRow(named('Mon Paris', () => openMyParis()), 'c-disc')), // v493 (réponse 21) : tout en bas, il ne pousse rien ; v510 : mon kit 72 h (17 A)
+    el('div', { class: 'menu' }, row('clipboard-list', 'Préparer', prepSub(), () => openPrepare())), // v536 (2A du 26 nov.) : remplace Préparer hors ligne (v493) et Mon kit 72 h (v510), qui sont dans la page
     foot(myParisBack === 'near' && origin
       ? el('button', { type: 'button', class: 'btn', onclick: () => nearAgain() }, '← Autour de moi')
       : myParisBack === 'map' ? null // v426 : ouvert depuis la colonne de la carte, la croix ferme
@@ -6712,6 +6718,68 @@ async function openMyParis(from = null) {
   ), { tall: true, name: 'myparis', again: openMyParis });
 }
 const toMyParis = named('Mon Paris', () => openMyParis());
+
+/* v536 (mes choix 1A 2A du 26 nov., maquette « Préparer ») : tout ce qui se règle une fois, au calme, pour qu'en crise tout soit
+   prêt : une page, ouverte par la dernière ligne de Mon Paris (qui remplace Préparer hors ligne et Mon kit 72 h). Chaque ligne
+   dit « Fait » ou « Pas encore » et ouvre la page qui existait déjà ; son retour ramène ici (`prepBack`). */
+const PREP_TOTAL = 8;
+function prepState() {
+  const home = cleanHome(state.home);
+  const station = (state.myStations ?? [])[0];
+  const people = cleanAlertContacts(state.alertContacts);
+  const pts = cleanCrisisPoints(state.crisisPoints) ?? {};
+  const nPts = CRISIS_POINTS.filter((c) => pts[c.k]).length;
+  const k = kitNow();
+  const docs = docsNow();
+  return {
+    home, station, people, nPts, kit: k, docs,
+    ready: [home, station, people.length, nPts, k.at || k.ok.length === KIT_IDS.length, offlineAt(), docs.length, state.lastExport].filter(Boolean).length,
+  };
+}
+const prepSub = () => `${prepState().ready} sur ${PREP_TOTAL} prêts`;
+function openPrepare() {
+  track('Préparer');
+  prepBack = toPrepare;
+  const st = prepState();
+  const day = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const row = (icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-guide', onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')));
+  const head = (t) => el('h3', { class: 'ring-title' }, el('span', {}, t), el('span', {}, ''));
+  openSheet([ico('clipboard-list'), ' Préparer'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, `${st.ready} sur ${PREP_TOTAL} prêts. À faire au calme : en crise, tout sera prêt, même sans réseau.`),
+    head('Pour rentrer'),
+    el('div', { class: 'menu' },
+      row('sofa', 'Chez moi', st.home ? `Fait : ${homeShort(st.home)}` : 'Pas encore fait', () => openHomeSettings()),
+      row('house', 'Ma station Maison', st.station ? `Fait : ${st.station.label} · ${st.station.station}` : 'Pas encore faite', () => openMyStations())),
+    head('Pour prévenir'),
+    el('div', { class: 'menu' },
+      row('users', 'Proches à prévenir', st.people.length ? `Fait : ${st.people.map((c) => c.name || c.tel).join(', ')}` : 'Pas encore fait', () => openAlertContacts(toPrepare)),
+      row('map-pin', 'Points de rendez-vous', `${st.nPts} sur ${CRISIS_POINTS.length} choisi${st.nPts > 1 ? 's' : ''}`, () => openPrepPoints())),
+    head('Pour tenir'),
+    el('div', { class: 'menu' },
+      kitRow(toPrepare),
+      offlineRow(() => { if (view === 'prepare') openPrepare(); }),
+      row('file-text', 'Mes documents', st.docs.length ? plural(st.docs.length, 'document', 'documents') : 'Aucun document', () => openDocs(toPrepare))),
+    head('Pour ne rien perdre'),
+    el('div', { class: 'menu' },
+      row('save', 'Sauvegarde', state.lastExport ? `Faite le ${day(state.lastExport)}` : 'Pas encore faite', () => openSettings('sauvegarde', toPrepare))),
+    foot(backBtn(toMyParis)),
+  ), { tall: true, name: 'prepare', again: openPrepare });
+}
+/** Les trois points de crise (mon point de repli, nos deux rendez-vous), comme dans le mode crise. */
+function openPrepPoints() {
+  const pts = cleanCrisisPoints(state.crisisPoints) ?? {};
+  const self = named('Points de rendez-vous', () => openPrepPoints());
+  openSheet([ico('map-pin'), ' Points de rendez-vous'], el('div', { class: 'stack' },
+    el('div', { class: 'menu' }, CRISIS_POINTS.map((c) => el('button', { type: 'button', class: 'menu-row c-guide', onclick: () => openCrisisPoint(c.k, self) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(c.icon)),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, pts[c.k] ? (pts[c.k].label || 'Point de la carte') : 'Pas encore choisi : comment faire')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
+    foot(backBtn(toPrepare)),
+  ), { tall: true, name: 'preppoints', again: openPrepPoints });
+}
 
 /** Mes arrondissements (v445) : la grille de Mon Paris ; une case touchée ouvre « Mes lieux du 9e » (mon choix 2A), qui revient ici. */
 async function openMyArr() {
@@ -9464,7 +9532,7 @@ function openMyStations() {
       ...(s.moreBus ?? []).map((b, i) => el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s, '', i + 1) }, ico('bus'), `Arrêt de bus : ${b.n}`)),
       s.bus && stationBusStops(s).length < BUS_STOPS_MAX ? el('button', { type: 'button', class: 'btn c-metro bus-pick', onclick: () => pickBusStop(s, '', stationBusStops(s).length) }, ico('plus'), 'Ajouter un arrêt de bus') : null))) : null,
     el('button', { type: 'button', class: 'btn c-metro', onclick: () => pickMyStation(false) }, ico('plus'), 'Ajouter une station'),
-    foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')),
+    foot(prepBack ? backBtn(prepBack) : el('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, '← Réglages')), // v536 : ← Préparer quand on vient de là
   ), { tall: true, name: 'mystations', again: openMyStations });
 }
 
@@ -9575,7 +9643,7 @@ function openHomeSettings() {
     home ? el('p', { class: 'help tip' }, `Il s'éteint tout seul quand l'appli sait que tu es à plus de ${HOME_AWAY_M} m de chez toi. Le canapé dans la pastille météo te le rappelle ; touche la pastille : l'interrupteur est en haut de la page Météo, pour l'allumer ou l'éteindre.`) : null,
     el('p', { class: 'help tip' }, `Ne changent pas : Rentrer, M, ${compassOff() ? '' : 'la boussole, '}Où suis-je ? et Ma position partent toujours de là où tu es. « Y aller » ouvre Google Maps depuis ta vraie position.`),
     el('p', { class: 'help tip' }, `Ton adresse reste sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.${home ? '' : ' Pour la trouver, l\'appli envoie ce que tu tapes à l\'IGN, après ton appui.'}`),
-    foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(named('Réglages', () => openSettings())))),
+    foot(home ? el('button', { type: 'button', class: 'btn danger', onclick: removeHome }, 'Retirer mon adresse') : null, backBtn(prepBack ?? named('Réglages', () => openSettings())))), // v536 : ← Préparer quand on vient de là
   { name: 'settings:chezmoi', again: openHomeSettings });
 }
 
@@ -11970,6 +12038,7 @@ function alertsAtStart() {
     && tune('alertM') === TUNING.alertM.def && tune('memoryM') === TUNING.memoryM.def;
 }
 function openSettings(section = null, from = null) {
+  if (from !== toPrepare) prepBack = null; // v536 : ouvert depuis Réglages, Chez moi et Mes stations y ramènent
   if (from) settingsFrom = { section, back: from };
   else if (!section || section === 'autres') settingsFrom = null;
   const ret = settingsFrom?.section === section ? settingsFrom.back : null;
@@ -11996,7 +12065,8 @@ function openSettings(section = null, from = null) {
   // v322 : les pages rangées dans « Autres réglages » y ramènent
   const inOthers = OTHER_SECTIONS.includes(section);
   const back = ret ? () => { settingsFrom = null; ret(); } : inOthers ? () => openSettings('autres') : () => openSettings();
-  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, ret ? `← ${backLabel(ret)}` : inOthers ? '← Autres réglages' : '← Réglages'));
+  const backText = ret ? `← ${backLabel(ret)}` : inOthers ? '← Autres réglages' : '← Réglages'; // v536 : aussi pour Sauvegarde et Importer
+  const backBtn = foot(el('button', { type: 'button', class: 'btn', onclick: back }, backText));
   const unsaved = state.backup?.n ?? 0;
   const saveSummary = backupSummary();
 
@@ -12037,7 +12107,7 @@ function openSettings(section = null, from = null) {
       el('p', { class: 'help' }, 'Envoie-toi aussi ce fichier par courriel ou sur ton Drive : si tu perds ton téléphone, Téléchargements part avec lui.'),
       el('p', { class: 'help tip' }, 'Ce fichier est ta sauvegarde complète, pour toi : il va dans tes Téléchargements. Pour un proche, « Envoyer à un proche » te laisse choisir ce qui part.'),
       el('p', { class: 'warn' }, 'Effacer les « données des sites » dans Chrome efface aussi tes lieux. Sauvegarde avant.'),
-      foot(el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer'), el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')), // v185 : le retour toujours en dernier
+      foot(el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('importer') }, ico('upload'), 'Restaurer'), el('button', { type: 'button', class: 'btn', onclick: back }, backText)), // v185 : le retour toujours en dernier
     ), { tall: true, name: 'settings:sauvegarde', again: () => openSettings('sauvegarde') });
     return;
   }
@@ -12051,7 +12121,7 @@ function openSettings(section = null, from = null) {
       el('button', { type: 'button', class: 'btn c-add', onclick: openGoogleImport }, ico('download'), 'Importer de Google Maps'),
       el('button', { type: 'button', class: 'btn c-add', onclick: () => pickImport('settings') }, ico('settings'), 'Importer des réglages'), // v318
       settingsQuestion(),
-      foot(el('button', { type: 'button', class: 'btn', onclick: back }, '← Réglages')),
+      foot(el('button', { type: 'button', class: 'btn', onclick: back }, backText)),
     ), { tall: true, name: 'settings:importer', again: () => openSettings('importer') });
     return;
   }
@@ -14512,17 +14582,18 @@ const HELP = [
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, puis de gros boutons : Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital, Bons gestes ; plus bas, « À préparer » (kit, hors ligne). Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
-    '{download} **Préparer hors ligne** : en bas de Mon Paris, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
+    '{download} **Préparer hors ligne** : dans Mon Paris → Préparer, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
     '{triangle-alert} **Plan de secours** : en mode crise, quand le fond de carte ne se charge plus (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent à l\'encre, à partir d\'un zoom de quartier. Avec du réseau, la vraie carte reste. Les noms des rues n\'y sont pas : Où suis-je ? donne ton adresse quand le réseau revient.',
     '{waves} **Crue** : en mode crise Crue, la hauteur de la Seine à Austerlitz (Hub\'Eau ; rien si la mesure a plus de 2 h) et la zone inondable de la crue de 1910 (PPRI de Paris, en gris) s\'allument seules. Autour de moi dit si tu es dans la zone, si chez toi l\'est, et « Sortir de la zone inondable » trace le chemin à pied le plus court jusqu\'à une rue à 50 m au moins hors zone, calculé sur le téléphone (il faut le plan des rues : Préparer hors ligne). La zone ne dit pas où est l\'eau maintenant : suis les consignes des secours et Vigicrues.',
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
     '{message-square-text} **Je vais bien** : en mode crise, dans Autour de moi. Un SMS par proche (il part sans internet) ; « Autre appli (WhatsApp…) » ouvre le menu de partage d\'Android avec le message écrit. Ta position part seulement si tu la coches.',
     '{heart-pulse} **Urgences à l\'hôpital** : en mode crise, le gros bouton Hôpital d\'Autour de moi. Les urgences adultes de l\'AP-HP dans Paris, la plus proche d\'abord, avec Appeler et Y aller ; dessous, la pharmacie de garde (32 37, 0,35 € la minute, ou 3237.fr). Danger immédiat : 15 ou 112.',
     '{list} **Les bons gestes** : en mode crise, la fiche de la crise, lisible sans réseau, avec sa source. En bas, **Mes documents** : tes PDF (20 Mo au plus, sur ce téléphone) et tes liens. La sauvegarde garde la liste, et les PDF si tu coches « Avec mes PDF ».',
-    '{backpack} **Mon kit 72 h** : en mode crise dans Autour de moi, et en bas de Mon Paris. La liste du guide officiel « Tous responsables », à cocher ; l\'eau se compte selon le nombre de personnes. « Je l\'ai vérifié aujourd\'hui » note la date. Rien n\'est rappelé tout seul.',
+    '{backpack} **Mon kit 72 h** : en mode crise dans Autour de moi, et dans Mon Paris → Préparer. La liste du guide officiel « Tous responsables », à cocher ; l\'eau se compte selon le nombre de personnes. « Je l\'ai vérifié aujourd\'hui » note la date. Rien n\'est rappelé tout seul.',
     '{radio} **Coupure et abri** : en Coupure, les fréquences de franceinfo et de France Inter (radio à piles) ; en Abri, le lien du niveau Vigipirate sur info.gouv.fr, jamais le niveau lui-même.',
     '{copy} **Ta position** se copie ou s\'envoie d\'un appui, dans Où suis-je ?',
     '{map} **Mon Paris**, le dernier des 8 boutons (aussi dans ⋯ Plus de la colonne et {settings}) : en haut, **Mon journal en calendrier** (un point sous un jour : tu as noté quelque chose ce jour-là ; touche-le pour le revoir ; ‹ › changent de mois, « Liste » montre tout le journal), puis deux lignes : **Mes arrondissements** et **Mes chiffres** (ta marche et tes lieux). Mon planning est tout en haut.',
+    '{clipboard-list} **Préparer** : en bas de Mon Paris. Tout ce qui se règle une fois, au calme, pour qu\'en crise tout soit prêt : Chez moi, ta station Maison, tes proches à prévenir, les points de rendez-vous, le kit 72 h, Préparer hors ligne, Mes documents, la sauvegarde. Chaque ligne dit si c\'est fait et ouvre sa page ; « 3 sur 8 prêts » compte ce qui est fait.',
     '{route} **Itinéraire** : J\'ai du temps, Sur mon chemin, Mes parcours, Parcours galeries, Circuits de visite, Rues sans voitures, Boucle à courir.',
     '{signpost} **Circuits de visite** : des balades d\'un métro à l\'autre (Marais, îles, passages couverts, Montmartre, canal, Luxembourg, Butte-aux-Cailles, Coulée verte). Aussi dans ⋯ Plus, à droite de la carte. Puces Thème et Durée en haut ; la plus proche d\'abord. En fin de journée, un encadré prévient quand la balade finirait après le coucher du soleil (calculé sur le téléphone).',
     '{signpost} **Mes circuits**, en haut de Circuits de visite : ceux que tu crées avec « **Nouveau circuit** », en bas de la page (touche la carte pour chaque étape, puis Enregistrer : titre, thème, textes), ceux faits depuis un de tes parcours (Mes parcours → le parcours → « En faire un circuit »), ceux d\'un proche et ceux reçus par lien. En bas de leur page : Modifier, Partager (un lien, avec ou sans tes textes) et Supprimer.',
@@ -14720,6 +14791,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
     '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
     '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
@@ -14729,7 +14801,6 @@ const HELP = [
     '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
     '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
-    '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

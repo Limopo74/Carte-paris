@@ -93,8 +93,10 @@ test('v493 : Préparer hors ligne (réponse 21) : Mon Paris tout en bas, page Mo
   assert.match(fn, /loadPratique\('fontaines'\), loadPratique\('toilettes'\)/);
   assert.ok(fn.indexOf('storage.setItem(OFFLINE_KEY') > fn.indexOf('if (fail.length)'), 'la date n\'est écrite que si rien ne manque');
   assert.match(app, /const OFFLINE_KEY = 'carte-paris\.horsligne';/);
+  // v536 : Mon Paris → Préparer (la dernière ligne de Mon Paris ouvre la page où Préparer hors ligne est rangé)
   const my = app.slice(app.indexOf('async function openMyParis('), app.indexOf('const toMyParis ='));
-  assert.ok(my.indexOf('offlineRow(') > my.indexOf("'Mes chiffres'") && my.indexOf('offlineRow(') < my.indexOf('foot('), 'Mon Paris : tout en bas');
+  assert.ok(my.indexOf("'Préparer', prepSub()") > my.indexOf("'Mes chiffres'") && my.indexOf("'Préparer', prepSub()") < my.indexOf('foot('), 'Mon Paris : Préparer tout en bas');
+  assert.match(app.slice(app.indexOf('function openPrepare('), app.indexOf('function openPrepPoints(')), /offlineRow\(/);
   assert.match(app.slice(app.indexOf('function crisisBlock()'), app.indexOf('function openImOk(')), /offlineRow\(/);
   assert.match(app.slice(app.indexOf('function openCrisis('), app.indexOf('function crisisBlock()')), /offlineRow\(self\)/);
 });
