@@ -8,7 +8,7 @@ export const CRISES = [
   { k: 'coupure', name: 'Coupure d\'électricité ou de réseau', short: 'Coupure', icon: 'zap', sub: 'Électricité, téléphone ou internet coupés', water: true },
   { k: 'canicule', name: 'Canicule', icon: 'thermometer-sun', sub: 'Forte chaleur plusieurs jours', water: true },
   { k: 'abri', name: 'Confinement ou attentat', short: 'Abri', icon: 'house', sub: 'Rester à l\'abri, alerter sans bruit', water: false },
-  { k: 'greve', name: 'Grève ou panne des transports', short: 'Grève', icon: 'train-front', sub: 'Métro, RER ou bus arrêtés', water: false },
+  // v538 (mon choix A du 26 nov.) : Grève retirée, elle n'ajoutait rien au bloc commun ; une Grève gardée sur un téléphone éteint le mode (cleanCrisis)
 ];
 export const crisisOf = (k) => CRISES.find((c) => c.k === k) ?? null;
 /** Le nom court, pour l'étiquette du haut. */

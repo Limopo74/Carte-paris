@@ -27,7 +27,7 @@ export const TIPS = Object.freeze([
   { id: 'home', icon: 'house', title: 'Rentrer', sub: 'Quel métro vers ta station Maison', go: { tool: 'home' }, used: ['Rentrer'] },
   { id: 'circuits', icon: 'signpost', title: 'Circuits de visite', sub: 'Des balades d\'un métro à l\'autre', go: { tool: 'circuits' }, used: ['Circuits de visite'] },
   { id: 'crue', icon: 'waves', title: 'Zones inondables', sub: 'La crue de 1910 sur la carte', go: { tool: 'crue' }, used: [] }, // son bouton a un nom trop long pour « Ce que j'utilise » (44 signes) : on ne sait pas s'il a servi
-  { id: 'crise', icon: 'triangle-alert', title: 'Mode crise', sub: 'Crue, coupure, canicule, abri, grève', go: { tool: 'crise' }, used: ['Mode crise'] },
+  { id: 'crise', icon: 'triangle-alert', title: 'Mode crise', sub: 'Crue, coupure, canicule, abri', go: { tool: 'crise' }, used: ['Mode crise'] },
   { id: 'chiffres', icon: 'timer', title: 'Mes chiffres', sub: 'Marche, air et lieux', go: { open: 'myparis', find: 'Mes chiffres' }, used: ['Mes chiffres'] },
   { id: 'kit', icon: 'backpack', title: 'Mon kit 72 h', sub: 'La liste à cocher, dans Mon Paris', go: { open: 'myparis', find: 'Mon kit 72 h' }, used: ['Mon kit 72 h'] },
   { id: 'parcours', icon: 'route', title: 'Mes parcours', sub: 'Autour de moi → Itinéraire', go: { open: 'near', find: 'Itinéraire' }, used: ['Mes parcours'] },

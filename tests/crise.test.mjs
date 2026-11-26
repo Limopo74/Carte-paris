@@ -10,7 +10,8 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 
 test('les cinq crises (réponse 4) ; eau et toilettes pour crue, coupure, canicule (réponse 11)', () => {
-  assert.deepEqual(CRISES.map((c) => c.k), ['crue', 'coupure', 'canicule', 'abri', 'greve']);
+  assert.deepEqual(CRISES.map((c) => c.k), ['crue', 'coupure', 'canicule', 'abri']); // v538 : Grève retirée (mon choix A du 26 nov.)
+  assert.equal(cleanCrisis({ k: 'greve', since: 1 }), null, 'une Grève gardée éteint le mode');
   assert.deepEqual(CRISES.filter((c) => c.water).map((c) => c.k), ['crue', 'coupure', 'canicule']);
   assert.equal(crisisShort('coupure'), 'Coupure');
   assert.equal(crisisShort('crue'), 'Crue');
