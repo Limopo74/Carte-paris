@@ -1237,6 +1237,7 @@ a.go, .item .go, .go-compass, .mini-link { background: transparent; }
 .chip:not([aria-pressed="true"]) { background: var(--bg); }
 .btn.danger.solid { background: var(--danger); --pl: var(--danger); color: var(--on-strong); border-color: var(--danger); }
 .tools { display: grid; gap: 8px; margin-bottom: 14px; grid-template-columns: repeat(var(--tools-cols, 4), minmax(0, 1fr)); } /* 8 outils : 2 rangées de 4, 3 colonnes en Grand et Très grand (v176) */
+.crisis-tools { --tools-cols: 2; margin-bottom: 4px; } .crisis-tools .tool { text-decoration: none; color: var(--ink); min-height: 84px; font-size: var(--t16); font-weight: 800; gap: 6px; } .crisis-tools .tool-ico { font-size: 28px; } /* v535 : gros boutons du mode crise (Autour de moi), 2 par rangée en toute taille */
 /* Pastilles de lignes (Rentrer) */
 .lines { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
 .line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;

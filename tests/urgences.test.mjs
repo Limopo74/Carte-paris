@@ -32,7 +32,7 @@ test('crise : ligne Urgences, pharmacie, radio en Coupure, Vigipirate en Abri', 
   assert.equal(PHARMA_URL, 'https://www.3237.fr/');
   assert.equal(RADIO_TEXT, 'Radio FM à Paris : franceinfo 105.5, France Inter 87.8');
   assert.equal(VIGIPIRATE_URL, 'https://www.info.gouv.fr/risques/le-plan-vigipirate');
-  assert.match(app, /row\('heart-pulse', 'Urgences à l\\'hôpital', 'AP-HP, 24 h\/24 · pharmacie de garde', \(\) => openUrgences\(pos, back\)\)/);
+  assert.match(app, /big\('heart-pulse', 'Hôpital', \(\) => openUrgences\(pos, back\)\)/); // v535 : gros bouton (avant : ligne « Urgences à l'hôpital »)
   assert.match(app, /crisis\.k === 'coupure' \? el\('p', \{ class: 'help crisis-radio' \}/);
   assert.match(app, /crisis\.k === 'abri' \? el\('a', \{ class: 'btn', href: VIGIPIRATE_URL/);
   assert.doesNotMatch(app, /Vigipirate[^\n]*(vigilance renforcée|alerte attentat)'/i, 'jamais le niveau écrit dans l\'appli');

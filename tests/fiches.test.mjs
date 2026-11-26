@@ -22,8 +22,9 @@ test('quatre fiches, 5 à 7 gestes, source et lien officiels ; pas de Grève', (
 
 test('dans le mode crise, sous Rentrer à pied ; mis en cache', () => {
   const block = app.slice(app.indexOf('function crisisBlock()'), app.indexOf('/** « Je vais bien »'));
-  assert.ok(block.indexOf('Rentrer à pied chez moi') < block.indexOf('Les bons gestes · '), 'sous Rentrer à pied');
-  assert.ok(block.indexOf('Les bons gestes · ') < block.indexOf('seineRow()'), 'avant la Seine');
+  // v535 : un gros bouton « Bons gestes » (avant : une ligne « Les bons gestes · Crue »)
+  assert.ok(block.indexOf('Rentrer à pied chez moi') < block.indexOf("big('list', 'Bons gestes'"), 'sous Rentrer à pied');
+  assert.ok(block.indexOf("big('list', 'Bons gestes'") < block.indexOf('seineRow()'), 'avant la Seine');
   assert.match(app, /function openFiche\(k, back\)/);
   assert.match(sw, /'js\/fiches\.js'/);
 });
