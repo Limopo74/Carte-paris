@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '25 novembre 2026 (530)';
+const VERSION = '26 novembre 2026 (531)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -2134,7 +2134,7 @@ function openAddChoice() {
     el('h3', { class: 'fiche-sec' }, 'Un lieu'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: addAtPosition }, ico('map-pin'), 'À ma position'),
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => openPlaceSearch('', false, back) }, ico('search'), 'Avec un nom ou une adresse'),
-    el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis une photo de ma galerie'),
+    el('button', { type: 'button', class: 'btn big c-add', onclick: addFromPhoto }, ico('image'), 'Depuis ma galerie'), // v531 (audit du 25 nov., mon choix 1A) : avant « Depuis une photo de ma galerie », sur deux lignes à 360 px
     el('p', { class: 'help tip' }, 'Astuce : tu peux aussi laisser le doigt appuyé sur la carte, là où tu veux, puis toucher « Ajouter ».'),
     // v257 : créer une balade en 2 appuis, depuis le bouton toujours visible ; sous les boutons des lieux, qui ne bougent pas
     el('h3', { class: 'fiche-sec' }, 'Un tracé sur la carte'),
@@ -6857,7 +6857,7 @@ function openPlanning(from = null) {
         el('span', { class: 'item-sub' }, p.missed ? (stillOn(p) ? `Pas allée · encore à l'affiche jusqu'au ${untilText(p)}` : 'Pas allée · l\'expo est finie')
           : [planText(p.ticket).replace(/^./, (c) => c.toUpperCase()), p.ticket.with ? `avec ${p.ticket.with}` : ''].filter(Boolean).join(' · '))),
       p.missed ? el('div', { class: 'row' },
-        stillOn(p) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openPlan(p, named('Mon planning', () => openPlanning()), { done: () => openPlanning() }) }, 'Prévoir un autre jour') : null,
+        stillOn(p) ? el('button', { type: 'button', class: 'btn c-guide', onclick: () => openPlan(p, named('Mon planning', () => openPlanning()), { done: () => openPlanning() }) }, 'Un autre jour') : null, // v531 : avant « Prévoir un autre jour »
         el('button', { type: 'button', class: 'btn', onclick: () => removePlan(p) }, 'Retirer'))
         : el('div', { class: 'row' },
           el('button', { type: 'button', class: 'btn c-add', onclick: () => answer(p, true), 'aria-label': `Oui, je suis allée à ${p.name}` }, ico('check'), 'Oui'),
@@ -7346,7 +7346,7 @@ async function openWhereAmI() {
     origLine,
     near ? el('p', { class: 'badge where-line' }, `Ⓜ ${near.station.n}${near.station.l?.length ? ` (${near.station.l.join(', ')})` : ''} · ${fmtWalk(near.d)}`) : null,
     el('div', { class: 'copy-row' }, el('p', { class: 'help' }, `Précision : environ ${Math.round(at.acc ?? 0)} m · `, el('span', { class: 'nowrap' }, coords)), copyBtn(() => coords, 'les coordonnées GPS', 'Coordonnées copiées')),
-    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position à quelqu\'un'),
+    el('button', { type: 'button', class: 'btn primary go-bar', onclick: () => shareLink('Où je suis', `Je suis ici${state.me ? ` (${state.me})` : ''} : `, meetLink(location.href, at, state.me)) }, ico('send'), 'Envoyer ma position'), // v531 : avant « … à quelqu'un »
     el('button', { type: 'button', class: 'btn c-add', onclick: () => addAt(at.lat, at.lng, at.acc) }, ico('plus'), 'Ajouter ce lieu'),
     secoursRow(),
     // v482 (mes choix 1A 2A 3A du 25 nov.) : sous Urgences 112 et Samu 15 ; il ne pousse que ce qui est dessous (vols, quartier)
@@ -7966,7 +7966,7 @@ async function openArtPlaces(focus = '', from = null, lateDay = null) { // v519 
       lateLine(p) ? el('p', { class: 'help' }, ico('moon'), ` ${lateLine(p)}`) : null,
       latePlanBtn(p, p.name === focus ? lateDay : null, () => openArtPlaces(p.name, from, p.name === focus ? lateDay : null)), // v519 (mon choix 3A du 25 nov.) : sous la ligne Ouvert tard
       el('div', { class: 'row' },
-        el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme officiel'),
+        el('a', { class: 'btn c-disc', href: p.site, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Programme'), // v531 : avant « Programme officiel »
         favButton({ name: p.name, lat: p.lat, lng: p.lng, address: p.address ?? '', kind: { expo: 'musee', art: 'galerie', musique: 'musique', scene: 'theatre' }[p.kind] ?? 'musee' }, () => openArtPlaces(p.name, from))), // v167, v300 : scene
       followButton(p.name, () => openArtPlaces(p.name, from)), // v170
       p.events.length ? el('ul', { class: 'items week-items ev-list' }, p.events.slice(0, 8).map((e) => eventRow({ ...e, d: distanceM(o, e) }, openArtPlaces, { week: true }))) : null));
@@ -12441,7 +12441,7 @@ function openSettings(section = null, from = null) {
         artNotYet(d.id, dates) ? el('span', { class: 'tag' }, 'Pas encore') : unknown.has(d.id) ? null : el('span', { class: due.has(d.id) ? 'tag due' : 'tag open' }, due.has(d.id) ? 'En retard' : 'À jour'),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))),
       el('a', { class: 'btn c-info solid', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('rotate-cw'), 'Lancer le robot maintenant'),
-      el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('download'), 'Mettre à jour l\'appli (après le robot)'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: updateApp }, ico('download'), 'Mettre à jour l\'appli'), // v531 : avant « … (après le robot) », dit par le texte dessous
       el('p', { class: 'help tip' }, 'Ouvre la page du robot sur GitHub (connecte-toi si besoin), puis « Run workflow » → « Run workflow ». En 2 à 5 minutes, il télécharge les fichiers officiels, les vérifie et publie. Ensuite : Appli → Mettre à jour l\'appli. S\'il échoue, rien ne change dans l\'appli, et GitHub t\'envoie normalement un courriel.'),
       el('h3', { class: 'ring-title' }, el('span', {}, 'À refaire avec Claude'), el('span', {}, '')),
       el('div', { class: 'menu' }, FIXED_DATA.filter((d) => !d.robot).map((d) => el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openSettings(`donnee:${d.id}`) },
@@ -12467,7 +12467,7 @@ function openSettings(section = null, from = null) {
       el('div', { class: 'menu' }, el('button', { type: 'button', class: 'menu-row c-info', onclick: () => openTtb(named('Données de l\'appli', () => openSettings('donnees'))) },
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Adresses TTB'), el('span', { class: 'menu-sub' }, ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')} · page du ${ttbDateText() || 'date inconnue'} · à réimporter quand le guide change` : 'Pas encore importées')),
         el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right')))),
-      el('a', { class: 'btn c-info', href: 'https://opendata.paris.fr/', target: '_blank', rel: 'noopener' }, ico('database'), 'Toutes les données de la Ville : opendata.paris.fr'),
+      el('a', { class: 'btn c-info', href: 'https://opendata.paris.fr/', target: '_blank', rel: 'noopener' }, ico('database'), 'Données de la Ville'), // v531 : avant « Toutes les données de la Ville : opendata.paris.fr »
       foot(el('button', { type: 'button', class: 'btn', onclick: () => openSettings('appli') }, '← Mise à jour')),
     ), { tall: true, name: 'settings:donnees', again: () => openSettings('donnees') });
     return;
@@ -12623,7 +12623,7 @@ function openSettings(section = null, from = null) {
       el('button', { type: 'button', class: 'btn c-info solid', onclick: updateApp }, ico('rotate-cw'), 'Mettre à jour l\'appli'),
       el('button', { type: 'button', class: 'btn c-info', onclick: () => openSettings('donnees') }, ico('database'),
         dataDue(dataDates()).length ? `Données de l'appli : ${dataDue(dataDates()).length} à mettre à jour` : 'Données de l\'appli (à jour)'),
-      el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte (si elle reste grise)'),
+      el('button', { type: 'button', class: 'btn c-info', onclick: () => { closeSheet(); reloadMap(); } }, ico('map'), 'Recharger la carte'), // v531 : avant « … (si elle reste grise) »
       // v457 (mes choix 2B puis A du 25 nov.) : le robot des données en 3 appuis (avant : 4, par Données de l'appli) ; la page GitHub s'ouvre,
       // « Run workflow » se touche là-bas, avec mon compte GitHub ouvert dans Chrome. Aucune clé dans l'appli, rien n'est envoyé.
       el('a', { class: 'btn c-info', href: ROBOT_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Lancer le robot (GitHub)'),
@@ -12632,7 +12632,7 @@ function openSettings(section = null, from = null) {
         el('button', { type: 'button', class: 'btn c-add', onclick: () => shareLink('Ma carte de Paris', 'Ma carte de Paris : une carte perso de Paris, à installer sur l\'écran d\'accueil depuis Chrome.', APP_URL()) }, ico('share-2'), 'Envoyer'),
         el('button', { type: 'button', class: 'btn c-add', onclick: showAppQr }, ico('qr-code'), 'QR code')),
       el('p', { class: 'help tip' }, 'Ton proche reçoit une appli vide : tes lieux, tes réglages et ta clé CARTO restent sur ce téléphone. Pour lui donner tes lieux :'),
-      el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('sauvegarde') }, ico('save'), 'Sauvegarde, puis Envoyer le fichier'), // v365
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => openSettings('sauvegarde') }, ico('save'), 'Ouvrir Sauvegarde'), // v365 ; v531 : avant « Sauvegarde, puis Envoyer le fichier »
       el('h3', { class: 'ring-title', style: 'margin-top:8px' }, el('span', {}, 'Code couleur des boutons'), el('span', {}, '')),
       el('div', { class: 'legend-colors' },
         el('span', { class: 'btn primary', style: 'min-height:0' }, 'Y aller'),
@@ -14486,7 +14486,7 @@ const HELP = [
     '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
     '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
-    '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allée ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche : elle reste, avec « Prévoir un autre jour » ou « Retirer ». « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
+    '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allée ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche : elle reste, avec « Un autre jour » ou « Retirer ». « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
     '{copy} **Inviter quelqu\'un** : Mon planning → la sortie → « Prévu » (ou « Changer le jour ou retirer ») → Copier le lien d\'invitation, puis colle-le dans un SMS. Ton proche reçoit le lieu, le jour et l\'heure.',
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
@@ -14555,7 +14555,7 @@ const HELP = [
   ['map-pin', 'Mes lieux', [
     '{plus} **Ajouter** (+ Ajouter, en bas) : **un lieu** à ma position, ou avec un nom ou une adresse. Quand la recherche donne plusieurs réponses, « Voir sur la carte » les montre en ronds : touche un rond pour voir son nom, puis le bandeau pour l\'ajouter. « Enregistrer » ou « Annuler » sur la fiche te ramène aux résultats (liste ou ronds) : tu peux en ajouter plusieurs à la suite. Un résultat déjà dans tes lieux est marqué « Sur ta carte » (sur la carte, c\'est ta goutte) ; le toucher ouvre ta fiche. Sous « Un tracé sur la carte », « **Un parcours** », « **Un circuit** » et « Une rue d\'intérêt » ouvrent directement la carte. En bas, « Mes Vu en passant » ouvre tes photos.',
     '{camera} **Vu en passant**, en tête de + Ajouter : une photo et une ligne, posées là où tu es. Range-la dans Vu en passant, Street art, Moments, Plats, Vues, Architecture ou Insolite ; tes lieux de la carte ne reçoivent une photo que par « Rattacher », sur la fiche de la photo.',
-    '{image} **Depuis une photo de ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
+    '{image} **Depuis ma galerie** (+ Ajouter) : une photo qui contient sa position devient au choix un Vu en passant ou un lieu avec sa fiche, à l\'endroit lu dans la photo.',
     '{check} **Sur la carte**, une petite coche verte sur la goutte : déjà visité. Une goutte grise et pâle : une œuvre disparue ou un lieu fermé définitivement.',
     '**Sur la carte**, un lieu Vu en passant est un petit rond. En zoomant, sa photo apparaît. Pour ne voir qu\'eux : le bouton de leur catégorie (barre du haut ou Filtres), ou + Ajouter → Mes Vu en passant pour toutes tes photos. Ce bouton trie la carte, il ne prend pas de photo : pour une photo, {camera} Vu en passant en haut de la colonne, ou + Ajouter → Vu en passant.',
     '{images} **Mes Vu en passant**, sous le bouton Vu en passant de + Ajouter : la mosaïque de tes photos prises en passant. Une vignette par catégorie, puis ses sous-catégories ou ses artistes ; une photo touchée s\'ouvre en grand (glisse de côté pour la suivante, « Voir la fiche » pour son lieu).',
@@ -14715,6 +14715,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
     '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
     '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
     '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
@@ -14724,7 +14725,6 @@ const HELP = [
     '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
     '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
-    '{message-square-text} **Je vais bien par WhatsApp** : en mode crise, Je vais bien garde un SMS par proche (il part sans internet) et ajoute « Autre appli (WhatsApp…) » : le menu de partage d\'Android s\'ouvre avec le message écrit, tu choisis l\'appli et la personne.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
