@@ -427,8 +427,8 @@ function toast(msg, isError = false, action = null) {
 }
 function deniedToast(t) {
   clearTimeout(toastTimer); ++toastSeq;
-  const steps = DENIED_STEPS.map((x) => x.replace(/, puis \*Réessayer\*$/, ''));
-  t.replaceChildren(el('b', { class: 'toast-title' }, 'Position refusée'),
+  const steps = [LOCATION_OFF_STEP, ...DENIED_STEPS.map((x, i) => (i ? x : `Sinon, ${x[0] === '*' ? '*' + x[1].toLowerCase() + x.slice(2) : x}`).replace(/, puis \*Réessayer\*$/, ''))];
+  t.replaceChildren(el('b', { class: 'toast-title' }, 'Position bloquée'),
     el('ol', { class: 'toast-steps' }, steps.map((x) => el('li', {}, x.split('*').map((y, k) => (k % 2 ? el('b', {}, y) : y))))),
     el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; } }, 'Compris'));
   t.classList.add('error', 'toast-block');
@@ -1837,11 +1837,13 @@ try {
 const DENIED_STEPS = STANDALONE // *…* : en gras
   ? ['*Appui long* sur l\'icône de l\'appli', '*Infos sur l\'appli* → *Autorisations*', '*Position* → *Autoriser*, puis *Réessayer*']
   : ['Chrome *⋮* → *Paramètres*', '*Paramètres des sites* → *Position*', 'Autorise *limopo74.github.io*, puis *Réessayer*'];
+// v539 : Position du téléphone éteinte : Chrome répond aussi « refusée » (impossible à distinguer) ; cause la plus courante, donc en premier
+const LOCATION_OFF_STEP = 'Allume la *Position* : glisse du haut de l\'écran';
 /** Les étapes, mots à toucher en gras, pour les pages « Position introuvable ». */
-const deniedHelp = () => el('div', { class: 'stack' }, el('p', {}, el('b', {}, 'Position refusée.'), ' Pour l\'autoriser :'),
-  el('ol', { class: 'steps' }, DENIED_STEPS.map((t) => el('li', {}, t.split('*').map((x, k) => (k % 2 ? el('b', {}, x) : x))))));
+const deniedHelp = () => el('div', { class: 'stack' }, el('p', {}, el('b', {}, 'Position bloquée.'), ' Pour la débloquer :'),
+  el('ol', { class: 'steps' }, [LOCATION_OFF_STEP, ...DENIED_STEPS.map((t, i) => (i ? t : `Sinon, ${t[0] === '*' ? '*' + t[1].toLowerCase() + t.slice(2) : t}`))].map((t) => el('li', {}, t.split('*').map((x, k) => (k % 2 ? el('b', {}, x) : x))))));
 const GEO_ERRORS = {
-  1: `Position refusée. ${DENIED_STEPS.join(' → ').replaceAll('*', '').replace(/, puis Réessayer$/, '')}.`, // les messages courts (toasts) : la même chose sur une ligne
+  1: `Position refusée. ${[LOCATION_OFF_STEP.replace(' : glisse du haut de l\'écran', ' du téléphone'), ...DENIED_STEPS].join(' → ').replaceAll('*', '').replace(/, puis Réessayer$/, '')}.`, // les messages courts (toasts) : la même chose sur une ligne
   2: 'Position introuvable pour le moment (dans le métro ou un bâtiment, le GPS passe mal).',
   3: 'La position met trop de temps à arriver.',
 };
@@ -14805,7 +14807,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{map-pin} **Position refusée, plus lisible** : le message dit les 3 étapes, une par ligne, mots à toucher en gras, et reste affiché jusqu\'à « Compris ».',
+    '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise sans Grève** : quatre crises (crue, coupure, canicule, abri) ; Grève n\'ajoutait rien aux gestes communs. Si elle était allumée, le mode s\'est éteint.',
     '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
