@@ -87,5 +87,7 @@ test('v406 : l\'origine du nom d\'une rue d\'intérêt, en bas de sa fiche, seul
 
 test('les fonctions de geo.js utilisées pour les rues sont bien importées dans app.js (une fusion les avait perdues)', () => {
   const imp = app.match(/import \{([^}]*)\} from '\.\/geo\.js';/)[1];
-  for (const f of ['lineLengthM', 'nearestOnLine', 'goTarget', 'placeDistM']) assert.ok(new RegExp(`\\b${f}\\b`).test(imp), f);
+  // v533 (audit du 25 nov.) : nearestOnLine n'est plus appelée dans app.js (goTarget la remplace) ; on vérifie que chaque fonction appelée est importée
+  for (const f of ['lineLengthM', 'nearestOnLine', 'goTarget', 'placeDistM']) if (new RegExp(`\\b${f}\\(`).test(app)) assert.ok(new RegExp(`\\b${f}\\b`).test(imp), f);
+  for (const f of ['lineLengthM', 'goTarget', 'placeDistM']) assert.match(app, new RegExp(`\\b${f}\\(`), f);
 });

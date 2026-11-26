@@ -542,7 +542,6 @@ ol.items { padding: 0; }
 .photo-snap:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-photo button:focus-visible, .fiche-row:focus-visible, .photo-open:focus-visible, .photo-del:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .fiche-lines > * { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--t16); }
-.go-compass.slot { visibility: hidden; }
 .fiche-lines > :last-child { border-bottom: none; } /* pas de filet fin juste avant un intertitre (charte, 6) */
 .fiche-lines > .copy-row { padding: 2px 0; }
 .fiche-lines > .muted { font-size: var(--t14); color: var(--muted); }
