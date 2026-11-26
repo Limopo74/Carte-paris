@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (533)';
+const VERSION = '26 novembre 2026 (534)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -14410,6 +14410,7 @@ const HELP = [
     '{info} **L\'aide de chaque écran** est rangée tout en bas, juste au-dessus des boutons du bas, dans la ligne « Aide », repliée : touche-la pour la lire. Restent toujours visibles, en une ou deux lignes : les alertes, les mises en garde (horaires inconnus, chemin sans horaires…) et ce qui part de ton téléphone ; leurs explications et leurs sources sont dans l\'Aide.',
     '{chevron-down} **Voir la carte derrière une fenêtre** : le bouton à côté de la croix la réduit à sa barre de titre ; un nouvel appui la rouvre au même endroit. Tu peux aussi faire glisser la barre du titre : la fenêtre se cale sur une des quatre hauteurs : réduite, basse (un tiers de l\'écran), moitié ou grande. Un autre écran s\'ouvre à sa hauteur habituelle.',
     '**La carte** : tes lieux sont les gouttes. Touche une goutte pour ouvrir sa fiche. **De loin**, les lieux proches les uns des autres deviennent une goutte noire avec leur nombre : touche-la, la carte zoome dessus. À la vue « rue », chaque lieu a sa goutte. Tes favoris ne sont jamais regroupés.',
+    '{list-filter} **La barre du haut** : « Tout » montre ou masque tes lieux ; {list-filter} ouvre Filtres ; chaque autre bouton allume ou éteint une couche de la carte ({tent} Dans la rue aujourd\'hui, tes favoris, les lignes de métro…) : un message ou l\'étiquette du haut dit ce qui est allumé. {ellipsis} Plus garde ceux qui ne tiennent pas ; l\'ordre se change dans {settings} → Barre du haut.',
     '**{locate-fixed} Ma position**, la cible dans la colonne de boutons : le point bleu dit où tu es, le cône où tu regardes. La carte te suit.',
     '{locate} **Au démarrage**, la carte s\'ouvre sur toi quand tu es dans Paris et que la position est déjà autorisée (rien n\'est demandé). Ce point bleu-là ne te suit pas : il s\'efface au bout de 2 min. Pour ouvrir ailleurs (tous tes lieux, Chez moi, le centre de Paris, là où tu l\'as laissée) : {settings} → Autres réglages → À l\'ouverture.',
     '**Si tu bouges la carte au doigt**, elle ne te suit plus. Un appui la recentre sur toi, un autre arrête tout.',
@@ -14713,6 +14714,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
     '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
     '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
     '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
@@ -14722,7 +14724,6 @@ const HELP = [
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
     '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
     '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
-    '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
