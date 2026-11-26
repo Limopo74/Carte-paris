@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (541)';
+const VERSION = '26 novembre 2026 (542)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -808,10 +808,11 @@ function renderMarkers() {
     // Icônes et couleurs viennent de listes fixes : pas de texte saisi dans ce HTML.
     const ring = p.fav ? `box-shadow:0 0 0 3px ${state.fav.color},0 2px 6px rgba(0,0,0,.35);` : '';
     const soon = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 && daysUntil(p.ticket.at) <= 7; // sortie dans les 7 jours : pastille agenda
+    // v542 (mon choix 2 du 26 nov., sur visuel) : une rue d'intérêt montre le symbole rue (celui du filtre et d'« Une rue d'intérêt ») au lieu de l'icône de sa catégorie ; la couleur reste celle de la catégorie
     const seen = isPass(p) && p.photos?.length && !p.gone && state.seenPhotoMap !== false; // Vu en passant (v157 ; v305 : quelle que soit sa catégorie) ; disparue : une goutte grise
     const html = seen
       ? `<span class="seen-pin" style="border-color:${c.color}"><span class="seen-dot" style="background:${c.color}">${svgIcon('images', { size: 12, stroke: 2.4 })}</span><img class="seen-img" alt="" data-photo="${p.photos[0]}"></span>`
-      : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
+      : `<span class="pin${p.gone ? ' gone' : ''}" style="background:${c.color};${ring}"><span class="pin-in">${p.line ? svgIcon('git-commit-horizontal', { size: 18, stroke: 2.4 }) : glyphHTML(c.icon, { size: 17, filled: true, stroke: 2.2 })}</span>${p.fav ? `<span class="pin-fav" style="color:${state.fav.color}">${glyphHTML(state.fav.icon, { size: 11, filled: true, stroke: 2.4 })}</span>` : ''}${p.owner ? `<span class="pin-who" aria-hidden="true">${initialOf(p.owner)}</span>` : p.done && !p.gone ? `<span class="pin-done" aria-hidden="true">${svgIcon('check', { size: 11, stroke: 3 })}</span>` : ''}${soon ? `<span class="pin-plan" aria-hidden="true">${svgIcon('alarm-clock', { size: 11, stroke: 2.6 })}</span>` : ''}</span>`;
     const marker = L.marker([p.lat, p.lng], {
       icon: L.divIcon({ className: 'pin-wrap', html, iconSize: seen ? [44, 44] : [32, 32], iconAnchor: seen ? [22, 22] : [16, 39] }),
       zIndexOffset: p.fav ? 500 : 0,
@@ -14669,7 +14670,7 @@ const HELP = [
     '**Depuis Google Maps ou un site** : Partager → Ma carte. Le nom et l\'adresse se remplissent seuls.',
     '{image} **Depuis une photo** de ta galerie : le lieu se place là où la photo a été prise.',
     '**Déjà dans tes lieux ?** L\'appli te prévient : « Voir ce lieu » ou « Un autre lieu ».',
-    '{git-commit-horizontal} **Une rue d\'intérêt** : + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, sa goutte ; son trait, de la couleur de sa catégorie, quand Filtres → Rues d\'intérêt est allumé, ou quand sa fiche est ouverte ; touche-le pour sa fiche.',
+    '{git-commit-horizontal} **Une rue d\'intérêt** : sur la carte, sa goutte montre ce symbole rue, dans la couleur de sa catégorie. + Ajouter → Un tracé sur la carte → Une rue d\'intérêt. Touche le début puis la fin, ou « Toute la rue » après le début : le morceau suit les rues (plan des rues, sur le téléphone). Y aller mène au point de la rue le plus proche de toi. « Suivant » ouvre le formulaire d\'un lieu. Sur la carte, sa goutte ; son trait, de la couleur de sa catégorie, quand Filtres → Rues d\'intérêt est allumé, ou quand sa fiche est ouverte ; touche-le pour sa fiche.',
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment » ; tout en bas, « Café ou snack sur place » et « Boutique sur place » (pas pour un resto ni une boutique), chacun avec une ligne de commentaire quand il est allumé.',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
@@ -14809,10 +14810,10 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
-    '{triangle-alert} **Mode crise sans Grève** : quatre crises (crue, coupure, canicule, abri) ; Grève n\'ajoutait rien aux gestes communs. Si elle était allumée, le mode s\'est éteint.',
-    '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',
+    '{triangle-alert} **Mode crise, en grand et sans Grève** : toucher une crise ouvre tout de suite Autour de moi, en grand, les gros boutons d\'abord (toujours en grand tant que le mode est allumé). Quatre crises : crue, coupure, canicule, abri ; Grève n\'ajoutait rien, et si elle était allumée, le mode s\'est éteint.',
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
     '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
