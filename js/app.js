@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (531)';
+const VERSION = '26 novembre 2026 (532)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -14493,6 +14493,7 @@ const HELP = [
     `**Gratuités** : liste vérifiée le ${FREE_CHECKED} ; **temps forts** : le ${HIGHLIGHTS_CHECKED} ; **Kiosque Théâtre** : le ${KIOSQUE_CHECKED}. Vérifie aussi sur le site du lieu.`,
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
     '{image} **Photos dans Sorties** : {settings} → Autres réglages → Photos dans Sorties, éteint au départ. Allumé, chaque sortie montre à gauche la photo de l\'agenda ; sans elle, ta photo de la salle si tu en as pris une ({settings} → Autres réglages → Photos des salles).',
+    '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
   ]],
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
@@ -14715,6 +14716,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
     '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
     '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
     '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
@@ -14724,7 +14726,6 @@ const HELP = [
     '{thermometer-sun} **Météo et air plus net** : dans Air, le conseil n\'a plus de grands blancs autour de lui (comme l\'altitude dans Ici) ; « en µg/m³ » vaut maintenant pour les quatre valeurs.',
     '{locate} **Où suis-je ? plus net** : l\'adresse, le métro et la précision sont séparés du même petit écart (hors de Paris, un trou restait sous l\'adresse) ; les coordonnées ne se coupent plus en deux.',
     '{waves} **Vigilance crue** : avec ta clé Météo-France, la page Mode crise écrit sous « Crue » la vigilance crue à Paris (jaune, orange ou rouge). Sans clé, ou si la carte de Météo-France a plus de 30 h, rien.',
-    '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -263,6 +263,9 @@ button { cursor: pointer; }
 .row > * { flex: 1; }
 /* Grand et Très grand texte : ces deux boutons l'un sous l'autre, toujours (« Écrire une impression » ne tient pas en demi-largeur à 360 px) ; même ordre */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .row-big { flex-direction: column; }
+/* v532 (audit du 25 nov., mon choix 2A) : en Très grand, deux boutons côte à côte dont l'un passerait sur deux lignes (ou trois) passent l'un sous l'autre, même ordre ; s'ils tiennent, ils restent côte à côte, à moitié chacun */
+:root:is([data-text="tresgrand"]) .row:has(> .btn:first-child + .btn:last-child) { flex-wrap: wrap; }
+:root:is([data-text="tresgrand"]) .row:has(> .btn:first-child + .btn:last-child) > .btn { flex: 1 1 0; min-width: fit-content; }
 
 .btn.big { min-height: var(--h-l); font-size: var(--t18); justify-content: flex-start; padding: 0 18px; }
 .btn:disabled { color: var(--muted); border-color: var(--muted); border-style: dashed; cursor: default; }
