@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (540)';
+const VERSION = '26 novembre 2026 (541)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7390,7 +7390,7 @@ function receiveMeet(m) {
 /* ---------- Où suis-je ? ---------- */
 /** v431 (mon « 2 oui » du 25 nov.) : appeler les secours sous l'adresse. v489 (mon choix 2A du 25 nov.) : Police 17 ajouté au bout (justice.fr / service-public : « Signaler une infraction : le 17 (Police secours) »). Un lien `tel:` ouvre le clavier du téléphone avec le numéro,
    rien n'est appelé sans un second appui. Numéros : service-public.gouv.fr, fiche F33954 (vérifiée le 25 août 2026, lue le 25 nov. 2026). */
-const SECOURS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale'], ['17', 'Police 17', 'Police secours']];
+const SECOURS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale'], ['17', 'Police 17', 'Police secours'], [TRANSPORT_TEL, 'Transports 3117', 'alerte dans les transports, RATP et SNCF']]; // v541 (mon choix A3 du 26 nov., sur visuel) : 3117 en 4e, deux rangées de deux
 function secoursRow() {
   return el('div', { class: 'row duo secours' }, ...SECOURS.map(([n, label, aria]) =>
     el('a', { class: 'btn', href: `tel:${n}`, 'aria-label': `Appeler le ${n} : ${aria}` }, ico('phone'), label)));
@@ -14591,7 +14591,7 @@ const HELP = [
     '**La liste se met à jour** toute seule quand tu as marché 50 m.',
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
-    '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 » et « Police 17 » ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
+    '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 », « Police 17 » et « Transports 3117 » (métro, RER, bus) ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
@@ -14809,7 +14809,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{train-front} **Transports 3117** : Alerter en silence, partie « On te suit », sous Police 17 : appelle l\'alerte RATP et SNCF (gratuit). Le SMS au 31177 reste plus haut.',
+    '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise sans Grève** : quatre crises (crue, coupure, canicule, abri) ; Grève n\'ajoutait rien aux gestes communs. Si elle était allumée, le mode s\'est éteint.',
     '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',

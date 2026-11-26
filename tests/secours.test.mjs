@@ -13,11 +13,11 @@ const body = (name) => {
   return app.slice(start, next < 0 ? undefined : start + 10 + next);
 };
 
-test('secours : 112, 15 et 17 seulement, en liens tel: (le téléphone compose, rien n\'est appelé seul)', () => {
+test('secours : 112, 15, 17 et 3117 (v541, mon choix A3) seulement, en liens tel: (le téléphone compose, rien n\'est appelé seul)', () => {
   const list = app.match(/const SECOURS = (\[.*\]);/)?.[1];
   assert.ok(list, 'SECOURS existe');
-  const nums = [...list.matchAll(/\['(\d+)', '([^']+)'/g)].map((m) => [m[1], m[2]]);
-  assert.deepEqual(nums, [['112', 'Urgences 112'], ['15', 'Samu 15'], ['17', 'Police 17']]);
+  const nums = [...list.matchAll(/\[(?:'(\d+)'|TRANSPORT_TEL), '([^']+)'/g)].map((m) => [m[1] ?? 'TRANSPORT_TEL', m[2]]);
+  assert.deepEqual(nums, [['112', 'Urgences 112'], ['15', 'Samu 15'], ['17', 'Police 17'], ['TRANSPORT_TEL', 'Transports 3117']]);
   assert.match(body('secoursRow'), /href: `tel:\$\{n\}`/);
   assert.doesNotMatch(body('secoursRow'), /onclick|location/, 'aucun appel lancé par le code');
 });

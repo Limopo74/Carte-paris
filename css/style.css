@@ -257,6 +257,7 @@ button { cursor: pointer; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .row { display: flex; gap: 10px; }
 .row.duo .btn { padding-inline: 8px; gap: 6px; } /* v297 : deux boutons côte à côte (fiche, doublon) : le texte tient sur une ligne à 360 px */
+:root:not([data-text="tresgrand"]) .row.secours { display: grid; grid-template-columns: 1fr 1fr; } /* v541 (mon choix A3) : quatre numéros, deux rangées de deux */
 :root:is([data-text="tresgrand"]) .secours { flex-direction: column; } /* v431 : côte à côte, « Urgences 112 » passait sur deux lignes à 360 px */
 .secours { gap: 8px; } .secours .btn { padding-inline: 4px; white-space: nowrap; } :root:is([data-text="grand"]) .secours .btn { font-stretch: 80%; } /* v489 (mon choix 2A du 25 nov.) : trois numéros sur une ligne à 360 px */
 :root:not([data-text="tresgrand"]) .secours .btn .ico { display: none; } /* sans le combiné, sinon « Urgences 112 » sort du bouton ; en Très grand (en colonne) il revient */
