@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (538)';
+const VERSION = '26 novembre 2026 (539)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -407,6 +407,10 @@ let toastTimer;
 let toastSeq = 0; // chaque message a son numéro : un ancien « reste affiché » ne cache pas le suivant
 function toast(msg, isError = false, action = null) {
   const t = document.getElementById('toast');
+  // v539 : « Position refusée » en bloc lisible d'un coup d'œil (titre, 3 étapes, mots à toucher en gras), gardé jusqu'à « Compris » ;
+  // la phrase d'un seul tenant avec ses flèches était illisible en urgence
+  if (typeof msg === 'string' && msg.startsWith('Position refusée. ')) return deniedToast(t); // pas GEO_ERRORS ici : un message au démarrage tomberait avant sa déclaration
+  t.classList.remove('toast-block');
   t.textContent = typo(msg);
   // action { label, fn } : un bouton dans le message (le geste caché devient visible), message gardé 6 s
   for (const a of [action].flat().filter(Boolean)) t.append(' ', el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; a.fn(); } }, a.label)); // une ou plusieurs actions (v167)
@@ -420,6 +424,15 @@ function toast(msg, isError = false, action = null) {
     return;
   }
   toastTimer = setTimeout(() => { t.hidden = true; }, isError || action ? 6000 : msg.length > 50 ? 5000 : 3000); // un long message reste le temps d'être lu
+}
+function deniedToast(t) {
+  clearTimeout(toastTimer); ++toastSeq;
+  const steps = DENIED_STEPS.map((x) => x.replace(/, puis \*Réessayer\*$/, ''));
+  t.replaceChildren(el('b', { class: 'toast-title' }, 'Position refusée'),
+    el('ol', { class: 'toast-steps' }, steps.map((x) => el('li', {}, x.split('*').map((y, k) => (k % 2 ? el('b', {}, y) : y))))),
+    el('button', { type: 'button', class: 'toast-act', onclick: () => { t.hidden = true; } }, 'Compris'));
+  t.classList.add('error', 'toast-block');
+  t.hidden = false;
 }
 const hideToast = () => { document.getElementById('toast').hidden = true; };
 /** Message d'attente (« Recherche de ta position… ») : reste affiché jusqu'au résultat, qui l'efface ou le remplace (v257).
@@ -4758,7 +4771,7 @@ function startFollow() {
       sheetBody.scrollTop = keep;
     }
   }, (e) => {
-    if (first) { stopFollow(); toast(e.code === 1 ? 'Position refusée : autorise-la dans les réglages du navigateur.' : 'Position introuvable pour l\'instant. Réessaie dehors.', true); }
+    if (first) { stopFollow(); toast(e.code === 1 ? GEO_ERRORS[1] : 'Position introuvable pour l\'instant. Réessaie dehors.', true); }
   }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 30000 });
 }
 
@@ -14792,6 +14805,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Position refusée, plus lisible** : le message dit les 3 étapes, une par ligne, mots à toucher en gras, et reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise sans Grève** : quatre crises (crue, coupure, canicule, abri) ; Grève n\'ajoutait rien aux gestes communs. Si elle était allumée, le mode s\'est éteint.',
     '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
@@ -14801,7 +14815,6 @@ const HELP = [
     '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
     '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
     '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
-    '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

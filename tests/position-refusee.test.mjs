@@ -21,3 +21,14 @@ test('le texte des deux cas mélangés a disparu ; la page de position introuvab
 test('chaque étape tient en peu de mots (moins de 50 signes sans les *)', () => {
   for (const m of block.matchAll(/'((?:[^'\\]|\\.)*)'/g)) assert.ok(m[1].replaceAll('*', '').replaceAll('\\', '').length < 50, m[1]);
 });
+
+// v539 : le message court « Position refusée » devient un bloc : titre, 3 étapes numérotées, « Compris », sans minuterie.
+test('le message Position refusée est un bloc lisible gardé jusqu\'à Compris', () => {
+  const f = app.slice(app.indexOf('function deniedToast('), app.indexOf('const hideToast'));
+  assert.match(f, /'Position refusée'/);
+  assert.match(f, /class: 'toast-steps'/);
+  assert.match(f, /'Compris'/);
+  assert.ok(!f.includes('setTimeout'), 'pas de minuterie : il reste jusqu\'à Compris');
+  assert.match(app, /msg\.startsWith\('Position refusée\. '\)\) return deniedToast\(t\)/);
+  assert.ok(!app.includes('autorise-la dans les réglages du navigateur'), 'un seul texte pour le refus');
+});
