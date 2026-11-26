@@ -29,7 +29,7 @@ import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galle
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
-import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
+import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, TRANSPORT_TEL, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (539)';
+const VERSION = '26 novembre 2026 (540)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7511,6 +7511,8 @@ function openSilentAlert(at, addrOf = () => '', back = null, backName = 'Où sui
     el('p', { class: 'alert-steps' }, el('b', {}, '1. Rejoins du monde'), ' : entre dans un commerce ouvert.', el('br'), el('b', {}, '2. Appelle un proche'), ', à voix haute.', el('br'), el('b', {}, '3. Danger immédiat'), ' : la police au 17.'),
     ...people.map((c) => el('a', { class: 'btn', href: `tel:${c.tel}`, 'aria-label': `Appeler ${who(c)}` }, ico('phone'), `Appeler ${who(c)}`)),
     el('a', { class: 'btn', href: 'tel:17', 'aria-label': 'Appeler le 17 : police secours' }, ico('phone'), 'Police 17'),
+    // v540 (mon oui du 26 nov.) : dans les transports, à voix haute ; sous Police 17, rien ne bouge au-dessus
+    el('a', { class: 'btn c-metro', href: `tel:${TRANSPORT_TEL}`, 'aria-label': 'Appeler le 3117 : alerte dans les transports, RATP et SNCF' }, ico('train-front'), 'Transports 3117'),
     el('a', { class: 'btn c-info', href: MASECURITE_URL, target: '_blank', rel: 'noopener' }, ico('external-link'), 'Après coup : Ma Sécurité'),
     el('p', { class: 'help' }, 'Tchat avec un policier ou un gendarme, à toute heure, sans donner ton nom ; plainte en ligne.'),
     // v488 (mon choix 5 du 25 nov.) : témoin d'un harcèlement, les 5D ; replié : il se lit avant, pas pendant
@@ -7523,7 +7525,7 @@ function openSilentAlert(at, addrOf = () => '', back = null, backName = 'Où sui
           el('b', {}, 'Diriger'), ' : dis calmement à l\'auteur d\'arrêter, seulement si c\'est sans risque pour toi.', el('br'),
           el('b', {}, 'Dialoguer'), ' : après, va voir la personne et demande-lui si elle va bien.'),
         el('p', { class: 'help tip' }, 'Méthode des 5D (association Right To Be), reprise par la RATP (ratp.fr/avecvous) et le programme Stand Up.'))),
-    el('p', { class: 'help tip' }, 'Sources : info.gouv.fr, « Réagir en cas d\'attaque terroriste » ; le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr) ; 31177 : RATP et SNCF.'),
+    el('p', { class: 'help tip' }, 'Sources : info.gouv.fr, « Réagir en cas d\'attaque terroriste » ; le 114 reçoit les SMS de qui ne peut pas parler à voix haute (service-public.gouv.fr) ; 3117 (appel) et 31177 (SMS) : RATP et SNCF, gratuits (iledefrance-mobilites.fr).'),
     el('p', { class: 'help tip' }, 'Ma Sécurité : ministère de l\'Intérieur, tchat avec un policier ou un gendarme à toute heure (info.gouv.fr).'),
     foot(back ? el('button', { type: 'button', class: 'btn', onclick: back }, `← ${backName}`) : null),
   );
@@ -14594,7 +14596,7 @@ const HELP = [
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
     '{train-front} **Métros les plus proches** : tout en bas d\'Autour de moi, sous Vélib\', les 3 stations de métro les plus proches, avec leurs lignes et Y aller (jusqu\'à la station). Pas depuis une station ni loin de Paris. L\'entrée la plus proche : le bouton M de la colonne de droite.',
-    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
+    '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. Dans le métro, le RER ou le bus : « SMS au 31177 » (RATP et SNCF). « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17, Transports 3117 (RATP et SNCF, gratuit) et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
     '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri) : le mode s\'allume, une étiquette en haut le dit, et Autour de moi s\'ouvre tout de suite, en grand (toujours en grand tant que le mode reste allumé). Il commence par Rentrer à pied chez moi, puis de gros boutons : Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital, Bons gestes ; plus bas, « À préparer » (kit, hors ligne). Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
     '{download} **Préparer hors ligne** : dans Mon Paris → Préparer, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
@@ -14807,6 +14809,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} **Transports 3117** : Alerter en silence, partie « On te suit », sous Police 17 : appelle l\'alerte RATP et SNCF (gratuit). Le SMS au 31177 reste plus haut.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise sans Grève** : quatre crises (crue, coupure, canicule, abri) ; Grève n\'ajoutait rien aux gestes communs. Si elle était allumée, le mode s\'est éteint.',
     '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',
@@ -14816,7 +14819,6 @@ const HELP = [
     '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
     '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
     '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
-    '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

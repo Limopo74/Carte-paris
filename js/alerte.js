@@ -48,6 +48,8 @@ export const smsHref = (tel, text) => `sms:${tel}?body=${encodeURIComponent(text
    danger dans les transports ; ratp.fr « Comment signaler une agression ou un comportement déplacé ? », iledefrance-mobilites.fr).
    Aucune heure d'ouverture écrite : Île-de-France Mobilités et Transilien ne disent pas la même chose. */
 export const TRANSPORT_SMS = '31177';
+/** v540 (mon oui du 26 nov.) : le même service par téléphone, gratuit (iledefrance-mobilites.fr, « 3117 : le numéro d'alerte »). */
+export const TRANSPORT_TEL = '3117';
 /** Le message prêt : je ne peux pas parler ; la ligne et la station, je les écris (ma position seule ne dit pas dans quel train je suis). */
 export const sms31177Text = () => 'Je ne peux pas parler. Ligne : … Station ou direction : … Ce qui se passe : ';
 
