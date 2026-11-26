@@ -97,7 +97,7 @@ test('v250 : interrupteur toujours sur la page météo dès qu\'une adresse exis
   const w = app.slice(app.indexOf('function openWeather('), app.indexOf("name: 'weather'"));
   assert.match(w, /home \? el\('div', \{ class: 'menu' \}/); // plus de condition « allumé à l'ouverture »
   assert.equal(app.includes('wxHomeRow'), false);
-  assert.match(app, /name: 'near', again: nearAgain \}/);
+  assert.match(app, /name: 'near', again: nearAgain(, tall: Boolean\(crisis\))? \}/); // v537 : en grand en mode crise
   const n = app.slice(app.indexOf('function nearAgain('), app.indexOf('\n}\n', app.indexOf('function nearAgain(')));
   assert.match(n, /homeOn\(\) && \(origin\?\.kind === 'gps' \|\| origin\?\.kind === 'last'\)\) \{ origin = atHome\(\)/);
   assert.match(n, /!homeOn\(\) && origin\?\.kind === 'home'/);

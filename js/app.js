@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (536)';
+const VERSION = '26 novembre 2026 (537)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -4623,7 +4623,7 @@ function renderNear(fit = false) {
     }
   }
   // v365 (mes choix 1A 2A) : la roue ouvre Distances et durées (TTB, passages couverts, Y aller) ; son retour revient ici
-  openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle(), settingsGear('distances', 'Régler les distances', named('Autour de moi', nearAgain)))], body, { name: 'near', again: nearAgain });
+  openSheet([ico('map-pinned'), ' ', ...withGear(nearTitle(), settingsGear('distances', 'Régler les distances', named('Autour de moi', nearAgain)))], body, { name: 'near', again: nearAgain, tall: Boolean(crisis) }); // v537 : en mode crise, toujours en grand (les gros boutons d'abord)
   if (origin.kind === 'gps' && !following) startQuietNear(); else stopQuietNear();
   if (fit) {
     const bounds = L.latLng(origin.lat, origin.lng).toBounds(maxRing * 2);
@@ -5934,10 +5934,10 @@ function openCrisis(back = null) {
   // v519 (7 quinquies A) : la vigilance crue de Météo-France sous « Crue », seulement avec ma clé ; la page se redessine si elle arrive
   if (vigiKey()) { const before = vigi?.crue ?? null; checkVigi().then(() => { if (view === 'crise' && (vigi?.crue ?? null) !== before) self(); }); }
   openSheet([ico('triangle-alert'), ' Mode crise'], el('div', { class: 'stack' },
-    el('p', { class: 'help' }, crisis ? 'Touche une autre crise pour changer. Rien ne bouge de place.' : 'Touche la crise : le mode s\'allume. Autour de moi commence alors par les gestes utiles ; rien ne bouge de place.'),
+    el('p', { class: 'help' }, crisis ? 'Touche une autre crise pour changer : Autour de moi s\'ouvre en grand. Rien ne bouge de place.' : 'Touche la crise : le mode s\'allume et Autour de moi s\'ouvre en grand sur les gestes utiles ; rien ne bouge de place.'),
     el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Quelle crise ?' }, CRISES.map((c) => {
       const on = crisis?.k === c.k;
-      return el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), 'data-crise': c.k, onclick: () => { if (!on) setCrisis(c.k); closeSheet(); } },
+      return el('button', { type: 'button', class: 'menu-row c-guide', role: 'radio', 'aria-checked': String(on), 'data-crise': c.k, onclick: () => { if (!on) setCrisis(c.k); closeSheetThen(openNear); } }, // v537 (ma demande du 26 nov.) : Autour de moi s'ouvre tout de suite, en grand
         el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : c.icon)),
         el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, c.name), el('span', { class: 'menu-sub' }, (c.k === 'crue' && vigiCrueText(vigi)) || c.sub)));
     })),
@@ -14580,7 +14580,7 @@ const HELP = [
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
     '{train-front} **Métros les plus proches** : tout en bas d\'Autour de moi, sous Vélib\', les 3 stations de métro les plus proches, avec leurs lignes et Y aller (jusqu\'à la station). Pas depuis une station ni loin de Paris. L\'entrée la plus proche : le bouton M de la colonne de droite.',
     '{volume-x} **Alerter en silence** : dans Où suis-je ?, sous Urgences 112. « SMS au 114 » ouvre tes SMS avec « Je ne peux pas parler », ton adresse et tes coordonnées : ajoute ce qui se passe, touche Envoyer. « Prévenir … » envoie à tes proches « Je suis à l\'abri » et ta position (Réglages → Autres réglages → Proches à prévenir). L\'écran s\'ouvre en sombre ; coupe toi-même la sonnerie et la vibration. Plus bas, « On te suit, on t\'embête » : appeler un proche, Police 17 et, après coup, Ma Sécurité (tchat avec un policier ou un gendarme). Replié dessous, « Tu es témoin : les 5D » : distraire, déléguer, documenter, diriger, dialoguer.',
-    '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : une étiquette en haut le dit tant qu\'il est allumé, et Autour de moi commence par Rentrer à pied chez moi, puis de gros boutons : Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital, Bons gestes ; plus bas, « À préparer » (kit, hors ligne). Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
+    '{triangle-alert} **Mode crise** : ⋯ Plus dans la colonne, ou Où suis-je ? sous Je rentre. Touche la crise (crue, coupure, canicule, abri, grève) : le mode s\'allume, une étiquette en haut le dit, et Autour de moi s\'ouvre tout de suite, en grand (toujours en grand tant que le mode reste allumé). Il commence par Rentrer à pied chez moi, puis de gros boutons : Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital, Bons gestes ; plus bas, « À préparer » (kit, hors ligne). Crue, coupure, canicule : fontaines et toilettes s\'allument. « Terminer » sur l\'étiquette l\'éteint (Annuler dans le message).',
     '{map-pin} **Mon point de repli, nos rendez-vous** : appui long sur la carte à l\'endroit choisi, puis « Point de crise… » en bas de la page. Trois points : Mon point de repli (même loin de Paris), Près de chez nous, Hors du quartier. En mode crise, ils sont en tête d\'Autour de moi : Y aller, Chemin à pied (dans Paris), Envoyer à un proche par SMS. Sur ce téléphone et dans ta sauvegarde, jamais dans le fichier pour un proche.',
     '{download} **Préparer hors ligne** : dans Mon Paris → Préparer, dans la page Mode crise et dans Autour de moi en mode crise. Un appui garde sur le téléphone le plan des rues (site de l\'appli) et les fontaines et toilettes (Ville de Paris, la liste entière, sans ta position). Après : « Prêt · vérifié le … ». À refaire de temps en temps : la liste de la Ville change.',
     '{triangle-alert} **Plan de secours** : en mode crise, quand le fond de carte ne se charge plus (pas de réseau, ou ses images échouent), les rues du plan gardé sur le téléphone se dessinent à l\'encre, à partir d\'un zoom de quartier. Avec du réseau, la vraie carte reste. Les noms des rues n\'y sont pas : Où suis-je ? donne ton adresse quand le réseau revient.',
@@ -14791,6 +14791,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{triangle-alert} **Mode crise, en grand** : toucher une crise ouvre tout de suite Autour de moi, en grand ; tant que le mode est allumé, Autour de moi s\'ouvre toujours en grand, les gros boutons d\'abord.',
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
     '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
@@ -14800,7 +14801,6 @@ const HELP = [
     '{circle-help} **Aide à jour** : elle explique maintenant le mode crise en entier (Je vais bien, Urgences à l\'hôpital, Les bons gestes, Mon kit 72 h), la vigilance Météo-France, Photos dans Sorties, À mettre à jour sur place, le démarrage d\'un proche, et « Position refusée » pour l\'appli installée.',
     '{timer} **Marche** : en bas de Mise à jour et confidentialité, un bouton « Mes chiffres » ouvre ta marche jour par jour. Les textes disent le vrai nom du bouton : Ma position et direction. Dans l\'Aide, le robot se lance depuis cette même page.',
     '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
-    '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
