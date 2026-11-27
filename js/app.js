@@ -63,7 +63,7 @@ import { byDay, monthCells, addMonth, monthRange, clampMonth, sameMonth, monthLa
 import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWithoutCircuits, helpWithoutCompass } from './reglages.js';
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
-import { PARTS, isPart, dayChoices, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList, legText, dayWalkText } from './planning.js';
+import { PARTS, isPart, dayChoices, nextDays, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList, legText, dayWalkText } from './planning.js';
 import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
 import { makeDeck, deckMove, deckCount, deckLabel } from './glisser-sorties.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '26 novembre 2026 (542)';
+const VERSION = '27 novembre 2026 (543)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -3854,12 +3854,12 @@ function unplan(p) {
   };
 }
 
-function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { // v440 : `draft`, ce qui était choisi avant d'aller régler la marge
+function openPlan(p, back = null, { done: doneFn = null, draft = null, pick = false } = {}) { // v440 : `draft`, ce qui était choisi avant d'aller régler la marge ; v543 : `pick`, ouvert depuis Mon planning, « Où ? » en tête (p peut être null)
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const now = new Date();
-  const old = Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0 ? p.ticket : null; // une sortie passée ne remplit rien
-  const stored = !p.plan || (state.plans ?? []).some((x) => x.id === p.id); // sortie de l'agenda pas encore gardée : rien à retirer ni à envoyer
+  const old = Number.isFinite(p?.ticket?.at) && daysUntil(p.ticket.at) >= 0 ? p.ticket : null; // une sortie passée ne remplit rien
+  const stored = Boolean(p) && (!p.plan || (state.plans ?? []).some((x) => x.id === p.id)); // sortie de l'agenda pas encore gardée : rien à retirer ni à envoyer
   const days = dayChoices(now);
   const oldDay = old ? days.find((d) => iso(d.date) === iso(new Date(old.at))) : null;
   let day = draft ? draft.day : old ? (oldDay?.key ?? 'other') : null;
@@ -3870,25 +3870,37 @@ function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { 
   const timeField = el('label', { class: 'field' }, 'Heure', time);
   const who = el('input', { type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Léa, Tom…', value: draft?.who ?? old?.with ?? '' });
   const err = el('div', { class: 'error', role: 'alert' });
-  const done = doneFn ?? (() => (p.plan ? openPlanning() : back ? openDetail(p.id, back) : openDetail(p.id)));
+  const done = doneFn ?? (() => (pick || p.plan ? openPlanning() : back ? openDetail(p.id, back) : openDetail(p.id)));
   const segBtn = (label, pressed, onPick) => el('button', { type: 'button', 'aria-pressed': String(pressed), onclick: onPick }, label);
   const daySeg = el('div', { class: 'seg two', role: 'group', 'aria-label': 'Quel jour' }); /* v208 : 2 colonnes, plus de mot coupé */
   const partSeg = el('div', { class: 'seg two', role: 'group', 'aria-label': 'À quel moment' });
   // v201 : aujourd'hui, pour un de mes lieux, le moment est facultatif : sans moment, le lieu va dans la liste du jour
   const partHelp = el('p', { class: 'help tip' }, 'Aujourd\'hui, le moment est facultatif : sans moment, le lieu va dans ta liste du jour (Mon planning).');
+  /* v543 (mes choix A du 27 nov.) : « Autre jour » montre les 7 jours suivants par leur nom (pas de chiffres seuls), un appui par jour ;
+     plus loin, le calendrier du téléphone */
+  const week = nextDays(now);
+  const inWeek = (v) => week.some((d) => iso(d.date) === v);
+  let far = Boolean(date.value) && !inWeek(date.value);
+  const calSeg = el('div', { class: 'seg two', role: 'group', 'aria-label': 'Les jours suivants' });
+  const farBtn = el('button', { type: 'button', class: 'btn', onclick: () => { far = true; draw(); date.focus(); try { date.showPicker?.(); } catch { /* sans showPicker : le champ suffit */ } } }, ico('calendar-days'), 'Plus loin : calendrier');
+  const calBox = el('div', { class: 'stack' }, calSeg, farBtn);
   const draw = () => {
     fill(daySeg, ...days.map((d) => segBtn(d.label, day === d.key, () => { day = d.key; err.textContent = ''; draw(); })),
-      segBtn('Autre jour', day === 'other', () => { day = 'other'; err.textContent = ''; draw(); date.focus(); }));
+      segBtn('Autre jour', day === 'other', () => { day = 'other'; err.textContent = ''; draw(); if (far) date.focus(); }));
+    fill(calSeg, ...week.map((d) => segBtn(d.label, !far && date.value === iso(d.date), () => { date.value = iso(d.date); far = false; err.textContent = ''; draw(); })));
+    calBox.hidden = day !== 'other';
+    farBtn.hidden = far;
     fill(partSeg, ...Object.entries(PARTS).map(([k, v]) => segBtn(v.label, part === k, () => { part = part === k ? null : k; err.textContent = ''; draw(); })), /* un second appui retire le moment */
       segBtn('Heure précise', part === 'time', () => { part = part === 'time' ? null : 'time'; err.textContent = ''; draw(); if (part) time.focus(); }));
-    dateField.hidden = day !== 'other';
+    dateField.hidden = day !== 'other' || !far;
     timeField.hidden = part !== 'time';
-    partHelp.hidden = p.plan || day !== 'j0';
+    partHelp.hidden = !p || p.plan || day !== 'j0';
   };
   draw();
   const save = () => {
     let d = days.find((x) => x.key === day)?.date ?? null;
     if (day === 'other') { const [y, mo, da] = date.value.split('-').map(Number); d = y ? new Date(y, mo - 1, da, 12) : null; }
+    if (!p) { err.textContent = 'Choisis le lieu.'; return; }
     if (!d) { err.textContent = 'Choisis le jour.'; return; }
     if (!part && !p.plan && daysUntil(d.getTime()) === 0) {
       const mine = isDayList(p.ticket) && daysUntil(p.ticket.at) === 0;
@@ -3911,12 +3923,21 @@ function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { 
     toast(`Dans Mon planning : ${planText(p.ticket)}`, false, p.plan ? { label: 'Voir', fn: () => openPlanning() } : null);
     done();
   };
-  const inviteNote = p.plan ? null : noteCheck(p);
-  openSheet([ico('alarm-clock'), ` Prévoir · ${p.name}`], el('div', { class: 'stack' },
-    el('div', { class: 'field' }, 'Quel jour ?', daySeg), dateField,
+  const inviteNote = !p || p.plan ? null : noteCheck(p);
+  const keep = () => ({ day, part, date: date.value, time: time.value, who: who.value });
+  // v543 : « Où ? » en tête quand Prévoir s'ouvre depuis Mon planning ; un appui ouvre la liste de mes lieux
+  const where = pick ? el('div', { class: 'field' }, 'Où ?', el('div', { class: 'menu' },
+    el('button', { type: 'button', class: 'menu-row c-disc', onclick: () => openPlanPick(keep(), back) },
+      el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico('map-pin')),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, p ? p.name : 'Choisir un de mes lieux'),
+        el('span', { class: 'menu-sub' }, p ? [catOf(p.cat).name, arrLabel(p), 'Changer'].filter(Boolean).join(' · ') : 'ou chercher dans Paris')),
+      el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, ico('chevron-right'))))) : null;
+  openSheet([ico('alarm-clock'), p ? ` Prévoir · ${p.name}` : ' Prévoir une sortie'], el('div', { class: 'stack' },
+    where,
+    el('div', { class: 'field' }, 'Quel jour ?', daySeg), calBox, dateField,
     el('div', { class: 'field' }, 'À quel moment ?', partSeg), partHelp, timeField,
     el('label', { class: 'field' }, 'Avec qui (facultatif)', who),
-    freeNote(p),
+    p ? freeNote(p) : null,
     old && stored && !isDayList(old) ? el('h3', { class: 'fiche-sec' }, 'Inviter un proche') : null, /* v208 : la case et le lien vont ensemble */
     old && stored && !isDayList(old) ? inviteNote?.row : null, /* la liste du jour n'a ni heure ni moment à annoncer : pas d'invitation */
     old && stored && !isDayList(old) ? el('button', { type: 'button', class: 'btn c-add', onclick: () => invitePlace(p, Boolean(inviteNote?.box.checked)) }, ico('copy'), 'Copier le lien d\'invitation') : null,
@@ -3926,18 +3947,58 @@ function openPlan(p, back = null, { done: doneFn = null, draft = null } = {}) { 
       if (p.plan) openPlanning(); else done();
       toast('Sortie retirée de Mon planning', false, { label: 'Annuler', fn: undo }); // v300 (mon choix 3A)
     } }, 'Retirer de Mon planning') : null,
-    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${durText(tune('leaveMin'))} de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
+    el('p', { class: 'help tip' }, `Avec une heure précise, « Maintenant » sur la carte te dit le jour même à quelle heure partir (trajet à pied ou en métro, plus ${durText(tune('leaveMin'))} de marge). Avec un moment (matin, soir…), il te rappelle la sortie sans heure de départ.${p?.plan ? '' : ' Un billet à montrer à l\'entrée : prends-le en photo avec le bouton Photo de la fiche.'} Rien ne part du téléphone, sauf si tu invites un proche : il reçoit le lieu, le jour et le moment.`),
     /* v440 (mon choix 1A du 25 nov.) : la marge se règle par un bouton, à la place du chemin écrit ; dans l'Aide, sous sa phrase ; le jour et le moment choisis sont gardés */
     el('p', { class: 'help tip' }, 'La marge se règle dans :',
       el('button', { type: 'button', class: 'btn c-guide', onclick: () => {
-        const k = { day, part, date: date.value, time: time.value, who: who.value };
-        openSettings('distances', named('Prévoir', () => openPlan(p, back, { done: doneFn, draft: k })));
+        const k = keep();
+        openSettings('distances', named('Prévoir', () => openPlan(p, back, { done: doneFn, draft: k, pick })));
       } }, ico('ruler'), 'Distances et durées')),
     /* v208 : Annuler | Enregistrer en bas, comme le formulaire d'un lieu (charte § 8) ; l'erreur juste au-dessus, toujours visible */
     foot(err, el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: p.plan && back ? back : done }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn', onclick: pick ? () => openPlanning() : p.plan && back ? back : done }, 'Annuler'),
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, 'Enregistrer'))),
-  ), { name: `plan:${p.id}` });
+  ), { name: pick ? 'prevoirnouveau' : `plan:${p.id}` });
+}
+
+/** v543 (mon choix A du 27 nov.) : « Où ? » de Prévoir ouvert depuis Mon planning. Un de mes lieux, les plus proches d'abord
+    (jamais de GPS demandé), ou un lieu cherché dans Paris puis enregistré sur ma carte. Un appui revient dans Prévoir, ce qui était choisi gardé.
+    Un lieu déjà prévu garde sa sortie : on la change, comme depuis sa fiche (un lieu n'a qu'une sortie). */
+function openPlanPick(draft = null, back = null, query = '') {
+  const start = startHere();
+  const all = offered().map((p) => ({ p, d: start ? placeDistM(start, p) : 0, key: fold(p.name) }))
+    .sort((a, b) => (start ? a.d - b.d : a.p.name.localeCompare(b.p.name, 'fr')));
+  const blank = !draft || (!draft.day && !draft.part && !draft.who);
+  const busy = (p) => Number.isFinite(p.ticket?.at) && daysUntil(p.ticket.at) >= 0;
+  const choose = (p) => openPlan(p, back, { pick: true, draft: blank || busy(p) ? null : draft });
+  const input = el('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Chercher un de mes lieux', 'aria-label': 'Chercher un de mes lieux', value: query });
+  const list = el('ul', { class: 'items' });
+  const more = el('p', { class: 'help' });
+  const findBox = el('div', { class: 'stack' });
+  const again = () => openPlanPick(draft, back, input.value);
+  const row = ({ p, d }) => el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => choose(p) }, catDot(p.cat),
+    el('span', { class: 'item-text' }, nameFav(p),
+      el('span', { class: 'item-sub' }, photoMark(p), busy(p) ? `Prévu ${planText(p.ticket)}` : [start ? fmtDist(d) : null, catOf(p.cat).name, arrLabel(p)].filter(Boolean).join(' · '))),
+    el('span', { class: 'fiche-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
+  const draw = () => {
+    const q = fold(input.value.trim());
+    const hits = all.filter((x) => !q || x.key.includes(q));
+    const shown = hits.slice(0, 60);
+    fill(list, ...shown.map(row));
+    more.textContent = !hits.length ? (q ? 'Aucun de tes lieux ne porte ce nom.' : 'Ta carte n\'a pas encore de lieu : cherche-le dans Paris.')
+      : hits.length > shown.length ? `${shown.length} lieux affichés sur ${hits.length} : cherche un nom pour voir les autres.` : '';
+    more.hidden = !more.textContent;
+    const q0 = input.value.trim();
+    fill(findBox, q0 ? el('button', { type: 'button', class: 'btn c-add', onclick: () => openPlaceSearch(q0, true, named('Prévoir', again), null, (p) => (p ? choose(p) : again())) }, ico('search'), `Chercher « ${q0} » dans Paris`) : null);
+  };
+  input.addEventListener('input', draw);
+  draw();
+  openSheet([ico('alarm-clock'), ' Prévoir · quel lieu ?'], el('div', { class: 'stack' },
+    input,
+    el('p', { class: 'help' }, `Touche un lieu : il revient dans Prévoir. ${start ? 'Les plus proches d\'abord.' : 'Par ordre alphabétique : ta position n\'est pas connue.'}`),
+    list, more, findBox,
+    foot(el('button', { type: 'button', class: 'btn', onclick: () => openPlan(null, back, { pick: true, draft }) }, '← Prévoir')),
+  ), { tall: true, name: 'prevoirlieu', again });
 }
 
 /** Prévoir une sortie de l'agenda : gardée dans Mon planning, sans devenir un de mes lieux. Heure de l'agenda proposée quand elle est connue. */
@@ -7009,13 +7070,14 @@ function openPlanning(from = null) {
   ];
   openSheet([ico('alarm-clock'), ' Mon planning'], el('div', { class: 'stack' },
     ...todayBlock,
-    groups.length || timed.length ? null : el('p', { class: 'help' }, 'Pour prévoir un autre jour : touche un lieu sur la carte, puis Prévoir.'),
     ...groups.flatMap((g) => [
       el('h3', { class: 'ring-title' }, el('span', {}, g.label), el('span', {}, String(g.items.length))),
       el('ul', { class: 'items' }, g.items.map(planLine)),
     ]),
     ...pastBlock, /* v208 : après les jours à venir, pour que les jours se suivent */
     el('button', { type: 'button', class: 'btn c-disc', onclick: () => openDayEvents(null, named('Mon planning', () => openPlanning())) }, ico('calendar-days'), 'Trouver une sortie'),
+    /* v543 (mon choix A du 27 nov.) : sous « Trouver une sortie », qui ne bouge pas : le lieu se choisit dans Prévoir (« Où ? ») */
+    el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(null, null, { pick: true }) }, ico('alarm-clock'), 'Prévoir un autre jour'),
     lateWeekBlock(back), // v519 (mes choix 1A 2A 4A du 25 nov.) : sous « Trouver une sortie », qui ne bouge pas ; seulement si le réglage est allumé
     planningBack === 'myparis' ? foot(backBtn(named('Mon Paris', () => openMyParis()))) : null,
   ), { tall: true, name: 'planning', again: () => openPlanning() });
@@ -14576,7 +14638,8 @@ const HELP = [
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
-    '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…) puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
+    '{alarm-clock} **Prévoir un autre jour**, en bas de Mon planning, sous Trouver une sortie : « Où ? » d\'abord (un de tes lieux, les plus proches en tête, ou cherché dans Paris), puis le jour et le moment, comme depuis la fiche. Un lieu déjà prévu garde sa sortie : tu la changes.',
+    '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…, ou « Autre jour » : les 7 jours suivants par leur nom ; plus loin, « Plus loin : calendrier ») puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
     '**Le lendemain** d\'une sortie prévue (un jour, un moment), Mon planning demande « Tu y es allée ? ». Oui : le lieu passe en Déjà visité ; une sortie de l\'agenda va dans Mon journal. Non : la sortie s\'efface, sauf une expo encore à l\'affiche : elle reste, avec « Un autre jour » ou « Retirer ». « Écrire une impression » : ce que tu retiens, tes étoiles, une photo.',
     '**Sur la carte**, une pastille {alarm-clock} près d\'une goutte signale une sortie prévue dans les 7 jours.',
@@ -14810,6 +14873,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
@@ -14819,7 +14883,6 @@ const HELP = [
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
     '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
     '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
-    '{info} **Retour plus court** : en bas de Mes chiffres, de Données de l\'appli et de Partager l\'appli, le bouton de retour dit « ← Mise à jour » : il tient sur une ligne, même en Très grand.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

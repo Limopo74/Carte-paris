@@ -59,6 +59,22 @@ export function dayChoices(now = new Date()) {
   return out;
 }
 
+/** v543 (mon choix A du 27 nov.) : sous « Autre jour » de Prévoir, les 7 jours suivants, par leur nom (pas de grille de chiffres) :
+    à partir d'après-demain, sans ceux que « Quel jour ? » montre déjà (Samedi, Dimanche). Le mois est écrit quand il change. */
+export function nextDays(now = new Date(), n = 7) {
+  const shown = new Set(dayChoices(now).map((d) => d.key));
+  const out = [];
+  for (let k = 2; out.length < n; k++) {
+    if (shown.has(`j${k}`)) continue;
+    const d = noon(now); d.setDate(d.getDate() + k);
+    const wd = d.toLocaleDateString('fr-FR', { weekday: 'long' });
+    const day = d.getDate() === 1 ? '1er' : String(d.getDate());
+    const month = d.getMonth() === now.getMonth() ? '' : ` ${d.toLocaleDateString('fr-FR', { month: 'short' })}`;
+    out.push({ key: `j${k}`, label: `${wd[0].toUpperCase()}${wd.slice(1)} ${day}${month}`, date: d });
+  }
+  return out;
+}
+
 /** Le moment de la sortie (Date) : le jour donné, à l'heure de début du moment, ou à l'heure précise. */
 export function planAt(day, part, hh = 0, mm = 0) {
   return isPart(part)

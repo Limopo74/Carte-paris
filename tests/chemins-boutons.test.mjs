@@ -35,8 +35,9 @@ test('chaque ancien chemin a son bouton', () => {
 test('ce qui était écrit est gardé au retour', () => {
   assert.match(app, /function openPassage\(p, back, at = null, draft = null\)/);
   assert.match(app, /const keep = \{ day, date: date\.value, text: text\.value, photo, newBlob, stars \};/);
-  assert.match(app, /function openPlan\(p, back = null, \{ done: doneFn = null, draft = null \} = \{\}\)/);
-  assert.match(app, /const k = \{ day, part, date: date\.value, time: time\.value, who: who\.value \};/);
+  assert.match(app, /function openPlan\(p, back = null, \{ done: doneFn = null, draft = null, pick = false \} = \{\}\)/);
+  assert.match(app, /const keep = \(\) => \(\{ day, part, date: date\.value, time: time\.value, who: who\.value \}\);/);
+  assert.match(app, /openPlan\(p, back, \{ done: doneFn, draft: k, pick \}\)/, 'Prévoir ouvert depuis Mon planning le reste après Distances et durées');
   assert.match(app, /function openCategory\(id, ret = null, draft = null\)/);
   assert.match(app, /const keep = \(\) => \(\{ name: name\.value, color, icon, log: log\.value, did: did\.value, wordsId, wordsTouched \}\);/);
   assert.match(app, /function openWordSerie\(id, back, draft = null\)/);
