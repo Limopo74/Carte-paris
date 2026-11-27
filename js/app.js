@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '27 novembre 2026 (543)';
+const VERSION = '27 novembre 2026 (544)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1247,6 +1247,16 @@ function chipPlace() {
   return (key) => (hidden.has(key) ? 'hidden' : more.has(key) ? 'more' : 'bar');
 }
 /** Les boutons du haut, dans l'ordre : { key, name, icon, active, make } (make : le bouton de la barre). */
+/** v544 (mon choix A du 27 nov.) : une couche porte le même nom et la même petite ligne dans ⋯ Plus et dans Filtres
+    (avant : « Vélib' » ici, « Vélib' sur la carte » là, et deux textes différents : on croyait à deux réglages). */
+const LAYER_KEYS = ['street', 'ttb', 'lines', 'velib', 'buslines', 'pratique', 'passages', 'velo', 'jardins', 'dansmarue'];
+function layerSub(key) {
+  if (key === 'ttb') return !ttbList().length ? 'Importer d\'abord la liste (Réglages)' : chipPlace()('ttb') === 'bar' || state.showTtb ? 'Appui long en haut : trier' : `${plural(ttbList().length, 'adresse', 'adresses')} du guide`; /* v287 (mon choix 2A) : le chemin vers le tri, seulement quand le bouton TTB est dans la barre */
+  if (key === 'buslines') return (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Touche pour choisir tes lignes';
+  return { street: 'Marchés, brocantes, fêtes', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant',
+    passages: 'Les 12 passages, le trait en zoomant', velo: 'Plein : sans voitures. Pointillé : rue calme', jardins: 'Vert clair : ouverts maintenant, en zoomant', dansmarue: 'Propreté signalée, en zoomant' }[key] ?? '';
+}
+
 function chipItems(chip = null, catChip = null) {
   const toggleStreet = () => {
     state.showMarkets = !state.showMarkets; persist(); drawMarkets(); refresh();
@@ -1313,19 +1323,30 @@ function openChipsMore() {
   // v375 (mon choix 1A du 21 nov.) : Mes artistes ouvre une page ; il passe en tête de Plus, au-dessus des interrupteurs, séparé par un filet fort
   const list = chipItems().filter((x) => where(x.key) === 'more').sort((a, b) => (b.key === 'artistes') - (a.key === 'artistes'));
   const sub = (x) => (x.cat ? plural(categoryCounts(state.points, x.cat).total, 'lieu', 'lieux')
-    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', street: 'Marchés, brocantes, fêtes', ttb: 'Les adresses du guide', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', dansmarue: 'Propreté signalée, en zoomant', buslines: (state.busLines ?? []).length ? `Le chemin de tes lignes : ${refsText(state.busLines)}` : 'Choisis d\'abord tes lignes', pratique: 'Celles de la zone, en zoomant', passages: 'Les 12 passages, le trait en zoomant', velo: 'Sans voitures, et rues calmes', jardins: 'Vert clair : ouverts maintenant, en zoomant', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
-  openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
-    el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
-    list.map((x) => {
+    : LAYER_KEYS.includes(x.key) ? layerSub(x.key) /* v544 : la même petite ligne que dans Filtres */
+    : { all: 'Toutes les catégories', filters: 'Ouvre les filtres', fav: 'Seulement les favoris', artistes: cleanArtists(state.artists).length ? plural(cleanArtists(state.artists).length, 'artiste suivi', 'artistes suivis') : 'Les noms que tu suis, cherchés dans l\'agenda' }[x.key] ?? '');
+  // v544 (mon choix A du 27 nov.) : les mêmes titres que Filtres ; dans chaque groupe, l'ordre de la barre ne change pas
+  const isLayer = (x) => LAYER_KEYS.includes(x.key);
+  const groups = [
+    [null, list.filter((x) => x.key === 'artistes')],
+    ['Filtrer mes lieux', list.filter((x) => x.key !== 'artistes' && !isLayer(x))],
+    ['Afficher aussi sur la carte', list.filter(isLayer)],
+  ];
+  const titled = groups.filter(([t, xs]) => t && xs.length).length > 1; // un seul groupe : pas de titre (rien à distinguer)
+  const row = (x) => {
       const opens = x.key === 'filters' || x.key === 'all' || x.key === 'artistes'; // v372 : Mes artistes ouvre sa page
-      return el('button', { type: 'button', class: `menu-row c-guide${x.key === 'artistes' && list.length > 1 ? ' lead-row' : ''}`, ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
-        x.act();
-        if (!opens && view === 'chips-more') openChipsMore(); /* v228 : un bouton qui ouvre un autre écran (Mes lignes de bus sans ligne) le laisse ouvert */
+      return el('button', { type: 'button', class: `menu-row c-guide${x.key === 'artistes' && list.length > 1 && !titled ? ' lead-row' : ''}` /* v544 : avec les titres, leur filet suffit (pas deux traits) */, ...(opens ? {} : { role: 'switch', 'aria-checked': String(x.active) }), onclick: () => {
+        const done = x.act();
+        /* v228 : un bouton qui ouvre un autre écran (Mes lignes de bus sans ligne) le laisse ouvert ; v544 : une couche qui se charge (Dans ma rue) se redessine une fois chargée */
+        Promise.resolve(done).then(() => { if (!opens && view === 'chips-more') openChipsMore(); });
       } },
       el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, x.icon),
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, x.name), el('span', { class: 'menu-sub' }, sub(x))),
       opens ? el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›') : el('span', { class: `switch${x.active ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
-    }),
+  };
+  openSheet([ico('ellipsis'), ' Plus'], el('div', { class: 'menu' },
+    el('p', { class: 'help tip' }, 'Touche pour allumer ou éteindre. Un bouton allumé apparaît aussi dans la barre, le temps de l\'éteindre.'),
+    groups.flatMap(([t, xs]) => (xs.length ? [t && titled ? el('h3', { class: 'ring-title menu-group' }, t) : null, ...xs.map(row)] : [])),
     el('button', { type: 'button', class: 'btn c-info', style: 'margin-top:8px', onclick: () => openSettings('barre', named('Plus', openChipsMore)) }, ico('panel-top'), 'Choisir ce qui va dans Plus'), // v365 : le retour ramène à Plus
   ), { name: 'chips-more', again: openChipsMore, tall: true });
 }
@@ -1411,21 +1432,23 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) || keep('rues', state.showRues) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
-    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', 'Les tracés dans leurs couleurs (raccourci : appui long sur M)', () => { state.showLines = !state.showLines; persist(); drawLines(); }),
-    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Touche pour choisir tes lignes', () => {
+    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) || keep('rues', state.showRues) || keep('dansmarue', dmrOn) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
+    !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', layerSub('lines'), () => { state.showLines = !state.showLines; persist(); drawLines(); }),
+    !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', layerSub('buslines'), () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
       state.showBusLines = !state.showBusLines; persist(); drawBusLines(); if (state.showBusLines) refreshBusTraces();
     }),
-    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', 'Marchés, brocantes, fêtes, expos en plein air, marchés éphémères', () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
-    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', !ttbList().length ? 'Importer d\'abord la liste (Réglages)' : chipPlace()('ttb') === 'bar' || state.showTtb ? 'Appui long en haut : trier' : `${plural(ttbList().length, 'adresse', 'adresses')} du guide`, /* v287 (mon choix 2A ; « rubriques et budgets » passait sur 2 lignes, mesuré à 360 px) : le chemin vers le tri, seulement quand le bouton TTB est dans la barre (rangé dans ⋯ Plus ou masqué, il n'y reste qu'allumé, v151) */ () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
-    !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\'', 'Les stations visibles en zoomant, avec leurs vélos (ou leurs places). S\'éteint quand tu fermes l\'appli', () => { setVelibLayer(!velibOn); }),
-    !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et toilettes', 'Celles de la zone, visibles en zoomant', () => { setPratLayer(!state.showPratique); }),
-    !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', 'Les 12 passages de Paris, avec leur trait en zoomant', () => { setArcadeLayer(!state.showPassages); }),
-    !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', 'Trait plein : sans voitures. Pointillé : rue calme', async () => { await setVeloLayer(!state.showVelo); }),
-    !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', 'Squares, jardins, parcs, bois et grands cimetières, en zoomant ; vert clair : ouverts maintenant', () => { setJardinLayer(!state.showJardins); }),
+    !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', layerSub('street'), () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
+    !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', layerSub('ttb'), () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
+    !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\' sur la carte', layerSub('velib'), () => { setVelibLayer(!velibOn); }),
+    !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et WC sur la carte', layerSub('pratique'), () => { setPratLayer(!state.showPratique); }),
+    !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', layerSub('passages'), () => { setArcadeLayer(!state.showPassages); }),
+    !keep('velo', state.showVelo) ? null : sw(Boolean(state.showVelo), 'spline', 'Pistes à vélo', layerSub('velo'), async () => { await setVeloLayer(!state.showVelo); }),
+    !keep('jardins', state.showJardins) ? null : sw(Boolean(state.showJardins), 'trees', 'Jardins publics', layerSub('jardins'), () => { setJardinLayer(!state.showJardins); }),
     // v429 (ma demande du 25 nov.) : le trait de mes rues d'intérêt, éteint au départ, comme les passages couverts ; la goutte reste
     !keep('rues', state.showRues) ? null : sw(Boolean(state.showRues), 'git-commit-horizontal', 'Rues d\'intérêt', rueCount() ? `Le trait ${rueCount() === 1 ? 'de ta rue' : `de tes ${rueCount()} rues`} ; la goutte reste toujours` : 'Aucune encore : + Ajouter → Un tracé sur la carte', () => { setRueLayer(!state.showRues); }),
+    // v544 (mon choix A du 27 nov.) : Dans ma rue aussi ici, comme les autres couches de ⋯ Plus ; le temps de la session, comme Vélib'
+    !keep('dansmarue', dmrOn) ? null : sw(dmrOn, 'message-square-warning', 'Signalements Dans ma rue', layerSub('dansmarue'), () => { setDmrLayer(!dmrOn).then(() => { refresh(); if (shownKey === 'filters') openFilters(); }); return 'stop'; }),
     // v364 (mon choix B du 21 nov.) : l'arrondissement en dernier : le plus gros, le moins utile en marchant ; les calques remontent
     ...withTitle('Arrondissement', [
       !keep('arr', false) ? null : arrPicker(),
@@ -1478,7 +1501,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\''], ['pratique', 'droplets', 'Fontaines et toilettes'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['rues', 'git-commit-horizontal', 'Rues d\'intérêt'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\' sur la carte'], ['pratique', 'droplets', 'Fontaines et WC sur la carte'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['rues', 'git-commit-horizontal', 'Rues d\'intérêt'], ['dansmarue', 'message-square-warning', 'Signalements Dans ma rue'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
   openSheet([ico('sliders-horizontal'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -14765,7 +14788,7 @@ const HELP = [
     '**Masquer des filtres** : en bas de Filtres, « Choisir les filtres affichés ».',
     '{tent} **Dans la rue aujourd\'hui** : les marchés du jour et ce que l\'agenda annonce dans la rue. C\'est deviné d\'après le titre : il peut y avoir des oublis. Pour préparer ta visite : touche la tente, puis « Parcourir » dans le message (il reste affiché jusqu\'à ce que tu touches la carte). Le bandeau montre un lieu à la fois, du plus proche au plus loin (à la distance de Sorties, 3 km au départ, réglable dans {settings} → Autres réglages → Distances et durées ; autour de toi quand tu es à Paris, sinon du centre de la carte), avec ses heures ; « Aujourd\'hui » ou « Demain » en bas du bandeau. Le soir, quand il ne reste plus rien aujourd\'hui, il s\'ouvre sur demain. Un jour férié, les marchés n\'ont pas d\'heure : vérifie sur place ou sur paris.fr.',
     '{bike} **Vélib\' sur la carte** et {droplets} **Fontaines et WC sur la carte** (⋯ Plus en haut) : toutes les stations, fontaines et toilettes de la zone ; aussi dans Filtres → Afficher aussi sur la carte. Vélib\' et Fontaine et WC de la colonne de droite donnent, eux, les plus proches de toi. Vélib\' s\'éteint quand tu fermes l\'appli, car ses nombres changent à la minute.',
-    '{message-square-warning} **Signalements Dans ma rue** (⋯ Plus en haut) : en zoomant, des carrés de 100 m plus ou moins foncés selon le nombre de signalements propreté et objets abandonnés faits par les habitants sur 12 mois. L\'étiquette du haut ouvre la légende. Ce sont des signalements, pas une mesure de la saleté.',
+    '{message-square-warning} **Signalements Dans ma rue** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : en zoomant, des carrés de 100 m plus ou moins foncés selon le nombre de signalements propreté et objets abandonnés faits par les habitants sur 12 mois. L\'étiquette du haut ouvre la légende. Ce sont des signalements, pas une mesure de la saleté.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, et les cimetières du Père-Lachaise, du Montparnasse et de Montmartre, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
     '{flower-2} **Cimetières** (dans Jardins publics) : le Père-Lachaise, le Montparnasse et Montmartre. Touche un cimetière : ouvert ou fermé (horaires de l\'hiver relevés sur paris.fr ; on n\'entre plus 15 min avant la fermeture), la porte la plus proche, « Tombes célèbres » (plans officiels de la Ville, recoupés avec Wikidata) et « Plan officiel des tombes ». Une tombe : sa division, et le chemin jusqu\'au milieu de la division, jamais jusqu\'à la tombe ; « Prendre une photo », « Ses plaques dans Paris », « Article Wikipédia ».',
@@ -14873,6 +14896,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
     '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
@@ -14882,7 +14906,6 @@ const HELP = [
     '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
     '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
-    '{ruler} **Boutons sur une ligne** : huit boutons raccourcis pour tenir sur une ligne : Depuis ma galerie (+ Ajouter), Envoyer ma position (Où suis-je ?), Un autre jour (Mon planning), Programme (grands lieux), Recharger la carte, Mettre à jour l\'appli, Ouvrir Sauvegarde, Données de la Ville.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

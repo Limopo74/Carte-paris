@@ -62,9 +62,9 @@ test('appli : la carte passe par le filtre, Filtres et Filtres affichés ont la 
   const filters = app.slice(app.indexOf('function openFilters()'), app.indexOf('function openListPlaces'));
   assert.match(filters, /keep\('rues', state\.showRues\) \? null : sw\(Boolean\(state\.showRues\), 'git-commit-horizontal', 'Rues d\\'intérêt'/);
   assert.ok(filters.indexOf("keep('rues', state.showRues) ? null") > filters.indexOf("keep('jardins', state.showJardins) ? null"), 'sous Jardins publics : rien ne bouge');
-  assert.match(filters, /keep\('jardins', state\.showJardins\) \|\| keep\('rues', state\.showRues\) \? el\('h3'/, 'le titre reste si seule cette ligne est affichée');
+  assert.match(filters, /keep\('jardins', state\.showJardins\) \|\| keep\('rues', state\.showRues\) \|\| keep\('dansmarue', dmrOn\) \? el\('h3'/, 'le titre reste si seule cette ligne est affichée');
   const choice = app.slice(app.indexOf('function openFilterChoice'), app.indexOf('/** Ajoute ou retire une catégorie du filtre du haut. */'));
-  assert.match(choice, /\['jardins', 'trees', 'Jardins publics'\], \['rues', 'git-commit-horizontal', 'Rues d\\'intérêt'\], \['arr'/);
+  assert.match(choice, /\['jardins', 'trees', 'Jardins publics'\], \['rues', 'git-commit-horizontal', 'Rues d\\'intérêt'\], \['dansmarue', 'message-square-warning', 'Signalements Dans ma rue'\], \['arr'/);
   assert.match(app, /\?\? veloNote\(\) \?\? rueNoteNow\(\);/);
   assert.match(src('sw.js'), /'js\/rues-calque\.js'/);
   assert.doesNotMatch(src('js/rues-calque.js'), /fetch\(|getCurrentPosition|watchPosition/);

@@ -142,7 +142,7 @@ test('Plus du haut (v375) : Mes artistes en tête de ⋯ Plus, filet fort dessou
   const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
   const more = app.slice(app.indexOf('function openChipsMore()'), app.indexOf('function renderChips()'));
   assert.match(more, /\.sort\(\(a, b\) => \(b\.key === 'artistes'\) - \(a\.key === 'artistes'\)\)/, 'Mes artistes passe en tête, les autres gardent leur ordre');
-  assert.match(more, /x\.key === 'artistes' && list\.length > 1 \? ' lead-row'/, 'le filet seulement s\'il y a des lignes dessous');
+  assert.match(more, /x\.key === 'artistes' && list\.length > 1 && !titled \? ' lead-row'/, 'le filet seulement s\'il y a des lignes dessous ; v544 : avec les titres, leur filet suffit');
   assert.match(css, /\.menu > \.menu-row\.lead-row \{ border-bottom: 2px solid var\(--ink\); \}/);
   assert.match(app, /Pour l\\'enlever de ⋯ Plus : « Choisir ce qui va dans Plus », puis « Masqué » sur sa ligne/, 'l\'aide de Mes artistes');
   // le tri garde l'ordre des autres
