@@ -157,3 +157,17 @@ test('v454 : numéros des divisions sur la carte, de près seulement, jamais ave
   assert.match(css, /\.div-num \{[^}]*color: var\(--muted\)/, 'gris, sans pastille');
   assert.match(css, /\.div-num\.div-off \{ visibility: hidden; \}/);
 });
+
+// v545 (mon choix 1A du 27 nov. 2026) : la fleur et le nom des cimetières, Jardins publics allumé, du zoom 12 au zoom 16.
+test('repère des cimetières : calque allumé, zooms 12 à 16 seulement', async () => {
+  const { cimMarkShown, CIM_MARK_MIN_ZOOM, CIM_MARK_MAX_ZOOM } = await import('../js/cimetieres.js');
+  assert.equal(CIM_MARK_MIN_ZOOM, 12); assert.equal(CIM_MARK_MAX_ZOOM, 16);
+  for (const z of [12, 13, 14, 15, 16, 16.5]) assert.equal(cimMarkShown(z, true), true, `zoom ${z}`);
+  for (const z of [11, 11.9, 17, 18]) assert.equal(cimMarkShown(z, true), false, `zoom ${z} : de trop loin, ou les numéros des divisions`);
+  assert.equal(cimMarkShown(14, false), false, 'calque éteint : rien');
+  assert.equal(cimMarkShown(NaN, true), false);
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /function drawJardinLayer\(\) \{\n  jardinLayer\.clearLayers\(\);\n  drawCimMarks\(\);/, 'dessinés avec le calque, effacés avec lui');
+  assert.match(app, /openCimetiere\(j\)/, 'un appui ouvre la page du cimetière');
+  assert.equal(/Vert clair : ouverts maintenant, en zoomant/.test(app), false, 'la petite ligne nomme les cimetières');
+});

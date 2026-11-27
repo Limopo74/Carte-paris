@@ -10,6 +10,12 @@ import { distanceM } from './geo.js';
 /** « On n'entre plus 15 min avant la fermeture » (paris.fr, pages des trois cimetières). */
 export const EVACUATION_MIN = 15;
 
+/** v545 (mon choix 1A du 27 nov.) : le repère fleur et le nom de chaque cimetière, Jardins publics allumé, du zoom 12 au zoom 16 :
+ * on les voit de loin ; à partir du zoom 17, les numéros des divisions prennent la place. */
+export const CIM_MARK_MIN_ZOOM = 12;
+export const CIM_MARK_MAX_ZOOM = 16;
+export const cimMarkShown = (zoom, layerOn) => layerOn === true && Number.isFinite(zoom) && zoom >= CIM_MARK_MIN_ZOOM && zoom < CIM_MARK_MAX_ZOOM + 1;
+
 const okNum = (x) => Number.isFinite(x);
 const okPos = (o) => okNum(o?.lat) && okNum(o?.lng) && Math.abs(o.lat) <= 90 && Math.abs(o.lng) <= 180;
 const str = (x, n = 200) => (typeof x === 'string' ? x.trim().slice(0, n) : '');

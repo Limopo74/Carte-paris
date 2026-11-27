@@ -917,6 +917,15 @@ a.go-compass { display: inline-flex; align-items: center; justify-content: cente
   -webkit-text-stroke: 4px var(--bg); paint-order: stroke fill; }
 .div-num.div-hi { font-weight: 800; font-size: var(--t18); color: var(--ink); transform: translate(-50%, calc(-50% - 30px)); -webkit-text-stroke: 6px var(--bg); }
 .div-num.div-off { visibility: hidden; }
+/* v545 (mon choix 1A du 27 nov.) : la fleur et le nom d'un cimetière, Jardins publics allumé, du zoom 12 au zoom 16 ; étiquette papier
+   à contour encre 1,5 px (comme un tampon), lisible au soleil ; zone d'appui de 44 px de haut au moins */
+.cim-mk { overflow: visible; }
+.cim-tag { position: absolute; left: 0; top: 22px; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  font-family: var(--display); font-weight: 700; font-size: var(--t14); line-height: 1.15; color: var(--ink);
+  background: var(--bg); border: 1.5px solid var(--ink); border-radius: var(--r); padding: 3px 7px 3px 5px; cursor: pointer; }
+.cim-tag::after { content: ''; position: absolute; inset: -10px -4px; } /* l'appui un peu à côté compte aussi */
+.cim-tag.cim-off { visibility: hidden; } /* sous un bouton de la carte ou sous la page ouverte */
+.cim-tag svg { flex: none; width: calc(16px * var(--ts)); height: calc(16px * var(--ts)); }
 /* Calques Vélib' et Fontaines et WC (v150) : sous la météo, « Zoome pour voir… » ou l'heure des Vélib' (un appui : mettre à jour) */
 .layer-note { position: fixed; z-index: 499; left: 10px; top: 66px; max-width: calc(100vw - 90px); min-height: var(--h-s); padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;
   color: var(--ink); background: var(--bg); border: 2px solid var(--btn-bd); border-radius: var(--r); box-shadow: var(--float);

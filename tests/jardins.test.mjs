@@ -124,3 +124,12 @@ test('v264 : « Prendre une photo » sur la page d\'un jardin, comme pour un pas
   assert.match(app, /: dans tes lieux, avec ta photo`, false, \{ label: 'Annuler'/, 'ajouté seul : « Annuler » dans le message');
   assert.match(app, /'Jardin retiré de tes lieux, photo effacée'/);
 });
+
+// v545 (mon choix 2A du 27 nov. 2026) : un cimetière a toujours son trait encre de 3 px, ouvert ou fermé ; un jardin garde vert ou gris en 2 px.
+test('trait des contours : cimetière encre 3 px, jardin vert ouvert ou gris', async () => {
+  const { jardinLine } = await import('../js/jardins.js');
+  assert.deepEqual(jardinLine({ kind: 'c' }, true), { ink: 'ink', weight: 3 });
+  assert.deepEqual(jardinLine({ kind: 'c' }, false), { ink: 'ink', weight: 3 }, 'fermé, le cimetière ne disparaît pas dans le fond de carte');
+  assert.deepEqual(jardinLine({ kind: 'j' }, true), { ink: 'add', weight: 2 });
+  assert.deepEqual(jardinLine({ kind: 'b' }, false), { ink: 'muted', weight: 2 }, 'jamais vert fermé (piste à vélo)');
+});

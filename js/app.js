@@ -77,15 +77,15 @@ import { jpegWithExif, zipStore, csvText, photoFileName } from './export-vu.js';
 import { TEST_KEY, REMARK_KINDS, REMARK_TEXT_MAX, remarkLabel, cleanRemark, readTest, addRemark, markSent, mergeRemarks, platformInfo, contextLine, remarksText } from './remarques.js';
 import { routeLink, readRouteLink, meetLink, readMeetLink, planLoopOpen, gpsFromJpeg, dateFromJpeg } from './explore.js';
 import { BAGUETTES_CHECKED, BAGUETTES_CHECKED_ON, BAGUETTES_SOURCE, CROISSANT_SOURCE, prizeText, prizedNear } from './baguettes.js';
-import { REPERES, REPERE_SVG, REPERE_SIZE, placeReperes } from './reperes.js';
+import { REPERES, REPERE_SVG, REPERE_SIZE, placeReperes, touches } from './reperes.js';
 import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
-import { cleanCimetieres, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
+import { cleanCimetieres, cimMarkShown, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
 import { cleanDelinq, delinqRows } from './delinquance.js';
-import { JARDIN_ZOOM, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks, inRings } from './jardins.js';
+import { JARDIN_ZOOM, WIND_GUST, cleanJardins, jardinKind, jardinsInBox, jardinHours, jardinRecord, jardinAddress, nearestEdge, bigJardinNear, distanceToJardin, cleanJardinLinks, inRings, jardinLine } from './jardins.js';
 import { placeLink, readPlaceLink, loopUrl, parseTakeout, findDuplicate, myPlaceFor, wikiUrl, parseWiki, wikiPage, arrFromText, arrFromCitycode, arrAt, arrSure, arrLabelPoint, arrGroups, arrMore, arrTap, ARR_GRID, HIST_URL, parseHist, merimeeUrl, parseMerimee, merimeeLine, museumLine, VELIB_INFO, VELIB_STATUS, VELIB_PARIS, parseVelibParis, mergeVelib, nearestVelib, velibState, velibCount, meteoUrl, readMeteo, forecastUrl, readForecast, planWeather } from './explore.js';
 import {
   bearing, relativeAngle, compassLabel, bestFix, onTheWay,
@@ -93,7 +93,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '27 novembre 2026 (544)';
+const VERSION = '27 novembre 2026 (545)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1254,7 +1254,7 @@ function layerSub(key) {
   if (key === 'ttb') return !ttbList().length ? 'Importer d\'abord la liste (Réglages)' : chipPlace()('ttb') === 'bar' || state.showTtb ? 'Appui long en haut : trier' : `${plural(ttbList().length, 'adresse', 'adresses')} du guide`; /* v287 (mon choix 2A) : le chemin vers le tri, seulement quand le bouton TTB est dans la barre */
   if (key === 'buslines') return (state.busLines ?? []).length ? `Le chemin des bus ${refsText(state.busLines)}, sans horaires ni sens` : 'Touche pour choisir tes lignes';
   return { street: 'Marchés, brocantes, fêtes', lines: 'Les tracés du métro et du RER', velib: 'Les stations, en zoomant', pratique: 'Celles de la zone, en zoomant',
-    passages: 'Les 12 passages, le trait en zoomant', velo: 'Plein : sans voitures. Pointillé : rue calme', jardins: 'Vert clair : ouverts maintenant, en zoomant', dansmarue: 'Propreté signalée, en zoomant' }[key] ?? '';
+    passages: 'Les 12 passages, le trait en zoomant', velo: 'Plein : sans voitures. Pointillé : rue calme', jardins: 'Et 3\u00a0cimetières · vert : ouverts', dansmarue: 'Propreté signalée, en zoomant' }[key] ?? '';
 }
 
 function chipItems(chip = null, catChip = null) {
@@ -6621,7 +6621,11 @@ function placeReperesNow() {
     kept = placeReperes(marks.map((m) => box(m.querySelector('svg'))), obstacles, Math.round(map.getZoom()));
     marks.forEach((m, i) => m.classList.toggle('rep-off', !kept.includes(i)));
   }
-  const shown = kept.map((i) => box(marks[i].querySelector('svg')));
+  // v545 : le nom d'un cimetière qui passe sous un bouton de la carte se cache ; un numéro d'arrondissement sous ce nom se cache
+  const btns = [...document.querySelectorAll('button')].filter((n) => !n.closest('#sheet') && (n.offsetParent !== null || getComputedStyle(n).position === 'fixed')).map(box).filter((r) => r.width > 0 && r.height > 0);
+  const sh = document.getElementById('sheet'); if (sh && !sh.hidden) btns.push(box(sh));
+  const tags = [...document.querySelectorAll('.cim-tag')].filter((t) => { const r = box(t); const off = btns.some((k) => touches(r, k)); t.classList.toggle('cim-off', off); return !off; });
+  const shown = [...kept.map((i) => box(marks[i].querySelector('svg'))), ...tags.map(box)];
   for (const n of nums) { const r = box(n); n.classList.toggle('rep-under', shown.some((s) => !(s.right <= r.left || s.left >= r.right || s.bottom <= r.top || s.top >= r.bottom))); }
 }
 map.on('moveend zoomend resize', placeReperesNow);
@@ -11293,17 +11297,32 @@ const jardinOpen = (j) => !windy() && openState(j.kind === 'c' ? cimHours(cimOf(
 
 function drawJardinLayer() {
   jardinLayer.clearLayers();
+  drawCimMarks();
   if (!state.showJardins || !jardinsData || map.getZoom() < JARDIN_ZOOM) return;
   for (const j of jardinsInBox(jardinsData, boxNow())) {
     const open = jardinOpen(j);
     // Vert (« Garder », ouvert) seulement s'il est ouvert ; fermé ou horaires inconnus : contour gris (--muted), pour ne pas se confondre
-    // avec le trait vert d'une piste à vélo (v259) quand les deux couches sont allumées
-    L.polygon(j.rings, { color: open ? addInk() : mutedInk(), weight: 2, opacity: 0.9, fillColor: addInk(), fillOpacity: open ? 0.3 : 0 })
+    // avec le trait vert d'une piste à vélo (v259) quand les deux couches sont allumées ; v545 : un cimetière, toujours l'encre en 3 px
+    const line = jardinLine(j, open);
+    L.polygon(j.rings, { color: { ink: ink(), add: addInk(), muted: mutedInk() }[line.ink], weight: line.weight, opacity: 0.9, fillColor: addInk(), fillOpacity: open ? 0.3 : 0, className: j.kind === 'c' ? 'cim-zone' : '' })
       .on('click', (e) => {
         if (view === 'trace') { traceTap(e.latlng.lat, e.latlng.lng); return; } // Mes parcours : l'appui pose une étape, comme sur la carte
         if (!moving) (j.kind === 'c' ? openCimetiere : openJardin)(j); // v450
       }).addTo(jardinLayer);
   }
+}
+/** v545 (mon choix 1A du 27 nov.) : la fleur et le nom des 3 cimetières, Jardins publics allumé, du zoom 12 au zoom 16 ; un appui ouvre
+ * la page du cimetière. Sous mes gouttes ; un numéro d'arrondissement qu'elle touche se cache (comme sous un dessin de monument). */
+function drawCimMarks() {
+  if (!cimMarkShown(map.getZoom(), state.showJardins === true) || !jardinsData) { placeReperesNow(); return; }
+  for (const j of jardinsData) {
+    if (j.kind !== 'c') continue;
+    const name = cimOf(j)?.short || j.name;
+    L.marker([j.lat, j.lng], { keyboard: true, title: `Cimetière : ${name}`, alt: `Cimetière : ${name}`, zIndexOffset: -200,
+      icon: L.divIcon({ className: 'cim-mk', html: `<span class="cim-tag">${svgIcon('flower-2', { size: 16, stroke: 2.2 })}${esc(name)}</span>`, iconSize: [0, 44], iconAnchor: [0, 22] }) })
+      .on('click', orTrace(() => { if (!moving) openCimetiere(j); })).addTo(jardinLayer);
+  }
+  placeReperesNow();
 }
 async function setJardinLayer(on) {
   state.showJardins = on; persist();
@@ -14791,7 +14810,7 @@ const HELP = [
     '{message-square-warning} **Signalements Dans ma rue** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : en zoomant, des carrés de 100 m plus ou moins foncés selon le nombre de signalements propreté et objets abandonnés faits par les habitants sur 12 mois. L\'étiquette du haut ouvre la légende. Ce sont des signalements, pas une mesure de la saleté.',
     '{door-open} **Passages couverts** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les 12 passages de la liste, chacun avec sa page (son histoire, ses entrées, sa source). « Prendre une photo », en haut, l\'ajoute à tes lieux avec ta photo ; ensuite, ta photo illustre sa page et « Ma fiche » remplace « Ajouter ». De loin, un point : touche-le pour zoomer. De près, un trait relie ses entrées quand le chemin est sûr ; sinon, le pictogramme seul. Aucun horaire : ils ferment en général la nuit.',
     '{trees} **Jardins publics** (⋯ Plus en haut, ou Filtres → Afficher aussi sur la carte) : les squares, jardins, parcs et bois de la Ville, et les cimetières du Père-Lachaise, du Montparnasse et de Montmartre, dessinés en zoomant. Vert clair : ouvert maintenant d\'après les horaires de la saison ; contour seul : fermé, ou horaires inconnus. Touche un jardin : son état, son adresse, Y aller ; en haut, « Prendre une photo » range ta photo sur ta fiche (le jardin s\'ajoute à tes lieux s\'il n\'y est pas, avec « Annuler »). Par grand vent (rafales de 60 km/h ou plus), aucun n\'est dit ouvert : la Ville ferme alors souvent ses jardins sans changer leurs horaires. En bas de sa page, « Site officiel » ouvre sa page sur paris.fr (horaires, équipements, fermetures), quand le robot des données l\'a trouvée.',
-    '{flower-2} **Cimetières** (dans Jardins publics) : le Père-Lachaise, le Montparnasse et Montmartre. Touche un cimetière : ouvert ou fermé (horaires de l\'hiver relevés sur paris.fr ; on n\'entre plus 15 min avant la fermeture), la porte la plus proche, « Tombes célèbres » (plans officiels de la Ville, recoupés avec Wikidata) et « Plan officiel des tombes ». Une tombe : sa division, et le chemin jusqu\'au milieu de la division, jamais jusqu\'à la tombe ; « Prendre une photo », « Ses plaques dans Paris », « Article Wikipédia ».',
+    '{flower-2} **Cimetières** (dans Jardins publics) : le Père-Lachaise, le Montparnasse et Montmartre. Vue de loin, leur nom et la fleur ; de près, leur contour à l\'encre (vert clair dedans : ouvert). Touche un cimetière (son nom, ou dedans) : ouvert ou fermé (horaires de l\'hiver relevés sur paris.fr ; on n\'entre plus 15 min avant la fermeture), la porte la plus proche, « Tombes célèbres » (plans officiels de la Ville, recoupés avec Wikidata) et « Plan officiel des tombes ». Une tombe : sa division, et le chemin jusqu\'au milieu de la division, jamais jusqu\'à la tombe ; « Prendre une photo », « Ses plaques dans Paris », « Article Wikipédia ».',
     '{git-commit-horizontal} **Rues d\'intérêt** (Filtres → Afficher aussi sur la carte) : le trait de tes rues d\'intérêt, éteint au départ. Éteint, chaque rue garde sa goutte, et sa fiche ouverte montre son trait. Allumé loin de tes rues, « Aucune rue ici » sous la barre du haut : touche-le pour les voir.',
     '**Il pleut** : sous le bandeau d\'Autour de moi, les passages couverts à moins de 10 min (réglable : {settings} → Autres réglages → Distances et durées). Un passage ajouté à ta carte est déjà coché « abrité ».',
   ]],
@@ -14896,6 +14915,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
     '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
     '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
@@ -14905,7 +14925,6 @@ const HELP = [
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
     '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
     '{list-filter} **La barre du haut expliquée** : Aide → Se repérer dit à quoi servent Tout, Filtres et les boutons des couches (la tente, les favoris, les lignes…).',
-    '{a-large-small} **Très grand texte** : deux boutons côte à côte qui ne tiennent pas chacun sur une ligne passent l\'un sous l\'autre, dans le même ordre (Google Maps et Modifier d\'un parcours, Partager et En faire un circuit…). S\'ils tiennent, rien ne change.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

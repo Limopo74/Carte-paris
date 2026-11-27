@@ -103,6 +103,11 @@ export function nearestEdge(p, j) {
   return best;
 }
 
+/** v545 (mon choix 2A du 27 nov.) : le trait d'un contour. Un cimetière : encre, 3 px, ouvert ou fermé (avant, il avait le trait
+ * d'un square et disparaissait le soir dans le vert-gris de la carte) ; le vert de remplissage dit toujours « ouvert ».
+ * Un jardin : vert 2 px s'il est ouvert, gris sinon (v259 : jamais vert fermé, pour ne pas se confondre avec une piste à vélo). */
+export const jardinLine = (j, open) => (j?.kind === 'c' ? { ink: 'ink', weight: 3 } : { ink: open ? 'add' : 'muted', weight: 2 });
+
 /** Les horaires du jardin (format OpenStreetMap), lus dans la copie du jour du jeu de la Ville, par l'identifiant ; '' si inconnus. */
 export const jardinRecord = (j, parks) => (j?.kind === 'c' ? null : (parks ?? []).find((x) => x.id && x.id === j?.id) ?? null); // v450 : pas les horaires du jeu pour un cimetière (ceux du bureau)
 export const jardinHours = (j, parks) => jardinRecord(j, parks)?.hours ?? '';
