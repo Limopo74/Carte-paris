@@ -34,6 +34,19 @@ export function eventsUrl(now = new Date()) {
     select: `${EVENT_FIELDS},occurrences,lead_text`, limit: '-1' }).toString(); // v553 : sans limite (1007 sorties le samedi 28 nov. : 1000 en coupait au hasard)
   return u.toString();
 } // sans « occurrences » : trop lourd pour la semaine
+/** v556 : les identifiants de toutes les sorties pas encore finies (tout l'agenda, rien d'autre ; aucune position envoyée). */
+export function idsUrl(now = new Date()) {
+  const u = new URL(BASE);
+  u.search = new URLSearchParams({ where: `date_end >= "${iso(now)}"`, select: 'id', limit: '-1' }).toString();
+  return u.toString();
+}
+/** v556 : le détail de quelques sorties (les nouvelles), 100 au plus, par leur identifiant. */
+export function byIdsUrl(ids) {
+  const list = [...new Set((ids ?? []).map(String).filter((x) => /^\d{1,12}$/.test(x)))].slice(0, 100);
+  const u = new URL(BASE);
+  u.search = new URLSearchParams({ where: `id in (${list.map((x) => `"${x}"`).join(',')})`, select: `id,${EVENT_FIELDS},occurrences,lead_text`, limit: '-1' }).toString();
+  return u.toString();
+}
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */
 export function weekEventsUrl(now = new Date(), days = 7, light = true) {
   const end = new Date(now); end.setDate(end.getDate() + days); end.setHours(23, 59, 0, 0);
@@ -127,6 +140,7 @@ export function parseEvents(json, now = new Date()) {
     const price = str(r.price_type).toLowerCase();
     const tags = (Array.isArray(r.qfap_tags) ? r.qfap_tags.join(';') : str(r.qfap_tags)).slice(0, 200);
     out.push({
+      id: /^\d{1,12}$/.test(String(r.id ?? '')) ? String(r.id) : '', // v556 : l'identifiant de l'agenda (sorties nouvelles)
       title: title.slice(0, 120), ...p,
       start, end, slots: parseSlots(r.occurrences, now),
       place: str(r.address_name).slice(0, 80),

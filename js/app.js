@@ -68,7 +68,7 @@ import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, ven
 import { makeDeck, deckMove, deckCount, deckLabel } from './glisser-sorties.js';
 import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, searchArtists, fold } from './search.js';
-import { eventsUrl, weekEventsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
+import { eventsUrl, weekEventsUrl, idsUrl, byIdsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { TIPS_KEY, readTips, pickTip, markTip } from './astuces.js';
 import { USAGE_KEY, readUsage, emptyUsage, noteOpen, noteSeen, noteUsed, usageReport, screenKey, SCREEN_LABEL, cleanLabel } from './usage.js';
 import { MARKETS_URL, parseMarkets, hoursToday, whenToday, marketsOn, nearestMarkets, airUrl, readAir, COVERED_MARKETS, COVERED_CHECKED, COVERED_CHECKED_ON, niceName, MARKET_FIX_CHECKED, fixMarket } from './markets.js';
@@ -84,6 +84,7 @@ import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as l
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
 import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES, areaText, weekendOrder } from './weekend.js';
 import { TYPE_IDS, cleanEvPick, cleanThemes, passPick, liked, pickText } from './types-sorties.js';
+import { cleanNews, stepNews, readNews, sinceText } from './nouvelles.js';
 import { cleanCimetieres, cimMarkShown, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
 import { cleanDelinq, delinqRows } from './delinquance.js';
@@ -95,7 +96,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (558)';
+const VERSION = '28 novembre 2026 (559)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8082,6 +8083,61 @@ async function todayEvents() {
 
 let weekCache = null; // { day, items } : la semaine de tout Paris, gardée le temps de la journée
 let weekLoading = null; // v212 : un seul téléchargement à la fois (Chercher une sortie relance à chaque lettre)
+/* ---------- v556 (mes choix N1 A, N2 A, N3 A du 28 nov.) : sorties nouvelles ---------- */
+// Gardé sur le téléphone, hors sauvegarde (ce n'est qu'une liste d'identifiants de l'agenda) ; jamais chez un proche.
+const NEWS_KEY = 'carte-paris.nouvelles';
+const newsRead = () => { try { return cleanNews(JSON.parse(localStorage.getItem(NEWS_KEY) ?? 'null')); } catch { return null; } };
+const newsWrite = (x) => { try { localStorage.setItem(NEWS_KEY, JSON.stringify(x)); } catch { /* mémoire pleine : pas d'encart, rien d'autre ne change */ } };
+let newsIds = null; // { t, ids } : la liste de l'agenda, redemandée au plus toutes les heures
+let newsStepT = 0; // une ouverture de Sorties compte une fois par heure (les onglets redessinent Sorties)
+const newsDetail = new Map(); // id → la sortie, le temps de la session
+async function newsState() {
+  if (!newsIds || Date.now() - newsIds.t > 3600e3) {
+    const r = await net(idsUrl());
+    if (!r.ok) throw new Error(String(r.status));
+    newsIds = { t: Date.now(), ids: (await r.json()).map((x) => x?.id) };
+  }
+  let st = newsRead();
+  if (Date.now() - newsStepT > 3600e3) { st = stepNews(st, newsIds.ids, Date.now()); newsWrite(st); newsStepT = Date.now(); }
+  const want = (st?.fresh ?? []).slice(-100).filter((k) => !newsDetail.has(k)); // les 100 dernières arrivées
+  if (want.length) {
+    const r = await net(byIdsUrl(want));
+    if (r.ok) for (const e of parseEvents(await r.json())) if (e.id) newsDetail.set(e.id, e);
+  }
+  const items = (st?.fresh ?? []).map((k) => newsDetail.get(k)).filter(Boolean).filter(evOk); // mes types de sorties (N2 A)
+  return { st, items };
+}
+/** L'encart sous la bannière Ce week-end (N2 A) : seulement s'il y a des nouvelles ; rien si l'agenda ne répond pas. */
+function newsBox(back) {
+  const box = el('div', { class: 'news-box' });
+  newsState().then(({ st, items }) => {
+    if (!box.isConnected || !items.length || !st?.since) return;
+    const since = sinceText(st.since);
+    fill(box, el('button', { type: 'button', class: 'btn c-disc news-btn', onclick: () => openNews(back), 'aria-label': `${plural(items.length, 'sortie nouvelle', 'sorties nouvelles')} dans l'agenda ${since}. Les voir` },
+      ico('calendar-days'), el('span', { class: 'news-text' }, el('b', {}, plural(items.length, 'nouvelle', 'nouvelles')), ` ${since}`), ico('chevron-right')));
+  }).catch(() => { /* agenda muet : pas d'encart */ });
+  return box;
+}
+/** La liste des nouvelles : l'ouvrir les rend vues (N3 A). Mes thèmes et artistes d'abord, puis les plus proches dans le temps. */
+async function openNews(back) {
+  track('Nouvelles sorties');
+  let got;
+  try { got = await newsState(); } catch { toast('L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.', true); return; }
+  const { st, items } = got;
+  const since = st?.since ? sinceText(st.since) : '';
+  newsWrite(readNews(newsRead()));
+  const o = evFrom;
+  const far = 8.64e15;
+  const at = (e) => (e.slots?.[0]?.start ?? e.start)?.getTime?.() ?? far;
+  const list = [...items].sort((a, b) => Number(!evLiked(a)) - Number(!evLiked(b)) || at(a) - at(b));
+  openSheet([ico('calendar-days'), ' Nouvelles sorties'], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, items.length ? `${plural(items.length, 'sortie arrivée', 'sorties arrivées')} dans l'agenda de la Ville ${since}.` : 'Plus de nouvelle sortie.'),
+    evTypesNote(() => openNews(back)),
+    list.length ? el('ul', { class: 'items ev-list' }, list.map((e) => eventRow({ ...e, d: o ? distanceM(o, e) : null }, () => openNews(back), { week: true }))) : null,
+    el('p', { class: 'help' }, 'Nouvelle : absente de l\'agenda à ta dernière ouverture de Sorties. Une fois cette liste ouverte, elles ne sont plus nouvelles.'),
+    foot(backBtn(back))), { name: 'news' });
+}
+
 async function weekEvents() {
   const day = new Date().toDateString();
   if (weekCache?.day === day) return weekCache.items;
@@ -9364,6 +9420,7 @@ async function openEvents(start = null) {
   const whereBox = filters && mode !== 'navigo' ? el('div', { class: 'ev-wherebox', role: 'group', 'aria-label': 'Dehors ou à l\'abri' }, ...filters) : null;
   openSheet([...title, photoBtn, gear].filter(Boolean), el('div', { class: 'stack ev-page' },
     weekendHero(o), // v546 (mon choix 1B du 28 nov.) : la bannière « Ce week-end », en tête, dans les quatre onglets
+    newsBox(named('Sorties', () => openEvents())), // v556 (N2 A) : les sorties nouvelles, seulement s'il y en a
     seg, // les onglets restent toujours à la même place
     /* v212 : Chercher seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) ; v546 : « Chercher » seul quand Dehors et À l'abri sont là */
     el('div', { class: 'ev-findline' },
@@ -15230,6 +15287,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Sorties nouvelles** : sous la bannière Ce week-end, « 12 nouvelles depuis mercredi » quand l\'agenda de la Ville a des sorties qui n\'y étaient pas à ta dernière ouverture de Sorties (selon tes types). Un appui : leur liste ; ensuite, elles ne sont plus nouvelles.',
     '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
     '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
     '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
@@ -15239,8 +15297,6 @@ const HELP = [
     '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
-    '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
-    '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

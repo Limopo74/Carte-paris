@@ -1809,3 +1809,9 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 :root[data-theme="dark"] .ev-typesnum { right: 11px; top: 8px; } /* bouton rond en sombre */
 /* v555 (mes choix 8A 9A du 28 nov.) : Ce week-end, ce que la liste montre (tout Paris, ou du plus proche) et le viseur à côté */
 .wk-scope { margin: 0; font-weight: 700; flex: 1; min-width: 0; align-self: center; text-align: left; }
+/* v556 (N2 A) : l'encart des sorties nouvelles, sous la bannière Ce week-end ; vide quand il n'y en a pas (rien ne bouge) */
+.news-box:empty { display: none; }
+.news-btn { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
+.news-text { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .news-text { white-space: normal; } /* rien de coupé par « … » */
+:root:is([data-text="grand"], [data-text="tresgrand"]) .news-btn { min-height: var(--h); padding-block: 6px; }

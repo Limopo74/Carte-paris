@@ -54,7 +54,7 @@ const AGENDA = [
   ['Concert de jazz au square', 48.8800, 2.3360, 'Concerts -> Jazz'], ['Exposition photo : Paris la nuit', 48.8810, 2.3290, 'Expositions -> Photographie'],
   ['Brocante de la rue des Martyrs', 48.8790, 2.3390, 'Brocante'], ['Atelier dessin en famille', 48.8770, 2.3320, 'Enfants'],
   ['Balade commentée Pigalle', 48.8820, 2.3370, 'Balade urbaine'],
-].map(([title, lat, lon, tags], i) => ({ title, lat_lon: { lat, lon }, date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3), occurrences: `${wall(now - 3600e3)}_${wall(now + (2 + i) * 3600e3)}`, date_description: 'Le mardi 17 novembre 2026<br />de 14h00 à 18h00<br />',
+].map(([title, lat, lon, tags], i) => ({ id: String(101 + i), title, lat_lon: { lat, lon }, // v556 : l'identifiant de l'agenda (sorties nouvelles) date_start: iso(now - 3600e3), date_end: iso(now + (2 + i) * 3600e3), occurrences: `${wall(now - 3600e3)}_${wall(now + (2 + i) * 3600e3)}`, date_description: 'Le mardi 17 novembre 2026<br />de 14h00 à 18h00<br />',
   address_name: 'Paris 9e', address_street: 'rue des Martyrs', address_zipcode: '75009', address_city: 'Paris', price_type: i % 2 ? 'gratuit' : 'payant', event_indoor: i % 2, cover_url: `https://cdn.paris.fr/qfapv4/2026/11/17/huge-test${i}.jpg`, cover_credit: 'Photo de test', cover_alt: title, qfap_tags: tags, url: 'https://quefaire.paris.fr/',
   // v164 : réserver et s'informer (une sortie sur deux, réservation obligatoire)
   ...(i % 2 ? {} : { access_type: 'obligatoire', access_link: 'https://philharmoniedeparis.fr/fr/activite/test', access_link_text: 'Infos et réservations', contact_url: 'https://www.orchestrehelios.com/', contact_organisation_name: 'Orchestre de test au nom un peu long' }) }));
@@ -203,6 +203,8 @@ const ECRANS = {
     await feuille(p).locator('.ev-themeadd input').fill('jazz'); await feuille(p).locator('.ev-themeadd .btn').click(); await p.waitForTimeout(300);
     await feuille(p).locator('.sheet-foot .btn.c-add, .btn.c-add.solid').last().click(); await p.waitForTimeout(1000); }, // v554 : Expos et Concerts, et le thème jazz
   weekendviseur: async (p) => { await ECRANS.weekendrub(p); await feuille(p).locator('.wk-mebtn').click(); await p.waitForTimeout(1500); }, // v555 : le viseur allume les distances
+  nouvelles: async (p) => { await p.evaluate(() => localStorage.setItem('carte-paris.nouvelles', JSON.stringify({ at: Date.now() - 3 * 864e5, seen: ['101', '102'], fresh: [], since: null }))); await ECRANS.sorties(p); await p.waitForTimeout(800); }, // v556 : 3 nouvelles depuis 3 jours
+  nouvelleslist: async (p) => { await ECRANS.nouvelles(p); await feuille(p).locator('.news-btn').click(); await p.waitForTimeout(800); },
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
