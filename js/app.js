@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (549)';
+const VERSION = '28 novembre 2026 (550)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8943,7 +8943,8 @@ function weekendPhoto(e, genre, cls) {
   const box = el('span', { class: `wk-photo ${cls}` });
   const none = () => box.replaceChildren(el('span', { class: 'wk-none', 'aria-hidden': 'true' }, ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 40 })));
   if (!e?.cover) { none(); return box; }
-  const img = el('img', { src: e.cover, alt: e.coverAlt || '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
+  // v550 : décor seulement (alt vide) : TalkBack lisait d'abord la légende de la photo, parfois très longue, avant le titre ; elle reste sur la page de la sortie
+  const img = el('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
   img.addEventListener('error', none, { once: true });
   box.append(img);
   return box;
@@ -15079,6 +15080,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
     '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
@@ -15088,7 +15090,6 @@ const HELP = [
     '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
-    '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

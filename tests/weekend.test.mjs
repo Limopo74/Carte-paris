@@ -57,3 +57,10 @@ test('v548 (mon choix A du 28 nov.) : « Voir sur la carte » dans chaque rubriq
   assert.match(rub, /items: shown\.map\(/, 'seulement les sorties de la liste');
   assert.match(rub, /tapRounds\(nearLayer, peek\.items/, 'les ronds, comme dans Sorties');
 });
+
+test('v550 : une grande photo de Ce week-end est un décor (alt vide), le titre est lu en premier', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const f = app.slice(app.indexOf('function weekendPhoto('), app.indexOf('function creditBtn('));
+  assert.match(f, /el\('img', \{ src: e\.cover, alt: '',/);
+  assert.doesNotMatch(f, /coverAlt/);
+});
