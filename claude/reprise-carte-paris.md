@@ -12,3 +12,7 @@ L’application reste une PWA HTTPS sur GitHub Pages. Le protocole de terrain fi
 ## V571 et Coffee shops
 
 La V571 ajoute le filtre Coffee shops et les vérifications personnelles dans Réglages. Le référentiel V26 est importé par fichier JSON et conservé sur l’appareil. Le dépôt public contient le code et les scripts. L’archive de travail et les données héritées sont conservées sur la branche locale `coffee-shops-v26`, soumises aux droits de republication de leurs sources.
+
+## V572 et sauvegarde Coffee shops
+
+La sauvegarde personnelle propose « Avec les coffee shops », cochée par défaut si des données Coffee shops sont présentes. Elle contient le référentiel importé, les filtres et les vérifications. À la restauration, une vérification plus récente ou son effacement l’emporte. Le référentiel local est conservé si sa version est au moins aussi récente.

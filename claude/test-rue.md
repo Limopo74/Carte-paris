@@ -13,3 +13,7 @@ Les contrôles en navigateur automatisé utilisent un agenda de test. L’appare
 ## Coffee shops — V571
 
 Dans Réglages → Coffee shops, importe le fichier `coffee-shops.json` extrait de l’archive V26. Active la couche dans Filtres, choisis un quartier et ouvre une adresse. Dans sa fiche, essaie « Vérifié ouvert », « Fermé définitivement » et « Effacer ma vérification ». Après un rechargement hors connexion, vérifie que la liste et ton choix sont encore disponibles.
+
+## Sauvegarde Coffee shops — V572
+
+Avec un référentiel importé, choisis un quartier, note un café fermé, puis sauvegarde avec la case « Avec les coffee shops ». Sur un autre navigateur, restaure le fichier. Vérifie que le quartier et la fermeture sont revenus. Efface la vérification, puis restaure de nouveau le fichier ancien. Le café doit rester visible.

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { coffeeQuarters, filterCoffeeShops, readCoffeeShops, readCoffeeMarks, coffeeByStatus } from '../js/coffee-shops.js';
+import { coffeeQuarters, filterCoffeeShops, readCoffeeShops, readCoffeeMarks, coffeeByStatus, readCoffeeBackup, mergeCoffeeBackups } from '../js/coffee-shops.js';
 import { arrAt } from '../js/explore.js';
 
 const read = (file) => JSON.parse(readFileSync(new URL('../data/' + file, import.meta.url), 'utf8'));
@@ -52,4 +52,20 @@ test('les vérifications suivent l’identifiant même si le référentiel chang
   assert.deepEqual(coffeeByStatus([updated, second], marks, 'closed'), [updated]);
   assert.deepEqual(coffeeByStatus([updated, second], marks, 'all'), [updated, second]);
   assert.deepEqual(coffeeByStatus([updated, second], {}), [updated, second]);
+});
+
+test('une sauvegarde Coffee shops conserve le référentiel, les filtres et les choix les plus récents', () => {
+  const [a, b] = items;
+  const incoming = readCoffeeBackup({ catalogue: { ...catalogue, version: 26 },
+    marks: { [a.id]: { status: 'closed', at: 10 }, [b.id]: { status: 'open', at: 30 } },
+    prefs: { on: true, arr: '1', quarter: '7510103' } });
+  assert.deepEqual(readCoffeeBackup(JSON.parse(JSON.stringify(incoming))), incoming);
+  const local = readCoffeeBackup({ catalogue: { ...catalogue, version: 27 },
+    marks: { [a.id]: { status: 'cleared', at: 20 }, [b.id]: { status: 'closed', at: 15 } } });
+  const restored = mergeCoffeeBackups(local, incoming);
+  assert.equal(restored.catalogue.version, 27);
+  assert.deepEqual(restored.prefs, incoming.prefs);
+  assert.equal(restored.marks[a.id].status, 'cleared');
+  assert.equal(restored.marks[b.id].status, 'open');
+  assert.equal(readCoffeeBackup(undefined), null);
 });

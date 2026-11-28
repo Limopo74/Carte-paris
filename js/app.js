@@ -1,4 +1,4 @@
-import { readCoffeeShops, filterCoffeeShops, coffeeQuarters, readCoffeeMarks, coffeeByStatus } from './coffee-shops.js';
+import { readCoffeeShops, filterCoffeeShops, coffeeQuarters, readCoffeeMarks, coffeeByStatus, readCoffeePrefs, readCoffeeBackup, mergeCoffeeBackups } from './coffee-shops.js';
 import { cleanPhotoTrash, restorePhotoOrder, photoZip, photoThumbnails, TRASH_MS } from './gestionnaire-photos.js';
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
@@ -98,7 +98,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (571)';
+const VERSION = '28 novembre 2026 (572)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -11455,11 +11455,8 @@ ttbFar();
 const coffeeLayer = L.layerGroup().addTo(map);
 const COFFEE_FILTER_KEY = 'carte-paris.coffee-shops';
 const coffeePrefs = (() => {
-  try {
-    const saved = JSON.parse(storage.getItem(COFFEE_FILTER_KEY) ?? 'null');
-    return { on: saved?.on === true, arr: /^(?:[1-9]|1[0-9]|20)$/.test(saved?.arr) ? String(saved.arr) : '',
-      quarter: /^751\d{4}$/.test(saved?.quarter) ? saved.quarter : '' };
-  } catch { return { on: false, arr: '', quarter: '' }; }
+  try { return readCoffeePrefs(JSON.parse(storage.getItem(COFFEE_FILTER_KEY) ?? 'null')); }
+  catch { return readCoffeePrefs(); }
 })();
 let coffeeData = null;
 let coffeeLoading = null;
@@ -11486,11 +11483,49 @@ function coffeeMarks() {
   catch { return {}; }
 }
 
+function coffeeBackupNow() {
+  let catalogue = null;
+  try {
+    catalogue = readCoffeeBackup({ catalogue: JSON.parse(storage.getItem(COFFEE_CATALOGUE_KEY) ?? 'null') })?.catalogue ?? null;
+  } catch { /* Référentiel local illisible. */ }
+  const marks = coffeeMarks();
+  const prefs = { ...coffeePrefs };
+  return catalogue || Object.keys(marks).length || prefs.on || prefs.arr || prefs.quarter ? { catalogue, marks, prefs } : null;
+}
+
+function restoreCoffeeBackup(value) {
+  if (value == null) return '';
+  const previous = new Map();
+  try {
+    const incoming = readCoffeeBackup(value);
+    if (!incoming) return '';
+    const merged = mergeCoffeeBackups(coffeeBackupNow(), incoming);
+    const entries = [[COFFEE_MARKS_KEY, merged.marks], [COFFEE_FILTER_KEY, merged.prefs]];
+    if (merged.catalogue) entries.push([COFFEE_CATALOGUE_KEY, merged.catalogue]);
+    for (const [key, data] of entries) {
+      const before = storage.getItem(key);
+      const after = JSON.stringify(data);
+      if (before === after) continue;
+      storage.setItem(key, after);
+      previous.set(key, before);
+    }
+    Object.assign(coffeePrefs, merged.prefs);
+    coffeeData = merged.catalogue?.places ?? [];
+    coffeeDrawKey = '';
+    drawCoffeeLayer();
+    return 'coffee shops restaurés';
+  } catch {
+    for (const [key, before] of [...previous].reverse()) {
+      try { if (before === null) storage.removeItem(key); else storage.setItem(key, before); } catch { /* stockage indisponible */ }
+    }
+    return 'restauration des coffee shops impossible';
+  }
+}
+
 function putCoffeeMark(place, mark) {
   try {
     const marks = readCoffeeMarks(JSON.parse(storage.getItem(COFFEE_MARKS_KEY) ?? 'null'));
-    if (mark) marks[place.id] = mark;
-    else delete marks[place.id];
+    marks[place.id] = mark ?? { status: 'cleared', at: Date.now() };
     storage.setItem(COFFEE_MARKS_KEY, JSON.stringify(marks));
   } catch {
     toast('Le téléphone n’a pas pu enregistrer ta vérification.', true);
@@ -11501,11 +11536,12 @@ function putCoffeeMark(place, mark) {
 }
 
 function coffeeVerdict(place, after) {
-  const previous = coffeeMarks()[place.id];
+  const stored = coffeeMarks()[place.id];
+  const previous = stored?.status === 'cleared' ? null : stored;
   const change = (status, message) => {
     if (!putCoffeeMark(place, status ? { status, at: Date.now() } : null)) return;
     after();
-    toast(message, false, { label: 'Annuler', fn: () => { if (putCoffeeMark(place, previous)) after(); } });
+    toast(message, false, { label: 'Annuler', fn: () => { if (putCoffeeMark(place, previous ? { ...previous, at: Date.now() } : null)) after(); } });
   };
   return el('div', { class: 'stack' },
     el('a', { class: 'btn c-guide', href: reviewsUrl(place), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
@@ -13461,6 +13497,7 @@ function openSettings(section = null, from = null) {
   const nbPhotos = state.points.reduce((n, p) => n + (p.photos?.length ?? 0), 0);
   // La liste TTB et mes marques partent aussi, case cochée au départ (v179) : après une remise à zéro, plus besoin de réimporter la page du guide.
   const withTtb = el('input', { type: 'checkbox', class: 'check', checked: true });
+  const withCoffee = el('input', { type: 'checkbox', class: 'check', checked: true });
   // v389 (mon choix A du 24 nov.) : ma clé CARTO dans la sauvegarde, case cochée au départ ; la restauration la remet si le téléphone n'en a pas
   const withKey = el('input', { type: 'checkbox', class: 'check', checked: true });
   // v513 (25 ter C) : mes PDF de Mes documents, case décochée au départ (la liste part toujours)
@@ -13480,6 +13517,7 @@ function openSettings(section = null, from = null) {
   const saveSummary = backupSummary();
 
   if (section === 'sauvegarde') {
+    const coffeeBackup = coffeeBackupNow();
     openSheet([ico('save'), ' Sauvegarde'], el('div', { class: 'stack' },
       el('p', { class: unsaved ? 'warn' : 'ok-line' }, unsaved ? null : ico('check'), `${unsaved ? '' : ' '}${plural(count, 'lieu', 'lieux')} sur ce téléphone. ${saveSummary}.`),
       persisted === false ? el('p', { class: 'warn' }, 'Ce téléphone n\'a pas promis de garder tes lieux s\'il manque de place. Installe l\'appli sur l\'écran d\'accueil et sauvegarde régulièrement.') : null,
@@ -13495,14 +13533,17 @@ function openSettings(section = null, from = null) {
             state.me = meInput.value.trim().slice(0, 30); editMe = false; persist(); openSettings('sauvegarde'); toast(state.me ? `Prénom enregistré : ${state.me}` : 'Prénom effacé');
           } }, 'Enregistrer le prénom'),
           el('p', { class: 'help tip' }, 'Tes amis le verront sur tes lieux (initiale sur l\'épingle, « Ajouté par » dans la fiche). Sans prénom, ils ne sauront pas de qui viennent ces lieux.')),
-      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('download'), 'Sauvegarder maintenant'),
-      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => saveBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked, withCoffee.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 && !coffeeBackup }, ico('download'), 'Sauvegarder maintenant'),
+      canShareFile ? el('button', { type: 'button', class: 'btn c-add', onclick: () => sendBackup(withPhotos.checked, withTtb.checked, withKey.checked, withPdf.checked, withCoffee.checked).then(() => openSettings('sauvegarde')), disabled: count === 0 && !coffeeBackup }, ico('send'), 'Envoyer le fichier (courriel, Drive…)') : null,
       nbPhotos ? el('label', { class: 'item-main check-row' }, withPhotos,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec les ${nbPhotos} photo${nbPhotos > 1 ? 's' : ''}`),
           el('span', { class: 'item-sub' }, 'Fichier plus lourd, mais une restauration rend aussi les photos'))) : null,
       nbTtb || nbTtbMarks ? el('label', { class: 'item-main check-row' }, withTtb,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec la liste TTB'),
           el('span', { class: 'item-sub' }, `${[nbTtb ? plural(nbTtb, 'adresse', 'adresses') : '', nbTtbMarks ? `tes marques (${nbTtbMarks})` : ''].filter(Boolean).join(' et ')} : après une remise à zéro, plus besoin de réimporter la page du guide`))) : null,
+      coffeeBackup ? el('label', { class: 'item-main check-row' }, withCoffee,
+        el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, 'Avec les coffee shops'),
+          el('span', { class: 'item-sub' }, 'Référentiel, vérifications et filtres'))) : null,
       nbPdf ? el('label', { class: 'item-main check-row' }, withPdf,
         el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, `Avec mes PDF (${nbPdf})`),
           el('span', { class: 'item-sub' }, 'Sans la case, la liste part seule : il faudra rajouter les PDF après une restauration'))) : null,
@@ -14896,8 +14937,9 @@ function backupSummary() {
 /* ---------- Sauvegarde : un fichier dans Téléchargements, toujours sur décision de la personne ---------- */
 
 /** Le texte du fichier de sauvegarde, avec les photos et la liste TTB si demandé. */
-async function backupText(withPhotos, withTtb = false, withKey = false, withPdf = false) {
+async function backupText(withPhotos, withTtb = false, withKey = false, withPdf = false, withCoffee = true) {
   const obj = JSON.parse(exportJSON(state));
+  if (withCoffee) { const coffee = coffeeBackupNow(); if (coffee) obj.coffee = coffee; }
   if (withPdf) { // v513 (25 ter C) : seulement avec la case
     const files = {};
     for (const d of cleanDocs(state.docs).filter((x) => x.kind === 'pdf')) { const b = await getPhoto(d.id).catch(() => null); if (b) files[d.id] = await blobToDataUrl(new Blob([b], { type: 'application/pdf' })); }
@@ -14937,8 +14979,8 @@ async function backupText(withPhotos, withTtb = false, withKey = false, withPdf 
 function backupFile(text) { return new File([text], exportFileName(new Date(), state.points.length), { type: 'application/json' }); }
 function markSaved() { state.lastExport = Date.now(); state.backup = savedBackup(withMarks(state)); persist(); }
 /** Sauvegarder maintenant : le fichier part dans Téléchargements (photos comprises par défaut). */
-async function saveBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false) {
-  downloadBackup(backupFile(await backupText(withPhotos, withTtb, withKey, withPdf)));
+async function saveBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false, withCoffee = true) {
+  downloadBackup(backupFile(await backupText(withPhotos, withTtb, withKey, withPdf, withCoffee)));
 }
 function downloadBackup(f) {
   const url = URL.createObjectURL(f);
@@ -14949,8 +14991,8 @@ function downloadBackup(f) {
   toast(`« ${f.name} » enregistré dans tes Téléchargements`);
 }
 /** Envoyer le fichier (courriel, Drive…) par le menu de partage du téléphone. */
-async function sendBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false) {
-  const f = backupFile(await backupText(withPhotos, withTtb, withKey, withPdf));
+async function sendBackup(withPhotos = true, withTtb = true, withKey = false, withPdf = false, withCoffee = true) {
+  const f = backupFile(await backupText(withPhotos, withTtb, withKey, withPdf, withCoffee));
   try {
     await navigator.share({ files: [f], title: 'Ma carte de Paris' });
     markSaved();
@@ -15278,6 +15320,7 @@ function importText(text, owner) {
     state = { ...r.state, ok: state.ok };
     importPhotos(text, state, !owner);
     const ttbNote = owner ? '' : importTtb(text); /* ma sauvegarde seulement (v179) ; chez un proche, la page d'import le proposera */
+    const coffeeNote = owner ? '' : restoreCoffeeBackup(JSON.parse(text).coffee);
     const keyBack = owner ? false : importCartoKey(text); /* v389 : ma clé revient avant les réglages, jamais celle d'un fichier de proche */
     if (!owner) restoreExtras(text); // v380 : remarques, préparations, Mes chiffres : ajoutés, rien de remplacé
     if (!owner) importDocFiles(text); // v513 (25 ter C) : mes PDF, sans remplacer ceux déjà là ; sinon, les noms à rajouter
@@ -15295,7 +15338,7 @@ function importText(text, owner) {
       closeSheet();
       map.fitBounds(L.latLngBounds(state.points.map((p) => [p.lat, p.lng])).pad(0.2), { maxZoom: 15, animate: false });
     } else openSettings(owner ? 'importer' : 'sauvegarde');
-    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}${keyBack ? ' ; ta clé CARTO est revenue' : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
+    toast(`${plural(r.added, 'lieu ajouté', 'lieux ajoutés')}${owner ? ` (lieux de ${owner})` : wasEmpty ? ' : ta carte est restaurée' : ''}${r.already ? `, ${r.already} déjà sur le téléphone : ${r.already > 1 ? 'gardés tels quels' : 'gardé tel quel'}` : ''}${r.skipped ? `, ${plural(r.skipped, 'illisible ignoré', 'illisibles ignorés')}` : ''}${ttbNote ? ` ; ${ttbNote}` : ''}${keyBack ? ' ; ta clé CARTO est revenue' : ''}${coffeeNote ? ` · ${coffeeNote}` : ''}.`); /* v293 (mon choix A du 20 nov.) : les lieux déjà là ne sont pas touchés, le message le dit */
     if (welcomeNext && owner) { const n = welcomeNext; welcomeNext = 0; openWelcome(n); } // v314 : lieux d'un proche depuis le circuit, on reprend les réglages
   } catch (e) {
     toast(e.message || 'Import impossible.', true);
@@ -16251,7 +16294,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{coffee} **Coffee shops** : dans Filtres, allume la couche et choisis un arrondissement ou un quartier. Dans Réglages, vérifie les adresses et retrouve les cafés que tu as marqués fermés.',
+    '{coffee} **Coffee shops** : dans Filtres, allume la couche et choisis un arrondissement ou un quartier. Dans Réglages, retrouve les cafés que tu as marqués fermés. La sauvegarde peut inclure le référentiel, tes vérifications et tes filtres.',
     '{images} **Gestionnaire de photos** dans Réglages : compteurs, filtres, galerie, retouches, transfert et corbeille de 30 jours. Les photos restent sur ton téléphone.',
     '{map} **Tout Paris** dans Sorties → Distances depuis… : les résultats par arrondissement, sans distance, et les groupes de sorties sur la carte.',
     '{dumbbell} **Sport, sous-thèmes et étiquettes** : Ce week-end a une rubrique Sport (avant dans Autres sorties) ; une rubrique de plus de 40 sorties montre des puces de sous-thèmes (Photo, Peinture, Art contemporain…) ; sur chaque grande photo, son sous-thème et « Dernier jour » quand une expo ferme ce week-end.',

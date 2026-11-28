@@ -33,11 +33,45 @@ export function coffeeQuarters(items, arr) {
 
 export function readCoffeeMarks(value) {
   return Object.fromEntries(Object.entries(value ?? {}).filter(([id, mark]) =>
-    /^pd-[a-f0-9]{16}$/.test(id) && ['open', 'closed'].includes(mark?.status)
+    /^pd-[a-f0-9]{16}$/.test(id) && ['open', 'closed', 'cleared'].includes(mark?.status)
       && Number.isFinite(mark.at) && mark.at > 0));
 }
 
 export function coffeeByStatus(items, marks, scope = 'current') {
   if (scope === 'all') return items;
   return items.filter((place) => (marks[place.id]?.status === 'closed') === (scope === 'closed'));
+}
+
+export function readCoffeePrefs(value) {
+  return {
+    on: value?.on === true,
+    arr: /^(?:[1-9]|1[0-9]|20)$/.test(value?.arr) ? String(value.arr) : '',
+    quarter: typeof value?.quarter === 'string' && /^751\d{4}$/.test(value.quarter) ? value.quarter : '',
+  };
+}
+
+export function readCoffeeBackup(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  let catalogue = null;
+  if (value.catalogue != null) {
+    const places = readCoffeeShops(value.catalogue);
+    if (!places.length || places.length !== value.catalogue.places.length) throw new Error('Référentiel Coffee shops invalide.');
+    const { version, date } = value.catalogue;
+    catalogue = { version: Number.isSafeInteger(version) && version >= 0 ? version : 0,
+      date: typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '', places };
+  }
+  const marks = readCoffeeMarks(value.marks);
+  const prefs = readCoffeePrefs(value.prefs);
+  return catalogue || Object.keys(marks).length || prefs.on || prefs.arr || prefs.quarter ? { catalogue, marks, prefs } : null;
+}
+
+export function mergeCoffeeBackups(local, incoming) {
+  const marks = { ...local?.marks };
+  for (const [id, mark] of Object.entries(incoming.marks)) {
+    if (!marks[id] || marks[id].at < mark.at) marks[id] = mark;
+  }
+  const old = local?.catalogue;
+  const next = incoming.catalogue;
+  const replace = next && (!old || next.version > old.version || (next.version === old.version && next.date > old.date));
+  return { catalogue: replace ? next : old ?? null, marks, prefs: incoming.prefs };
 }
