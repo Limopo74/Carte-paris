@@ -89,3 +89,12 @@ test('9A : expos qui ferment ce week-end, puis par heure, puis les autres expos 
   const near = weekendOrder([{ e: { title: 'Loin' }, d: 900, slot: {} }, { e: { title: 'Près' }, d: 100, slot: {} }], { lastDay });
   assert.deepEqual(near.map((x) => x.e.title), ['Près', 'Loin']);
 });
+
+test('v563 (G1 A, G2 A, G3 A) : la tuile Gratuit en tête, musées exceptionnels puis ceux de la Ville repliés, « sous condition » dit', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /if \(free\.length \|\| museums\.length\) groups\.unshift\(\{ id: 'gratuit', name: 'Gratuit'/);
+  assert.match(app, /freeToday\(d\.date\)\.filter\(\(f\) => f\.rule !== 'always'\)/);
+  assert.match(app, /el\('details', \{ class: 'wk-always' \}, el\('summary', \{\}, el\('span', \{\}, `Musées de la Ville, toujours gratuits \(\$\{always\.length\}\)`\), ico\('chevron-down'\)\)/);
+  assert.match(app, /e\.freeSure === false \? 'Gratuit sous condition' : 'Gratuit'/);
+  assert.doesNotMatch(app.slice(app.indexOf('function wkFreeMuseums'), app.indexOf('function wkFreeMuseums') + 1500), /stateTag|spotHours/, 'pas d\'« Ouvert » de maintenant pour un autre jour');
+});

@@ -96,7 +96,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (562)';
+const VERSION = '28 novembre 2026 (563)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9177,6 +9177,12 @@ function weekendPick(data, day = weekendDay) {
   const kept = merged.filter((x) => evOk(x.e)); // v554 : mes types de sorties
   const groups = weekendGroups(kept, weekendGenre)
     .map((g) => ({ ...g, items: weekendOrder(g.items, { lastDay, expo: isExpo, liked: evLiked }) })); // v555 (9A) : par heure, ou par distance
+  // v563 (mes choix G1 A, G2 A, G3 A du 28 nov.) : la tuile « Gratuit » en tête : les sorties gratuites (ou sous condition) de toutes les rubriques,
+  // et les musées gratuits exceptionnellement ces jours-là (liste vérifiée de l'appli) ; une sortie gratuite reste aussi dans sa rubrique
+  const days = data.days.filter((d) => use.includes(d.key));
+  const museums = days.flatMap((d) => freeToday(d.date).filter((f) => f.rule !== 'always').map((f) => ({ ...f, day: d })));
+  const free = kept.filter((x) => x.e.free);
+  if (free.length || museums.length) groups.unshift({ id: 'gratuit', name: 'Gratuit', icon: 'landmark', items: weekendOrder(free, { lastDay, expo: isExpo, liked: evLiked }), museums, days });
   groups.hidden = merged.length - kept.length; // v561 (E4 A) : combien mes choix en masquent
   groups.hiddenIn = (id) => weekendGroups(merged.filter((x) => !kept.includes(x)), weekendGenre).find((g) => g.id === id)?.items.length ?? 0;
   return groups;
@@ -9274,16 +9280,33 @@ function openWeekend(o, back = named('Sorties', () => openEvents())) {
     fill(grid, groups.length
       ? el('div', { class: 'wk-grid' }, groups.map((g) => {
         const top = g.items.find((x) => x.e.cover) ?? g.items[0];
+        const count = g.items.length ? plural(g.items.length, 'sortie', 'sorties') : 'Musées gratuits'; // v563 : Gratuit sans sortie, seulement des musées
         return el('div', { class: 'wk-tile-box' },
-          el('button', { type: 'button', class: 'wk-tile', 'aria-label': `${g.name} : ${plural(g.items.length, 'sortie', 'sorties')}`, onclick: () => openWeekendRubrique(o, g.id, named('Ce week-end', again)) },
-            weekendPhoto(top.e, g.id, 'wk-tile-photo'),
-            el('span', { class: 'wk-tile-text' }, ico(g.icon, { size: 20 }), el('span', {}, g.name, el('small', {}, plural(g.items.length, 'sortie', 'sorties'))))),
-          creditBtn(top.e));
+          el('button', { type: 'button', class: 'wk-tile', 'aria-label': `${g.name} : ${count}`, onclick: () => openWeekendRubrique(o, g.id, named('Ce week-end', again)) },
+            weekendPhoto(top?.e, g.id === 'gratuit' ? 'musee' : g.id, 'wk-tile-photo'),
+            el('span', { class: 'wk-tile-text' }, ico(g.icon, { size: 20 }), el('span', {}, g.name, el('small', {}, count)))),
+          creditBtn(top?.e));
       }))
       : el('p', { class: 'empty' }, `Aucune sortie avec un horaire publié ce week-end${pickText(state.evPick) ? ' dans tes types de sorties' : ''}.`));
   }).catch(() => { if (grid.isConnected) fill(grid, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn c-disc', onclick: again }, ico('refresh-cw'), 'Réessayer')); });
 }
 const WK_MAX = 60;
+/** v563 (G2 A, G3 A) : Gratuit de Ce week-end : les gratuités exceptionnelles en tête ; les musées de la Ville, toujours gratuits, repliés en bas de ce bloc. */
+function wkFreeMuseums(g, again) {
+  const back = named('Gratuit', again);
+  const row = (f, date, sub) => sortieCard({ genre: 'musee', name: f.name, onclick: () => openFreeDaySpot(f, date, back), sub, d: wkMe ? distanceM(wkMe, f) : null });
+  const always = [];
+  const seen = new Set();
+  for (const f of freeToday(g.days[0].date).filter((x) => x.rule === 'always')) if (!seen.has(f.name)) { seen.add(f.name); always.push(f); }
+  const by = (a, b) => (wkMe ? distanceM(wkMe, a) - distanceM(wkMe, b) : a.name.localeCompare(b.name, 'fr'));
+  return [
+    g.museums.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Musées gratuits ce week-end'), el('span', {}, String(g.museums.length))) : null,
+    g.museums.length ? el('ul', { class: 'items ev-list' }, g.museums.map((f) => row(f, f.day.date, [f.day.label, f.when]))) : null,
+    always.length ? el('details', { class: 'wk-always' }, el('summary', {}, el('span', {}, `Musées de la Ville, toujours gratuits (${always.length})`), ico('chevron-down')),
+      el('ul', { class: 'items ev-list' }, [...always].sort(by).map((f) => row(f, g.days[0].date, [f.when])))) : null,
+    g.items.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Sorties gratuites'), el('span', {}, String(g.items.length))) : null,
+  ];
+}
 const wkMore = new Map(); // v555 : combien de sorties montrées par rubrique et par jour, le temps de la session
 /** Une rubrique : ses sorties en grandes photos, les plus proches d'abord ; un appui ouvre la page de la sortie (glisser : la voisine). */
 function openWeekendRubrique(o, id, back) {
@@ -9312,6 +9335,7 @@ function openWeekendRubrique(o, id, back) {
       el('p', { class: 'wk-scope' }, wkScope()),
       el('div', { class: 'ev-findline' }, el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'), wkMeBtn(again, g.name)), // v555 (7A) ; v560 : le retour dit le nom de la rubrique
       evTypesNote(again, all.hiddenIn(id)),
+      ...(id === 'gratuit' ? wkFreeMuseums(g, again) : []),
       el('ul', { class: 'items wk-list' }, shown.map((x) => {
         const e = x.e; const genre = weekendGenre(e);
         const go = (opt) => openEventPage(e, named(g.name, again), opt);
@@ -9322,7 +9346,7 @@ function openWeekendRubrique(o, id, back) {
             el('span', { class: 'wk-card-text' },
               el('span', { class: 'wk-card-name' }, evLiked(e) ? el('span', { class: 'ev-love' }, ico('heart', { size: 16 }), el('span', { class: 'sr-only' }, 'Un de tes thèmes ou artistes : ')) : null, e.title),
               el('span', { class: 'wk-card-sub' }, [weekendWhen(x, today), e.place].filter(Boolean).join(' · ')),
-              el('span', { class: 'wk-card-sub' }, [dist, e.free ? 'Gratuit' : '', e.booking === 'required' ? 'Sur réservation' : ''].filter(Boolean).join(' · ')))),
+              el('span', { class: 'wk-card-sub' }, [dist, e.free ? (e.freeSure === false ? 'Gratuit sous condition' : 'Gratuit') : '', e.booking === 'required' ? 'Sur réservation' : ''].filter(Boolean).join(' · ')))), // v563 (G2 A) : rien de promis de trop
           creditBtn(e)));
       })),
       shown.length < g.items.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { wkMore.set(`${id}|${weekendDay}`, n + WK_MAX); again(); } },
@@ -15386,6 +15410,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{landmark} **Gratuit ce week-end** : la première tuile de Ce week-end réunit les sorties gratuites (« sous condition » quand l\'agenda le dit) et, en tête, les musées gratuits exceptionnellement ces jours-là ; les musées de la Ville, toujours gratuits, sont repliés dessous.',
     '{list-filter} **Je ne veux pas** : en bas de Types de sorties, les mots à écarter (« enfants », « yoga »…) : une sortie qui en cite un est masquée, sauf si elle cite ton artiste ou ton thème. La ligne du haut compte les masquées ; « Tout voir » montre tout le temps de cette ouverture, « Remettre » rallume tes choix.',
     '{circle-help} **Sorties plus simple** : un mot sous chaque bouton du haut (Chercher, Départ, Types, Dehors, Abri) ; le « ? » du titre ouvre « Comment ça marche » (touche une ligne : le bouton est entouré) ; « Sorties en 3 choses » la première fois. Ce week-end : le bouton de départ ouvre « Distances depuis… », « Tout Paris, sans distance » en tête. Photos dans Sorties : {settings} → Autres réglages → Sorties.',
     '{train-front} **SMS au 31177 : la station** : le message écrit « Station la plus proche : … » seulement si ta position est sûre (moins de 2 min, à 100 m près, station à moins de 300 m) ; sinon, comme avant, à remplir. La ligne reste toujours à écrire.',
@@ -15395,7 +15420,6 @@ const HELP = [
     '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
     '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
     '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
-    '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

@@ -1842,3 +1842,5 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 .ev-words > .btn, .ev-words .chip { border-radius: var(--r); }
 .ev-words .ev-word { max-width: 100%; overflow: hidden; }
 .wk-note:empty { display: none; } /* v561 : la ligne des choix de Ce week-end, vide quand rien n'est choisi */
+.wk-always > summary { min-height: var(--h); display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; cursor: pointer; list-style: none; }
+.wk-always[open] > summary .ico { transform: rotate(180deg); } /* v563 (G3 A) : les musées de la Ville, toujours gratuits, repliés */
