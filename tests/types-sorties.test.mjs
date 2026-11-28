@@ -9,7 +9,7 @@ const ev = (title, extra = {}) => ({ title, place: '', tags: '', lead: '', ...ex
 
 test('le choix : 10 types connus, les 10 cochés valent « tous », un inconnu est retiré', () => {
   assert.equal(TYPE_IDS.length, 10);
-  assert.deepEqual(cleanEvPick(null), { types: null, themes: [] });
+  assert.deepEqual(cleanEvPick(null), { types: null, themes: [], nots: [] });
   assert.deepEqual(cleanEvPick({ types: ['musique', 'expo', 'zzz'] }).types, ['expo', 'musique']); // dans l'ordre des rubriques
   assert.equal(cleanEvPick({ types: [...TYPE_IDS] }).types, null);
   assert.deepEqual(cleanEvPick({ types: [] }).types, []);
@@ -58,8 +58,8 @@ test('la ligne du haut : 2 types au plus en clair, sinon le nombre', () => {
 });
 
 test('sauvegarde : depuis ma propre sauvegarde, les types du téléphone gardés, les thèmes ajoutés', () => {
-  assert.deepEqual(mergeEvPick({ types: ['expo'], themes: ['jazz'] }, { types: ['cine'], themes: ['Japon', 'Jazz'] }), { types: ['expo'], themes: ['jazz', 'Japon'] });
-  assert.deepEqual(mergeEvPick(null, { types: ['cine'] }), { types: ['cine'], themes: [] });
+  assert.deepEqual(mergeEvPick({ types: ['expo'], themes: ['jazz'] }, { types: ['cine'], themes: ['Japon', 'Jazz'] }), { types: ['expo'], themes: ['jazz', 'Japon'], nots: [] });
+  assert.deepEqual(mergeEvPick(null, { types: ['cine'] }), { types: ['cine'], themes: [], nots: [] });
 });
 
 test('branché : enregistré, dans ma sauvegarde, jamais dans le fichier pour un proche', () => {
@@ -84,4 +84,24 @@ test('hors ligne : chaque module de js/ importé par l\'appli est dans le cache 
     for (const m of src.matchAll(/from '\.\/([\w-]+\.js)'/g)) if (!sw.includes(`'js/${m[1]}'`)) missing.push(`${f} → ${m[1]}`);
   }
   assert.deepEqual([...new Set(missing)], []);
+});
+
+// v561 (mes choix E1 A à E4 A du 28 nov.) : « Je ne veux pas »
+import { notHit } from '../js/types-sorties.js';
+test('E2 A, E3 A : un mot écarté masque (début de mot) ; mon artiste ou mon thème gagne', () => {
+  const pick = { types: null, themes: ['Hockney'], nots: ['enfant', 'yoga'] };
+  assert.equal(notHit(ev('Atelier pour les enfants'), pick), true);
+  assert.equal(passPick(ev('Atelier pour les enfants'), 'atelier', pick), false);
+  assert.equal(passPick(ev('Yoga au parc'), 'autre', pick), false);
+  assert.equal(passPick(ev('Hockney pour les enfants'), 'expo', pick), true); // mon thème gagne
+  assert.equal(passPick(ev('Concert de piano'), 'musique', pick), true);
+  assert.equal(passPick(ev('Expo', { lead: 'Pour les enfantines' }), 'expo', pick), false); // chapô, début de mot
+  assert.equal(passPick(ev('Rétrospective David Hockney, atelier enfants'), 'expo', { nots: ['enfant'] }, ['David Hockney']), true); // mon artiste gagne
+});
+test('v561 : les mots écartés comptent comme un choix ; gardés et fusionnés', () => {
+  assert.equal(pickOn({ nots: ['yoga'] }), true);
+  assert.equal(pickText({ nots: ['yoga'] }), 'Sauf yoga');
+  assert.equal(pickText({ nots: ['yoga', 'danse', 'conférence'] }), 'Sauf yoga, danse…');
+  assert.deepEqual(mergeEvPick({ nots: ['yoga'] }, { nots: ['Yoga', 'conférence'] }).nots, ['yoga', 'conférence']);
+  assert.deepEqual(cleanEvPick({ nots: ['x', 'Stand-up'] }).nots, ['Stand-up']);
 });

@@ -209,6 +209,9 @@ const ECRANS = {
   sortiesaide: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-help').click(); await p.waitForTimeout(400); }, // v560 (B)
   sortiesmontre: async (p) => { await ECRANS.sortiesaide(p); await feuille(p).locator('.help-pic').nth(2).click(); await p.waitForTimeout(900); }, // v560 : « Types » entouré
   weekenddepart: async (p) => { await ECRANS.weekendrub(p); await feuille(p).locator('.wk-mebtn').click(); await p.waitForTimeout(400); }, // v560 (2A)
+  sortiesnot: async (p) => { await ECRANS.sortiestypes(p); const i = feuille(p).locator('.ev-themeadd input').last(); await i.fill('brocante'); await feuille(p).locator('.ev-themeadd .btn').last().click(); await p.waitForTimeout(300);
+    await feuille(p).locator('.btn.c-add.solid').last().click(); await p.waitForTimeout(1000); }, // v561 : « brocante » écarté
+  sortiestoutvoir: async (p) => { await ECRANS.sortiesnot(p); await feuille(p).locator('.ev-typesnote .btn').click(); await p.waitForTimeout(800); }, // v561 (E4 A)
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },

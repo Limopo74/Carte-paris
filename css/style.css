@@ -1841,3 +1841,4 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 /* v560 : avec un mot dessous, les boutons ronds (sombre, Pop…) deviennent des carrés arrondis : le mot ne sort pas du cercle */
 .ev-words > .btn, .ev-words .chip { border-radius: var(--r); }
 .ev-words .ev-word { max-width: 100%; overflow: hidden; }
+.wk-note:empty { display: none; } /* v561 : la ligne des choix de Ce week-end, vide quand rien n'est choisi */

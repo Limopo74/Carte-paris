@@ -25,20 +25,22 @@ export function cleanThemes(list) {
   return out;
 }
 
-/** Le choix : { types: null (tous) ou une liste de types connus, themes: [] }. Les 10 types cochés valent « tous » (null). */
+/** Le choix : { types: null (tous) ou une liste de types connus, themes: [], nots: [] (v561 : « Je ne veux pas ») }. Les 10 types cochés valent « tous » (null). */
 export function cleanEvPick(x) {
   const themes = cleanThemes(x?.themes);
+  const nots = cleanThemes(x?.nots);
   let types = Array.isArray(x?.types) ? TYPE_IDS.filter((id) => x.types.includes(id)) : null;
   if (types && types.length === TYPE_IDS.length) types = null;
-  return { types, themes };
+  return { types, themes, nots };
 }
-export const pickOn = (pick) => Array.isArray(cleanEvPick(pick).types);
+/** Un choix masque-t-il quelque chose ? (des types, ou des mots écartés) */
+export const pickOn = (pick) => { const p = cleanEvPick(pick); return Array.isArray(p.types) || p.nots.length > 0; };
 
 /** Depuis ma propre sauvegarde : les types du téléphone s'il en a choisi, sinon ceux du fichier ; les thèmes s'ajoutent. */
 export function mergeEvPick(mine, file) {
   const a = cleanEvPick(mine);
   const b = cleanEvPick(file);
-  return cleanEvPick({ types: a.types ?? b.types, themes: [...a.themes, ...b.themes] });
+  return cleanEvPick({ types: a.types ?? b.types, themes: [...a.themes, ...b.themes], nots: [...a.nots, ...b.nots] });
 }
 
 /**
@@ -59,17 +61,24 @@ export function liked(e, pick, artists = []) {
   return p.themes.some((t) => themeHit(e, t)) || (artists ?? []).some((n) => mentions(e, n));
 }
 
-/** Passe-t-elle le choix ? `genre` : le type de la sortie (null = Autres sorties). */
+/** Cite-t-elle un de mes mots écartés (même recherche que les thèmes, E2 A) ? */
+export const notHit = (e, pick) => cleanEvPick(pick).nots.some((t) => themeHit(e, t));
+
+/**
+ * Passe-t-elle le choix ? `genre` : le type de la sortie (null = Autres sorties).
+ * Mes artistes et thèmes gagnent toujours (T1 A, E3 A) ; puis un mot écarté masque (v561) ; puis les types.
+ */
 export function passPick(e, genre, pick, artists = []) {
   const p = cleanEvPick(pick);
-  if (!p.types) return true;
-  return p.types.includes(genre ?? 'autre') || liked(e, p, artists);
+  if (liked(e, p, artists)) return true;
+  if (notHit(e, p)) return false;
+  return !p.types || p.types.includes(genre ?? 'autre');
 }
 
 /** Ce que dit la ligne du haut : « Expos, Concerts » (2 types au plus), sinon « 4 types sur 10 » ; null si tout est montré. */
 export function pickText(pick) {
   const p = cleanEvPick(pick);
-  if (!p.types) return null;
+  if (!p.types) return p.nots.length ? `Sauf ${p.nots.slice(0, 2).join(', ')}${p.nots.length > 2 ? '…' : ''}` : null; // v561 : seulement des mots écartés
   if (!p.types.length) return 'Mes artistes et thèmes';
   if (p.types.length <= 2) return p.types.map((id) => WEEKEND_RUBRIQUES.find(([k]) => k === id)[1]).join(', ');
   return `${p.types.length} types sur ${TYPE_IDS.length}`;
