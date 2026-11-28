@@ -8,3 +8,7 @@ La V569 repart de la V564 confirmée sur `main`, au commit `ddf043f65916a215fff9
 - Le tag `Sauvegarde-avant-v569-2026-11-28` marque le point de restauration créé avant la mise en ligne.
 
 L’application reste une PWA HTTPS sur GitHub Pages. Le protocole de terrain figure dans [test-rue.md](test-rue.md) et le stockage dans [reprise-technique.md](reprise-technique.md).
+
+## V571 et Coffee shops
+
+La V571 ajoute le filtre Coffee shops et les vérifications personnelles dans Réglages. Le référentiel V26 est importé par fichier JSON et conservé sur l’appareil. Le dépôt public contient le code et les scripts. L’archive de travail et les données héritées sont conservées sur la branche locale `coffee-shops-v26`, soumises aux droits de republication de leurs sources.

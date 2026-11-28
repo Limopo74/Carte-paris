@@ -9,3 +9,7 @@
 5. Installe ou mets à jour la PWA en HTTPS. Vérifie l’accès au GPS, le retour Android, l’appareil photo et l’usage hors ligne sur le téléphone.
 
 Les contrôles en navigateur automatisé utilisent un agenda de test. L’appareil photo Android, le GPS et la lisibilité en plein soleil demandent un essai physique.
+
+## Coffee shops — V571
+
+Dans Réglages → Coffee shops, importe le fichier `coffee-shops.json` extrait de l’archive V26. Active la couche dans Filtres, choisis un quartier et ouvre une adresse. Dans sa fiche, essaie « Vérifié ouvert », « Fermé définitivement » et « Effacer ma vérification ». Après un rechargement hors connexion, vérifie que la liste et ton choix sont encore disponibles.

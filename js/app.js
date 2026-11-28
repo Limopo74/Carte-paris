@@ -1,3 +1,4 @@
+import { readCoffeeShops, filterCoffeeShops, coffeeQuarters, readCoffeeMarks, coffeeByStatus } from './coffee-shops.js';
 import { cleanPhotoTrash, restorePhotoOrder, photoZip, photoThumbnails, TRASH_MS } from './gestionnaire-photos.js';
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
@@ -97,7 +98,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (569)';
+const VERSION = '28 novembre 2026 (571)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1449,7 +1450,7 @@ function openFilters() {
         filt.open = false; filt.top = false; filt.covered = false; filt.lists.clear(); personFilter = 'all'; refresh(); openFilters(); toast('Filtres effacés');
       } }, ico('x'), 'Effacer les filtres') : null,
     ]),
-    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) || keep('rues', state.showRues) || keep('dansmarue', dmrOn) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
+    keep('lines', state.showLines) || keep('buslines', state.showBusLines) || keep('markets', state.showMarkets) || keep('ttb', state.showTtb) || keep('coffee', coffeePrefs.on) || keep('velib', velibOn) || keep('pratique', state.showPratique) || keep('passages', state.showPassages) || keep('velo', state.showVelo) || keep('jardins', state.showJardins) || keep('rues', state.showRues) || keep('dansmarue', dmrOn) ? el('h3', { class: 'ring-title menu-group' }, 'Afficher aussi sur la carte') : null,
     !keep('lines', state.showLines) ? null : sw(Boolean(state.showLines), 'lines', 'Lignes de métro et RER', layerSub('lines'), () => { state.showLines = !state.showLines; persist(); drawLines(); }),
     !keep('buslines', state.showBusLines) ? null : sw(Boolean(state.showBusLines && (state.busLines ?? []).length), 'bus', 'Mes lignes de bus', layerSub('buslines'), () => {
       if (!(state.busLines ?? []).length) { openMyBusLines(); return 'stop'; }
@@ -1457,6 +1458,8 @@ function openFilters() {
     }),
     !keep('markets', state.showMarkets) ? null : sw(Boolean(state.showMarkets), 'tent', 'Dans la rue aujourd\'hui', layerSub('street'), () => { state.showMarkets = !state.showMarkets; persist(); drawMarkets(); }),
     !keep('ttb', state.showTtb) ? null : sw(Boolean(state.showTtb), ttbDotFor(''), 'TTB', layerSub('ttb'), () => { if (!ttbList().length) { openTtb(); return 'stop'; } state.showTtb = !state.showTtb; persist(); drawTtb(); }),
+    !keep('coffee', coffeePrefs.on) ? null : sw(coffeePrefs.on, 'coffee', 'Coffee shops', 'Filtrer les cafés de Paris', toggleCoffeeLayer),
+    coffeeFilterFields(),
     !keep('velib', velibOn) ? null : sw(velibOn, 'bike', 'Vélib\' sur la carte', layerSub('velib'), () => { setVelibLayer(!velibOn); }),
     !keep('pratique', state.showPratique) ? null : sw(Boolean(state.showPratique), 'droplets', 'Fontaines et WC sur la carte', layerSub('pratique'), () => { setPratLayer(!state.showPratique); }),
     !keep('passages', state.showPassages) ? null : sw(Boolean(state.showPassages), 'door-open', 'Passages couverts', layerSub('passages'), () => { setArcadeLayer(!state.showPassages); }),
@@ -1518,7 +1521,7 @@ function openListPlaces(listId, query = '', picked = null, back = null) {
 /** Quelles lignes montrer dans la feuille Filtres (masquer ne change rien aux lieux). */
 function openFilterChoice(back = openFilters) {
   const hid = new Set(state.hiddenFilters ?? []);
-  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['velib', 'bike', 'Vélib\' sur la carte'], ['pratique', 'droplets', 'Fontaines et WC sur la carte'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['rues', 'git-commit-horizontal', 'Rues d\'intérêt'], ['dansmarue', 'message-square-warning', 'Signalements Dans ma rue'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
+  const rows = [['open', 'clock', 'Ouvert maintenant'], ['top', 'star', 'Mes mieux notés'], ['covered', 'umbrella', 'Abrités (pluie)'], ['lists', 'list', 'Mes listes'], ['people', 'users', 'Lieux de mes proches'], ['lines', 'lines', 'Lignes de métro et RER'], ['buslines', 'bus', 'Mes lignes de bus'], ['markets', 'tent', 'Dans la rue aujourd\'hui'], ['ttb', 'ttb', 'TTB'], ['coffee', 'coffee', 'Coffee shops'], ['velib', 'bike', 'Vélib\' sur la carte'], ['pratique', 'droplets', 'Fontaines et WC sur la carte'], ['passages', 'door-open', 'Passages couverts'], ['velo', 'spline', 'Pistes à vélo'], ['jardins', 'trees', 'Jardins publics'], ['rues', 'git-commit-horizontal', 'Rues d\'intérêt'], ['dansmarue', 'message-square-warning', 'Signalements Dans ma rue'], ['arr', 'map', 'Arrondissement']]; // v364 : même ordre que Filtres
   openSheet([ico('sliders-horizontal'), ' Filtres affichés'], el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Allumé : la ligne est dans Filtres. Masquer une ligne ne supprime rien, et une ligne dont le filtre est actif reste visible pour pouvoir l\'éteindre.'),
     el('div', { class: 'menu' }, rows.map(([key, icon, title]) => {
@@ -11448,6 +11451,234 @@ const placeRub = (p) => (!p || !isRestoCat(catOf(p.cat)) ? '' : p.rub !== undefi
 const ttbFar = () => document.getElementById('map').classList.toggle('ttb-far', map.getZoom() <= 13);
 map.on('zoomend', ttbFar);
 ttbFar();
+/* Couche de référence locale, indépendante des lieux personnels. */
+const coffeeLayer = L.layerGroup().addTo(map);
+const COFFEE_FILTER_KEY = 'carte-paris.coffee-shops';
+const coffeePrefs = (() => {
+  try {
+    const saved = JSON.parse(storage.getItem(COFFEE_FILTER_KEY) ?? 'null');
+    return { on: saved?.on === true, arr: /^(?:[1-9]|1[0-9]|20)$/.test(saved?.arr) ? String(saved.arr) : '',
+      quarter: /^751\d{4}$/.test(saved?.quarter) ? saved.quarter : '' };
+  } catch { return { on: false, arr: '', quarter: '' }; }
+})();
+let coffeeData = null;
+let coffeeLoading = null;
+let coffeeDrawKey = '';
+
+function saveCoffeeFilters() {
+  try { storage.setItem(COFFEE_FILTER_KEY, JSON.stringify(coffeePrefs)); } catch { /* Valable pour la session. */ }
+}
+
+function loadCoffeeShops() {
+  if (coffeeData) return Promise.resolve(coffeeData);
+  coffeeLoading ??= Promise.resolve().then(() => {
+    const saved = storage.getItem(COFFEE_CATALOGUE_KEY);
+    return (coffeeData = saved ? readCoffeeShops(JSON.parse(saved)) : []);
+  })
+    .finally(() => { coffeeLoading = null; });
+  return coffeeLoading;
+}
+
+const COFFEE_CATALOGUE_KEY = 'carte-paris.coffee-catalogue';
+const COFFEE_MARKS_KEY = 'carte-paris.coffee-marks';
+function coffeeMarks() {
+  try { return readCoffeeMarks(JSON.parse(storage.getItem(COFFEE_MARKS_KEY) ?? 'null')); }
+  catch { return {}; }
+}
+
+function putCoffeeMark(place, mark) {
+  try {
+    const marks = readCoffeeMarks(JSON.parse(storage.getItem(COFFEE_MARKS_KEY) ?? 'null'));
+    if (mark) marks[place.id] = mark;
+    else delete marks[place.id];
+    storage.setItem(COFFEE_MARKS_KEY, JSON.stringify(marks));
+  } catch {
+    toast('Le téléphone n’a pas pu enregistrer ta vérification.', true);
+    return false;
+  }
+  drawCoffeeLayer();
+  return true;
+}
+
+function coffeeVerdict(place, after) {
+  const previous = coffeeMarks()[place.id];
+  const change = (status, message) => {
+    if (!putCoffeeMark(place, status ? { status, at: Date.now() } : null)) return;
+    after();
+    toast(message, false, { label: 'Annuler', fn: () => { if (putCoffeeMark(place, previous)) after(); } });
+  };
+  return el('div', { class: 'stack' },
+    el('a', { class: 'btn c-guide', href: reviewsUrl(place), target: '_blank', rel: 'noopener' }, ico('star'), 'Avis Google'),
+    el('div', { class: 'row ttb-verdict' },
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => change('open', 'Noté vérifié ouvert') }, ico('check'), 'Vérifié ouvert'),
+      el('button', { type: 'button', class: 'btn danger', onclick: () => change('closed', 'Noté fermé définitivement') }, ico('store'), 'Fermé définitivement')),
+    previous ? el('p', { class: 'help' }, `Ta vérification du ${shortDate(previous.at)}`) : null,
+    previous ? el('button', { type: 'button', class: 'btn', onclick: () => change('', 'Vérification effacée') }, ico('x'), 'Effacer ma vérification') : null);
+}
+
+async function openCoffeeSettings(back = named('Réglages', () => openSettings())) {
+  const title = [ico('coffee'), ' Coffee shops'];
+  const again = () => openCoffeeSettings(back);
+  if (!coffeeData) {
+    openSheet(title, el('p', { class: 'help' }, 'Lecture des adresses…'), { name: 'coffee-settings', again });
+    try { await loadCoffeeShops(); }
+    catch {
+      if (!sheet.hidden && shownKey === 'coffee-settings') openSheet(title, el('div', { class: 'stack' },
+        el('p', { class: 'warn' }, 'Adresses indisponibles.'),
+        el('button', { type: 'button', class: 'btn', onclick: again }, 'Réessayer'), foot(backBtn(back))),
+      { name: 'coffee-settings', again });
+      return;
+    }
+    if (sheet.hidden || shownKey !== 'coffee-settings') return;
+  }
+  const upload = el('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const places = readCoffeeShops(data);
+      if (!places.length || places.length !== data.places.length) throw new Error('Le fichier Coffee shops est invalide.');
+      storage.setItem(COFFEE_CATALOGUE_KEY, JSON.stringify(data));
+      coffeeData = places;
+      coffeeDrawKey = '';
+      drawCoffeeLayer();
+      if (!sheet.hidden && shownKey === 'coffee-settings') again();
+      toast(plural(places.length, 'adresse importée', 'adresses importées'));
+    } catch {
+      toast('Import impossible. Choisis le fichier coffee-shops.json extrait de ton archive.', true);
+    }
+  } });
+  const marks = coffeeMarks();
+  const closed = coffeeByStatus(coffeeData, marks, 'closed');
+  const opened = coffeeData.filter((p) => marks[p.id]?.status === 'open').length;
+  const settingsBack = named('Coffee shops', again);
+  openSheet(title, el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, `${plural(opened, 'vérifié ouvert', 'vérifiés ouverts')} · ${plural(closed.length, 'fermé', 'fermés')}`),
+    upload,
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => upload.click() }, ico('upload'), 'Importer le référentiel'),
+    !coffeeData.length ? el('p', { class: 'help' }, 'Choisis coffee-shops.json extrait de ton archive V26.') : null,
+    el('h3', { class: 'ring-title' }, 'Encore ouverts ?'),
+    el('button', { type: 'button', class: 'btn c-add', disabled: !coffeeData.length, onclick: () => openCoffeeList('', null, 'all', settingsBack) }, ico('check'), 'Vérifier les adresses'),
+    el('h3', { class: 'ring-title' }, 'Fermés définitivement'),
+    closed.length ? el('ul', { class: 'items' }, [...closed].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((place) =>
+      el('li', { class: 'item' }, el('button', { type: 'button', class: 'item-main', onclick: () => openCoffeePlace(place, settingsBack) },
+        ico('coffee'), el('span', { class: 'item-text' }, place.name, el('span', { class: 'item-sub' }, place.address))))))
+      : el('p', { class: 'help' }, 'Aucun coffee shop marqué fermé.'),
+    foot(backBtn(back))), { name: 'coffee-settings', tall: true, again });
+}
+
+function openCoffeePlace(place, back = named('Filtres', openFilters)) {
+  const mine = myPlaceFor(state.points.filter((p) => !p.owner), place);
+  const status = coffeeMarks()[place.id]?.status;
+  openSpot({
+    icon: 'coffee', title: place.name, kicker: [arrOrd(place.arr), place.quarter].join(' · '),
+    place, back, key: `coffee:${place.id}`, mark: true, mine,
+    lines: [el('p', { class: 'where' }, ico('map-pin'), place.address),
+      status === 'closed' ? el('span', { class: 'tag closed' }, 'Fermé définitivement')
+        : status === 'open' ? el('span', { class: 'tag open' }, 'Vérifié ouvert')
+          : place.openingVerified ? null : 'Ouverture non vérifiée'],
+    extra: place.hours ? el('p', { class: 'help' }, place.hours, ' · ',
+      el('a', { href: place.hoursSource, target: '_blank', rel: 'noopener noreferrer' }, 'Source des horaires')) : null,
+    link: place.url ? [place.url, 'Site du lieu'] : null,
+    tail: coffeeVerdict(place, () => openCoffeePlace(place, back)),
+  });
+}
+
+function drawCoffeeLayer() {
+  if (!coffeePrefs.on || !coffeeData) {
+    coffeeLayer.clearLayers();
+    coffeeDrawKey = '';
+    return;
+  }
+  const zoom = map.getZoom();
+  const bounds = map.getBounds().pad(0.15);
+  const items = filterCoffeeShops(coffeeByStatus(coffeeData, coffeeMarks()), coffeePrefs).filter((p) => bounds.contains([p.lat, p.lng]));
+  const key = `${zoom}:${items.map((p) => p.id).join(',')}`;
+  if (key === coffeeDrawKey) return;
+  coffeeDrawKey = key;
+  coffeeLayer.clearLayers();
+  const { single, groups } = groupPoints(items, (p) => map.project([p.lat, p.lng], zoom), zoom);
+  const mark = (p, label, icon, action) => L.marker([p.lat, p.lng], {
+    title: label, alt: label, zIndexOffset: -100,
+    icon: L.divIcon({ className: 'pin-wrap coffee-pin-wrap', html: `<span class="peek-pin">${icon}</span>`,
+      iconSize: [44, 44], iconAnchor: [22, 22] }),
+  }).on('add', (event) => event.target.getElement().setAttribute('aria-label', label))
+    .on('click', orTrace(() => { if (!moving) action(); })).addTo(coffeeLayer);
+  for (const place of single) mark(place, place.name, svgIcon('coffee', { size: 16 }), () => openCoffeePlace(place));
+  for (const group of groups) {
+    const center = groupCenter(group);
+    mark(center, plural(group.length, 'coffee shop', 'coffee shops'), String(group.length), () => {
+      map.fitBounds(L.latLngBounds(group.map((p) => [p.lat, p.lng])), { maxZoom: 16, padding: [52, 52] });
+      if (map.getZoom() <= zoom) map.setView([center.lat, center.lng], zoom + 1);
+    });
+  }
+}
+
+function coffeeFilterFields() {
+  if (!coffeePrefs.on) return null;
+  if (!coffeeData) return el('p', { class: 'help', role: 'status' }, coffeeLoading ? 'Lecture des adresses…' : 'Adresses indisponibles. Réactive la couche pour réessayer.');
+  if (!coffeeData.length) return el('button', { type: 'button', class: 'btn', onclick: () => openCoffeeSettings(named('Filtres', openFilters)) }, ico('upload'), 'Importer le référentiel');
+  const change = (key) => (value) => {
+    coffeePrefs[key] = value;
+    if (key === 'arr') coffeePrefs.quarter = '';
+    saveCoffeeFilters();
+    drawCoffeeLayer();
+    openFilters();
+  };
+  const count = filterCoffeeShops(coffeeByStatus(coffeeData, coffeeMarks()), coffeePrefs).length;
+  return el('div', { class: 'stack coffee-filters' },
+    managedPhotoSelect('Arrondissement des coffee shops', [['', 'Tout Paris'], ...Array.from({ length: 20 }, (_, i) => [String(i + 1), arrOrd(i + 1)])], coffeePrefs.arr, change('arr')),
+    managedPhotoSelect('Quartier des coffee shops', [['', 'Tous les quartiers'], ...coffeeQuarters(coffeeData, coffeePrefs.arr)], coffeePrefs.quarter, change('quarter')),
+    el('button', { type: 'button', class: 'btn c-disc', onclick: () => openCoffeeList() }, ico('coffee'), `Voir les adresses (${count})`));
+}
+
+function toggleCoffeeLayer() {
+  coffeePrefs.on = !coffeePrefs.on;
+  saveCoffeeFilters();
+  drawCoffeeLayer();
+  if (!coffeePrefs.on) return;
+  updateCoffeeLayer();
+}
+
+function updateCoffeeLayer() {
+  loadCoffeeShops().then(drawCoffeeLayer).catch(() => {}).finally(() => {
+    if (coffeePrefs.on && shownKey === 'filters' && !sheet.hidden) openFilters();
+  });
+}
+
+function openCoffeeList(query = '', from = null, scope = 'current', back = named('Filtres', openFilters)) {
+  const recent = from ?? startHere();
+  const source = recent ?? map.getCenter();
+  const search = el('input', { type: 'search', 'aria-label': 'Rechercher un coffee shop', placeholder: 'Nom ou adresse', value: query });
+  const count = el('p', { class: 'summary', 'aria-live': 'polite' });
+  const list = el('ul', { class: 'items ev-list' });
+  const more = el('button', { type: 'button', class: 'btn', onclick: () => { limit += 30; render(); } }, 'Afficher la suite');
+  const again = () => openCoffeeList(search.value, from, scope, back);
+  let limit = 30;
+  const render = () => {
+    const marks = coffeeMarks();
+    const hits = filterCoffeeShops(coffeeByStatus(coffeeData ?? [], marks, scope), { ...(scope === 'current' ? coffeePrefs : {}), query: search.value, from: source });
+    count.textContent = `${plural(hits.length, 'coffee shop', 'coffee shops')} · ${recent ? 'près de toi' : 'depuis le centre de la carte'}`;
+    more.hidden = hits.length <= limit;
+    fill(list, ...hits.slice(0, limit).map((p) => sortieCard({ genre: 'autre', badge: ico('coffee'), name: p.name,
+      sub: [p.address, marks[p.id]?.status === 'closed' ? 'Fermé définitivement'
+        : marks[p.id]?.status === 'open' ? 'Vérifié ouvert' : p.openingVerified ? '' : 'Ouverture non vérifiée'], d: p.d,
+      onclick: () => openCoffeePlace(p, named('Coffee shops', again)) })));
+  };
+  search.addEventListener('input', () => { limit = 30; render(); });
+  const locateBtn = el('button', { type: 'button', class: 'btn c-guide', onclick: async () => {
+    locateBtn.disabled = true;
+    try { const at = await locate(); if (search.isConnected) openCoffeeList(search.value, at, scope, back); }
+    catch (error) { if (search.isConnected) toast(error.message, true); }
+    finally { locateBtn.disabled = false; }
+  } }, ico('locate-fixed'), 'Autour de moi');
+  openSheet([ico('coffee'), ' Coffee shops'], el('div', { class: 'stack' }, search, locateBtn, count, list, more,
+    foot(backBtn(back))), { tall: true, name: 'coffee-list', again });
+  render();
+}
+map.on('moveend', drawCoffeeLayer);
+if (coffeePrefs.on) updateCoffeeLayer();
+
 function drawTtb() {
   ttbLayer.clearLayers();
   if (!state.showTtb) { drawLayerNote(); return; }
@@ -13107,6 +13338,7 @@ const SETTINGS_FIND = [
   ['circle-help', 'Aide de l\'appli', R, 'aide comment nouveautes probleme', () => openHelp()],
   ['save', 'Sauvegarde', R, 'sauvegarder exporter fichier drive perdre telephone prenom', (b) => openSettings('sauvegarde', b)],
   ['upload', 'Restaurer ou importer', R, 'restaurer importer google maps proche fichier reglages', (b) => openSettings('importer', b)],
+  ['coffee', 'Coffee shops', R, 'cafe ouvert ferme verification', (b) => openCoffeeSettings(b)],
   ['images', 'Gestionnaire de photos', R, 'galerie appareil photo corbeille sans photo', () => openPhotoManager()],
   ['map', 'Mon Paris', R, 'journal planning arrondissements marche chiffres', () => openMyParis('settings')],
   ['house', 'Mes stations', R, 'maison travail rentrer station metro bus', () => openMyStations()],
@@ -14279,6 +14511,7 @@ function openSettings(section = null, from = null) {
     el('h3', { class: 'ring-title menu-group' }, 'La carte'),
     row('sofa', 'Chez moi', cleanHome(state.home) ? `${homeOn() ? 'Allumé' : 'Éteint'} · ${homeShort(state.home)}` : 'Distances depuis ton adresse', openHomeSettings, false, 'c-guide'), // v222
     row(ttbDotFor(''), 'TTB', ttbList().length ? `${plural(ttbList().length, 'adresse', 'adresses')}${ttbDateText() ? ` · liste du ${ttbDateText()}` : ''}` : 'Importer la liste du guide', () => openTtb(), false, 'c-disc'),
+    row('coffee', 'Coffee shops', 'Vérifier les adresses, voir les fermés', () => openCoffeeSettings(), false, 'c-disc'),
     // 1A (mes choix « tout conseillé » du 25 nov.) : à la place de l'interrupteur Mode sombre (v280 : et de « Comme le téléphone », qui apparaissait
     // dessous et poussait la suite) ; le style du jour et clair ou sombre sur une seule page
     row('sun', 'Apparence', appearanceSub(), () => openSettings('apparence'), false, 'c-guide'),
@@ -16018,6 +16251,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{coffee} **Coffee shops** : dans Filtres, allume la couche et choisis un arrondissement ou un quartier. Dans Réglages, vérifie les adresses et retrouve les cafés que tu as marqués fermés.',
     '{images} **Gestionnaire de photos** dans Réglages : compteurs, filtres, galerie, retouches, transfert et corbeille de 30 jours. Les photos restent sur ton téléphone.',
     '{map} **Tout Paris** dans Sorties → Distances depuis… : les résultats par arrondissement, sans distance, et les groupes de sorties sur la carte.',
     '{dumbbell} **Sport, sous-thèmes et étiquettes** : Ce week-end a une rubrique Sport (avant dans Autres sorties) ; une rubrique de plus de 40 sorties montre des puces de sous-thèmes (Photo, Peinture, Art contemporain…) ; sur chaque grande photo, son sous-thème et « Dernier jour » quand une expo ferme ce week-end.',
@@ -16027,7 +16261,6 @@ const HELP = [
     '{train-front} **SMS au 31177 : la station** : le message écrit « Station la plus proche : … » seulement si ta position est sûre (moins de 2 min, à 100 m près, station à moins de 300 m) ; sinon, comme avant, à remplir. La ligne reste toujours à écrire.',
     '{calendar-days} **Sorties nouvelles** : sous la bannière Ce week-end, « 12 nouvelles depuis mercredi » quand l\'agenda de la Ville a des sorties qui n\'y étaient pas à ta dernière ouverture de Sorties (selon tes types). Un appui : leur liste ; ensuite, elles ne sont plus nouvelles.',
     '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
-    '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
