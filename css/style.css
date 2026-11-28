@@ -1438,15 +1438,6 @@ a.menu-row .menu-chev { font-size: 20px; }
   font-family: var(--display); font-stretch: 92%; font-weight: 700; font-size: var(--t16); color: var(--muted); cursor: pointer;
 }
 .tabs-line button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
-.ev-ctx { display: flex; gap: 8px; }
-.ev-from {
-  flex: 1; min-width: 0; min-height: var(--h-s); display: flex; align-items: center; gap: 8px; padding: 0 10px;
-  border: 2px solid var(--btn-bd); border-radius: var(--r); background: var(--btn); color: var(--ink); font: inherit; font-size: var(--t14); text-align: left; cursor: pointer;
-}
-.ev-from > .ico:first-child { color: var(--disc); }
-.ev-from .ico svg { width: 18px; height: 18px; }
-.ev-from-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
-.ev-from-text b { color: var(--ink); }
 .ev-mapbtn { flex: none; min-height: var(--h-s); padding: 0 14px; }
 .ev-findrow { width: 100%; min-height: var(--h-s); }
 .ev-findline { display: flex; gap: 8px; align-items: stretch; }

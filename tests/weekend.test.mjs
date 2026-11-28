@@ -44,6 +44,8 @@ test('l\'écran : bannière en tête de Sorties, point de départ en icône, © 
   assert.match(app, /openSheet\(\[\.\.\.title, photoBtn, gear\]\.filter\(Boolean\), el\('div', \{ class: 'stack ev-page' \},\n    weekendHero\(/, 'la bannière avant les onglets (mon choix 1B)');
   const ev = app.slice(app.indexOf('async function openEvents('), app.indexOf('const EV_ROUND'));
   assert.equal(/class: 'ev-from'/.test(ev), false, 'plus de grand bouton « Centre de la carte » en haut de Sorties');
-  assert.match(ev, /class: 'btn ev-fromicon'/, 'le point de départ en icône');
+  assert.match(ev, /const fromBtn = evFromBtn\(o, null\);/, 'le point de départ en icône, sans passer l\'appui comme « again » (défaut d\'avant : « again is not a function »)');
+  assert.match(app, /function evFromBtn\(o, again\) \{[\s\S]{0,600}class: 'btn ev-fromicon', onclick: \(\) => openEventsFrom\(again\)/, 'la même icône partout dans Sorties (« Oui » du 28 nov.)');
+  assert.equal(/onclick: openEventsFrom[,}]/.test(app), false, 'jamais l\'appui passé à openEventsFrom');
   assert.match(app, /class: 'wk-credit'/, 'le © de chaque photo (mon choix 5A)');
 });

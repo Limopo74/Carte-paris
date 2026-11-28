@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (546)';
+const VERSION = '28 novembre 2026 (547)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8156,9 +8156,10 @@ async function openArtPlaces(focus = '', from = null, lateDay = null) { // v519 
   const groups = [['expo', 'Grandes expositions'], ['art', 'Art contemporain et photo'], ['musique', 'Musique'], ['scene', 'Théâtre et danse']]; // v300 : scene
   openSheet(title, el('div', { class: 'stack' },
     el('p', { class: 'help tip' }, 'Les grands musées et fondations, les grandes salles de concert et les grandes scènes de théâtre et de danse, où que tu sois. Touche un lieu pour voir ce que l\'agenda de la Ville annonce cette semaine, et son programme officiel.'),
-    el('button', { type: 'button', class: 'btn c-disc', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
-      open: (x) => openArtPlaces(x.name), back: () => openArtPlaces(), from: o }) }, ico('map'), 'Voir sur la carte'),
-    evFromBtn(o, again), // v450 : sous « Voir sur la carte », rien ne bouge
+    el('div', { class: 'ev-findline' }, // v546 : « Voir sur la carte » et l'icône du point de départ sur une ligne
+      el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', onclick: () => showPeek({ kicker: 'Grands lieux', label: plural(places.length, 'lieu', 'lieux'), items: places, icon: 'landmark',
+        open: (x) => openArtPlaces(x.name), back: () => openArtPlaces(), from: o }) }, ico('map'), 'Voir sur la carte'),
+      evFromBtn(o, again)),
     ...groups.flatMap(([kind, label]) => { const g = group(kind); return [el('h3', { class: 'ring-title' }, el('span', {}, label), el('span', {}, String(g.length))), el('div', { class: 'help-list' }, g.map(block))]; }),
     el('p', { class: 'help' }, 'Le Centre Pompidou est fermé jusqu\'en 2030 (ses expositions au Grand Palais) ; le musée Maillol rouvre le 13 janvier 2027. L\'agenda n\'a pas tous les rendez-vous : le programme officiel fait foi.'),
     el('p', { class: 'help tip' }, `Lieux vérifiés le ${ART_PLACES_CHECKED}, salles de concert le ${ART_MUSIC_CHECKED}, théâtre et danse le ${ART_SCENE_CHECKED}. Rendez-vous : agenda « Que faire à Paris ? » de la Ville de Paris, sur 7 jours, téléchargé pour tout Paris (ta position n'est pas envoyée).`),
@@ -8873,9 +8874,11 @@ async function evPoint() {
 const evFromWords = (o) => (o.kind === 'map' ? 'du centre de la carte' : o.kind === 'home' ? 'de chez toi' : o.kind === 'station' && o.label ? `de ${o.label}` : 'de toi');
 function evFromLabel(o) { return o.kind === 'map' ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi']; }
 function evFromBtn(o, again) {
+  // v546 (mes choix 1B et « Oui » du 28 nov.) : partout dans Sorties, le point de départ est une icône de 48 px (épingle : centre de
+  // la carte ; viseur : toi ; canapé : chez toi ; train : une station) ; sa petite flèche dit qu'on le change
   const label = evFromLabel(o);
-  return el('button', { type: 'button', class: 'ev-from', onclick: () => openEventsFrom(again), 'aria-label': `Point de départ des distances : ${label.join('')}. Changer` },
-    ico(o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed'), el('span', { class: 'ev-from-text' }, label[0], el('b', {}, label[1])), ico('chevron-down'));
+  return el('button', { type: 'button', class: 'btn ev-fromicon', onclick: () => openEventsFrom(again), 'aria-label': `Point de départ des distances : ${label.join('')}. Changer`, title: label.join('') },
+    ico(o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed', { size: 24 }), el('span', { class: 'ev-fromdot', 'aria-hidden': 'true' }, ico('chevron-down', { size: 12 })));
 }
 /** Les onglets de Sorties, soulignés, toujours à la même place (aussi quand l'agenda ne répond pas, v298). */
 const evTabList = () => [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false); /* v282 : le dernier, les autres ne bougent pas */
@@ -9193,8 +9196,7 @@ async function openEvents(start = null) {
     open: (x, b) => x.go(b), back: () => openEvents(), from: o };
   // v546 (mon choix 1B du 28 nov.) : le point de départ devient une icône dans la ligne de Chercher (épingle : centre de la carte ;
   // viseur : toi ; canapé : chez toi ; train : une station), sa petite flèche dit qu'on le change ; « Carte » devient « Voir sur la carte »
-  const fromBtn = el('button', { type: 'button', class: 'btn ev-fromicon', onclick: openEventsFrom, 'aria-label': `Point de départ des distances : ${fromLabel.join('')}. Changer`, title: fromLabel.join('') },
-    ico(fromMap ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed', { size: 24 }), el('span', { class: 'ev-fromdot', 'aria-hidden': 'true' }, ico('chevron-down', { size: 12 })));
+  const fromBtn = evFromBtn(o, null);
   const mapBtn = el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek(peekOpts) }, ico('map'), 'Voir sur la carte');
   // v370 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
   // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
@@ -15046,6 +15048,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
     '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
     '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
     '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
@@ -15055,7 +15058,6 @@ const HELP = [
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise, en grand et sans Grève** : toucher une crise ouvre tout de suite Autour de moi, en grand, les gros boutons d\'abord (toujours en grand tant que le mode est allumé). Quatre crises : crue, coupure, canicule, abri ; Grève n\'ajoutait rien, et si elle était allumée, le mode s\'est éteint.',
     '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
-    '{triangle-alert} **Mode crise en gros boutons** : dans Autour de moi, sous Rentrer à pied, Je vais bien, Appeler (un par proche), Alerter en silence, Urgences 112, Hôpital et Bons gestes tiennent dans le premier écran ; ce qui se prépare (kit, hors ligne) est plus bas, dans « À préparer ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
