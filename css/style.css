@@ -28,6 +28,7 @@
   --info-bg: #ECEDEF;
   --info-bd: #5C6370;
   --danger: #9A2620;
+  --on-danger: #FFFFFF; /* v553 : texte du rond SOS */
   --hard: rgba(21, 24, 29, .16);
   --neutral-bd: #8C8273;
   --metro: #1B56E8;
@@ -85,6 +86,7 @@
   --info-bg: #2A2E38;
   --info-bd: #C7CCD6;
   --danger: #FF7272;
+  --on-danger: #111111;
   --hard: rgba(0, 0, 0, .55);
   --focus: #86ADFF;
   --fav-icon: #FFC24A;
@@ -121,6 +123,7 @@
   --metro: #1F4FD6;
   --metro-bd: #1F4FD6;
   --danger: #B3261E;
+  --on-danger: #FFFFFF;
   --fav: #7A5A0C;
   --fav-icon: #A87400;
   --fav-bg: #FFF1CC;
@@ -169,6 +172,7 @@
   --metro: #1440D6;
   --metro-bd: #0A0A0A;
   --danger: #B4161B;
+  --on-danger: #FFFFFF;
   --fav: #7A5000;
   --fav-icon: #9A6A00;
   --fav-bg: #FFE45C;
@@ -1592,6 +1596,9 @@ body:has(.map-tools.left) .map-btn.style-btn { left: auto; right: 10px; }
 body:has(.map-tools.left) .map-btn.backup-btn { left: auto; right: 64px; }
 body:has(#sheet:not([hidden])) .map-btn:is(.style-btn, .backup-btn), body:has(.peek-card) .map-btn:is(.style-btn, .backup-btn) { display: none; } /* v407 : caché aussi sous un bandeau (Chemin à pied, Voir sur la carte), qu'il recouvrait en Très grand */
 .map-btn.remark-btn[hidden] { display: none; }
+.map-btn.sos-btn { border-radius: 50%; background: var(--danger); color: var(--on-danger); border-color: var(--danger); font: 800 var(--t16)/1 var(--display); letter-spacing: .02em; } /* v553 : rond rouge plein en haut de la colonne (CHARTE.md § 1, exception SOS) */
+.sos-tools .tool { white-space: normal; }
+body:has(#sheet:not([hidden])) .map-btn.sos-btn { visibility: hidden; } /* v553 (6A) : caché quand une page est ouverte, sans faire bouger la colonne */
 body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100vh - 122px)); }
 
 /* Mesurer mon pas (v320) : chrono, barre de progression, résultat. Échelle de la charte, chiffres de même largeur. */
@@ -1617,7 +1624,7 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 /* ---- Style « Verre » (le jour, v452, mon choix 1B du 25 nov. ; CHARTE.md § 10.1) ----
    Seulement dans l'appli posée sur la carte (barres, colonne, bandeaux, feuille) ; la boussole et la photo en grand gardent les leurs.
    Les couleurs sont des jetons du bloc :root[data-look="verre"] ; les boutons ne changent ni de place ni de taille. */
-:root[data-look="verre"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(.solid):not(.primary):not([aria-pressed="true"]):not(.on):not(:disabled) {
+:root[data-look="verre"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(.solid):not(.primary):not([aria-pressed="true"]):not(.on):not(:disabled):not(.sos-btn) {
   border: 1px solid var(--glass-edge); background-color: var(--btn); box-shadow: var(--glass-shadow);
 }
 :root[data-look="verre"] :is(.map-btn, .big-btn) { border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
@@ -1699,6 +1706,7 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 :root[data-look="pop"] :is(.map-btn.c-metro, .map-btn.metro-btn):not([aria-pressed="true"]) { background-color: var(--pop-metro); }
 :root[data-look="pop"] .map-btn.c-add:not([aria-pressed="true"]) { background-color: var(--pop-add); }
 :root[data-look="pop"] .map-btn.c-disc:not([aria-pressed="true"]) { background-color: var(--pop-disc); }
+:root[data-look="pop"] .map-tools .map-btn.sos-btn { background-color: var(--danger); color: var(--on-danger); } /* v553 : SOS reste rouge, texte blanc */
 :root[data-look="pop"] .tag { background: var(--bg); }
 :root[data-look="pop"] .tag.open { background: var(--pop-add); }
 /* choix parmi plusieurs (Matin, Midi, Soir…) et interrupteurs */

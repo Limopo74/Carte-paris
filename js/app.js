@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (552)';
+const VERSION = '28 novembre 2026 (553)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7489,6 +7489,37 @@ function secoursRow() {
     el('a', { class: 'btn', href: `tel:${n}`, 'aria-label': `Appeler le ${n} : ${aria}` }, ico('phone'), label)));
 }
 
+/* v553 (mes choix « Tout conseillé » du 28 nov., maquette validée « A ») : le rond SOS, en haut de la colonne, ouvre tout de suite les secours en gros boutons, sans attendre le GPS.
+   Numéros : service-public.gouv.fr, fiche F33954 (vérifiée le 25 août 2026, lue le 28 nov. 2026) : 112, 15, 17, 18, 114 (aussi par SMS), 3117. */
+const SOS_CALLS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale'], ['17', 'Police 17', 'Police secours'],
+  ['18', 'Pompiers 18', 'Pompiers, péril ou accident'], [TRANSPORT_TEL, 'Transports 3117', 'alerte dans les transports, RATP et SNCF']];
+function openSos() {
+  track('SOS');
+  let at = freshHere();
+  let addrText = '';
+  const big = (icon, label, href, aria) => el('a', { class: 'tool crisis-tool c-guide', href, 'aria-label': aria },
+    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico(icon, { size: 30 })), label);
+  const sms = big('message-square-text', 'SMS au 114', smsHref('114', 'Je ne peux pas parler. Ce qui se passe : '), 'SMS au 114 : tu ne peux pas parler ; message prêt, tu touches Envoyer');
+  const where = el('p', { class: 'summary', 'aria-live': 'polite' }, 'Recherche de ta position…');
+  const setSms = () => { if (at) sms.href = smsHref('114', sms114Text(at, addrText)); };
+  const body = el('div', { class: 'stack' },
+    el('div', { class: 'tools crisis-tools sos-tools' },
+      ...SOS_CALLS.map(([n, label, aria]) => big('phone', label, `tel:${n}`, `Appeler le ${n} : ${aria}`)),
+      sms),
+    where,
+    el('p', { class: 'help tip' }, 'Le téléphone s\'ouvre avec le numéro : c\'est toi qui lances l\'appel. Numéros : service-public.gouv.fr. Ta position part à l\'IGN pour trouver ton adresse.'));
+  openSheet([ico('phone'), ' Secours'], body, { name: 'sos', again: openSos, tall: true });
+  (async () => {
+    try { if (!at) at = await locate(); } catch { fill(where, 'Position inconnue : donne le nom de la rue ou un repère.'); return; }
+    setSms();
+    fill(where, `Tu es : ${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`);
+    try {
+      const r = await reverseInfo(at.lat, at.lng);
+      if (r?.label) { addrText = r.label; fill(where, `Tu es : ${r.label}`); setSms(); }
+    } catch { /* l'adresse attend le réseau ; les coordonnées restent */ }
+  })();
+}
+
 /* v470 (mes choix 1A 2A 3A du 25 nov., « uniquement visuel et comparatif ») : vols enregistrés dans l'arrondissement, à côté de Paris */
 let delinqData = null;
 const loadDelinq = async () => (delinqData ??= await fetch('data/delinquance.json').then((r) => (r.ok ? r.json() : null)).then(cleanDelinq).catch(() => null));
@@ -14486,6 +14517,7 @@ document.getElementById('btnMyParis').addEventListener('click', () => openMyPari
 document.getElementById('btnCrise').addEventListener('click', () => openCrisis()); // v490
 document.getElementById('btnCrue').addEventListener('click', togglePpri); // v503
 document.getElementById('btnVu').addEventListener('click', () => captureSeen()); // v381 (mon choix 9A) : l'appareil photo en un appui
+document.getElementById('btnSos').addEventListener('click', openSos); // v553
 document.getElementById('btnStyle').addEventListener('click', () => { track('Fond de carte'); openStylePicker(); }); // v382 (mon choix 7A)
 // v469 (mon choix 2A du 25 nov.) : un appui = « Sauvegarder maintenant » de Réglages (photos comprises), le rond part quand c'est fait
 document.getElementById('btnBackup').addEventListener('click', async () => {
@@ -14867,6 +14899,7 @@ const HELP = [
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 », « Police 17 » et « Transports 3117 » (métro, RER, bus) ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
+    '{phone} **SOS** : le rond rouge en haut de la colonne de boutons. Un appui ouvre Secours tout de suite, sans attendre ta position : Urgences 112, Samu 15, Police 17, Pompiers 18, Transports 3117 et SMS au 114 (quand tu ne peux pas parler). Ton adresse s\'écrit dessous dès qu\'elle est trouvée, et le SMS au 114 la reprend. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
@@ -15084,6 +15117,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
     '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
@@ -15093,7 +15127,6 @@ const HELP = [
     '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
     '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
     '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
-    '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
