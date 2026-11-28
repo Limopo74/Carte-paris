@@ -82,7 +82,8 @@ import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
-import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen } from './weekend.js';
+import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES } from './weekend.js';
+import { TYPE_IDS, cleanEvPick, cleanThemes, passPick, liked, pickText } from './types-sorties.js';
 import { cleanCimetieres, cimMarkShown, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
 import { cleanDelinq, delinqRows } from './delinquance.js';
@@ -94,7 +95,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (556)';
+const VERSION = '28 novembre 2026 (557)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7789,7 +7790,7 @@ const letterTile = (genre) => el('span', { class: 'ev-thumb ev-letter', 'aria-hi
  * un appui ouvre sa page, où sont Y aller, Boussole, Métro, Ajouter. (v177 : plus de grande plaque en tête de Sorties.)
  * `buttons` est gardé pour compatibilité et ignoré.
  */
-function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null, photo = '', venuePhoto = null }) {
+function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null, tags = [], badge = null, photo = '', venuePhoto = null, love = false }) {
   const label = GENRE_NAME[genre];
   const icon = () => el('span', { class: `genre g-${genre ?? 'autre'}`, 'aria-hidden': 'true' }, badge ?? ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 22 }));
   // v327 (mes choix 1B 2C 6A 7A du 20 nov.) : « Photos dans Sorties » allumé, la photo de l'agenda à la place de l'icône ;
@@ -7803,7 +7804,8 @@ function sortieCard({ genre, name, href = '', onclick = null, sub = [], d = null
   const inner = [
     thumb ?? icon(),
     el('span', { class: 'ev-text' },
-      el('span', { class: 'ev-name' }, label ? el('span', { class: 'sr-only' }, `${label} : `) : null, name),
+      el('span', { class: 'ev-name' }, label ? el('span', { class: 'sr-only' }, `${label} : `) : null,
+        love ? el('span', { class: 'ev-love' }, ico('heart', { size: 16 }), el('span', { class: 'sr-only' }, 'Un de tes thèmes ou artistes : ')) : null, name), // v554 (T1 A) : cite un de mes thèmes ou artistes
       sub.filter(Boolean).length ? el('span', { class: 'ev-sub' }, ...sub.filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [typeof x === 'string' ? x.charAt(0).toUpperCase() + x.slice(1) : x]))) : null,
       tags.filter(Boolean).length ? el('span', { class: 'ev-tags' }, ...tags.filter(Boolean)) : null),
     dist];
@@ -7996,7 +7998,7 @@ const eventRow = (e, back, { last = false, week = false } = {}) => {
   const later = startsLater(e);
   const when = week ? el('b', {}, (!expo && nextSlotText(e)) || weekText(e)) /* v191 : un concert dit son prochain créneau, une expo sa date de fin */ : last ? el('b', {}, endText(e.end)) : later ? el('b', {}, whenText(e).replace(/^à/, 'À')) : whenText(e) === 'en cours aujourd\'hui' ? null : whenText(e).replace(/^j/, 'J');
   const go = (o) => openEventPage(e, back, o);
-  return deckCard(e, go, sortieCard({ genre: genreOf(e, { expo }), name: e.title, photo: e.cover, venuePhoto: venuePhotoFor(e, venuePhotos)?.id ?? null, onclick: (ev) => go({ deck: deckOf(ev, e) }), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
+  return deckCard(e, go, sortieCard({ love: evLiked(e), genre: genreOf(e, { expo }), name: e.title, photo: e.cover, venuePhoto: venuePhotoFor(e, venuePhotos)?.id ?? null, onclick: (ev) => go({ deck: deckOf(ev, e) }), sub: [when, e.place], d: e.d, tags: [e.free ? freeTag() : null, e.booking === 'required' ? el('span', { class: 'tag closed' }, 'Sur réservation') : null],
     buttons: [compassBtn(e), metroBtn(e, back), expo ? addBtn(e.title, 'l\'expo', keep)
       : later && !week ? addBtn(e.title, 'la sortie', () => openForm({ name: e.title, lat: e.lat, lng: e.lng, address: e.address, acc: null, note: [e.place, e.url].filter(Boolean).join(' · '), ticketAt: (e.slotStart ?? e.start).getTime() })) : null] }));
 };
@@ -8847,6 +8849,81 @@ function venueBox(back, todayRow = () => null) {
   return box;
 }
 
+/* ---------- v554 (mes choix du 28 nov. 2026 : 2A 3A 4A 5A 6A, T1 A à T4 A) : types de sorties, mes artistes et mes thèmes ---------- */
+const evOk = (e) => passPick(e, genreOf(e, { expo: isExpo(e) }), state.evPick, cleanArtists(state.artists));
+const evLiked = (e) => liked(e, state.evPick, cleanArtists(state.artists));
+const marketOk = () => { const t = cleanEvPick(state.evPick).types; return !t || t.includes('autre'); }; // décision prise seule : un marché, c'est « Autres sorties »
+/** L'icône de filtre de la ligne de Chercher : pleine, avec le nombre de types, quand un choix est actif. */
+function evTypesBtn(again) {
+  const t = cleanEvPick(state.evPick).types;
+  return el('button', { type: 'button', class: 'btn ev-fromicon ev-typesbtn', 'aria-pressed': String(Boolean(t)), onclick: () => openEvTypes(again),
+    'aria-label': t ? `Types de sorties : ${pickText(state.evPick)}. Changer` : 'Types de sorties : tous. Choisir', title: 'Types de sorties' },
+  ico('list-filter', { size: 24 }), t ? el('span', { class: 'ev-typesnum', 'aria-hidden': 'true' }, String(t.length)) : null);
+}
+/** La ligne qui dit le choix, tant qu'il est actif (4A) : un appui la change, « Tout voir » l'éteint (Annuler dans le message). */
+function evTypesNote(again) {
+  const t = pickText(state.evPick);
+  if (!t) return null;
+  const off = () => {
+    const before = cleanEvPick(state.evPick);
+    state.evPick = cleanEvPick({ types: null, themes: before.themes }); persist(); again();
+    toast('Tous les types de sorties', false, { label: 'Annuler', fn: () => { state.evPick = before; persist(); again(); } });
+  };
+  return el('div', { class: 'ev-typesnote' },
+    el('button', { type: 'button', class: 'ev-typesopen', onclick: () => openEvTypes(again), 'aria-label': `Seulement : ${t}. Changer` }, ico('list-filter'), el('span', {}, t)),
+    el('button', { type: 'button', class: 'btn', onclick: off }, 'Tout voir'));
+}
+/** Sorties → icône de filtre : « Types de sorties » (5A), et le bloc « Mes artistes et mes thèmes » (T2 A). Rien n'est gardé avant « Enregistrer ». */
+function openEvTypes(back, draft = null) {
+  const cur = cleanEvPick(state.evPick);
+  const d = draft ?? { types: new Set(cur.types ?? TYPE_IDS), themes: [...cur.themes], artists: cleanArtists(state.artists) };
+  const again = () => openEvTypes(back, d);
+  const sw = ([id, name, icon]) => {
+    const b = el('button', { type: 'button', class: 'menu-row c-guide form-switch', role: 'switch', 'data-type': id });
+    const draw = () => {
+      b.setAttribute('aria-checked', String(d.types.has(id)));
+      fill(b, el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(icon)), el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, name)),
+        el('span', { class: `switch${d.types.has(id) ? ' on' : ''}`, 'aria-hidden': 'true' }, el('span', { class: 'knob' })));
+    };
+    b.addEventListener('click', () => { if (d.types.has(id)) d.types.delete(id); else d.types.add(id); draw(); });
+    draw();
+    return b;
+  };
+  const input = el('input', { type: 'text', maxlength: '60', autocomplete: 'off', placeholder: 'Ex. : jazz, photo, Japon', 'aria-label': 'Un artiste ou un thème' });
+  const add = () => {
+    const v = input.value.trim();
+    if (!v) { toast('Écris un nom ou un mot.', true); return; }
+    const n = d.themes.length;
+    const already = d.artists.some((a) => artistKey(a) === artistKey(v));
+    d.themes = cleanThemes([...d.themes, v]);
+    if (already || d.themes.length === n) { toast('Déjà dans ta liste.', true); return; }
+    again();
+  };
+  input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') add(); });
+  const names = [...d.artists.map((n) => [n, 'Artiste', () => { d.artists = d.artists.filter((x) => x !== n); again(); }]),
+    ...d.themes.map((n) => [n, 'Thème', () => { d.themes = d.themes.filter((x) => x !== n); again(); }])];
+  const save = () => {
+    const types = TYPE_IDS.filter((id) => d.types.has(id));
+    if (!types.length && !d.themes.length && !d.artists.length) { toast('Coche au moins un type, ou ajoute un artiste ou un thème.', true); return; }
+    state.evPick = cleanEvPick({ types, themes: d.themes });
+    state.artists = cleanArtists(d.artists);
+    persist();
+    toast(pickText(state.evPick) ? `Seulement : ${pickText(state.evPick)}` : 'Tous les types de sorties');
+    back();
+  };
+  openSheet([ico('list-filter'), ' Types de sorties'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Sorties et Ce week-end ne montrent que les types allumés, et toute sortie qui cite un de tes artistes ou thèmes.'),
+    el('button', { type: 'button', class: 'btn', onclick: () => { d.types = new Set(TYPE_IDS); again(); } }, ico('check'), 'Tout cocher'),
+    el('div', { class: 'menu' }, WEEKEND_RUBRIQUES.map(sw)),
+    el('h3', { class: 'ring-title' }, el('span', {}, 'Mes artistes et mes thèmes'), el('span', {}, String(names.length))),
+    el('div', { class: 'row ev-themeadd' }, input, el('button', { type: 'button', class: 'btn c-disc', onclick: add }, ico('plus'), 'Ajouter')),
+    names.length ? el('ul', { class: 'items' }, names.map(([n, kind, rm]) => el('li', { class: 'item' },
+      el('span', { class: 'item-main' }, el('span', { class: 'item-text' }, el('span', { class: 'item-name' }, n), el('span', { class: 'item-sub' }, kind))),
+      el('button', { type: 'button', class: 'btn move remove', 'aria-label': `Retirer ${n}`, onclick: rm }, ico('x'))))) : null,
+    foot(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: back }, 'Annuler'),
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Enregistrer')))), { name: 'ev-types' });
+}
+
 const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), le temps de la session
 /** Sorties → « Autour de … ▾ » : d'où partent les distances. again (v450) : la page de Sorties à rouvrir (Grands lieux…), sinon Sorties. */
 function openEventsFrom(again = null) {
@@ -8959,7 +9036,7 @@ const weekendGenre = (e) => genreOf(e, { expo: isExpo(e) });
 function weekendPick(data, day = weekendDay) {
   const keys = data.days.map((d) => d.key);
   const use = day !== 'both' && keys.includes(day) ? [day] : keys;
-  return weekendGroups(mergeWeekend(data.byDay.filter((b) => use.includes(b.key))), weekendGenre);
+  return weekendGroups(mergeWeekend(data.byDay.filter((b) => use.includes(b.key))).filter((x) => evOk(x.e)), weekendGenre); // v554 : mes types de sorties
 }
 /** La bannière de Sorties : trois photos de rubriques différentes (les plus proches), « Ce week-end » et les jours. */
 function weekendHero(o) {
@@ -9106,7 +9183,8 @@ async function openEvents(start = null) {
   const whereOn = (mode === 'all' || mode === 'free') ? evWhere : '';
   const evM = tune('eventsM'); // v214 : une seule distance pour tous les onglets (3 km au départ, Réglages → Distances et durées)
   const evKm = tuningText('eventsM', evM);
-  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? [], new Date(), isExpo), o, evM).filter((e) => passWhere(e.indoor, whereOn)); // seulement les créneaux d'aujourd'hui
+  const near3 = nearbyEvents(todayOnly(eventsCache?.items ?? [], new Date(), isExpo), o, evM).filter((e) => passWhere(e.indoor, whereOn)) // seulement les créneaux d'aujourd'hui
+    .filter((e) => mode === 'art' || evOk(e)); // v554 (mon choix 2A du 28 nov.) : mes types de sorties, dans Tout et Gratuit
   const all = near3.filter((e) => mode !== 'free' || e.free).slice(0, 40);
   const last = lastChance(near3.filter((e) => mode !== 'free' || e.free));
   const lastIds = new Set(last);
@@ -9193,13 +9271,13 @@ async function openEvents(start = null) {
       !last.length && !expos.length ? el('p', { class: 'help' }, `Aucune expo de l'agenda de la Ville à moins de ${evKm} aujourd'hui. Les galeries privées n'y sont souvent pas : regarde les galeries.`) : null,
     ];
   } else {
-    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= evM && passWhere(Boolean(m.covered), whereOn));
+    const mkAll = nearestMarkets(await loadMarkets(), o).filter((m) => m.d <= evM && passWhere(Boolean(m.covered), whereOn) && marketOk()); // v554 : un marché compte dans Autres sorties
     // En ce moment / plus tard aujourd'hui, chacun du plus proche au plus loin ; un marché déjà fini n'apparaît plus.
     const items = [
       ...mkAll.map((m) => ({ m, d: m.d, when: marketWhen(m).when })),
       // « En ce moment » et « Plus tard » : seulement un créneau connu aujourd'hui (une expo sans créneau reste dans Expos)
       ...all.filter((e) => !lastIds.has(e) && e.slotStart).map((e) => ({ e, d: e.d, when: startsLater(e) ? 'later' : 'now' })),
-    ].filter((x) => x.when !== 'done').sort((x, y) => x.d - y.d);
+    ].filter((x) => x.when !== 'done').sort((x, y) => Number(!x.e || !evLiked(x.e)) - Number(!y.e || !evLiked(y.e)) || x.d - y.d); // v554 (T1 A) : mes thèmes et artistes d'abord
     const now = items.filter((x) => x.when === 'now');
     const later = items.filter((x) => x.when === 'later').slice(0, 15);
     const card = (x, opts = {}) => (x.m ? marketRow(x.m, back, opts) : eventRow(x.e, back, opts));
@@ -9246,6 +9324,7 @@ async function openEvents(start = null) {
   // v546 (mon choix 1B du 28 nov.) : le point de départ devient une icône dans la ligne de Chercher (épingle : centre de la carte ;
   // viseur : toi ; canapé : chez toi ; train : une station), sa petite flèche dit qu'on le change ; « Carte » devient « Voir sur la carte »
   const fromBtn = evFromBtn(o, null);
+  const typesBtn = mode === 'all' || mode === 'free' ? evTypesBtn(() => openEvents()) : null; // v554 (mon choix 3A du 28 nov.)
   const mapBtn = el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek(peekOpts) }, ico('map'), 'Voir sur la carte');
   // v370 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
   // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
@@ -9260,9 +9339,11 @@ async function openEvents(start = null) {
     seg, // les onglets restent toujours à la même place
     /* v212 : Chercher seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) ; v546 : « Chercher » seul quand Dehors et À l'abri sont là */
     el('div', { class: 'ev-findline' },
-      FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', 'aria-label': FIND_LABEL[mode], onclick: () => openFindOutings('', mode) }, ico('search'), whereBox ? 'Chercher' : FIND_LABEL[mode]) : mapBtn,
+      FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', 'aria-label': FIND_LABEL[mode], onclick: () => openFindOutings('', mode) }, ico('search'), el('span', { class: 'ev-findword' }, whereBox ? 'Chercher' : FIND_LABEL[mode])) : mapBtn, // v554 : la loupe seule quand le filtre des types est là, en Normal (le nom reste pour TalkBack)
       fromBtn,
+      typesBtn,
       whereBox),
+    typesBtn ? evTypesNote(() => openEvents()) : null,
     FIND_LABEL[mode] ? mapBtn : null,
     filters && mode === 'navigo' ? el('div', { class: 'list-chips chips-scroll', role: 'group', 'aria-label': 'Disciplines' }, ...filters) : null,
     whereOn ? el('p', { class: 'ev-wherenote' }, ico(whereOn === 'out' ? 'sun' : 'umbrella'), whereOn === 'out' ? ' Seulement les sorties dehors' : ' Seulement les sorties à l\'abri') : null,
@@ -15121,6 +15202,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
     '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
     '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
     '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
