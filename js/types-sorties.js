@@ -30,8 +30,10 @@ export function cleanEvPick(x) {
   const themes = cleanThemes(x?.themes);
   const nots = cleanThemes(x?.nots);
   let types = Array.isArray(x?.types) ? TYPE_IDS.filter((id) => x.types.includes(id)) : null;
+  // v564 : Sport a sa rubrique ; un choix d'avant qui gardait « Autres sorties » (où était le sport) garde aussi Sport
+  if (types && x?.typesV !== 2 && types.includes('autre') && !types.includes('sport')) types = TYPE_IDS.filter((id) => id === 'sport' || types.includes(id));
   if (types && types.length === TYPE_IDS.length) types = null;
-  return { types, themes, nots };
+  return { types, themes, nots, typesV: 2 };
 }
 /** Un choix masque-t-il quelque chose ? (des types, ou des mots écartés) */
 export const pickOn = (pick) => { const p = cleanEvPick(pick); return Array.isArray(p.types) || p.nots.length > 0; };
@@ -75,7 +77,7 @@ export function passPick(e, genre, pick, artists = []) {
   return !p.types || p.types.includes(genre ?? 'autre');
 }
 
-/** Ce que dit la ligne du haut : « Expos, Concerts » (2 types au plus), sinon « 4 types sur 10 » ; null si tout est montré. */
+/** Ce que dit la ligne du haut : « Expos, Concerts » (2 types au plus), sinon « 4 types sur 11 » ; null si tout est montré. */
 export function pickText(pick) {
   const p = cleanEvPick(pick);
   if (!p.types) return p.nots.length ? `Sauf ${p.nots.slice(0, 2).join(', ')}${p.nots.length > 2 ? '…' : ''}` : null; // v561 : seulement des mots écartés

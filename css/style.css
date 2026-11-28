@@ -1844,3 +1844,7 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 .wk-note:empty { display: none; } /* v561 : la ligne des choix de Ce week-end, vide quand rien n'est choisi */
 .wk-always > summary { min-height: var(--h); display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; cursor: pointer; list-style: none; }
 .wk-always[open] > summary .ico { transform: rotate(180deg); } /* v563 (G3 A) : les musées de la Ville, toujours gratuits, repliés */
+/* v564 (C3 A) : sur la grande photo, en haut à gauche, le sous-thème et « Dernier jour » : plaques blanches, texte encre, lisibles sur toute photo */
+.wk-photo { position: relative; }
+.wk-marks { position: absolute; left: 8px; top: 8px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 64px); pointer-events: none; }
+.wk-mark { background: var(--bg); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--r); padding: 2px 8px; font-size: 14px; font-weight: 800; line-height: 1.3; white-space: nowrap; }

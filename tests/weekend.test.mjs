@@ -35,7 +35,7 @@ test('rubriques : ordre fixe, vides masquées, genre inconnu dans « Autres sort
   const genre = { A: 'musique', B: null, C: 'expo', D: 'marche' }; // « marche » n'est pas une rubrique du week-end : Autres
   const g = weekendGroups(m, (e) => genre[e.title]);
   assert.deepEqual(g.map((x) => [x.id, x.items.map((i) => i.e.title).join('')]), [['expo', 'C'], ['musique', 'A'], ['autre', 'BD']]);
-  assert.equal(WEEKEND_RUBRIQUES.length, 10);
+  assert.equal(WEEKEND_RUBRIQUES.length, 11); // v564 : Sport
   assert.equal(WEEKEND_RUBRIQUES.at(-1)[0], 'autre', 'Autres sorties en dernier');
 });
 
@@ -97,4 +97,31 @@ test('v563 (G1 A, G2 A, G3 A) : la tuile Gratuit en tête, musées exceptionnels
   assert.match(app, /el\('details', \{ class: 'wk-always' \}, el\('summary', \{\}, el\('span', \{\}, `Musées de la Ville, toujours gratuits \(\$\{always\.length\}\)`\), ico\('chevron-down'\)\)/);
   assert.match(app, /e\.freeSure === false \? 'Gratuit sous condition' : 'Gratuit'/);
   assert.doesNotMatch(app.slice(app.indexOf('function wkFreeMuseums'), app.indexOf('function wkFreeMuseums') + 1500), /stateTag|spotHours/, 'pas d\'« Ouvert » de maintenant pour un autre jour');
+});
+
+// v564 (mes choix C, C2 A, C3 A du 28 nov.) : Sport, sous-thèmes, étiquettes sur les photos
+import { subTags, subThemes, hasSub } from '../js/weekend.js';
+import { genreOf } from '../js/events.js';
+test('Sport a sa rubrique ; « Enfants;Sport » reste En famille', () => {
+  assert.equal(genreOf({ title: 'Cours de boxe', tags: 'Sport' }), 'sport');
+  assert.equal(genreOf({ title: 'Yoga', tags: 'Santé;Sport' }), 'sport');
+  assert.equal(genreOf({ title: 'Multisport', tags: 'Enfants;Sport' }), 'famille');
+  assert.ok(WEEKEND_RUBRIQUES.some(([id]) => id === 'sport'));
+});
+test('sous-thèmes : tirés des étiquettes, sans le nom de la rubrique ni « Loisirs » ; puces au-delà de 40, 3 au moins', () => {
+  assert.deepEqual(subTags({ tags: 'Expo;Photo;Histoire' }, 'expo'), ['Photo', 'Histoire']);
+  assert.deepEqual(subTags({ tags: 'Loisirs;Enfants' }, 'famille'), []);
+  assert.deepEqual(subTags({ tags: 'Danse;Spectacle musical;Théâtre' }, 'scene'), ['Danse', 'Spectacle musical', 'Théâtre']);
+  const mk = (tags) => ({ e: { tags } });
+  const items = [...Array(30)].map(() => mk('Expo;Photo')).concat([...Array(9)].map(() => mk('Art contemporain;Expo')), [mk('Expo;Nature'), mk('Expo;Nature'), mk('Expo')]);
+  const s = subThemes(items, 'expo');
+  assert.deepEqual(s.map((c) => [c.tag, c.n]), [['Photo', 30], ['Art contemporain', 9]]); // Nature : 2 seulement
+  assert.deepEqual(subThemes(items.slice(0, 40), 'expo'), [], '40 ou moins : pas de puces');
+  assert.equal(hasSub({ tags: 'Expo;Nature' }, 'expo', null, s), true, 'Nature va dans « Autres »');
+  assert.equal(hasSub({ tags: 'Expo;Photo' }, 'expo', 'Photo', s), true);
+});
+test('étiquettes sur la photo : le premier sous-thème et « Dernier jour », 2 au plus', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /tags\.slice\(0, 2\)\.map\(\(t\) => el\('span', \{ class: 'wk-mark' \}, t\)\)/);
+  assert.match(app, /\[subTags\(e, genre\)\[0\], isExpo\(e\) && e\.end instanceof Date && e\.end\.getTime\(\) <= lastDayOf\(days\) \? 'Dernier jour' : null\]/);
 });

@@ -82,7 +82,7 @@ import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
-import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES, areaText, weekendOrder } from './weekend.js';
+import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES, areaText, weekendOrder, subTags, subThemes, hasSub } from './weekend.js';
 import { TYPE_IDS, cleanEvPick, cleanThemes, passPick, liked, pickText, pickOn } from './types-sorties.js';
 import { cleanNews, stepNews, readNews, sinceText } from './nouvelles.js';
 import { cleanCimetieres, cimMarkShown, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
@@ -96,7 +96,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (563)';
+const VERSION = '28 novembre 2026 (564)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7773,8 +7773,8 @@ function loadGalleries(force = false) {
 
 /** Une galerie : nom, état (ouverte, ferme bientôt, jours de fermeture), distance ; boussole, métro, garder. */
 /* ---------- Cartes des Sorties : une icône de genre, le nom, quand et où, le temps à pied, les tampons et les boutons DANS la carte ---------- */
-const GENRE_ICON = { musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes', circuit: 'signpost' };
-const GENRE_NAME = { musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue', circuit: 'Circuit' };
+const GENRE_ICON = { sport: 'dumbbell', musique: 'music', expo: 'palette', chiner: 'tags', marche: 'store', fete: 'sparkles', scene: 'drama', cine: 'clapperboard', balade: 'footprints', famille: 'users', atelier: 'book-open', musee: 'landmark', galerie: 'palette', oeuvre: 'shapes', circuit: 'signpost' };
+const GENRE_NAME = { sport: 'Sport', musique: 'Musique', expo: 'Expo', chiner: 'Puces et brocantes', marche: 'Marché', fete: 'Fête', scene: 'Spectacle', cine: 'Cinéma', balade: 'Balade ou visite', famille: 'En famille', atelier: 'Atelier ou rencontre', musee: 'Musée', galerie: 'Galerie', ttb: 'TTB', oeuvre: 'Œuvre dans la rue', circuit: 'Circuit' };
 /** v327 : vignette d'une sortie (56 × 76 px, en haut de la ligne) : la photo de l'agenda, sinon ma photo de la salle, sinon `none()`. */
 function evThumb(photo, venuePhoto, none) {
   const img = el('img', { class: 'ev-thumb', alt: '', decoding: 'async', referrerpolicy: 'no-referrer' });
@@ -9233,14 +9233,15 @@ function weekendHero(o) {
   return btn;
 }
 /** Une grande photo de l'agenda, avec « © » qui montre son auteur (mon choix 5A) ; sans photo : la grande lettre du genre. */
-function weekendPhoto(e, genre, cls) {
+function weekendPhoto(e, genre, cls, tags = []) {
   const box = el('span', { class: `wk-photo ${cls}` });
-  const none = () => box.replaceChildren(el('span', { class: 'wk-none', 'aria-hidden': 'true' }, ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 40 })));
+  const marks = () => (tags.length ? el('span', { class: 'wk-marks', 'aria-hidden': 'true' }, tags.slice(0, 2).map((t) => el('span', { class: 'wk-mark' }, t))) : null); // v564 (C3 A)
+  const none = () => box.replaceChildren(el('span', { class: 'wk-none', 'aria-hidden': 'true' }, ico(GENRE_ICON[genre] ?? 'calendar-days', { size: 40 })), ...[marks()].filter(Boolean));
   if (!e?.cover) { none(); return box; }
   // v550 : décor seulement (alt vide) : TalkBack lisait d'abord la légende de la photo, parfois très longue, avant le titre ; elle reste sur la page de la sortie
   const img = el('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
   img.addEventListener('error', none, { once: true });
-  box.append(img);
+  box.append(img, ...[marks()].filter(Boolean));
   return box;
 }
 function creditBtn(e) {
@@ -9307,6 +9308,8 @@ function wkFreeMuseums(g, again) {
     g.items.length ? el('h3', { class: 'ring-title' }, el('span', {}, 'Sorties gratuites'), el('span', {}, String(g.items.length))) : null,
   ];
 }
+const wkSub = new Map(); // v564 : le sous-thème choisi par rubrique, le temps de la session
+const lastDayOf = (days) => { const d = days[days.length - 1].date; return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59).getTime(); };
 const wkMore = new Map(); // v555 : combien de sorties montrées par rubrique et par jour, le temps de la session
 /** Une rubrique : ses sorties en grandes photos, les plus proches d'abord ; un appui ouvre la page de la sortie (glisser : la voisine). */
 function openWeekendRubrique(o, id, back) {
@@ -9322,8 +9325,18 @@ function openWeekendRubrique(o, id, back) {
     const g = all.find((x) => x.id === id);
     if (!g) { fill(list, el('p', { class: 'empty' }, 'Plus aucune sortie dans cette rubrique pour ce jour. Choisis un autre jour.')); return; }
     const t = document.querySelector('#sheet h2'); if (t) t.replaceChildren(ico(g.icon), ` ${g.name}`);
+    // v564 (mes choix C, C2 A du 28 nov.) : au-delà de 40 sorties, des puces de sous-thèmes (étiquettes de l'agenda, 3 sorties au moins) ;
+    // le sous-thème choisi reste le temps de la session ; « Autres » : aucune des puces
+    const subs = id === 'gratuit' ? [] : subThemes(g.items, id);
+    let pickSub = wkSub.get(id);
+    if (pickSub !== undefined && pickSub !== null && !subs.some((c) => c.tag === pickSub)) pickSub = undefined;
+    const pool = pickSub === undefined ? g.items : g.items.filter((x) => hasSub(x.e, id, pickSub, subs));
+    const others = subs.length ? g.items.filter((x) => hasSub(x.e, id, null, subs)).length : 0;
+    const chip = (label, val, nb) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(pickSub === val), onclick: () => { if (val === undefined) wkSub.delete(id); else wkSub.set(id, val); wkMore.delete(`${id}|${weekendDay}`); again(); } }, label, nb != null ? el('span', { class: 'cat-count' }, String(nb)) : null);
+    const subRow = subs.length ? el('div', { class: 'list-chips chips-scroll wk-subs', role: 'group', 'aria-label': 'Sous-thèmes' },
+      chip('Toutes', undefined, g.items.length), ...subs.map((c) => chip(c.tag, c.tag, c.n)), others ? chip('Autres', null, others) : null) : null;
     const n = wkMore.get(`${id}|${weekendDay}`) ?? WK_MAX; // v555 (10A) : 60, puis 60 de plus à chaque appui
-    const shown = g.items.slice(0, n);
+    const shown = pool.slice(0, n);
     // v548 (mon choix A du 28 nov.) : « Voir sur la carte », comme dans Sorties : le bandeau parcourt les sorties de la rubrique,
     // un rond par sortie sur la carte (touché : le bandeau sur cette sortie) ; seulement celles de la liste (60 au plus)
     const peek = { kicker: g.name, label: plural(shown.length, 'sortie', 'sorties'), icon: g.icon, from: wkMe, back: again, open: (x, b) => x.go(b),
@@ -9335,6 +9348,7 @@ function openWeekendRubrique(o, id, back) {
       el('p', { class: 'wk-scope' }, wkScope()),
       el('div', { class: 'ev-findline' }, el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'), wkMeBtn(again, g.name)), // v555 (7A) ; v560 : le retour dit le nom de la rubrique
       evTypesNote(again, all.hiddenIn(id)),
+      subRow,
       ...(id === 'gratuit' ? wkFreeMuseums(g, again) : []),
       el('ul', { class: 'items wk-list' }, shown.map((x) => {
         const e = x.e; const genre = weekendGenre(e);
@@ -9342,15 +9356,15 @@ function openWeekendRubrique(o, id, back) {
         const dist = x.d == null ? areaText(e) : isFar(x.d) ? fmtDist(x.d) : `${durText(walkMinutes(x.d))} · ${fmtDist(x.d)}`; // v555 (11A) : sans distance, l'arrondissement
         return deckCard(e, go, el('li', { class: 'ev wk-card' },
           el('button', { type: 'button', class: 'wk-main', onclick: (ev) => go({ deck: deckOf(ev, e) }) },
-            weekendPhoto(e, genre, 'wk-card-photo'),
+            weekendPhoto(e, genre, 'wk-card-photo', [subTags(e, genre)[0], isExpo(e) && e.end instanceof Date && e.end.getTime() <= lastDayOf(days) ? 'Dernier jour' : null].filter(Boolean)), // v564 (C3 A)
             el('span', { class: 'wk-card-text' },
               el('span', { class: 'wk-card-name' }, evLiked(e) ? el('span', { class: 'ev-love' }, ico('heart', { size: 16 }), el('span', { class: 'sr-only' }, 'Un de tes thèmes ou artistes : ')) : null, e.title),
               el('span', { class: 'wk-card-sub' }, [weekendWhen(x, today), e.place].filter(Boolean).join(' · ')),
               el('span', { class: 'wk-card-sub' }, [dist, e.free ? (e.freeSure === false ? 'Gratuit sous condition' : 'Gratuit') : '', e.booking === 'required' ? 'Sur réservation' : ''].filter(Boolean).join(' · ')))), // v563 (G2 A) : rien de promis de trop
           creditBtn(e)));
       })),
-      shown.length < g.items.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { wkMore.set(`${id}|${weekendDay}`, n + WK_MAX); again(); } },
-        `Voir les ${Math.min(WK_MAX, g.items.length - shown.length)} suivantes (${g.items.length - shown.length} autres)`) : null);
+      shown.length < pool.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { wkMore.set(`${id}|${weekendDay}`, n + WK_MAX); again(); } },
+        `Voir les ${Math.min(WK_MAX, pool.length - shown.length)} suivantes (${pool.length - shown.length} autres)`) : null);
   }).catch(() => { if (list.isConnected) fill(list, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn c-disc', onclick: again }, ico('refresh-cw'), 'Réessayer')); });
 }
 
@@ -15410,6 +15424,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{dumbbell} **Sport, sous-thèmes et étiquettes** : Ce week-end a une rubrique Sport (avant dans Autres sorties) ; une rubrique de plus de 40 sorties montre des puces de sous-thèmes (Photo, Peinture, Art contemporain…) ; sur chaque grande photo, son sous-thème et « Dernier jour » quand une expo ferme ce week-end.',
     '{landmark} **Gratuit ce week-end** : la première tuile de Ce week-end réunit les sorties gratuites (« sous condition » quand l\'agenda le dit) et, en tête, les musées gratuits exceptionnellement ces jours-là ; les musées de la Ville, toujours gratuits, sont repliés dessous.',
     '{list-filter} **Je ne veux pas** : en bas de Types de sorties, les mots à écarter (« enfants », « yoga »…) : une sortie qui en cite un est masquée, sauf si elle cite ton artiste ou ton thème. La ligne du haut compte les masquées ; « Tout voir » montre tout le temps de cette ouverture, « Remettre » rallume tes choix.',
     '{circle-help} **Sorties plus simple** : un mot sous chaque bouton du haut (Chercher, Départ, Types, Dehors, Abri) ; le « ? » du titre ouvre « Comment ça marche » (touche une ligne : le bouton est entouré) ; « Sorties en 3 choses » la première fois. Ce week-end : le bouton de départ ouvre « Distances depuis… », « Tout Paris, sans distance » en tête. Photos dans Sorties : {settings} → Autres réglages → Sorties.',
@@ -15419,7 +15434,6 @@ const HELP = [
     '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
     '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
     '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
-    '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

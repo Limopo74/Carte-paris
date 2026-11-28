@@ -7,9 +7,11 @@ import { TYPE_IDS, cleanEvPick, cleanThemes, mergeEvPick, themeHit, liked, passP
 
 const ev = (title, extra = {}) => ({ title, place: '', tags: '', lead: '', ...extra });
 
-test('le choix : 10 types connus, les 10 cochés valent « tous », un inconnu est retiré', () => {
-  assert.equal(TYPE_IDS.length, 10);
-  assert.deepEqual(cleanEvPick(null), { types: null, themes: [], nots: [] });
+test('le choix : 11 types connus (v564 : Sport), les 11 cochés valent « tous », un inconnu est retiré', () => {
+  assert.equal(TYPE_IDS.length, 11);
+  assert.deepEqual(cleanEvPick({ types: ['expo', 'autre'] }).types, ['expo', 'sport', 'autre']); // un choix d'avant : le sport était dans Autres
+  assert.deepEqual(cleanEvPick({ types: ['expo', 'autre'], typesV: 2 }).types, ['expo', 'autre']); // Sport décoché ensuite : respecté
+  assert.deepEqual(cleanEvPick(null), { types: null, themes: [], nots: [], typesV: 2 });
   assert.deepEqual(cleanEvPick({ types: ['musique', 'expo', 'zzz'] }).types, ['expo', 'musique']); // dans l'ordre des rubriques
   assert.equal(cleanEvPick({ types: [...TYPE_IDS] }).types, null);
   assert.deepEqual(cleanEvPick({ types: [] }).types, []);
@@ -53,13 +55,13 @@ test('T1 A : en plus des types ; mes artistes en nom entier', () => {
 test('la ligne du haut : 2 types au plus en clair, sinon le nombre', () => {
   assert.equal(pickText(null), null);
   assert.equal(pickText({ types: ['expo', 'musique'] }), 'Expos, Concerts');
-  assert.equal(pickText({ types: ['expo', 'musique', 'cine', 'fete'] }), '4 types sur 10');
+  assert.equal(pickText({ types: ['expo', 'musique', 'cine', 'fete'] }), '4 types sur 11');
   assert.equal(pickText({ types: [], themes: ['jazz'] }), 'Mes artistes et thèmes');
 });
 
 test('sauvegarde : depuis ma propre sauvegarde, les types du téléphone gardés, les thèmes ajoutés', () => {
-  assert.deepEqual(mergeEvPick({ types: ['expo'], themes: ['jazz'] }, { types: ['cine'], themes: ['Japon', 'Jazz'] }), { types: ['expo'], themes: ['jazz', 'Japon'], nots: [] });
-  assert.deepEqual(mergeEvPick(null, { types: ['cine'] }), { types: ['cine'], themes: [], nots: [] });
+  assert.deepEqual(mergeEvPick({ types: ['expo'], themes: ['jazz'] }, { types: ['cine'], themes: ['Japon', 'Jazz'] }), { types: ['expo'], themes: ['jazz', 'Japon'], nots: [], typesV: 2 });
+  assert.deepEqual(mergeEvPick(null, { types: ['cine'] }), { types: ['cine'], themes: [], nots: [], typesV: 2 });
 });
 
 test('branché : enregistré, dans ma sauvegarde, jamais dans le fichier pour un proche', () => {

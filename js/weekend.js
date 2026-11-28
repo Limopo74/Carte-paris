@@ -7,7 +7,7 @@
 export const WEEKEND_RUBRIQUES = [
   ['expo', 'Expos', 'palette'], ['musique', 'Concerts', 'music'], ['scene', 'Spectacles', 'drama'], ['famille', 'En famille', 'users'],
   ['cine', 'Cinéma', 'clapperboard'], ['balade', 'Balades et visites', 'footprints'], ['chiner', 'Puces et brocantes', 'tags'],
-  ['fete', 'Fêtes', 'sparkles'], ['atelier', 'Ateliers et rencontres', 'book-open'], ['autre', 'Autres sorties', 'calendar-days'],
+  ['fete', 'Fêtes', 'sparkles'], ['atelier', 'Ateliers et rencontres', 'book-open'], ['sport', 'Sport', 'dumbbell'] /* v564 */, ['autre', 'Autres sorties', 'calendar-days'],
 ];
 
 const noon = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
@@ -112,4 +112,36 @@ export function weekendOrder(items, { lastDay, expo = () => false, liked = () =>
   return [...items].map((x) => ({ x, love: liked(x.e) ? 0 : 1, r: x.d == null ? rank(x) : [0, x.d] }))
     .sort((a, b) => a.love - b.love || a.r[0] - b.r[0] || a.r[1] - b.r[1] || a.x.e.title.localeCompare(b.x.e.title, 'fr'))
     .map(({ x }) => x);
+}
+
+/* ---------- v564 (mes choix C, C2 A, C3 A du 28 nov. 2026) : sous-thèmes d'une grande rubrique, étiquettes sur les photos ---------- */
+
+/** Les étiquettes de l'agenda qui ne disent rien de plus que la rubrique (ou rien du tout). */
+const SAME = { expo: ['expo', 'expositions'], musique: ['concert'], famille: ['enfants'], cine: ['ecrans'], balade: ['balade urbaine'],
+  atelier: ['atelier', 'conference'], sport: ['sport'], chiner: ['brocante'], fete: ['fete'] };
+const VAGUE = ['loisirs'];
+const flat = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+/** Les sous-thèmes d'une sortie, dans l'ordre de l'agenda (« Expo;Photo;Histoire » dans Expos → ['Photo', 'Histoire']). */
+export function subTags(e, genre) {
+  const drop = new Set([...(SAME[genre] ?? []), ...VAGUE]);
+  const out = [];
+  for (const t of String(e?.tags ?? '').split(/[;,]|->/).map((x) => x.trim()).filter(Boolean)) {
+    if (drop.has(flat(t)) || out.some((x) => flat(x) === flat(t))) continue;
+    out.push(t.slice(0, 24));
+  }
+  return out;
+}
+
+/** Les puces d'une rubrique (C2 A) : seulement au-delà de `over` sorties ; un sous-thème à partir de `min` sorties ; le plus fréquent d'abord. */
+export function subThemes(items, genre, { over = 40, min = 3 } = {}) {
+  if ((items?.length ?? 0) <= over) return [];
+  const n = new Map();
+  for (const x of items) for (const t of subTags(x.e, genre)) { const k = flat(t); const c = n.get(k) ?? { tag: t, n: 0 }; c.n += 1; n.set(k, c); }
+  return [...n.values()].filter((c) => c.n >= min).sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag, 'fr'));
+}
+/** Une sortie a-t-elle ce sous-thème ? `null` : « Autres » (aucun des sous-thèmes des puces). */
+export function hasSub(e, genre, tag, all = []) {
+  const mine = subTags(e, genre).map(flat);
+  return tag == null ? !all.some((c) => mine.includes(flat(c.tag))) : mine.includes(flat(tag));
 }

@@ -288,7 +288,7 @@ const GENRES = [
 /* v220 : les étiquettes de l'agenda (« Concert;Festival », « Balade urbaine;Histoire »…) disent l'activité mieux que le titre.
    Seules celles-ci comptent ; les autres (Festival, Loisirs, Histoire, Sport, Nature…) ne disent pas de genre. */
 const TAG_GENRE = { 'concert': 'musique', 'spectacle musical': 'musique', 'theatre': 'scene', 'danse': 'scene', 'cirque': 'scene',
-  'humour': 'scene', 'ecrans': 'cine', 'balade urbaine': 'balade', 'atelier': 'atelier', 'conference': 'atelier' };
+  'humour': 'scene', 'ecrans': 'cine', 'balade urbaine': 'balade', 'atelier': 'atelier', 'conference': 'atelier', 'sport': 'sport' }; // v564 : Sport, sa rubrique
 const plain = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 /** Genre donné par les étiquettes de l'agenda : un seul genre possible, sinon null (on se rabat sur le titre). */
 export function tagGenre(tags) {
