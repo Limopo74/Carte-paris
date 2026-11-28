@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (555)';
+const VERSION = '28 novembre 2026 (556)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -15121,6 +15121,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
     '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
     '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
     '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
@@ -15130,7 +15131,6 @@ const HELP = [
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
     '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
     '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
-    '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

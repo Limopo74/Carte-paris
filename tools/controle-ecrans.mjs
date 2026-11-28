@@ -196,6 +196,8 @@ const ECRANS = {
   sortiesphotos: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-photo').click(); await p.waitForTimeout(900); }, // v370 : l'image à droite du titre allume les photos
   sortiesdepuis: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // « Distances depuis… » : la ligne choisie se voit (28 nov.)
   sortiesquartier: async (p) => { await ECRANS.sortiesdepuis(p); await feuille(p).locator('.menu-row', { hasText: 'Un autre quartier' }).click(); await p.locator('.peek-card .now-open').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // v552 : le quartier choisi à la croix encadré
+  weekend: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.wk-hero').click(); await p.waitForTimeout(1200); }, // v546
+  weekendrub: async (p) => { await ECRANS.weekend(p); await feuille(p).locator('.wk-tile').first().click(); await p.waitForTimeout(1200); },
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
@@ -447,6 +449,9 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
       const y = await page.evaluate(() => { const g = document.querySelector('#sheet .go-bar'); return g ? Math.round(g.getBoundingClientRect().bottom) : null; });
       lignes.push(`${vw} ${theme} ${nom} : bas de « Y aller » à ${y} px sur ${vh}`);
     }
+    // MAQUETTE=fichier.js : une fonction maq(nom) qui retouche l'écran avant la capture (maquettes sur la vraie appli)
+    if (process.env.MAQUETTE) { await page.evaluate(`(async () => { ${(await import('node:fs')).readFileSync(process.env.MAQUETTE, 'utf8')}
+ return maq(${JSON.stringify(nom)}); })()`); await page.waitForTimeout(300); }
     // capture : la feuille entière, défilée, si elle est ouverte ; sinon l'écran
     if (await page.locator('#sheet:not([hidden])').count()) {
       await page.setViewportSize({ width: vw, height: 2400 });

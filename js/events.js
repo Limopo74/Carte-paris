@@ -31,7 +31,7 @@ export function eventsUrl(now = new Date()) {
   const end = new Date(now); end.setHours(23, 59, 0, 0);
   const u = new URL(BASE);
   u.search = new URLSearchParams({ where: `date_end >= "${iso(now)}" AND date_start <= "${iso(end)}" AND ${onDays([now])}`,
-    select: `${EVENT_FIELDS},occurrences,lead_text`, limit: '1000' }).toString();
+    select: `${EVENT_FIELDS},occurrences,lead_text`, limit: '-1' }).toString(); // v553 : sans limite (1007 sorties le samedi 28 nov. : 1000 en coupait au hasard)
   return u.toString();
 } // sans « occurrences » : trop lourd pour la semaine
 /** Événements en cours ou qui commencent dans les `days` jours, pour tout Paris (aucune position envoyée). */

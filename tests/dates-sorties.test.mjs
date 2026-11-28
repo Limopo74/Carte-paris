@@ -56,7 +56,7 @@ test('l\'agenda ne renvoie que ce qui a lieu aujourd\'hui (ou sans créneau), as
   const w = u.searchParams.get('where');
   assert.match(w, /occurrences like "\*2026-11-17T\*"/);
   assert.match(w, /occurrences is null/);
-  assert.equal(u.searchParams.get('limit'), '1000');
+  assert.equal(u.searchParams.get('limit'), '-1'); // v553 : 1007 sorties le samedi 28 nov. 2026, rien n'est coupé
   assert.match(u.searchParams.get('select'), /occurrences/);
   assert.match(u.searchParams.get('select'), /date_description/);
   assert.match(u.searchParams.get('select'), /lead_text/);
