@@ -53,7 +53,7 @@ test('l\'appli : interrupteur, fiche, listes, aide, cache', () => {
   assert.match(app, /onOff\('evSwipe', 'arrow-left-right', 'Glisser entre les sorties'/);
   assert.match(app, /state\.evSwipe !== false && deck\?\.items\[deck\.i\]\?\.e === e/);
   assert.match(app, /class: 'sortie-count', 'aria-label': deckLabel\(dk\)/);
-  assert.equal((app.match(/onclick: \(ev\) => go\(\{ deck: deckOf\(ev, e\) \}\)/g) ?? []).length, 2, 'Sorties (et Mes salles) et Trouver une sortie');
+  assert.equal((app.match(/onclick: \(ev\) => go\(\{ deck: deckOf\(ev, e\) \}\)/g) ?? []).length, 3, 'Sorties (et Mes salles), Trouver une sortie et une rubrique de Ce week-end (v546)');
   assert.match(app, /if \(name !== 'sortie'\) sortieDeck = null;/);
   // v521 : dans les Nouveautés ; v532 : sortie des Nouveautés, la ligne reste dans l'Aide → Trouver une sortie
   const sorties = app.slice(app.indexOf("['calendar-days', 'Trouver une sortie', ["));

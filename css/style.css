@@ -1735,3 +1735,53 @@ html[data-crise]::after { bottom: 0; }
 /* v499 : en mode crise, le petit point du style passe par-dessus la bande du haut, plein, cerclé de papier, sinon il disparaît dans les rayures. */
 html[data-crise] .look-dot { z-index: 100000; }
 html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
+
+/* ---- v546 (mes choix 1B 2C 3A 4A 5A du 28 nov. 2026) : « Ce week-end » dans Sorties ; CHARTE.md § 7 bis (exception) ----
+   Bannière à photos en tête de Sorties (la seule plaque kraft de la page), mosaïque de rubriques, grandes photos de l'agenda ;
+   « © » sur chaque grande photo (touche : son auteur). */
+.wk-hero { display: block; width: 100%; position: relative; padding: 0; border: 2px solid var(--ink); border-radius: var(--r); overflow: hidden;
+  background: var(--soft); color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.wk-pics { display: flex; height: 84px; background: var(--soft); }
+.wk-pic { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
+.wk-pic + .wk-pic { border-left: 2px solid var(--bg); }
+.wk-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wk-band { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 2px; padding: 8px 44px 8px 12px; min-height: var(--h); background: var(--soft); border-top: 2px solid var(--ink); position: relative; }
+.wk-band b { font-family: var(--display); font-weight: 800; font-size: var(--t22); line-height: 1.05; }
+.wk-sub { font-weight: 600; font-size: var(--t14); line-height: 1.2; }
+.wk-chev { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .wk-pics { height: 64px; }
+/* Le point de départ en icône (48 px), sa petite flèche en coin : on le change */
+.btn.ev-fromicon { flex: none; width: var(--h); min-width: var(--h); padding: 0; position: relative; }
+.ev-fromicon > .ico:first-child { color: var(--disc); }
+.ev-fromdot { position: absolute; right: 2px; bottom: 2px; display: flex; color: var(--ink); }
+.ev-fromdot .ico svg { width: 12px; height: 12px; }
+.ev-page > .ev-mapbtn { width: 100%; min-height: var(--h-s); }
+.ev-findline > .ev-mapbtn { flex: 1; min-height: var(--h); }
+/* Mosaïque des rubriques : deux colonnes, photo de 96 px, nom et nombre ; © en haut à droite de la photo */
+.wk-days button { flex: 1 1 auto; padding-left: 8px; padding-right: 8px; white-space: nowrap; } /* « Sam. et dim. », « Sam. 28 », « Dim. 29 » sur une ligne à 360 px */
+.wk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+:root:is([data-text="tresgrand"]) .wk-grid { grid-template-columns: 1fr; }
+.wk-tile-box, .wk-card { position: relative; }
+.wk-tile { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; border: 2px solid var(--btn-bd); border-radius: var(--r); overflow: hidden;
+  background: var(--btn); color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.wk-photo { display: block; width: 100%; overflow: hidden; background: var(--soft); }
+.wk-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wk-none { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; color: var(--disc); }
+.wk-tile-photo { height: 96px; border-bottom: 2px solid var(--btn-bd); }
+.wk-tile-text { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; font-family: var(--display); font-weight: 800; font-size: var(--t16); line-height: 1.15; }
+.wk-tile-text small { display: block; font-family: inherit; font-weight: 600; font-size: var(--t14); color: var(--muted); }
+.wk-tile-text > .ico { flex: none; }
+.wk-credit { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--ink); border: 2px solid var(--ink); }
+.wk-credit .ico svg { width: 18px; height: 18px; }
+.wk-credit::after { content: ''; position: absolute; inset: -6px; } /* zone d'appui de 44 px */
+/* Une rubrique : grandes photos sur toute la largeur (16:9), nom, quand et où, distance */
+.wk-list { display: flex; flex-direction: column; gap: 14px; padding: 0; }
+.wk-card { list-style: none; border: 2px solid var(--btn-bd); border-radius: var(--r); overflow: hidden; background: var(--btn); }
+.wk-main { display: block; width: 100%; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.wk-card-photo { aspect-ratio: 16 / 9; border-bottom: 2px solid var(--btn-bd); }
+.wk-card-text { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px 10px; }
+.wk-card-name { font-family: var(--display); font-weight: 800; font-size: var(--t18); line-height: 1.2; }
+.wk-card-sub { font-size: var(--t15); color: var(--muted); line-height: 1.3; }
+.wk-card-sub:first-of-type { color: var(--ink); font-weight: 600; }
+:root[data-look="pop"] :is(.wk-hero, .wk-tile, .wk-card) { border-width: 3px; border-color: var(--ink); box-shadow: var(--pop-shadow); }
