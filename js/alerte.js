@@ -51,7 +51,21 @@ export const TRANSPORT_SMS = '31177';
 /** v540 (mon oui du 26 nov.) : le même service par téléphone, gratuit (iledefrance-mobilites.fr, « 3117 : le numéro d'alerte »). */
 export const TRANSPORT_TEL = '3117';
 /** Le message prêt : je ne peux pas parler ; la ligne et la station, je les écris (ma position seule ne dit pas dans quel train je suis). */
-export const sms31177Text = () => 'Je ne peux pas parler. Ligne : … Station ou direction : … Ce qui se passe : ';
+export const sms31177Text = (station = '') => (station
+  ? `Je ne peux pas parler. Station la plus proche : ${station}. Ligne : … Ce qui se passe : `
+  : 'Je ne peux pas parler. Ligne : … Station ou direction : … Ce qui se passe : ');
+
+/* v556 (mes choix 1A 2A du 28 nov.) : la station dans le SMS au 31177, seulement si elle est sûre : position de moins de 2 min,
+   précise à 100 m, station à moins de 300 m. Sinon rien (sous terre, le GPS se trompe ; la ligne reste toujours à écrire). */
+export const STATION_FRESH_MS = 120000;
+export const STATION_ACC_M = 100;
+export const STATION_NEAR_M = 300;
+export function sureStation(at, near, now = Date.now()) {
+  if (!at || !Number.isFinite(at.time) || now - at.time > STATION_FRESH_MS) return '';
+  if (!Number.isFinite(at.acc) || at.acc > STATION_ACC_M) return '';
+  if (!near?.station?.n || !(near.d <= STATION_NEAR_M)) return '';
+  return near.station.n;
+}
 
 /** v485 : « Je rentre », avec l'heure d'arrivée arrondie aux 5 minutes du dessus, seulement si elle a un sens (90 min à pied au plus). */
 export const JE_RENTRE_MAX_MIN = 90;

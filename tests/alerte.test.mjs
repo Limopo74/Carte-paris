@@ -76,7 +76,7 @@ test('On te suit : sous les anciens boutons, vrai appel à un proche, Police 17,
   assert.ok(at("'Consignes officielles'") < at("'On te suit, on t\\'embête'"), 'sous les réflexes d\'attaque : rien ne bouge au-dessus');
   assert.ok(at("'On te suit, on t\\'embête'") < at("href: 'tel:17'") && at("href: 'tel:17'") < at("MASECURITE_URL, target"));
   assert.match(body, /people\.map\(\(c\) => el\('a', \{ class: 'btn', href: `tel:\$\{c\.tel\}`/, 'appeler un proche : un vrai appel');
-  assert.equal((body.match(/smsHref\(TRANSPORT_SMS|smsHref\('31177'/g) ?? []).length, 1, 'un seul bouton 31177');
+  assert.equal((body.match(/smsHref\(TRANSPORT_SMS|smsHref\('31177'|sms31177Href\(/g) ?? []).length, 1, 'un seul bouton 31177');
   assert.match(app, /const MASECURITE_URL = 'https:\/\/www\.masecurite\.interieur\.gouv\.fr\/fr';/);
 });
 

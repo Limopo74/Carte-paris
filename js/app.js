@@ -29,7 +29,7 @@ import { isExpo, lastChance, endText, weekExpos, weekText, parseGalleries, galle
 import { holidayOn } from './holidays.js';
 import { streetDeck, deckDay, deckOrigin, nearParis, STREET_ICON, STREET_LABEL, HOLIDAY_NOTE } from './parcours.js';
 import { nightNote, nextSun, sunriseMin, sunsetMin, sunText } from './soleil.js';
-import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, TRANSPORT_TEL, sms31177Text, jeRentreText, arrivalText } from './alerte.js';
+import { cleanAlertContacts, cleanTel, ALERT_MAX, sms114Text, smsProcheText, smsHref, TRANSPORT_SMS, TRANSPORT_TEL, sms31177Text, sureStation, jeRentreText, arrivalText } from './alerte.js';
 import { COMMISSARIATS_CHECKED, POLICE_TEL, hoursText as policeHours, commissariatsNear } from './commissariats.js';
 import { SEINE_URL, VIGICRUES, readSeine, seineText, seineTrend, readPpri, ppriState, ppriOut, PPRI_EDGE_M } from './crue.js';
 import { URGENCES_CHECKED, urgencesNear, telText, PHARMA_TEL, PHARMA_URL, RADIO_TEXT, VIGIPIRATE_URL } from './urgences.js';
@@ -96,7 +96,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (559)';
+const VERSION = '28 novembre 2026 (560)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -7496,6 +7496,8 @@ function secoursRow() {
    Numéros : service-public.gouv.fr, fiche F33954 (vérifiée le 25 août 2026, lue le 28 nov. 2026) : 112, 15, 17, 18, 114 (aussi par SMS), 3117. */
 const SOS_CALLS = [['112', 'Urgences 112', 'Urgences, numéro européen'], ['15', 'Samu 15', 'Samu, urgence médicale'], ['17', 'Police 17', 'Police secours'],
   ['18', 'Pompiers 18', 'Pompiers, péril ou accident'], [TRANSPORT_TEL, 'Transports 3117', 'alerte dans les transports, RATP et SNCF']];
+/** v556 (mes choix 1A 2A du 28 nov.) : le SMS au 31177, avec la station la plus proche seulement quand elle est sûre (js/alerte.js, sureStation). */
+const sms31177Href = (at) => smsHref(TRANSPORT_SMS, sms31177Text(at && stations.length ? sureStation(at, nearestStation(stations, at)) : ''));
 function openSos() {
   track('SOS');
   let at = freshHere();
@@ -7504,19 +7506,21 @@ function openSos() {
     el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico(icon, { size: 30 })), label);
   const sms = big('message-square-text', 'SMS au 114', smsHref('114', 'Je ne peux pas parler. Ce qui se passe : '), 'SMS au 114 : tu ne peux pas parler ; message prêt, tu touches Envoyer');
   const where = el('p', { class: 'summary', 'aria-live': 'polite' }, 'Recherche de ta position…');
-  const setSms = () => { if (at) sms.href = smsHref('114', sms114Text(at, addrText)); };
+  // v555 (mon « Oui rajoute » du 28 nov.) : le SMS au 31177 (RATP et SNCF ; service-public F33954), sur toute la largeur, sous le 114 : rien ne bouge
+  const sms31177 = el('a', { class: 'tool crisis-tool c-guide sos-wide', href: sms31177Href(null), 'aria-label': 'SMS au 31177, RATP et SNCF : message prêt, tu touches Envoyer' },
+    el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico('train-front', { size: 30 })), 'SMS transports 31177');
+  const setSms = () => { if (at) { sms.href = smsHref('114', sms114Text(at, addrText)); sms31177.href = sms31177Href(at); } };
   const body = el('div', { class: 'stack' },
     el('div', { class: 'tools crisis-tools sos-tools' },
       ...SOS_CALLS.map(([n, label, aria]) => big('phone', label, `tel:${n}`, `Appeler le ${n} : ${aria}`)),
       sms,
-      // v555 (mon « Oui rajoute » du 28 nov.) : le SMS au 31177 (RATP et SNCF ; service-public F33954), sur toute la largeur, sous le 114 : rien ne bouge
-      el('a', { class: 'tool crisis-tool c-guide sos-wide', href: smsHref(TRANSPORT_SMS, sms31177Text()), 'aria-label': 'SMS au 31177, RATP et SNCF : message prêt, tu touches Envoyer' },
-        el('span', { class: 'tool-ico', 'aria-hidden': 'true' }, ico('train-front', { size: 30 })), 'SMS transports 31177')),
+      sms31177),
     where,
     el('p', { class: 'help tip' }, 'Le téléphone s\'ouvre avec le numéro : c\'est toi qui lances l\'appel. Numéros : service-public.gouv.fr. Ta position part à l\'IGN pour trouver ton adresse.'));
   openSheet([ico('phone'), ' Secours'], body, { name: 'sos', again: openSos, tall: true });
   (async () => {
     try { if (!at) at = await locate(); } catch { fill(where, 'Position inconnue : donne le nom de la rue ou un repère.'); return; }
+    try { await stationsReady; } catch { /* sans la liste des stations, le SMS au 31177 reste sans station */ }
     setSms();
     fill(where, `Tu es : ${at.lat.toFixed(5)}, ${at.lng.toFixed(5)}`);
     try {
@@ -7627,7 +7631,7 @@ function openSilentAlert(at, addrOf = () => '', back = null, backName = 'Où sui
     el('a', { class: 'btn primary go-bar', href: smsHref('114', sms114Text(at, addr)), 'aria-label': 'SMS au 114 : message prêt, tu touches Envoyer' }, ico('message-square-text'), 'SMS au 114'),
     el('p', { class: 'help' }, 'Message prêt : « Je ne peux pas parler », ton adresse et tes coordonnées. Ajoute ce qui se passe, puis touche Envoyer.'),
     // v485 (mon choix C du 25 nov.) : métro, RER, bus ; sous le 114, avant les proches
-    el('a', { class: 'btn c-metro', href: smsHref(TRANSPORT_SMS, sms31177Text()), 'aria-label': 'SMS au 31177, RATP et SNCF : message prêt, tu touches Envoyer' }, ico('train-front'), 'SMS au 31177 (transports)'),
+    el('a', { class: 'btn c-metro', href: sms31177Href(at), 'aria-label': 'SMS au 31177, RATP et SNCF : message prêt, tu touches Envoyer' }, ico('train-front'), 'SMS au 31177 (transports)'),
     el('p', { class: 'help' }, 'Métro, RER, bus : agression, harcèlement ou danger. Écris la ligne et la station, puis touche Envoyer.'),
     ...(people.length
       ? [...people.map((c) => el('a', { class: 'btn', href: smsHref(c.tel, smsProcheText(at, addr)), 'aria-label': `Prévenir ${who(c)} par SMS` }, ico('users'), `Prévenir ${who(c)}`)),
@@ -15069,7 +15073,7 @@ const HELP = [
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 », « Police 17 » et « Transports 3117 » (métro, RER, bus) ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
-    '{phone} **SOS** : le rond rouge en haut de la colonne de boutons. Un appui ouvre Secours (titre sur bandeau rouge) tout de suite, sans attendre ta position : Urgences 112, Samu 15, Police 17, Pompiers 18, Transports 3117, SMS au 114 (quand tu ne peux pas parler) et, dessous, SMS transports 31177 (métro, RER, bus). Ton adresse s\'écrit dessous dès qu\'elle est trouvée, et le SMS au 114 la reprend. C\'est toi qui lances l\'appel.',
+    '{phone} **SOS** : le rond rouge en haut de la colonne de boutons. Un appui ouvre Secours (titre sur bandeau rouge) tout de suite, sans attendre ta position : Urgences 112, Samu 15, Police 17, Pompiers 18, Transports 3117, SMS au 114 (quand tu ne peux pas parler) et, dessous, SMS transports 31177 (métro, RER, bus), qui écrit la station la plus proche quand ta position est sûre. Ton adresse s\'écrit dessous dès qu\'elle est trouvée, et le SMS au 114 la reprend. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
@@ -15287,6 +15291,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{train-front} **SMS au 31177 : la station** : le message écrit « Station la plus proche : … » seulement si ta position est sûre (moins de 2 min, à 100 m près, station à moins de 300 m) ; sinon, comme avant, à remplir. La ligne reste toujours à écrire.',
     '{calendar-days} **Sorties nouvelles** : sous la bannière Ce week-end, « 12 nouvelles depuis mercredi » quand l\'agenda de la Ville a des sorties qui n\'y étaient pas à ta dernière ouverture de Sorties (selon tes types). Un appui : leur liste ; ensuite, elles ne sont plus nouvelles.',
     '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
     '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
@@ -15296,7 +15301,6 @@ const HELP = [
     '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
     '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
-    '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
