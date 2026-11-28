@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (551)';
+const VERSION = '28 novembre 2026 (552)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8823,10 +8823,12 @@ function openEventsFrom(again = null) {
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
   openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
     el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Distances depuis' },
-      opt(o?.kind === 'map', 'map', 'Le centre de la carte', 'Sans ta position', () => go('map')),
+      opt(o?.kind === 'map' && !o.area, 'map', 'Le centre de la carte', 'Sans ta position', () => go('map')),
       opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', () => eventsFromMe(again)),
       cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); go('home'); }) : null,
-      opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', () => pickEventsArea(again))),
+      // v552 (mon « Oui » du 28 nov.) : le quartier choisi à la croix a sa ligne encadrée, au lieu du centre de la carte
+      o?.area ? opt(true, 'move', 'Le quartier choisi', 'Un appui : en choisir un autre', () => pickEventsArea(again))
+        : opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', () => pickEventsArea(again))),
     foot(backBtn(again ?? openEvents))), { name: 'events-from' });
 }
 let evFrom = null; // point de départ des Sorties : ma position (Autour de moi) ou le centre de la carte (bouton de la colonne)
@@ -8834,6 +8836,7 @@ const mapPoint = () => { const c = map.getCenter(); return { lat: c.lat, lng: c.
 /** Le point de départ choisi (« map », « home », « near », une position) : les premières lignes de Sorties, aussi pour ses pages (v450). */
 function setEvFrom(start = null) {
   if (start === 'map') evFrom = mapPoint();
+  else if (start === 'area') evFrom = { ...mapPoint(), area: true }; // « Un autre quartier » : le centre de la carte, marqué choisi à la croix (v552)
   else if (start === 'home' && homeOn()) evFrom = atHome(); // v222
   else if (start && typeof start === 'object' && Number.isFinite(start.lat)) evFrom = start; // « Ma position », demandée par un appui
   else if (start === 'near' || !evFrom) evFrom = homeOn() && (!origin || ['gps', 'last', 'home'].includes(origin.kind)) ? atHome() : origin;
@@ -9267,7 +9270,7 @@ function pickEventsArea(again = null) {
   const box = document.getElementById('map');
   box.append(el('span', { class: 'area-cross', 'aria-hidden': 'true' }, ico('plus')));
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Choisir le quartier des sorties' },
-    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (again) { setEvFrom('map'); again(); } else openEvents('map'); } },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (again) { setEvFrom('area'); again(); } else openEvents('area'); } },
       el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, again ? backLabel(again) : 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, again ? 'La croix au centre, puis touche ici : distances depuis la croix' : 'La croix au centre, puis touche ici : sorties autour de la croix')),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Annuler', onclick: endPeek }, ico('x')));
@@ -15081,7 +15084,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
-    '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
+    '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',

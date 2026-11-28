@@ -195,6 +195,7 @@ const ECRANS = {
   sortiescarte: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-mapbtn').click(); await p.waitForSelector('.peek-card.deck'); await p.waitForTimeout(400); }, // v219 : le bandeau dit « Sorties · 9e » et l'heure
   sortiesphotos: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-photo').click(); await p.waitForTimeout(900); }, // v370 : l'image à droite du titre allume les photos
   sortiesdepuis: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // « Distances depuis… » : la ligne choisie se voit (28 nov.)
+  sortiesquartier: async (p) => { await ECRANS.sortiesdepuis(p); await feuille(p).locator('.menu-row', { hasText: 'Un autre quartier' }).click(); await p.locator('.peek-card .now-open').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // v552 : le quartier choisi à la croix encadré
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
