@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { TYPE_IDS, cleanEvPick, cleanThemes, mergeEvPick, themeHit, liked, passPick, pickText, pickOn } from '../js/types-sorties.js';
 
 const ev = (title, extra = {}) => ({ title, place: '', tags: '', lead: '', ...extra });
@@ -72,4 +73,15 @@ test('branché : enregistré, dans ma sauvegarde, jamais dans le fichier pour un
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(app, /function openEvTypes\(/);
   assert.match(app, /'Types de sorties'/);
+});
+
+test('hors ligne : chaque module de js/ importé par l\'appli est dans le cache (sw.js)', () => {
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const missing = [];
+  for (const f of readdirSync(new URL('../js/', import.meta.url))) {
+    if (!f.endsWith('.js')) continue;
+    const src = readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8');
+    for (const m of src.matchAll(/from '\.\/([\w-]+\.js)'/g)) if (!sw.includes(`'js/${m[1]}'`)) missing.push(`${f} → ${m[1]}`);
+  }
+  assert.deepEqual([...new Set(missing)], []);
 });
