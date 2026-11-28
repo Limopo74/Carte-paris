@@ -1,5 +1,5 @@
-// v370 : en haut de Sorties, une petite image à droite du titre allume ou éteint « Photos dans Sorties » ;
-// image pleine = photos affichées, image vide = icône du genre. Pas dans l'onglet Navigo (ses lignes n'ont pas de photo).
+// v370 : une petite image à droite du titre de Sorties allumait « Photos dans Sorties ».
+// v560 (mon choix A du 28 nov.) : le « ? » (aide de Sorties) prend sa place ; le réglage reste dans Réglages → Autres réglages → Sorties.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,11 +8,10 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const icons = readFileSync(new URL('../js/icons.js', import.meta.url), 'utf8');
 const f = app.slice(app.indexOf('async function openEvents('), app.indexOf('async function openEvents(') + 30000);
 
-test('Sorties : l\'image du titre change le même réglage que Autres réglages', () => {
-  assert.match(f, /class: 'title-maj title-photo', 'aria-pressed': String\(photosOn\)/);
-  assert.match(f, /state\.evThumbs = !photosOn; persist\(\)/);
-  assert.match(f, /ico\(photosOn \? 'image-full' : 'image'/);
-  assert.match(f, /mode === 'navigo' \? null/);
+test('Sorties : le « ? » à la place de l\'image Photos ; Photos dans Sorties reste un réglage', () => {
+  assert.doesNotMatch(f, /title-photo/);
+  assert.match(f, /class: 'title-maj title-help'[^\n]*onclick: \(\) => openSortiesHelp\(\)/);
+  assert.match(app, /evThumbs/); // le réglage existe toujours
 });
 
 test('l\'icône pleine existe', () => {

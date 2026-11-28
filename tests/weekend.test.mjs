@@ -41,7 +41,7 @@ test('rubriques : ordre fixe, vides masquées, genre inconnu dans « Autres sort
 
 test('l\'écran : bannière en tête de Sorties, point de départ en icône, © sur chaque grande photo', () => {
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-  assert.match(app, /openSheet\(\[\.\.\.title, photoBtn, gear\]\.filter\(Boolean\), el\('div', \{ class: 'stack ev-page' \},\n    weekendHero\(/, 'la bannière avant les onglets (mon choix 1B)');
+  assert.match(app, /openSheet\(\[\.\.\.title, helpBtn, gear\]\.filter\(Boolean\), el\('div', \{ class: 'stack ev-page' \},\n    sortiesIntro\(\),[^\n]*\n    weekendHero\(/, 'la bannière avant les onglets (mon choix 1B ; v560 : sous « Sorties en 3 choses », la première fois)');
   const ev = app.slice(app.indexOf('async function openEvents('), app.indexOf('const EV_ROUND'));
   assert.equal(/class: 'ev-from'/.test(ev), false, 'plus de grand bouton « Centre de la carte » en haut de Sorties');
   assert.match(ev, /const fromBtn = evFromBtn\(o, null\);/, 'le point de départ en icône, sans passer l\'appui comme « again » (défaut d\'avant : « again is not a function »)');

@@ -96,7 +96,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (560)';
+const VERSION = '28 novembre 2026 (561)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8984,6 +8984,44 @@ function openEvTypes(back, draft = null) {
       el('button', { type: 'button', class: 'btn c-add solid', onclick: save }, ico('check'), 'Enregistrer')))), { name: 'ev-types' });
 }
 
+/* ---------- v560 (mes choix du 28 nov. : « Tout », 3A, 4A, A) : Sorties pour une débutante ---------- */
+const INTRO_KEY = 'carte-paris.sorties-3-choses'; // gardé sur le téléphone, hors sauvegarde : « Compris » une fois, plus jamais
+/** C : à la toute première ouverture, trois choses à savoir, et « Compris ». */
+function sortiesIntro() {
+  let seen = true;
+  try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch { /* mémoire fermée : rien à montrer */ }
+  if (seen) return null;
+  const row = (icon, b, txt) => el('div', { class: 'intro-row' }, el('span', { class: 'intro-ico', 'aria-hidden': 'true' }, ico(icon, { size: 30 })), el('span', {}, el('b', {}, b), ` ${txt}`));
+  const box = el('div', { class: 'intro-card', role: 'region', 'aria-label': 'Sorties en 3 choses' },
+    el('b', { class: 'intro-title' }, 'Sorties en 3 choses'),
+    row('calendar-days', 'Ce week-end :', 'samedi et dimanche, en photos.'),
+    row('list-filter', 'Types :', 'garde ce qui t\'intéresse.'),
+    row('circle-help', '? :', 'l\'aide de Sorties, quand tu veux.'),
+    el('button', { type: 'button', class: 'btn c-disc solid', onclick: () => { try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* rien */ } box.remove(); } }, 'Compris'));
+  return box;
+}
+/** B : « Comment ça marche » : chaque bouton du haut de Sorties en grand ; une ligne touchée ferme l'aide et entoure le vrai bouton. */
+function openSortiesHelp() {
+  track('Aide de Sorties');
+  const show = (sel, i = 0) => () => { eventsMode = 'all'; openEvents().then(() => setTimeout(() => tipRing(document.querySelectorAll(`#sheetBody ${sel}`)[i] ?? null), 150)); };
+  const R = [
+    ['search', 'Chercher', 'un nom, un mot, une salle', show('.ev-findrow')],
+    ['map-pin', 'Départ', 'd\'où partent les distances : toi, chez toi, un quartier', show('.ev-findline .ev-fromicon:not(.ev-typesbtn)')],
+    ['list-filter', 'Types', 'garde seulement ce qui te plaît', show('.ev-typesbtn')],
+    ['sun', 'Dehors', 'seulement en plein air', show('.ev-where', 0)],
+    ['umbrella', 'Abri', 'seulement à l\'intérieur', show('.ev-where', 1)],
+    ['map', 'Voir sur la carte', 'la liste en ronds sur la carte', show('.ev-mapbtn')],
+    ['calendar-days', 'Ce week-end', 'samedi et dimanche, par rubrique', show('.wk-hero')],
+    ['heart', 'Cœur', 'cite un de tes artistes ou thèmes', null],
+  ];
+  openSheet([ico('circle-help'), ' Comment ça marche'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, 'Touche une ligne : l\'appli te montre le bouton.'),
+    el('div', { class: 'menu help-pics' }, R.map(([icon, t, sub, go]) => el(go ? 'button' : 'div', { class: 'menu-row help-pic', ...(go ? { type: 'button', onclick: go } : {}) },
+      el('span', { class: `help-big${icon === 'heart' ? ' ev-love' : ''}`, 'aria-hidden': 'true' }, ico(icon, { size: 30 })),
+      el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, t), el('span', { class: 'menu-sub' }, sub))))),
+    foot(backBtn(named('Sorties', () => openEvents())))), { name: 'sorties-aide' });
+}
+
 const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), le temps de la session
 /** Sorties → « Autour de … ▾ » : d'où partent les distances. again (v450) : la page de Sorties à rouvrir (Grands lieux…), sinon Sorties. */
 function openEventsFrom(again = null) {
@@ -9084,10 +9122,10 @@ let weekendDay = 'both'; // 'both', 'sam' ou 'dim', le temps de la session
 const weekendCache = new Map(); // « jours|point|distance » → rubriques, le temps de la session
 /* v555 (mes choix 8A 12A du 28 nov.) : Ce week-end montre tout Paris, sans distance ; le viseur (wkMe) allume les distances depuis
    ma position, le temps de la session, d'une rubrique à l'autre ; une position de plus de 10 min ne sert plus (règle de la v450). */
-let wkMe = null;
+let wkMe = null; // v560 (mon choix 2A du 28 nov.) : le point de départ de Ce week-end (null : tout Paris, sans distance)
 const WK_ALL = { lat: PARIS[0], lng: PARIS[1] }; // seulement pour retirer les doublons : aucune distance n'est montrée
 async function weekendData() {
-  if (wkMe && Date.now() - (wkMe.time ?? 0) > FRESH_MS) wkMe = null;
+  if (wkMe?.kind === 'gps' && Date.now() - (wkMe.time ?? 0) > FRESH_MS) wkMe = null; // une position de plus de 10 min ne sert plus
   const days = weekendDays();
   const k = `${days.map((d) => d.date.toDateString()).join('+')}|${wkMe ? `${wkMe.lat.toFixed(4)},${wkMe.lng.toFixed(4)}` : 'tout'}`;
   if (weekendCache.has(k)) return weekendCache.get(k);
@@ -9108,18 +9146,35 @@ function weekendPick(data, day = weekendDay) {
   return weekendGroups(mergeWeekend(data.byDay.filter((b) => use.includes(b.key))).filter((x) => evOk(x.e)), weekendGenre) // v554 : mes types de sorties
     .map((g) => ({ ...g, items: weekendOrder(g.items, { lastDay, expo: isExpo, liked: evLiked }) })); // v555 (9A) : par heure, ou par distance avec le viseur
 }
-/** Le viseur de Ce week-end (8A) : un appui demande ma position (rien n'est envoyé) et allume les distances ; un autre revient à tout Paris. */
-function wkMeBtn(again) {
-  const on = Boolean(wkMe);
-  return el('button', { type: 'button', class: 'btn ev-fromicon ev-typesbtn wk-mebtn', 'aria-pressed': String(on), title: 'Distances depuis toi',
-    'aria-label': on ? 'Distances depuis toi : allumé. Revenir à tout Paris, sans distance' : 'Tout Paris, sans distance. Afficher les distances depuis toi',
-    onclick: async () => {
-      if (wkMe) { wkMe = null; again(); return; }
-      waitToast('Recherche de ta position…');
-      try { const pos = await locate(); hideToast(); wkMe = { lat: pos.lat, lng: pos.lng, time: pos.time ?? Date.now(), kind: 'gps' }; again(); } catch (e) { toast(e.message, true); }
-    } }, ico('locate-fixed', { size: 24 }));
+/** Le point de départ de Ce week-end (mon choix 2A du 28 nov.) : l'icône de Sorties, sa petite flèche ; un appui ouvre « Distances depuis… ». */
+function wkMeBtn(again, page = 'Ce week-end') {
+  const o = wkMe;
+  const label = o ? evFromLabel(o).join('') : 'Tout Paris, sans distance';
+  return el('button', { type: 'button', class: 'btn ev-fromicon wk-mebtn', title: label, 'aria-label': `Point de départ des distances : ${label}. Changer`, onclick: () => openWkFrom(again, page) },
+    ico(!o ? 'map-pin-off' : o.kind === 'map' ? 'map-pin' : o.kind === 'home' ? 'sofa' : 'locate-fixed', { size: 24 }), el('span', { class: 'ev-fromdot', 'aria-hidden': 'true' }, ico('chevron-down', { size: 12 })));
 }
-const wkScope = () => (wkMe ? 'Du plus proche au plus loin de toi' : 'Tout Paris, par heure');
+/** « Distances depuis… » de Ce week-end : « Tout Paris, sans distance » en tête (coché au départ), puis comme Sorties. */
+function openWkFrom(again, page = 'Ce week-end') {
+  const o = wkMe;
+  const set = (x) => { wkMe = x; again(); };
+  const opt = (on, icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', role: 'radio', 'aria-checked': String(on), onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
+  const me = async () => {
+    waitToast('Recherche de ta position…');
+    try { const pos = await locate(); hideToast(); set({ lat: pos.lat, lng: pos.lng, time: pos.time ?? Date.now(), kind: 'gps' }); } catch (e) { toast(e.message, true); }
+  };
+  openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
+    el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Distances depuis' },
+      opt(!o, 'map-pin-off', 'Tout Paris, sans distance', 'Par heure : pour préparer de chez toi', () => set(null)),
+      opt(o?.kind === 'map' && !o.area, 'map', 'Le centre de la carte', 'Sans ta position', () => set(mapPoint())),
+      opt(o?.kind === 'gps', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', me),
+      cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', homeShort(state.home), () => set({ ...homeOrigin(cleanHome(state.home)), kind: 'home' })) : null,
+      o?.area ? opt(true, 'move', 'Le quartier choisi', 'Un appui : en choisir un autre', () => pickEventsArea(again, (p) => { wkMe = p; }))
+        : opt(false, 'move', 'Un autre quartier', 'Déplace la carte : une croix marque le point', () => pickEventsArea(again, (p) => { wkMe = p; }))),
+    foot(backBtn(named(page, again)))), { name: 'wk-from' });
+}
+const wkScope = () => (wkMe ? `Du plus proche au plus loin ${evFromWords(wkMe)}` : 'Tout Paris, par heure');
 /** La bannière de Sorties : trois photos de rubriques différentes (les plus proches), « Ce week-end » et les jours. */
 function weekendHero(o) {
   const days = weekendDays();
@@ -9217,7 +9272,7 @@ function openWeekendRubrique(o, id, back) {
     tapRounds(nearLayer, peek.items.map((x) => ({ lat: x.lat, lng: x.lng, style: EV_ROUND })), (k) => showPeek({ ...peek, start: k, stay: true }));
     fill(list,
       el('p', { class: 'wk-scope' }, wkScope()),
-      el('div', { class: 'ev-findline' }, el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'), wkMeBtn(again)), // v555 (7A)
+      el('div', { class: 'ev-findline' }, el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'), wkMeBtn(again, g.name)), // v555 (7A) ; v560 : le retour dit le nom de la rubrique
       evTypesNote(again),
       el('ul', { class: 'items wk-list' }, shown.map((x) => {
         const e = x.e; const genre = weekendGenre(e);
@@ -9307,7 +9362,7 @@ async function openEvents(start = null) {
   let filters = null; // une seule rangée de puces sous le point de départ
   if (mode === 'all' || mode === 'free') {
     filters = [['out', 'sun', 'Dehors'], ['in', 'umbrella', 'À l\'abri']].map(([w, icon, label]) =>
-      el('button', { type: 'button', class: 'chip icon-only ev-where', 'aria-pressed': String(evWhere === w), 'aria-label': `${label}${evWhere === w ? ' : allumé. Tout voir' : ''}`, title: label, onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), el('span', { class: 'ev-where-label' }, label)));
+      el('button', { type: 'button', class: 'chip icon-only ev-where', 'aria-pressed': String(evWhere === w), 'aria-label': `${label}${evWhere === w ? ' : allumé. Tout voir' : ''}`, title: label, onclick: () => { evWhere = evWhere === w ? '' : w; openEvents(); } }, ico(icon), el('span', { class: 'ev-where-label' }, label), el('span', { class: 'ev-word', 'aria-hidden': 'true' }, w === 'in' ? 'Abri' : label))); // v560 (A) : le mot sous l'icône
     notes.push('Dehors ou à l\'abri : c\'est l\'organisateur qui l\'indique dans l\'agenda de la Ville (une sortie sans l\'indication est masquée par ces filtres) ; un marché couvert est à l\'abri, un marché découvert dehors. Musées et Kiosque Théâtre comptent à l\'abri.');
   }
 
@@ -9393,10 +9448,13 @@ async function openEvents(start = null) {
       const inVenues = venueShownKeys();
       const notShown = (e) => !inVenues.has(evKey(e));
       const todayByKey = new Map(near3.map((e) => [evKey(e), e]));
+      const venues = venueBox(back, (w) => { const t = todayByKey.get(evKey(w)); return t ? eventRow(t, back, { last: lastIds.has(t) }) : null; });
+      const noVenue = !cleanVenues(state.venues).length; // v560 (D) : sans salle suivie, Mes salles passe sous « En ce moment »
       body = [
-        venueBox(back, (w) => { const t = todayByKey.get(evKey(w)); return t ? eventRow(t, back, { last: lastIds.has(t) }) : null; }),
+        noVenue ? null : venues,
         ...top,
         ...section('now', 'En ce moment', now.filter((x) => !x.e || notShown(x.e)).slice(0, 25).map((x) => card(x)), 'sorties'),
+        noVenue ? venues : null,
         ...section('later', 'Plus tard aujourd\'hui', later.filter((x) => !x.e || notShown(x.e)).map((x) => card(x)), 'sorties'),
         ...section('last', 'Dernière chance', last.filter(notShown).map((e) => eventRow(e, back, { last: true })), 'expos'),
         !items.length && !last.length ? el('p', { class: 'empty' }, `Aucune sortie${whereOn === 'out' ? ' dehors' : whereOn === 'in' ? ' à l\'abri' : ''} trouvée aujourd'hui à moins de ${evKm}.`) : null,
@@ -9413,22 +9471,20 @@ async function openEvents(start = null) {
   // viseur : toi ; canapé : chez toi ; train : une station), sa petite flèche dit qu'on le change ; « Carte » devient « Voir sur la carte »
   const fromBtn = evFromBtn(o, null);
   const typesBtn = mode === 'all' || mode === 'free' ? evTypesBtn(() => openEvents()) : null; // v554 (mon choix 3A du 28 nov.)
+  if (typesBtn) { fromBtn.append(el('span', { class: 'ev-word', 'aria-hidden': 'true' }, 'Départ')); typesBtn.append(el('span', { class: 'ev-word', 'aria-hidden': 'true' }, 'Types')); } // v560 (A)
   const mapBtn = el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !mapList.length, onclick: () => showPeek(peekOpts) }, ico('map'), 'Voir sur la carte');
-  // v370 (ma demande du 21 nov.) : à droite du titre, une petite icône allume ou éteint « Photos dans Sorties » (le même réglage qu'Autres réglages) ;
-  // image pleine = photos affichées, image vide = icônes du genre ; pas dans Avantages Navigo (ses lignes n'ont pas de photo)
-  const photosOn = state.evThumbs === true;
-  const photoBtn = mode === 'navigo' ? null : el('button', { type: 'button', class: 'title-maj title-photo', 'aria-pressed': String(photosOn),
-    'aria-label': photosOn ? 'Photos dans Sorties : allumé. Éteindre' : 'Photos dans Sorties : éteint. Allumer', title: photosOn ? 'Photos affichées' : 'Photos masquées',
-    onclick: () => { state.evThumbs = !photosOn; persist(); toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre'); openEvents(); } },
-  ico(photosOn ? 'image-full' : 'image', { size: 18 }));
+  // v370 : l'image « Photos dans Sorties » du titre est retirée en v560 (le « ? » prend sa place) ; le réglage reste dans Réglages → Autres réglages → Sorties
   const whereBox = filters && mode !== 'navigo' ? el('div', { class: 'ev-wherebox', role: 'group', 'aria-label': 'Dehors ou à l\'abri' }, ...filters) : null;
-  openSheet([...title, photoBtn, gear].filter(Boolean), el('div', { class: 'stack ev-page' },
+  // v560 (mon choix A du 28 nov.) : le « ? » prend la place de l'image Photos (le réglage reste dans Réglages → Autres réglages → Sorties)
+  const helpBtn = el('button', { type: 'button', class: 'title-maj title-help', 'aria-label': 'Comment ça marche : l\'aide de Sorties', title: 'Comment ça marche', onclick: () => openSortiesHelp() }, ico('circle-help', { size: 20 }));
+  openSheet([...title, helpBtn, gear].filter(Boolean), el('div', { class: 'stack ev-page' },
+    sortiesIntro(), // v560 (C) : la toute première fois, « Sorties en 3 choses »
     weekendHero(o), // v546 (mon choix 1B du 28 nov.) : la bannière « Ce week-end », en tête, dans les quatre onglets
     newsBox(named('Sorties', () => openEvents())), // v556 (N2 A) : les sorties nouvelles, seulement s'il y en a
     seg, // les onglets restent toujours à la même place
     /* v212 : Chercher seulement là où il cherche (Tout, Gratuit, Expos ; pas Navigo) ; v546 : « Chercher » seul quand Dehors et À l'abri sont là */
-    el('div', { class: 'ev-findline' },
-      FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', 'aria-label': FIND_LABEL[mode], onclick: () => openFindOutings('', mode) }, ico('search'), el('span', { class: 'ev-findword' }, whereBox ? 'Chercher' : FIND_LABEL[mode])) : mapBtn, // v554 : la loupe seule quand le filtre des types est là, en Normal (le nom reste pour TalkBack)
+    el('div', { class: `ev-findline${typesBtn ? ' ev-words' : ''}` }, // v560 (A) : un mot sous chaque icône
+      FIND_LABEL[mode] ? el('button', { type: 'button', class: 'btn c-disc ev-findrow', 'aria-label': FIND_LABEL[mode], onclick: () => openFindOutings('', mode) }, ico('search'), el('span', { class: 'ev-word', 'aria-hidden': 'true' }, 'Chercher'), el('span', { class: 'ev-findword' }, whereBox ? 'Chercher' : FIND_LABEL[mode])) : mapBtn, // v554 : la loupe seule quand le filtre des types est là, en Normal (le nom reste pour TalkBack)
       fromBtn,
       typesBtn,
       whereBox),
@@ -9469,13 +9525,13 @@ let peekOff = null; // ce qu'un « Voir sur la carte » doit défaire en partant
 function endPeek() { peekLayer.clearLayers(); peekCard?.remove(); peekCard = null; peekOff?.(); peekOff = null; document.querySelector('.area-cross')?.remove(); }
 
 /** Sorties → « Autre quartier » : la page se ferme, une croix marque le centre ; on déplace la carte puis on touche le bandeau. */
-function pickEventsArea(again = null) {
+function pickEventsArea(again = null, onPick = null) { // onPick (v560) : Ce week-end garde son propre point de départ
   closeSheet();
   endPeek();
   const box = document.getElementById('map');
   box.append(el('span', { class: 'area-cross', 'aria-hidden': 'true' }, ico('plus')));
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Choisir le quartier des sorties' },
-    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (again) { setEvFrom('area'); again(); } else openEvents('area'); } },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (onPick) { onPick({ ...mapPoint(), area: true }); again?.(); } else if (again) { setEvFrom('area'); again(); } else openEvents('area'); } },
       el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, again ? backLabel(again) : 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, again ? 'La croix au centre, puis touche ici : distances depuis la croix' : 'La croix au centre, puis touche ici : sorties autour de la croix')),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Annuler', onclick: endPeek }, ico('x')));
@@ -15291,6 +15347,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{circle-help} **Sorties plus simple** : un mot sous chaque bouton du haut (Chercher, Départ, Types, Dehors, Abri) ; le « ? » du titre ouvre « Comment ça marche » (touche une ligne : le bouton est entouré) ; « Sorties en 3 choses » la première fois. Ce week-end : le bouton de départ ouvre « Distances depuis… », « Tout Paris, sans distance » en tête. Photos dans Sorties : {settings} → Autres réglages → Sorties.',
     '{train-front} **SMS au 31177 : la station** : le message écrit « Station la plus proche : … » seulement si ta position est sûre (moins de 2 min, à 100 m près, station à moins de 300 m) ; sinon, comme avant, à remplir. La ligne reste toujours à écrire.',
     '{calendar-days} **Sorties nouvelles** : sous la bannière Ce week-end, « 12 nouvelles depuis mercredi » quand l\'agenda de la Ville a des sorties qui n\'y étaient pas à ta dernière ouverture de Sorties (selon tes types). Un appui : leur liste ; ensuite, elles ne sont plus nouvelles.',
     '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
@@ -15300,7 +15357,6 @@ const HELP = [
     '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
     '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
     '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
-    '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

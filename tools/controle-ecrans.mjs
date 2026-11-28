@@ -193,7 +193,7 @@ const ECRANS = {
   categorie: async (p) => { await reglage(p, 'Catégories et listes'); await p.waitForTimeout(300); await feuille(p).locator('button', { hasText: 'Culture' }).first().click(); await p.waitForTimeout(300); await feuille(p).locator('label', { hasText: 'Déjà visité' }).scrollIntoViewIfNeeded(); },
   // v166 : feuille réduite, Mes salles
   sortiescarte: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-mapbtn').click(); await p.waitForSelector('.peek-card.deck'); await p.waitForTimeout(400); }, // v219 : le bandeau dit « Sorties · 9e » et l'heure
-  sortiesphotos: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-photo').click(); await p.waitForTimeout(900); }, // v370 : l'image à droite du titre allume les photos
+  sortiesphotos: async (p) => { await p.evaluate(() => { const k = 'carte-paris.v1'; const s = JSON.parse(localStorage.getItem(k)); s.evThumbs = true; localStorage.setItem(k, JSON.stringify(s)); }); await ECRANS.sorties(p); }, // v370, v560 : Photos dans Sorties allumé (l'image du titre est devenue le « ? »)
   sortiesdepuis: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // « Distances depuis… » : la ligne choisie se voit (28 nov.)
   sortiesquartier: async (p) => { await ECRANS.sortiesdepuis(p); await feuille(p).locator('.menu-row', { hasText: 'Un autre quartier' }).click(); await p.locator('.peek-card .now-open').click(); await p.waitForTimeout(1200); await feuille(p).locator('.ev-fromicon').first().click(); await p.waitForTimeout(400); }, // v552 : le quartier choisi à la croix encadré
   weekend: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.wk-hero').click(); await p.waitForTimeout(1200); }, // v546
@@ -202,9 +202,13 @@ const ECRANS = {
   sortiesfiltre: async (p) => { await ECRANS.sortiestypes(p); for (const t of ['scene', 'famille', 'cine', 'balade', 'chiner', 'fete', 'atelier', 'autre']) await feuille(p).locator(`[data-type="${t}"]`).click();
     await feuille(p).locator('.ev-themeadd input').fill('jazz'); await feuille(p).locator('.ev-themeadd .btn').click(); await p.waitForTimeout(300);
     await feuille(p).locator('.sheet-foot .btn.c-add, .btn.c-add.solid').last().click(); await p.waitForTimeout(1000); }, // v554 : Expos et Concerts, et le thème jazz
-  weekendviseur: async (p) => { await ECRANS.weekendrub(p); await feuille(p).locator('.wk-mebtn').click(); await p.waitForTimeout(1500); }, // v555 : le viseur allume les distances
+  weekendviseur: async (p) => { await ECRANS.weekenddepart(p); await feuille(p).locator('.menu-row', { hasText: 'Ma position' }).click(); await p.waitForTimeout(1500); }, // v560 : « Ma position » dans Distances depuis…
   nouvelles: async (p) => { await p.evaluate(() => localStorage.setItem('carte-paris.nouvelles', JSON.stringify({ at: Date.now() - 3 * 864e5, seen: ['101', '102'], fresh: [], since: null }))); await ECRANS.sorties(p); await p.waitForTimeout(800); }, // v556 : 3 nouvelles depuis 3 jours
   nouvelleslist: async (p) => { await ECRANS.nouvelles(p); await feuille(p).locator('.news-btn').click(); await p.waitForTimeout(800); },
+  sortiesintro: async (p) => { await p.evaluate(() => localStorage.removeItem('carte-paris.sorties-3-choses')); await ECRANS.sorties(p); }, // v560 (C)
+  sortiesaide: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetTitle .title-help').click(); await p.waitForTimeout(400); }, // v560 (B)
+  sortiesmontre: async (p) => { await ECRANS.sortiesaide(p); await feuille(p).locator('.help-pic').nth(2).click(); await p.waitForTimeout(900); }, // v560 : « Types » entouré
+  weekenddepart: async (p) => { await ECRANS.weekendrub(p); await feuille(p).locator('.wk-mebtn').click(); await p.waitForTimeout(400); }, // v560 (2A)
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },
@@ -394,6 +398,7 @@ for (const [vw, vh] of LARGEURS) for (const theme of THEMES) {
   await page.route(/query\.wikidata\.org/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(WIKIDATA) })); // la dernière route enregistrée gagne
   await page.goto(URL_APPLI);
   // TEXTE=grand ou tresgrand (v144) : contrôle avec la taille du texte choisie ; LOOK=verre (v452) : avec le style Verre (le sombre est toujours Signalétique)
+  await page.evaluate(() => localStorage.setItem('carte-paris.sorties-3-choses', '1')); // v560 : « Sorties en 3 choses » déjà vue (écran sortiesintro à part)
   await page.evaluate(([pts, plans, textSize, outings, artists, venues, notes, look]) => localStorage.setItem('carte-paris.v1', JSON.stringify({ points: pts, plans, outings, artists, venues, notes, layoutV: 3, lastExport: Date.now(), textSize, look })), [LIEUX, PLANS, process.env.TEXTE || 'normal', OUTINGS, ARTISTS, VENUES, NOTES, process.env.LOOK || 'papier']);
   for (const nom of choisis) {
     await page.setViewportSize({ width: vw, height: vh });

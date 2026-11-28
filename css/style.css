@@ -1815,3 +1815,29 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 .news-text { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root:is([data-text="grand"], [data-text="tresgrand"]) .news-text { white-space: normal; } /* rien de coupé par « … » */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .news-btn { min-height: var(--h); padding-block: 6px; }
+/* v560 (mes choix du 28 nov. : « Tout », 3A, 4A, A) : Sorties pour une débutante */
+/* A : un mot sous chaque icône de la ligne de Chercher (petit, gras, couleur de l'icône) ; en Grand et Très grand, Chercher et
+   Dehors / À l'abri gardent leur mot à côté (la ligne passe sur deux rangées), Départ et Types gardent le mot dessous */
+.ev-words > .btn, .ev-words .chip { flex-direction: column; gap: 3px; min-height: 64px; padding-block: 4px; }
+.ev-word { font-size: 13px; font-weight: 800; line-height: 1; color: inherit; white-space: nowrap; }
+.ev-words .ev-findword { display: none; }
+.ev-words .ev-fromdot { bottom: auto; top: 3px; right: 3px; }
+.ev-words .ev-typesnum { top: 3px; right: 6px; }
+.ev-words .ev-where-label { display: none; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .ev-findrow, :root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .chip { flex-direction: row; min-height: var(--h); }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .ev-findrow .ev-word, :root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .chip .ev-word { display: none; }
+:root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .ev-findword, :root:is([data-text="grand"], [data-text="tresgrand"]) .ev-words .ev-where-label { display: inline; }
+/* B : « Comment ça marche » : chaque bouton en grand */
+.help-pic { gap: 12px; }
+.help-big { flex: none; width: 56px; height: 56px; border: 2px solid var(--line); border-radius: var(--r); display: flex; align-items: center; justify-content: center; color: var(--disc); }
+.help-big.ev-love { margin: 0; color: var(--fav); }
+.help-big.ev-love svg { fill: currentColor; }
+/* C : « Sorties en 3 choses », la toute première fois */
+.intro-card { border: 2px solid var(--ink); border-radius: var(--r); padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.intro-title { font-size: 18px; }
+.intro-row { display: flex; gap: 12px; align-items: center; }
+.intro-ico { flex: none; width: 36px; display: flex; justify-content: center; color: var(--disc); }
+.intro-card > .btn { width: 100%; }
+/* v560 : avec un mot dessous, les boutons ronds (sombre, Pop…) deviennent des carrés arrondis : le mot ne sort pas du cercle */
+.ev-words > .btn, .ev-words .chip { border-radius: var(--r); }
+.ev-words .ev-word { max-width: 100%; overflow: hidden; }

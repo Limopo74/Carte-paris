@@ -16,7 +16,7 @@ const body = (name) => {
 
 test('1A : Dehors et À l\'abri sont sur la ligne de Chercher, avec un mot visible en Grand et Très grand', () => {
   const ev = body('openEvents');
-  assert.match(ev, /class: 'ev-findline'/);
+  assert.match(ev, /class: `ev-findline\$\{typesBtn \? ' ev-words' : ''\}`/);
   assert.match(ev, /const whereBox = [^\n]*'ev-wherebox'/); // v546 : la boîte est préparée avant, puis posée dans la ligne
   assert.match(ev, /ev-findline[\s\S]{0,700}fromBtn,\n      typesBtn,\n      whereBox\)/, 'les puces sont dans la ligne de Chercher'); // v554 : le filtre des types entre le point de départ et les puces
   assert.match(ev, /'aria-label': `\$\{label\}/, 'chaque puce garde son nom pour TalkBack');
