@@ -64,3 +64,28 @@ test('v550 : une grande photo de Ce week-end est un décor (alt vide), le titre 
   assert.match(f, /el\('img', \{ src: e\.cover, alt: '',/);
   assert.doesNotMatch(f, /coverAlt/);
 });
+
+// v555 (mes choix 8A à 12A du 28 nov.) : tout Paris, sans distance
+import { areaText, weekendOrder } from '../js/weekend.js';
+test('11A : l\'arrondissement d\'après le code postal ; hors Paris la ville ; rien sinon', () => {
+  assert.equal(areaText({ zip: '75015' }), '15e');
+  assert.equal(areaText({ zip: '75001' }), '1er');
+  assert.equal(areaText({ zip: '75020' }), '20e');
+  assert.equal(areaText({ zip: '75116' }), '16e');
+  assert.equal(areaText({ zip: '75021' }), '');
+  assert.equal(areaText({ zip: '93200', city: 'Saint-Denis' }), 'Saint-Denis');
+  assert.equal(areaText({ zip: '', city: 'Paris' }), '');
+  assert.equal(areaText({}), '');
+});
+test('9A : expos qui ferment ce week-end, puis par heure, puis les autres expos ; mes thèmes d\'abord ; avec le viseur, par distance', () => {
+  const lastDay = new Date(2026, 10, 29, 23, 59);
+  const ex = (title, end) => ({ e: { title, end, expo: true }, d: null, slot: {} });
+  const ev = (title, h) => ({ e: { title }, d: null, slot: { sam: new Date(2026, 10, 28, h) } });
+  const items = [ex('Expo longue', new Date(2027, 0, 10)), ev('Concert 20 h', 20), ex('Expo dernier jour', new Date(2026, 10, 29, 18)), ev('Atelier 10 h', 10), ex('Expo décembre', new Date(2026, 11, 5))];
+  const out = weekendOrder(items, { lastDay, expo: (e) => e.expo === true });
+  assert.deepEqual(out.map((x) => x.e.title), ['Expo dernier jour', 'Atelier 10 h', 'Concert 20 h', 'Expo décembre', 'Expo longue']);
+  const loved = weekendOrder(items, { lastDay, expo: (e) => e.expo === true, liked: (e) => e.title === 'Expo longue' });
+  assert.equal(loved[0].e.title, 'Expo longue');
+  const near = weekendOrder([{ e: { title: 'Loin' }, d: 900, slot: {} }, { e: { title: 'Près' }, d: 100, slot: {} }], { lastDay });
+  assert.deepEqual(near.map((x) => x.e.title), ['Près', 'Loin']);
+});

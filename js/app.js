@@ -82,7 +82,7 @@ import { oneFingerZoom } from './zoom-doigt.js';
 import { NAMES_MIN_ZOOM, shortName, keepNames } from './noms.js';
 import { LAYER_ZOOM, VELIB_RECHECK_MS, inBox, hourText, velibOld, layerNote as layerNoteOf } from './calques.js';
 import { CHECK_MAX, pointCheck, pickChecks, checkWhat } from './a-verifier.js';
-import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES } from './weekend.js';
+import { weekendDays, weekendShort, mergeWeekend, weekendGroups, weekendWhen, WEEKEND_RUBRIQUES, areaText, weekendOrder } from './weekend.js';
 import { TYPE_IDS, cleanEvPick, cleanThemes, passPick, liked, pickText } from './types-sorties.js';
 import { cleanCimetieres, cimMarkShown, cimHours, gateFor, tombPlace, tombHelp, shortWhat, wikiOf, sortTombs, EVACUATION_MIN } from './cimetieres.js';
 import { DMR_ZOOM, DMR_LEVELS, cleanDmr, dmrInBox, dmrPeriod, dmrLegend } from './dansmarue.js';
@@ -95,7 +95,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (557)';
+const VERSION = '28 novembre 2026 (558)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -9022,12 +9022,19 @@ async function swipeEventsTab(step) {
    que Sorties. Les photos sont celles de l'agenda (cdn.paris.fr) ; « © » sur chaque grande photo montre son auteur (mon choix 5A). */
 let weekendDay = 'both'; // 'both', 'sam' ou 'dim', le temps de la session
 const weekendCache = new Map(); // « jours|point|distance » → rubriques, le temps de la session
-async function weekendData(o) {
+/* v555 (mes choix 8A 12A du 28 nov.) : Ce week-end montre tout Paris, sans distance ; le viseur (wkMe) allume les distances depuis
+   ma position, le temps de la session, d'une rubrique à l'autre ; une position de plus de 10 min ne sert plus (règle de la v450). */
+let wkMe = null;
+const WK_ALL = { lat: PARIS[0], lng: PARIS[1] }; // seulement pour retirer les doublons : aucune distance n'est montrée
+async function weekendData() {
+  if (wkMe && Date.now() - (wkMe.time ?? 0) > FRESH_MS) wkMe = null;
   const days = weekendDays();
-  const evM = tune('eventsM');
-  const k = `${days.map((d) => d.date.toDateString()).join('+')}|${o.lat.toFixed(4)},${o.lng.toFixed(4)}|${evM}`;
+  const k = `${days.map((d) => d.date.toDateString()).join('+')}|${wkMe ? `${wkMe.lat.toFixed(4)},${wkMe.lng.toFixed(4)}` : 'tout'}`;
   if (weekendCache.has(k)) return weekendCache.get(k);
-  const byDay = await Promise.all(days.map(async (d) => ({ key: d.key, items: nearbyEvents(await eventsOfDay(d.date, isExpo), o, evM) })));
+  const byDay = await Promise.all(days.map(async (d) => {
+    const list = await eventsOfDay(d.date, isExpo);
+    return { key: d.key, items: wkMe ? nearbyEvents(list, wkMe, Infinity) : nearbyEvents(list, WK_ALL, Infinity).map((e) => ({ ...e, d: null })) };
+  }));
   const out = { days, byDay };
   weekendCache.set(k, out);
   return out;
@@ -9036,8 +9043,23 @@ const weekendGenre = (e) => genreOf(e, { expo: isExpo(e) });
 function weekendPick(data, day = weekendDay) {
   const keys = data.days.map((d) => d.key);
   const use = day !== 'both' && keys.includes(day) ? [day] : keys;
-  return weekendGroups(mergeWeekend(data.byDay.filter((b) => use.includes(b.key))).filter((x) => evOk(x.e)), weekendGenre); // v554 : mes types de sorties
+  const last = data.days[data.days.length - 1].date;
+  const lastDay = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59);
+  return weekendGroups(mergeWeekend(data.byDay.filter((b) => use.includes(b.key))).filter((x) => evOk(x.e)), weekendGenre) // v554 : mes types de sorties
+    .map((g) => ({ ...g, items: weekendOrder(g.items, { lastDay, expo: isExpo, liked: evLiked }) })); // v555 (9A) : par heure, ou par distance avec le viseur
 }
+/** Le viseur de Ce week-end (8A) : un appui demande ma position (rien n'est envoyé) et allume les distances ; un autre revient à tout Paris. */
+function wkMeBtn(again) {
+  const on = Boolean(wkMe);
+  return el('button', { type: 'button', class: 'btn ev-fromicon ev-typesbtn wk-mebtn', 'aria-pressed': String(on), title: 'Distances depuis toi',
+    'aria-label': on ? 'Distances depuis toi : allumé. Revenir à tout Paris, sans distance' : 'Tout Paris, sans distance. Afficher les distances depuis toi',
+    onclick: async () => {
+      if (wkMe) { wkMe = null; again(); return; }
+      waitToast('Recherche de ta position…');
+      try { const pos = await locate(); hideToast(); wkMe = { lat: pos.lat, lng: pos.lng, time: pos.time ?? Date.now(), kind: 'gps' }; again(); } catch (e) { toast(e.message, true); }
+    } }, ico('locate-fixed', { size: 24 }));
+}
+const wkScope = () => (wkMe ? 'Du plus proche au plus loin de toi' : 'Tout Paris, par heure');
 /** La bannière de Sorties : trois photos de rubriques différentes (les plus proches), « Ce week-end » et les jours. */
 function weekendHero(o) {
   const days = weekendDays();
@@ -9045,7 +9067,7 @@ function weekendHero(o) {
   const sub = el('span', { class: 'wk-sub' }, weekendShort(days));
   const btn = el('button', { type: 'button', class: 'wk-hero', 'aria-label': `Ce week-end : ${days.map((d) => d.label).join(' et ')}, les sorties par rubrique`, onclick: () => openWeekend(o) },
     pics, el('span', { class: 'wk-band' }, el('b', {}, 'Ce week-end'), sub, el('span', { class: 'wk-chev', 'aria-hidden': 'true' }, ico('chevron-right'))));
-  weekendData(o).then((data) => {
+  weekendData().then((data) => {
     if (!btn.isConnected) return;
     const groups = weekendPick(data, 'both');
     if (groups.length) sub.textContent = `${weekendShort(days)} · ${plural(groups.length, 'rubrique', 'rubriques')}`;
@@ -9076,7 +9098,6 @@ function weekendDayChips(days, again) {
   return el('div', { class: 'seg wk-days', role: 'group', 'aria-label': 'Jours' },
     opts.map(([k, label, long]) => el('button', { type: 'button', 'aria-pressed': String(weekendDay === k), ...(long ? { 'aria-label': long } : {}), onclick: () => { weekendDay = k; again(); } }, label)));
 }
-const weekendFromText = (o) => (o.kind === 'map' ? 'du centre de la carte' : o.kind === 'home' ? 'de chez toi' : o.kind === 'station' ? `de ${o.label}` : 'de toi');
 /** La page « Ce week-end » : les rubriques en mosaïque (mon choix 2C). */
 function openWeekend(o, back = named('Sorties', () => openEvents())) {
   track('Ce week-end');
@@ -9087,13 +9108,15 @@ function openWeekend(o, back = named('Sorties', () => openEvents())) {
   const grid = el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Chargement de l\'agenda…'));
   openSheet([ico('calendar-days'), ' Ce week-end'], el('div', { class: 'stack' },
     weekendDayChips(days, again),
+    el('div', { class: 'ev-findline wk-scopeline' }, el('p', { class: 'wk-scope' }, wkScope()), wkMeBtn(again)), // v555 : décision prise seule, la page n'a pas de « Voir sur la carte » (1C) : le viseur à côté de ce qu'elle montre
+    evTypesNote(again),
     grid,
     pageHelp(false,
-      el('p', { class: 'help' }, `L'agenda de la Ville ${days.length > 1 ? 'samedi et dimanche' : 'aujourd\'hui'}, à moins de ${tuningText('eventsM', tune('eventsM'))} ${weekendFromText(o)} (celui de Sorties). Seulement ce qui a un horaire ces jours-là, et les expos ouvertes.`),
+      el('p', { class: 'help' }, `L'agenda de la Ville ${days.length > 1 ? 'samedi et dimanche' : 'aujourd\'hui'}, tout Paris, par heure ; le viseur : du plus proche au plus loin de toi (rien n'est envoyé). Ce qui a un horaire ces jours-là, et les expos ouvertes.`),
       el('p', { class: 'help' }, 'Les rubriques viennent des étiquettes de l\'agenda et du titre ; une sortie que l\'appli ne sait pas classer est dans « Autres sorties ». Photos de l\'agenda : touche © pour leur auteur.')),
     foot(backBtn(back)),
   ), { tall: true, name: 'weekend', again });
-  weekendData(o).then((data) => {
+  weekendData().then((data) => {
     if (!grid.isConnected) return;
     const groups = weekendPick(data);
     fill(grid, groups.length
@@ -9105,10 +9128,11 @@ function openWeekend(o, back = named('Sorties', () => openEvents())) {
             el('span', { class: 'wk-tile-text' }, ico(g.icon, { size: 20 }), el('span', {}, g.name, el('small', {}, plural(g.items.length, 'sortie', 'sorties'))))),
           creditBtn(top.e));
       }))
-      : el('p', { class: 'empty' }, `Aucune sortie avec un horaire publié ce week-end à moins de ${tuningText('eventsM', tune('eventsM'))} ${weekendFromText(o)}.`));
+      : el('p', { class: 'empty' }, `Aucune sortie avec un horaire publié ce week-end${pickText(state.evPick) ? ' dans tes types de sorties' : ''}.`));
   }).catch(() => { if (grid.isConnected) fill(grid, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn c-disc', onclick: again }, ico('refresh-cw'), 'Réessayer')); });
 }
 const WK_MAX = 60;
+const wkMore = new Map(); // v555 : combien de sorties montrées par rubrique et par jour, le temps de la session
 /** Une rubrique : ses sorties en grandes photos, les plus proches d'abord ; un appui ouvre la page de la sortie (glisser : la voisine). */
 function openWeekendRubrique(o, id, back) {
   const days = weekendDays();
@@ -9117,35 +9141,39 @@ function openWeekendRubrique(o, id, back) {
   const list = el('div', { class: 'stack' }, el('p', { class: 'help' }, 'Chargement de l\'agenda…'));
   const head = el('span', {}, ' Ce week-end');
   openSheet([ico('calendar-days'), head], el('div', { class: 'stack' }, weekendDayChips(days, again), list, foot(backBtn(back))), { tall: true, name: 'weekendrub', again });
-  weekendData(o).then((data) => {
+  weekendData().then((data) => {
     if (!list.isConnected) return;
     const g = weekendPick(data).find((x) => x.id === id);
     if (!g) { fill(list, el('p', { class: 'empty' }, 'Plus aucune sortie dans cette rubrique pour ce jour. Choisis un autre jour.')); return; }
     const t = document.querySelector('#sheet h2'); if (t) t.replaceChildren(ico(g.icon), ` ${g.name}`);
-    const shown = g.items.slice(0, WK_MAX);
+    const n = wkMore.get(`${id}|${weekendDay}`) ?? WK_MAX; // v555 (10A) : 60, puis 60 de plus à chaque appui
+    const shown = g.items.slice(0, n);
     // v548 (mon choix A du 28 nov.) : « Voir sur la carte », comme dans Sorties : le bandeau parcourt les sorties de la rubrique,
     // un rond par sortie sur la carte (touché : le bandeau sur cette sortie) ; seulement celles de la liste (60 au plus)
-    const peek = { kicker: g.name, label: plural(shown.length, 'sortie', 'sorties'), icon: g.icon, from: o, back: again, open: (x, b) => x.go(b),
+    const peek = { kicker: g.name, label: plural(shown.length, 'sortie', 'sorties'), icon: g.icon, from: wkMe, back: again, open: (x, b) => x.go(b),
       items: shown.map((x) => ({ name: x.e.title, lat: x.e.lat, lng: x.e.lng, go: (b) => openEventPage(x.e, b ?? named(g.name, again)),
         info: () => [weekendWhen(x, today), x.e.free ? 'Gratuit' : '', x.e.booking === 'required' ? 'Sur réservation' : ''] })) };
     nearLayer.clearLayers();
     tapRounds(nearLayer, peek.items.map((x) => ({ lat: x.lat, lng: x.lng, style: EV_ROUND })), (k) => showPeek({ ...peek, start: k, stay: true }));
     fill(list,
-      el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'),
-      g.items.length > WK_MAX ? el('p', { class: 'help' }, `Les ${WK_MAX} plus proches, sur ${g.items.length}.`) : null,
+      el('p', { class: 'wk-scope' }, wkScope()),
+      el('div', { class: 'ev-findline' }, el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'), wkMeBtn(again)), // v555 (7A)
+      evTypesNote(again),
       el('ul', { class: 'items wk-list' }, shown.map((x) => {
         const e = x.e; const genre = weekendGenre(e);
         const go = (opt) => openEventPage(e, named(g.name, again), opt);
-        const dist = x.d == null ? null : isFar(x.d) ? fmtDist(x.d) : `${durText(walkMinutes(x.d))} · ${fmtDist(x.d)}`;
+        const dist = x.d == null ? areaText(e) : isFar(x.d) ? fmtDist(x.d) : `${durText(walkMinutes(x.d))} · ${fmtDist(x.d)}`; // v555 (11A) : sans distance, l'arrondissement
         return deckCard(e, go, el('li', { class: 'ev wk-card' },
           el('button', { type: 'button', class: 'wk-main', onclick: (ev) => go({ deck: deckOf(ev, e) }) },
             weekendPhoto(e, genre, 'wk-card-photo'),
             el('span', { class: 'wk-card-text' },
-              el('span', { class: 'wk-card-name' }, e.title),
+              el('span', { class: 'wk-card-name' }, evLiked(e) ? el('span', { class: 'ev-love' }, ico('heart', { size: 16 }), el('span', { class: 'sr-only' }, 'Un de tes thèmes ou artistes : ')) : null, e.title),
               el('span', { class: 'wk-card-sub' }, [weekendWhen(x, today), e.place].filter(Boolean).join(' · ')),
               el('span', { class: 'wk-card-sub' }, [dist, e.free ? 'Gratuit' : '', e.booking === 'required' ? 'Sur réservation' : ''].filter(Boolean).join(' · ')))),
           creditBtn(e)));
-      })));
+      })),
+      shown.length < g.items.length ? el('button', { type: 'button', class: 'btn c-disc', onclick: () => { wkMore.set(`${id}|${weekendDay}`, n + WK_MAX); again(); } },
+        `Voir les ${Math.min(WK_MAX, g.items.length - shown.length)} suivantes (${g.items.length - shown.length} autres)`) : null);
   }).catch(() => { if (list.isConnected) fill(list, el('p', { class: 'warn' }, 'L\'agenda de la Ville de Paris ne répond pas. Réessaie plus tard.'), el('button', { type: 'button', class: 'btn c-disc', onclick: again }, ico('refresh-cw'), 'Réessayer')); });
 }
 
@@ -15202,6 +15230,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
     '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
     '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
     '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
@@ -15212,7 +15241,6 @@ const HELP = [
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
     '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
-    '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

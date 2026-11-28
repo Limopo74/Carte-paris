@@ -82,3 +82,34 @@ export function weekendWhen(x, today = '') {
   const s = x.slot[k];
   return s && (s.getHours() || s.getMinutes()) ? `${name(k)} ${hm(s)}` : name(k);
 }
+
+/* ---------- v555 (mes choix 8A à 12A du 28 nov. 2026) : Ce week-end sur tout Paris, sans distance ---------- */
+
+/** « 15e », « 1er » d'après le code postal de l'agenda (75001 à 75020, 75116) ; hors Paris, la ville ; sinon '' (rien d'inventé). */
+export function areaText(e) {
+  const z = String(e?.zip ?? '');
+  const m = /^75(?:0(0[1-9]|1\d|20)|116)$/.exec(z);
+  if (m) { const n = m[1] ? Number(m[1]) : 16; return n === 1 ? '1er' : `${n}e`; }
+  const city = String(e?.city ?? '').trim();
+  return city && !/^paris$/i.test(city) ? city : '';
+}
+
+/**
+ * L'ordre sans distance (9A) : d'abord ce qui cite mes artistes ou thèmes (T1 A), puis les expos qui ferment ce week-end
+ * (la plus tôt d'abord), puis ce qui a un créneau ces jours-là, par heure de début, puis les autres expos, par date de fin.
+ * Avec une distance (`x.d`, viseur allumé, 8A) : mes thèmes d'abord, puis du plus proche au plus loin.
+ * `lastDay` : la fin du dernier jour du week-end ; `expo(e)`, `liked(e)` : fournis par l'appli.
+ */
+export function weekendOrder(items, { lastDay, expo = () => false, liked = () => false } = {}) {
+  const far = 8.64e15;
+  const first = (x) => Math.min(...Object.values(x.slot ?? {}).filter((d) => d instanceof Date).map((d) => d.getTime()), far);
+  const end = (x) => (x.e.end instanceof Date ? x.e.end.getTime() : far);
+  const rank = (x) => {
+    if (expo(x.e) && end(x) <= lastDay.getTime()) return [0, end(x)];
+    if (first(x) < far) return [1, first(x)];
+    return [2, end(x)];
+  };
+  return [...items].map((x) => ({ x, love: liked(x.e) ? 0 : 1, r: x.d == null ? rank(x) : [0, x.d] }))
+    .sort((a, b) => a.love - b.love || a.r[0] - b.r[0] || a.r[1] - b.r[1] || a.x.e.title.localeCompare(b.x.e.title, 'fr'))
+    .map(({ x }) => x);
+}

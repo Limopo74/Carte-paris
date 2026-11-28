@@ -1807,3 +1807,5 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 .ev-findline:has(.ev-typesbtn) .ev-findword { display: none; } /* v554 : en Normal, plus la place pour le mot */
 :root:is([data-text="grand"], [data-text="tresgrand"]) .ev-findline .ev-findword { display: inline; } /* Chercher a sa ligne à lui */
 :root[data-theme="dark"] .ev-typesnum { right: 11px; top: 8px; } /* bouton rond en sombre */
+/* v555 (mes choix 8A 9A du 28 nov.) : Ce week-end, ce que la liste montre (tout Paris, ou du plus proche) et le viseur à côté */
+.wk-scope { margin: 0; font-weight: 700; flex: 1; min-width: 0; align-self: center; text-align: left; }

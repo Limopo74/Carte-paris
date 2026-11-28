@@ -202,6 +202,7 @@ const ECRANS = {
   sortiesfiltre: async (p) => { await ECRANS.sortiestypes(p); for (const t of ['scene', 'famille', 'cine', 'balade', 'chiner', 'fete', 'atelier', 'autre']) await feuille(p).locator(`[data-type="${t}"]`).click();
     await feuille(p).locator('.ev-themeadd input').fill('jazz'); await feuille(p).locator('.ev-themeadd .btn').click(); await p.waitForTimeout(300);
     await feuille(p).locator('.sheet-foot .btn.c-add, .btn.c-add.solid').last().click(); await p.waitForTimeout(1000); }, // v554 : Expos et Concerts, et le thème jazz
+  weekendviseur: async (p) => { await ECRANS.weekendrub(p); await feuille(p).locator('.wk-mebtn').click(); await p.waitForTimeout(1500); }, // v555 : le viseur allume les distances
   sortiesmini: async (p) => { await ECRANS.sorties(p); await p.locator('#sheetMin').click(); await p.waitForTimeout(300); },
   // v212 : Sorties → Chercher une sortie (agenda simulé), puis Expos → Chercher une expo
   chercher: async (p) => { await ECRANS.sorties(p); await feuille(p).locator('.ev-findrow').click(); await feuille(p).locator('input[type=search]').fill('jazz'); await feuille(p).locator('.ring-title').waitFor(); await p.waitForTimeout(300); },

@@ -131,6 +131,7 @@ export function parseEvents(json, now = new Date()) {
       start, end, slots: parseSlots(r.occurrences, now),
       place: str(r.address_name).slice(0, 80),
       address: [str(r.address_street), str(r.address_zipcode), str(r.address_city)].filter(Boolean).join(' ').slice(0, 120),
+      zip: str(r.address_zipcode).replace(/\s/g, '').slice(0, 10), city: str(r.address_city).slice(0, 40), // v555 : l'arrondissement de Ce week-end sans distance
       url: /^https:\/\//.test(r.url ?? '') ? r.url : '',
       free: price.startsWith('gratuit'),
       freeSure: price === 'gratuit', // sans « sous condition » (v187 : seul ce cas va dans « Maintenant »)
