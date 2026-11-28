@@ -1598,7 +1598,10 @@ body:has(#sheet:not([hidden])) .map-btn:is(.style-btn, .backup-btn), body:has(.p
 .map-btn.remark-btn[hidden] { display: none; }
 .map-btn.sos-btn { border-radius: 50%; background: var(--danger); color: var(--on-danger); border-color: var(--danger); font: 800 var(--t16)/1 var(--display); letter-spacing: .02em; } /* v553 : rond rouge plein en haut de la colonne (CHARTE.md § 1, exception SOS) */
 .sos-tools .tool { white-space: normal; }
-body:has(#sheet:not([hidden])) .map-btn.sos-btn { visibility: hidden; } /* v553 (6A) : caché quand une page est ouverte, sans faire bouger la colonne */
+body:has(#sheet:not([hidden])) .map-btn.sos-btn { visibility: hidden; }
+.sheet.sos-sheet .sheet-head { background: var(--danger); color: var(--on-danger); border-bottom-color: var(--danger); border-radius: inherit; border-bottom-left-radius: 0; border-bottom-right-radius: 0; } /* v554 (1A) : le bandeau du titre de Secours en rouge, comme le rond SOS ; les boutons restent sans couleur (2A) */
+.sheet.sos-sheet .sheet-head::before { background: var(--on-danger); opacity: .6; }
+.sheet.sos-sheet .sheet-head .icon-btn { color: var(--on-danger); border-color: var(--on-danger); } /* v553 (6A) : caché quand une page est ouverte, sans faire bouger la colonne */
 body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100vh - 122px)); }
 
 /* Mesurer mon pas (v320) : chrono, barre de progression, résultat. Échelle de la charte, chiffres de même largeur. */
@@ -1624,7 +1627,7 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 /* ---- Style « Verre » (le jour, v452, mon choix 1B du 25 nov. ; CHARTE.md § 10.1) ----
    Seulement dans l'appli posée sur la carte (barres, colonne, bandeaux, feuille) ; la boussole et la photo en grand gardent les leurs.
    Les couleurs sont des jetons du bloc :root[data-look="verre"] ; les boutons ne changent ni de place ni de taille. */
-:root[data-look="verre"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(.solid):not(.primary):not([aria-pressed="true"]):not(.on):not(:disabled):not(.sos-btn) {
+:root[data-look="verre"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(.solid):not(.primary):not([aria-pressed="true"]):not(.on):not(:disabled):not(.sos-btn):not(.sos-sheet .sheet-head .icon-btn) {
   border: 1px solid var(--glass-edge); background-color: var(--btn); box-shadow: var(--glass-shadow);
 }
 :root[data-look="verre"] :is(.map-btn, .big-btn) { border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
@@ -1665,7 +1668,7 @@ body:has(.remark-btn:not([hidden])) .sheet.tall { max-height: min(85vh, calc(100
 
 /* ---- Style « Pop » (le jour, v464, mon choix A du 25 nov. ; CHARTE.md § 10.3) ----
    Contours noirs de 3 px, ombre dure décalée, aplats vifs, titres serrés en capitales. Seulement dans l'appli posée sur la carte, comme Verre. */
-:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(:disabled) {
+:root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet, .peek-card, .now-card) :is(.btn, .chip, .map-btn, .big-btn, .icon-btn, .tool, .go-compass):not(:disabled):not(.sos-sheet .sheet-head .icon-btn) {
   border-width: 3px; border-color: var(--ink); box-shadow: var(--pop-shadow); color: var(--ink);
 }
 :root[data-look="pop"] :is(.top, .map-tools, .bottom, .sheet) :is(.btn.c-metro, .tool.c-metro):not(.solid):not([aria-pressed="true"]):not(.on) { background-color: var(--pop-metro); }

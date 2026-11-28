@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (553)';
+const VERSION = '28 novembre 2026 (554)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -1627,6 +1627,7 @@ function openSheet(title, body, { onClose = null, tall = false, name = null, aga
   const was = view; // v254 : un écran redessiné (même nom) n'est pas une nouvelle ouverture pour « Ce que j'utilise »
   view = name;
   if (name !== 'sortie') sortieDeck = null; // v518 : la suite des sorties ne dure que le temps de leurs fiches
+  sheet.classList.toggle('sos-sheet', name === 'sos'); // v554 (mes choix 1A 2A du 28 nov.) : Secours, bandeau du titre en rouge
   sheet.classList.toggle('swipe-tabs', name === 'events'); // v459 : la page de Sorties laisse le doigt glisser de côté (onglets)
   markOpen(true); // v331 : la goutte du lieu de cette fiche se distingue (ou plus aucune)
   fill(sheetTitle, ...[title].flat().filter(Boolean));
@@ -14899,7 +14900,7 @@ const HELP = [
     '**Les minutes à pied** suivent ton pas : {settings} → Autres réglages → {footprints} Mon pas. Les cercles : {settings} → Autres réglages → Distances et durées → Cercles.',
     '{locate} **Où suis-je ?**, dans Autour de moi, 7e des 8 boutons du haut (toujours à la même place) : ton adresse, l\'arrondissement, l\'origine du nom de la rue quand la Ville la donne, la station la plus proche et le quartier en 3 lignes. Sous les boutons, les vols enregistrés dans l\'arrondissement, en barres à côté de Paris (une fois par an, rien de plus fin n\'est publié).',
     '{phone} **Appeler les secours** : dans Où suis-je ?, « Urgences 112 », « Samu 15 », « Police 17 » et « Transports 3117 » (métro, RER, bus) ouvrent le téléphone avec le numéro, sous ton adresse. C\'est toi qui lances l\'appel.',
-    '{phone} **SOS** : le rond rouge en haut de la colonne de boutons. Un appui ouvre Secours tout de suite, sans attendre ta position : Urgences 112, Samu 15, Police 17, Pompiers 18, Transports 3117 et SMS au 114 (quand tu ne peux pas parler). Ton adresse s\'écrit dessous dès qu\'elle est trouvée, et le SMS au 114 la reprend. C\'est toi qui lances l\'appel.',
+    '{phone} **SOS** : le rond rouge en haut de la colonne de boutons. Un appui ouvre Secours (titre sur bandeau rouge) tout de suite, sans attendre ta position : Urgences 112, Samu 15, Police 17, Pompiers 18, Transports 3117 et SMS au 114 (quand tu ne peux pas parler). Ton adresse s\'écrit dessous dès qu\'elle est trouvée, et le SMS au 114 la reprend. C\'est toi qui lances l\'appel.',
     '{house} **Je rentre** : dans Où suis-je ?, sous Alerter en silence. Un SMS prêt pour un proche, « Je rentre à pied, j\'arrive vers 23 h 10 » : l\'heure est estimée jusqu\'à Chez moi, arrondie. Sans Chez moi, ou à plus de 90 min, le message part sans heure.',
     '{shield} **Commissariats** : tout en bas d\'Autour de moi, les 2 commissariats d\'arrondissement les plus proches (moins de 4 km), avec Y aller. Liste de la Préfecture de Police relevée à la main ; ses horaires seulement. « Appeler le 34 30 » joint un commissariat, pas pour une urgence.',
     '{bike} **Vélib\' les plus proches** : tout en bas d\'Autour de moi, les 3 stations les plus proches qui ont des vélos, dans le plus grand cercle, avec l\'heure des données. Aucune position n\'est envoyée ; une station muette depuis plus d\'une heure n\'est pas proposée. Pour une place libre : Vélib\' de la colonne de droite.',
@@ -15117,6 +15118,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{phone} **Secours en rouge** : la page ouverte par le rond SOS a son bandeau de titre rouge, comme le rond ; les gros boutons restent en noir et blanc.',
     '{phone} **SOS** : un rond rouge en haut de la colonne de boutons ouvre Secours en un appui, sans attendre le GPS : 112, 15, 17, Pompiers 18, Transports 3117 et SMS au 114, en gros boutons ; ton adresse dessous.',
     '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi, le quartier choisi à la croix) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
@@ -15126,7 +15128,6 @@ const HELP = [
     '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
     '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
     '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
-    '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

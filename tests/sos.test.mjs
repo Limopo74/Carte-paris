@@ -45,3 +45,10 @@ test('SOS : rouge plein par jetons, caché sous une page ouverte, exception écr
   assert.match(css, /body:has\(#sheet:not\(\[hidden\]\)\) \.map-btn\.sos-btn \{ visibility: hidden; \}/);
   assert.match(charte, /Seule exception : le rond SOS/);
 });
+
+test('Secours (v554) : bandeau du titre rouge par jetons, boutons de la page sans rouge, écrit dans la charte', () => {
+  assert.match(app, /sheet\.classList\.toggle\('sos-sheet', name === 'sos'\)/);
+  assert.match(css, /\.sheet\.sos-sheet \.sheet-head \{ background: var\(--danger\); color: var\(--on-danger\)/);
+  assert.doesNotMatch(css, /\.sos-tools[^{]*\{[^}]*danger/, 'les gros boutons restent sans rouge');
+  assert.match(charte, /Le bandeau du titre de la page Secours prend le même rouge/);
+});
