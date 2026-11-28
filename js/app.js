@@ -1,3 +1,4 @@
+import { cleanPhotoTrash, restorePhotoOrder, photoZip, photoThumbnails, TRASH_MS } from './gestionnaire-photos.js';
 // Interface de « Ma carte de Paris ».
 import { svgIcon, glyphHTML, ICON_SVG } from './icons.js';
 import { DEPART_KEY, mergePreps, DEPART_MAX, MSG_MAX, NAME_MAX as PREP_NAME_MAX, STEP_KEYS, FREE_STYLES, KEY_STYLES, PREP_STARTS, defaultPreset, cleanPreset, cleanPreps, applyPreset, replaceWithPreset, presetSummary, encodePreset, decodePreset, presetLink, readPresetCode } from './depart.js';
@@ -64,9 +65,9 @@ import { TUNING, cleanTuning, stepTuning, tuningText, cleanFicheHidden, helpWith
 import { metroPlan, lineName, linesOf, noMetroText, fastestHomeOption, clearFastest } from './metroplan.js';
 import { SEEN_CAT, isPass, STREET_CAT, seenName, withSeenCat, agoText, memoryHere, memoryTitle, markShown, logName, cleanLog, addPassage, dropAutoPassage, photoIds, journal as allPassages, memoryOf, cleanPassages, MOMENTS, cleanMoments, momentText, momentHere, didName, didLower, DID_DEFAULT, doneSnapshot, restoreDone, undoneText, isStreetCat, streetCatId, withStreetCat, PHOTO_CATS, photoExamples, withPhotoCat, isPhotoCat, canVanish, lastSeen, staleSince, staleText, canClose } from './passage.js';
 import { PARTS, isPart, dayChoices, nextDays, planAt, planText, planShort, planClock, planTimes, pastPlans, cleanPlans, planOfEvent, cleanOutings, outingOf, DAY_MAX, isDayList, dayTicket, dayList, staleDayList, rankDayList, moveInList, legText, dayWalkText } from './planning.js';
-import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, removeVenuePhoto } from './venue-photos.js';
+import { VENUE_PHOTOS_KEY, VENUE_PHOTO_SIDE, cleanVenuePhotos, venuePhotoOf, venuePhotoFor, setVenuePhoto, venuePhotoIds, setVenueAlbum } from './venue-photos.js';
 import { makeDeck, deckMove, deckCount, deckLabel } from './glisser-sorties.js';
-import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, MAX_PHOTOS, swipeStep, swipeIndex, photoCount } from './photos.js';
+import { putPhoto, getPhoto, deletePhoto, compressImage, blobToDataUrl, dataUrlToBlob, swipeStep, swipeIndex, photoCount } from './photos.js';
 import { searchPoints, searchArtists, fold } from './search.js';
 import { eventsUrl, weekEventsUrl, idsUrl, byIdsUrl, parseEvents, nearbyEvents, whenText, nextSlotText, streetKind, nowNearEvent, isFleaMarket, genreOf, tagGenre, startsLater, todayOnly, passWhere, siteName } from './events.js';
 import { TIPS_KEY, readTips, pickTip, markTip } from './astuces.js';
@@ -96,7 +97,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (564)';
+const VERSION = '28 novembre 2026 (569)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -146,9 +147,6 @@ function endEssai() { try { sessionStorage.removeItem(ESSAI_KEY); sessionStorage
 // v254, « Ce que j'utilise » : déclaré ici, avant tout écran ouvert au démarrage (openSheet le lit)
 let usage = readUsage(storage.getItem(USAGE_KEY));
 let usageTimer = 0;
-// v327 (mes choix 2C 3A 4A 1B du 20 nov.) : mes photos des salles ; la liste a sa propre clé, dans la sauvegarde générale, jamais envoyée à un proche
-let venuePhotos = (() => { try { return cleanVenuePhotos(JSON.parse(storage.getItem(VENUE_PHOTOS_KEY) ?? '[]')); } catch { return []; } })();
-const saveVenuePhotos = () => { try { storage.setItem(VENUE_PHOTOS_KEY, JSON.stringify(cleanVenuePhotos(venuePhotos))); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); } };
 const USAGE_SEL = '.btn, .fiche-row, .menu-row, .map-btn, .icon-btn, #chips button, #wxBadge';
 const USAGE_SKIP = '.item, .items, .move, .seg, #sheetClose, .leaflet-control-container'; // lignes de lieux et de listes : jamais comptées
 
@@ -158,6 +156,21 @@ const STANDALONE = (() => { try { return matchMedia('(display-mode: standalone)'
 const MY_APP_KEY = 'carte-paris.mon-appli';
 if (STANDALONE) { try { storage.setItem(MY_APP_KEY, '1'); } catch { /* rien */ } }
 let state = loadState(storage);
+const readSavedState = () => { try { return storage.getItem(KEY); } catch { return undefined; } };
+let lastSavedState = readSavedState();
+function checkPhotoState() {
+  if (readSavedState() !== lastSavedState) throw new Error('Tes données ont changé dans une autre fenêtre. Recharge l’appli.');
+}
+// La clé historique reste lisible au premier chargement. Les associations et la corbeille sont ensuite enregistrées ensemble.
+let venuePhotos = (() => { try { return cleanVenuePhotos(state.venuePhotos ?? JSON.parse(storage.getItem(VENUE_PHOTOS_KEY) ?? '[]')); } catch { return []; } })();
+function saveVenuePhotos() {
+  const previous = state.venuePhotos;
+  state.venuePhotos = cleanVenuePhotos(venuePhotos);
+  if (persist()) return true;
+  state.venuePhotos = previous;
+  return false;
+}
+
 /** v295 (mon choix A du 20 nov.) : mes marques TTB (vérifiée, fermée, masquée) comptent dans les changements à sauvegarder. Elles sont
  * gardées à part (TTB_MARKS_KEY) : l'empreinte les reçoit ici, lues sur le téléphone (fonction appelée tôt : pas de variable d'en bas). */
 function withMarks(s) {
@@ -204,6 +217,7 @@ function persist() {
     toast('Attention : ce téléphone n\'a pas pu enregistrer. Sauvegarde tes lieux : Réglages → Sauvegarde.', true);
     return false;
   }
+  lastSavedState = readSavedState();
   updatePlanningCount();
   updateSettingsDot();
   return true;
@@ -945,7 +959,7 @@ function openPassage(p, back, at = null, draft = null) { // v440 : `draft`, ce q
     const when = day === 'today' ? Date.now() : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
     let photoId = photo;
     if (newBlob) { photoId = newPhotoId(); try { await putPhoto(photoId, newBlob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; } }
-    if (old?.photo && old.photo !== photoId) deletePhoto(old.photo).catch(() => {});
+    if (old?.photo && old.photo !== photoId) deleteUnusedPhoto(old.photo).catch(() => {});
     const rest = cleanPassages(p.passages).filter((x) => x !== old && x.at !== old?.at);
     p.passages = cleanPassages([...rest, { at: old && day !== 'today' && iso(new Date(old.at)) === iso(d) ? old.at : when, text: text.value, photo: photoId, stars: stars || undefined }]);
     if (!p.done) setDone(p, true, when); // passé ici : c'est aussi « Déjà visité »
@@ -956,7 +970,7 @@ function openPassage(p, back, at = null, draft = null) { // v440 : `draft`, ce q
   // v300 (mon choix 2A) : pas de question, un message avec « Annuler » ; la photo est lue avant d'être effacée, pour être remise
   const remove = async () => {
     const blob = old.photo ? await getPhoto(old.photo).catch(() => null) : null;
-    if (old.photo) deletePhoto(old.photo).catch(() => {});
+    if (old.photo) deleteUnusedPhoto(old.photo).catch(() => {});
     p.passages = cleanPassages(p.passages).filter((x) => x.at !== old.at);
     if (!p.passages.length) delete p.passages;
     persist(); done();
@@ -1134,13 +1148,13 @@ function openOuting(id, back) {
   const save = async () => {
     let photoId = photo;
     if (newBlob) { photoId = newPhotoId(); try { await putPhoto(photoId, newBlob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return; } }
-    if (o.photo && o.photo !== photoId) deletePhoto(o.photo).catch(() => {});
+    if (o.photo && o.photo !== photoId) deleteUnusedPhoto(o.photo).catch(() => {});
     state.outings = cleanOutings(cleanOutings(state.outings).map((x) => (x.id === id ? { ...x, text: text.value, stars: stars || undefined, photo: photoId ?? undefined } : x)));
     persist(); toast('Noté dans Mon journal'); back();
   };
   const remove = () => {
     if (!confirm(`Retirer « ${o.name} » de Mon journal ?`)) return;
-    if (o.photo) deletePhoto(o.photo).catch(() => {});
+    if (o.photo) deleteUnusedPhoto(o.photo).catch(() => {});
     state.outings = cleanOutings(state.outings).filter((x) => x.id !== id);
     persist(); toast('Sortie retirée de Mon journal'); back();
   };
@@ -2349,11 +2363,11 @@ function deleteSeenItems(items) {
     else {
       place.photos = (place.photos ?? []).filter((x) => x !== id);
       if (!place.photos.length) { // la note n'a plus de photo : elle part, avec les photos de ses impressions
-        for (const ph of photoIds(place)) deletePhoto(ph).catch(() => {});
+        for (const ph of photoIds(place)) deleteUnusedPhoto(ph).catch(() => {});
         state.points = state.points.filter((x) => x.id !== place.id);
       }
     }
-    deletePhoto(id).catch(() => {});
+    deleteUnusedPhoto(id).catch(() => {});
     n += 1;
   }
   persist(); refresh();
@@ -3161,12 +3175,11 @@ function openForm(draft, existing = null) {
       if (dup) {
         fill(err,
           `Tu as déjà « ${dup.point.name} » à ${Math.round(dup.d)} m. `,
-          draft.photoFile && !Number.isFinite(draft.ticketAt) && (dup.point.photos?.length ?? 0) >= MAX_PHOTOS ? `Il a déjà ${MAX_PHOTOS} photos : ta photo n'y entre pas. ` : '',
           el('div', { class: 'row duo', style: 'margin-top:8px' },
             Number.isFinite(draft.ticketAt)
               ? el('button', { type: 'button', class: 'btn c-add', onclick: () => { dup.point.ticket = draftPlan(draft); persist(); updateNow(true); renderMarkers(); openDetail(dup.point.id); toast(`Dans Mon planning : ${planText(dup.point.ticket)}`); } }, 'Noter sur ce lieu')
-              // v237 : une photo vient d'être prise : elle va sur ce lieu au lieu d'être perdue (6 au plus : sinon on le dit)
-              : draft.photoFile && (dup.point.photos?.length ?? 0) < MAX_PHOTOS
+              // v237 : une photo vient d'être prise : elle va sur ce lieu au lieu d'être perdue
+              : draft.photoFile
                 ? el('button', { type: 'button', class: 'btn c-add', onclick: async () => { const pt = dup.point; if (await savePhotos(pt, [draft.photoFile])) { draft.photoFile = null; renderMarkers(); openDetail(pt.id); } } }, ico('camera'), 'La photo ici')
                 : el('button', { type: 'button', class: 'btn', onclick: () => openDetail(dup.point.id) }, 'Voir ce lieu'),
             el('button', { type: 'button', class: 'btn c-add', onclick: () => { dupOk = true; save(); } }, 'Un autre lieu'))); // v297 : une ligne à 360 px
@@ -3376,7 +3389,7 @@ function openDetail(id, back = null) {
     // v326 (mes choix 4A 5A puis A du 20 nov.) : pour une photo prise en passant, juste au-dessus de Supprimer
     photoFiche && !p.gone ? row('eye', 'Je l\'ai revue aujourd\'hui', 'Elle est toujours là', seenAgain) : null,
     // v424 (mon choix 3A du 25 nov.) : la même page que le bouton Photo (galerie ou appareil photo)
-    photoFiche ? row('camera', 'Ajouter une photo', `${MAX_PHOTOS} au plus`, () => choosePhoto(p, back)) : null,
+    photoFiche ? row('camera', 'Ajouter une photo', null, () => choosePhoto(p, back)) : null,
     // v424 (mon choix 2A du 25 nov.) : « Depuis ma galerie » (v379) a quitté Rangement : il est dans Photo
     row('trash-2', delLabel, 'Demande confirmation', askDelete, 'danger'));
   /** v326 (mon choix 5A) : revue sur place : un passage aujourd'hui, comme « Elle est de nouveau là », sans rien d'autre. */
@@ -3390,7 +3403,7 @@ function openDetail(id, back = null) {
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: showTidy }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
-        for (const ph of photoIds(p)) deletePhoto(ph).catch(() => {});
+        for (const ph of photoIds(p)) deleteUnusedPhoto(ph).catch(() => {});
         state.points = state.points.filter((x) => x.id !== id);
         persist(); renderMarkers();
         if (back) back(); else closeSheet();
@@ -3565,15 +3578,20 @@ function viewLieuPhotos(p, i, back) {
   if (!ids.length) return;
   viewPhoto(ids, i, p.name, { del: async (k) => {
     const id = ids[k];
-    p.photos = (p.photos ?? []).filter((x) => x !== id); persist();
-    await deletePhoto(id).catch(() => {}); photoUrls.delete(id);
-    renderMarkers(); openDetail(p.id, back); toast('Photo supprimée');
+    runPhotoChange(() => {
+      applyPhotoChange(() => {
+        const group = managedPhotoGroups(true).find((g) => g.key === `point:${p.id}`);
+        if (!group) throw new Error('Ce lieu a été retiré.');
+        trashManagedPhoto(group, id);
+        mutateManagedPhoto(group, id, null);
+      });
+      renderMarkers(); openDetail(p.id, back); toast('Photo dans la corbeille');
+    });
   } });
 }
 
 /** v379 : ajouter des photos de ma galerie à un lieu ; depuis la v424, par Photo → Depuis ma galerie (plus dans Rangement). */
 function galleryPhoto(p, back) {
-  if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
   const gallery = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
   gallery.addEventListener('change', async () => {
     const n = await savePhotos(p, gallery.files);
@@ -3604,31 +3622,32 @@ function spotPhoto(p) {
 /** Écran des photos d'un lieu : prendre, choisir, voir en grand, supprimer. */
 /** Réduit et range les photos choisies dans le lieu. Renvoie le nombre ajouté (0 si rien ou erreur). */
 async function savePhotos(p, files) {
-  p.photos = p.photos ?? [];
-  const list = [...(files ?? [])].slice(0, MAX_PHOTOS - p.photos.length);
-  if (!list.length) return 0;
-  toast('Enregistrement de la photo…');
-  try {
-    for (const f of list) {
-      const blob = await compressImage(f);
-      const id = newPhotoId();
-      await putPhoto(id, blob);
-      p.photos.push(id);
+  const list = [...(files ?? [])];
+  if (!list.length || photoBusy) return 0;
+  const result = await runPhotoChange(async () => {
+    const ids = await stagePhotos(list);
+    try { checkPhotoState(); } catch (error) { await forgetStaged(ids); throw error; }
+    const current = state.points.find((x) => x.id === p.id);
+    if (!current) {
+      await forgetStaged(ids);
+      throw new Error('Ce lieu a été retiré.');
     }
-    persist();
-    hideToast();
-    toast(list.length > 1 ? `${list.length} photos ajoutées` : 'Photo ajoutée');
-    return list.length;
-  } catch (e) {
-    toast(e.message || 'La photo n\'a pas pu être enregistrée.', true);
-    return 0;
-  }
+    const previous = current.photos;
+    const previousBackup = state.backup;
+    current.photos = [...(previous ?? []), ...ids];
+    if (persist()) return list.length;
+    current.photos = previous;
+    state.backup = previousBackup;
+    await forgetStaged(ids);
+    throw new Error('Les photos n’ont pas été ajoutées.');
+  });
+  if (result) toast(plural(result, 'photo ajoutée', 'photos ajoutées'));
+  return result ?? 0;
 }
 
 /** v424 (ma demande du 25 nov., mon choix 1A) : le bouton « Photo » de la fiche propose la galerie ou l'appareil photo.
  * Deux gros boutons, l'appareil photo en plaque pleine, en bas, sous le pouce ; chacun revient à la fiche. */
 function choosePhoto(p, back) {
-  if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { openPhotos(p, back); toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
   openSheet([ico('camera'), ' Photo'], el('div', { class: 'stack' }, /* le nom du bouton qui l'ouvre ; « Ajouter une photo » passait sur deux lignes en Très grand */
     el('button', { type: 'button', class: 'btn big c-add', onclick: () => galleryPhoto(p, back) }, ico('image-plus'), 'Depuis ma galerie'),
     el('button', { type: 'button', class: 'btn big c-add solid', onclick: () => quickPhoto(p, back) }, ico('camera'), 'Prendre une photo'),
@@ -3639,7 +3658,6 @@ function choosePhoto(p, back) {
 
 /** L'appareil photo, puis retour à la fiche (le bouton « Prendre une photo » de choosePhoto). */
 function quickPhoto(p, back) {
-  if ((p.photos?.length ?? 0) >= MAX_PHOTOS) { openPhotos(p, back); toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
   const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   camera.addEventListener('change', async () => {
     const n = await savePhotos(p, camera.files);
@@ -3665,13 +3683,11 @@ function openPhotos(p, back) {
       el('button', { type: 'button', class: 'photo-open', onclick: () => viewPhoto(p.photos, i, p.name), 'aria-label': `Voir la photo ${i + 1} en grand` }, img),
       el('button', { type: 'button', class: 'photo-del', 'aria-label': `Supprimer la photo ${i + 1}`, onclick: () => askDeletePhoto(p, id, back) }, '✕'));
   }));
-  const full = p.photos.length >= MAX_PHOTOS;
   openSheet(`Photos · ${p.name}`, el('div', { class: 'stack' },
     p.photos.length ? grid : el('p', { class: 'help' }, 'Aucune photo pour l\'instant.'),
     el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn c-add solid', disabled: full, onclick: () => camera.click() }, ico('camera'), 'Prendre une photo'),
-      el('button', { type: 'button', class: 'btn c-add', disabled: full, onclick: () => gallery.click() }, ico('image-plus'), 'Galerie')),
-    full ? el('p', { class: 'help' }, `${MAX_PHOTOS} photos au plus par lieu.`) : null,
+      el('button', { type: 'button', class: 'btn c-add solid', onclick: () => camera.click() }, ico('camera'), 'Prendre une photo'),
+      el('button', { type: 'button', class: 'btn c-add', onclick: () => gallery.click() }, ico('image-plus'), 'Galerie')),
     el('p', { class: 'help tip' }, 'Les photos sont réduites et restent sur ton téléphone. Leur position GPS est effacée.'),
     camera, gallery,
     foot(el('button', { type: 'button', class: 'btn', onclick: () => openDetail(p.id, back) }, '← Fiche')),
@@ -3679,19 +3695,445 @@ function openPhotos(p, back) {
 }
 
 function askDeletePhoto(p, id, back) {
-  openSheet('Supprimer la photo ?', el('div', { class: 'stack' },
-    el('p', {}, 'Elle sera effacée de ton téléphone. Ce n\'est pas annulable.'),
-    el('div', { class: 'row' },
-      el('button', { type: 'button', class: 'btn', onclick: () => openPhotos(p, back) }, 'Annuler'),
-      el('button', { type: 'button', class: 'btn danger solid', onclick: async () => {
-        p.photos = p.photos.filter((x) => x !== id);
-        persist();
-        await deletePhoto(id).catch(() => {});
+  confirmPhotoRemoval([{ group: `point:${p.id}`, id }], () => openPhotos(p, back));
+}
+
+const settingsRow = (icon, title, summary, onclick, warn = false, family = 'c-info') => el('button', { type: 'button', class: `menu-row ${family}${warn ? ' warn-row' : ''}`, onclick },
+    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon),
+    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
+    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+
+let photoBusy = false;
+const photoManagerView = { mode: 'list', filter: '', category: '', arr: '', sort: 'name', query: '', limit: 48 };
+
+async function runPhotoChange(action) {
+  if (photoBusy) return;
+  photoBusy = true;
+  try { return await action(); }
+  catch (error) { toast(error.message || 'La photo n’a pas pu être enregistrée.', true); }
+  finally { photoBusy = false; }
+}
+
+const forgetStaged = (ids) => Promise.all(ids.map((id) => deletePhoto(id).catch(() => {})));
+async function stagePhotos(files, options) {
+  const ids = [];
+  try {
+    for (const file of files) {
+      const blob = await compressImage(file, undefined, options);
+      const id = newPhotoId();
+      await putPhoto(id, blob);
+      ids.push(id);
+    }
+    return ids;
+  } catch (error) {
+    await forgetStaged(ids);
+    throw error;
+  }
+}
+
+function managedPhotoGroups(includeOther = false) {
+  const make = (kind, owner, name, ids, extra = {}) => ({ key: `${kind}:${owner}`, kind, owner, name, ids, ...extra });
+  const points = state.points.filter((p) => includeOther || !p.owner).map((p) =>
+    make('point', p.id, p.name, photoIds(p), { arr: arrOfPoint(p), cat: p.cat, point: p }));
+  const venues = [...new Map([...venuePhotos.map((v) => v.name), ...state.venues.map((v) => typeof v === 'string' ? v : v.name)]
+    .filter(Boolean).map((name) => [artistKey(name), name])).values()].map((name) => {
+    const photo = venuePhotoOf(name, venuePhotos);
+    return make('venue', artistKey(name), name, venuePhotoIds(photo), { cat: 'venue' });
+  });
+  const outings = state.outings.map((o) => make('outing', o.id, o.name, o.photo ? [o.photo] : [], { arr: arrOfPoint(o), cat: 'outing', outing: o }));
+  return [...points, ...venues, ...outings];
+}
+
+function placesWithoutPhotos(groups = null) {
+  const count = groups ? groups.filter((g) => g.kind === 'point' && !g.ids.length).length
+    : state.points.filter((p) => !p.owner && !photoIds(p).length).length;
+  return plural(count, 'lieu sans photo', 'lieux sans photo');
+}
+
+function applyPhotoChange(action) {
+  checkPhotoState();
+  const current = state;
+  const previous = {
+    points: current.points, outings: current.outings, photoTrash: current.photoTrash,
+    backup: current.backup, venuePhotos,
+  };
+  // Les anciens objets restent valides pour les autres écrans. On prépare une copie des seules associations.
+  state.points = current.points.map((p) => ({ ...p }));
+  state.outings = current.outings.map((o) => ({ ...o }));
+  state.photoTrash = [...(current.photoTrash ?? [])];
+  try {
+    action();
+    if (!saveVenuePhotos()) throw new Error('Les changements n’ont pas été enregistrés.');
+  } catch (error) {
+    for (const key of ['points', 'outings', 'photoTrash', 'backup']) state[key] = previous[key];
+    venuePhotos = previous.venuePhotos;
+    throw error;
+  }
+}
+
+function mutateManagedPhoto(group, id, next) {
+  if (group.kind === 'point') {
+    const p = group.point;
+    p.photos = (p.photos ?? []).flatMap((x) => x === id ? next ? [next] : [] : [x]);
+    p.passages = p.passages?.map((x) => x.photo === id ? { ...x, photo: next || undefined } : x);
+    if (!id && next) p.photos = [...p.photos, next];
+  } else if (group.kind === 'venue') {
+    const current = venuePhotoIds(venuePhotoOf(group.name, venuePhotos));
+    const ids = current.flatMap((x) => x === id ? next ? [next] : [] : [x]);
+    if (!id && next) ids.push(next);
+    venuePhotos = setVenueAlbum(venuePhotos, group.name, ids);
+    if (next && !venuePhotoIds(venuePhotoOf(group.name, venuePhotos)).includes(next)) throw new Error('La photo de cette salle n’a pas pu être associée.');
+  } else {
+    group.outing.photo = next || undefined;
+  }
+}
+
+function trashManagedPhoto(group, id) {
+  if (!group.ids.includes(id)) throw new Error('Cette photo a déjà été déplacée ou retirée.');
+  const album = group.point?.photos ?? group.ids;
+  const index = album.indexOf(id);
+  const passages = (group.point?.passages ?? []).filter((x) => x.photo === id).map((x) => x.at);
+  state.photoTrash.push({ key: newPhotoId(), kind: group.kind, owner: group.owner, name: group.name,
+    id, index: Math.max(0, index), album: index >= 0, passages,
+    before: index >= 0 ? album.slice(0, index) : [], after: index >= 0 ? album.slice(index + 1) : [], at: Date.now() });
+}
+
+function confirmPhotoRemoval(items, back) {
+  openSheet('Mettre à la corbeille ?', el('div', { class: 'stack' },
+    el('p', {}, `${plural(items.length, 'Photo récupérable', 'Photos récupérables')} pendant 30 jours.`),
+    el('button', { type: 'button', class: 'btn danger solid', onclick: () => runPhotoChange(() => {
+      applyPhotoChange(() => {
+        const groups = new Map(managedPhotoGroups(true).map((g) => [g.key, g]));
+        for (const { group, id } of items) {
+          const owner = groups.get(group);
+          if (!owner) throw new Error('Ce lieu a été retiré.');
+          trashManagedPhoto(owner, id);
+        }
+        for (const { group, id } of items) mutateManagedPhoto(groups.get(group), id, null);
+      });
+      back();
+      toast('Corbeille mise à jour');
+    }) }, ico('trash-2'), 'Mettre à la corbeille'),
+    foot(backBtn(named('Annuler', back)))), { name: 'gestion-photos:confirmer' });
+}
+
+function livePhotoIds() {
+  return new Set([...state.points.flatMap(photoIds), ...state.outings.map((o) => o.photo),
+    ...venuePhotos.flatMap(venuePhotoIds), ...cleanDocs(state.docs).map((d) => d.id)]);
+}
+
+async function deleteUnusedPhoto(id) {
+  await Promise.resolve();
+  if (livePhotoIds().has(id) || cleanPhotoTrash(state.photoTrash).some((x) => x.id === id)) return;
+  // Un autre onglet peut déjà avoir enregistré une association.
+  const saved = loadState(storage);
+  if (!saved.ok || saved.points.some((p) => photoIds(p).includes(id))
+      || saved.outings.some((o) => o.photo === id)
+      || cleanVenuePhotos(saved.venuePhotos).some((v) => venuePhotoIds(v).includes(id))
+      || saved.photoTrash?.some((entry) => entry.id === id)) return;
+  await deletePhoto(id);
+  const url = photoUrls.get(id);
+  if (url) URL.revokeObjectURL(url);
+  photoUrls.delete(id);
+}
+
+async function purgePhotoTrash() {
+  checkPhotoState();
+  const entries = cleanPhotoTrash(state.photoTrash);
+  const expired = entries.filter((x) => Date.now() - x.at >= TRASH_MS);
+  if (!expired.length) return;
+  const retained = new Set(entries.filter((x) => Date.now() - x.at < TRASH_MS).map((x) => x.id));
+  const removed = new Set();
+  const saved = loadState(storage);
+  if (!saved.ok) return;
+  const active = livePhotoIds();
+  for (const id of [...saved.points.flatMap(photoIds), ...saved.outings.map((o) => o.photo),
+    ...cleanVenuePhotos(saved.venuePhotos).flatMap(venuePhotoIds),
+    ...cleanPhotoTrash(saved.photoTrash).filter((x) => Date.now() - x.at < TRASH_MS).map((x) => x.id)]) active.add(id);
+  for (const id of new Set(expired.map((x) => x.id))) {
+    checkPhotoState();
+    if (!retained.has(id) && !active.has(id)) {
+      try {
+        await deletePhoto(id);
+        const url = photoUrls.get(id);
+        if (url) URL.revokeObjectURL(url);
         photoUrls.delete(id);
-        openPhotos(p, back);
-        toast('Photo supprimée');
-      } }, 'Oui, supprimer')),
-  ), { name: 'photodel' });
+      } catch { continue; }
+    }
+    removed.add(id);
+  }
+  if (removed.size) applyPhotoChange(() => {
+    const keys = new Set(expired.filter((x) => removed.has(x.id)).map((x) => x.key));
+    state.photoTrash = state.photoTrash.filter((x) => !keys.has(x.key));
+  });
+}
+
+function managedPhotoSelect(label, values, selected, change) {
+  const control = el('select', { onchange: (e) => change(e.target.value) },
+    values.map(([value, name]) => el('option', { value, selected: value === selected }, name)));
+  return el('label', { class: 'gestion-photo-field' }, label, control);
+}
+
+function openPhotoManager() {
+  const groups = managedPhotoGroups();
+  const view = photoManagerView;
+  const selection = new Map();
+  let thumbs;
+  const output = el('div', { class: 'stack' });
+  const remove = el('button', { type: 'button', class: 'btn danger', disabled: true,
+    onclick: () => confirmPhotoRemoval([...selection.values()], openPhotoManager) }, ico('trash-2'), 'Supprimer la sélection');
+  const render = () => {
+    thumbs?.disconnect();
+    thumbs = photoThumbnails();
+    const query = fold(view.query.trim());
+    const visible = groups.filter((g) => (!query || fold(g.name).includes(query)) && (!view.category || g.cat === view.category)
+      && (!view.arr || String(g.arr) === view.arr) && (!view.filter || Boolean(g.ids.length) === (view.filter === 'yes')));
+    visible.sort((a, b) => (view.sort === 'count' ? b.ids.length - a.ids.length
+      : view.sort === 'arr' ? (a.arr || 99) - (b.arr || 99) : 0) || a.name.localeCompare(b.name, 'fr'));
+    const total = visible.reduce((n, g) => n + g.ids.length, 0);
+    const count = el('p', { class: 'help', 'aria-live': 'polite' }, `${plural(visible.length, 'fiche', 'fiches')} · ${plural(total, 'photo', 'photos')}`);
+    const all = visible.flatMap((g) => g.ids.map((id) => ({ g, id })));
+    const grid = view.mode === 'grid' && view.filter !== 'no';
+    const body = grid ? el('div', { class: 'photo-grid gestion-photo-grid' }, all.slice(0, view.limit).map(({ g, id }) => {
+      const img = el('img', { alt: '', 'data-photo': id, decoding: 'async' });
+      thumbs.observe(img);
+      const key = JSON.stringify([g.key, id]);
+      return el('div', { class: 'gestion-photo-tile' },
+        el('button', { class: 'photo-open', type: 'button', onclick: () => openManagedPhoto(g.key, id),
+          'aria-label': `Photo ${g.ids.indexOf(id) + 1} · ${g.name}` }, img),
+        el('label', { class: 'gestion-photo-check' }, el('input', { type: 'checkbox', checked: selection.has(key),
+          'aria-label': `Sélectionner la photo ${g.ids.indexOf(id) + 1} de ${g.name}`, onchange: (e) => {
+            if (e.target.checked) selection.set(key, { group: g.key, id }); else selection.delete(key);
+            remove.disabled = selection.size === 0;
+          } }), el('span', {}, g.name)));
+    })) : el('div', { class: 'menu' }, visible.slice(0, view.limit).map((g) =>
+      settingsRow('image', g.name, plural(g.ids.length, 'photo', 'photos'), () => openManagedGroup(g.key))));
+    fill(output, count, body, (grid ? all.length : visible.length) > view.limit
+      ? el('button', { type: 'button', class: 'btn', onclick: () => { view.limit += 48; render(); } }, 'Afficher la suite') : null);
+  };
+  const set = (key) => (value) => { view[key] = value; view.limit = 48; selection.clear(); remove.disabled = true; render(); };
+  const total = new Set(groups.flatMap((g) => g.ids));
+  const stored = new Set([...total, ...cleanPhotoTrash(state.photoTrash).map((entry) => entry.id)]);
+  const space = el('p', { class: 'help' }, 'Calcul de l’espace occupé…');
+  (async () => {
+    await Promise.resolve(); // La feuille est montée avant de vérifier si elle a été refermée.
+    let bytes = 0;
+    let missing = 0;
+    for (const id of stored) {
+      if (!space.isConnected) return;
+      const blob = await getPhoto(id).catch(() => null);
+      if (blob) bytes += blob.size; else if (total.has(id)) missing++;
+    }
+    space.textContent = `${sizeText(bytes)} avec la corbeille · ${plural(total.size, 'photo personnelle', 'photos personnelles')}${missing ? ` · ${missing} introuvable${missing > 1 ? 's' : ''}` : ''}`;
+  })();
+  const search = el('input', { type: 'search', value: view.query, placeholder: 'Nom, salle ou lieu', oninput: (e) => set('query')(e.target.value) });
+  openSheet([ico('images'), ' Gestionnaire de photos'], el('div', { class: 'stack' },
+    settingsRow('image', placesWithoutPhotos(groups), 'Afficher les lieux', () => {
+      view.mode = 'list'; view.filter = 'no'; view.category = ''; view.arr = ''; view.query = ''; view.limit = 48;
+      openPhotoManager();
+    }), space,
+    el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', 'aria-pressed': String(view.mode === 'list'),
+      onclick: () => { view.mode = 'list'; openPhotoManager(); } }, ico('list'), 'Par lieu'),
+    el('button', { type: 'button', class: 'btn', 'aria-pressed': String(view.mode === 'grid'),
+      onclick: () => { view.mode = 'grid'; view.filter = view.filter === 'no' ? '' : view.filter; openPhotoManager(); } }, ico('images'), 'Galerie')),
+    el('label', { class: 'gestion-photo-field' }, 'Rechercher', search),
+    el('div', { class: 'gestion-photo-filters' },
+      managedPhotoSelect('Photos', [['', 'Tous'], ['yes', 'Avec photo'], ['no', 'Sans photo']], view.filter, set('filter')),
+      managedPhotoSelect('Catégorie', [['', 'Toutes'], ...state.categories.map((c) => [c.id, c.name]), ['venue', 'Salles'], ['outing', 'Carnet de sorties']], view.category, set('category')),
+      managedPhotoSelect('Arrondissement', [['', 'Tous'], ...Array.from({ length: 20 }, (_, i) => [String(i + 1), arrOrd(i + 1)])], view.arr, set('arr')),
+      managedPhotoSelect('Classement', [['name', 'Nom'], ['count', 'Nombre de photos'], ['arr', 'Arrondissement']], view.sort, set('sort'))),
+    remove, output,
+    el('div', { class: 'menu' },
+      settingsRow('camera', 'Photos des salles', 'Ajouter une salle', () => openVenuePhotos(openPhotoManager)),
+      settingsRow('trash-2', 'Corbeille', 'Restauration pendant 30 jours', openPhotoTrash),
+      settingsRow('download', 'Exporter les photos en ZIP', null, () => runPhotoChange(async () => {
+        if (!total.size) { toast('Aucune photo à exporter.'); return; }
+        waitToast('Préparation du ZIP…');
+        try {
+          const blob = await photoZip(groups);
+          downloadBackup(new File([blob], 'Ma carte de Paris - photos.zip', { type: blob.type }));
+        } finally { hideToast(); }
+      }))),
+    foot(backBtn(named('Réglages', () => openSettings())))), { tall: true, name: 'gestion-photos', again: openPhotoManager, onClose: () => thumbs?.disconnect() });
+  render();
+  if (!arrData && !view.arrLoading) {
+    view.arrLoading = true;
+    loadArr().then(() => { if (arrData && output.isConnected) openPhotoManager(); }).finally(() => { view.arrLoading = false; });
+  }
+  runPhotoChange(purgePhotoTrash);
+}
+
+function managedImport(group, back, id = null) {
+  const pick = (capture) => {
+    const input = el('input', { type: 'file', accept: 'image/*', hidden: true, capture,
+      multiple: group.kind !== 'outing' && !id && !capture });
+    input.addEventListener('cancel', () => input.remove(), { once: true });
+    input.addEventListener('change', () => {
+      const files = [...input.files];
+      input.remove();
+      if (files.length) changeManagedFiles(group.key, id, files, {}, back);
+    }, { once: true });
+    document.body.append(input);
+    input.click();
+  };
+  return el('div', { class: 'gestion-photo-import' },
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => pick(null) }, ico('image-plus'), id ? 'Remplacer' : 'Depuis la galerie'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => pick('environment') }, ico('camera'), id ? 'Reprendre' : 'Prendre une photo'));
+}
+
+function changeManagedFiles(key, oldId, files, options, back) {
+  return runPhotoChange(async () => {
+    const ids = await stagePhotos(files, options);
+    try {
+      applyPhotoChange(() => {
+        const group = managedPhotoGroups().find((g) => g.key === key);
+        if (!group || (oldId ? !group.ids.includes(oldId) : group.kind === 'outing' && group.ids.length)) {
+          throw new Error('Cette fiche a changé. Rouvre-la.');
+        }
+        if (oldId) trashManagedPhoto(group, oldId);
+        for (const id of ids) mutateManagedPhoto(group, oldId, id);
+      });
+    } catch (error) {
+      await forgetStaged(ids);
+      throw error;
+    }
+    back();
+    toast('Photos enregistrées');
+  });
+}
+
+function openManagedGroup(key) {
+  const group = managedPhotoGroups().find((g) => g.key === key);
+  if (!group) { openPhotoManager(); return; }
+  openSheet([ico('images'), ` ${group.name}`], el('div', { class: 'stack' },
+    el('p', { class: 'summary' }, plural(group.ids.length, 'photo', 'photos')),
+    el('div', { class: 'menu' }, group.ids.map((id, i) =>
+      settingsRow('image', `Photo ${i + 1}`, (group.point?.photos?.[0] ?? (group.kind === 'venue' ? group.ids[0] : null)) === id ? 'Photo principale' : null, () => openManagedPhoto(key, id)))),
+    group.kind !== 'outing' || !group.ids.length ? managedImport(group, () => openManagedGroup(key)) : null,
+    foot(backBtn(named('Gestionnaire de photos', openPhotoManager)))), { tall: true, name: 'gestion-photos:lieu' });
+}
+
+function openManagedPhoto(key, id) {
+  const group = managedPhotoGroups().find((g) => g.key === key);
+  if (!group?.ids.includes(id)) { openManagedGroup(key); return; }
+  const back = () => openManagedGroup(key);
+  const thumb = el('img', { alt: `Photo de ${group.name}`, 'data-photo': id });
+  const holder = el('button', { type: 'button', class: 'photo-open gestion-photo-preview', onclick: () => viewPhoto(group.ids, group.ids.indexOf(id), group.name) }, thumb);
+  const thumbs = photoThumbnails();
+  thumbs.observe(thumb);
+  openSheet([ico('image'), ` ${group.name}`], el('div', { class: 'stack' }, holder,
+    (group.kind === 'point' && group.point.photos?.[0] !== id || group.kind === 'venue' && group.ids[0] !== id) ? el('button', { type: 'button', class: 'btn c-add', onclick: () => runPhotoChange(() => {
+      applyPhotoChange(() => {
+        const current = managedPhotoGroups().find((g) => g.key === key);
+        if (!current?.ids.includes(id)) throw new Error('Cette photo a déjà été déplacée ou retirée.');
+        if (current.kind === 'point') current.point.photos = [id, ...(current.point.photos ?? []).filter((x) => x !== id)];
+        else venuePhotos = setVenueAlbum(venuePhotos, current.name, [id, ...current.ids.filter((x) => x !== id)]);
+      });
+      openManagedPhoto(key, id);
+    }) }, ico('star'), 'Définir comme photo principale') : null,
+    managedImport(group, back, id),
+    el('button', { type: 'button', class: 'btn', onclick: () => openManagedPhotoEdit(group, id) }, ico('rotate-cw'), 'Recadrer ou tourner'),
+    el('button', { type: 'button', class: 'btn', onclick: () => openPhotoTransfer(group, id) }, ico('copy'), 'Déplacer ou copier'),
+    el('button', { type: 'button', class: 'btn danger', onclick: () => confirmPhotoRemoval([{ group: key, id }], back) }, ico('trash-2'), 'Supprimer'),
+    foot(backBtn(named('Photos du lieu', back)))), { tall: true, name: 'gestion-photos:photo' });
+}
+
+function openManagedPhotoEdit(group, id) {
+  let angle = 0;
+  let ratio = 0;
+  const preview = el('img', { alt: 'Aperçu du recadrage' });
+  const display = el('div', { class: 'gestion-photo-edit' }, preview);
+  let generation = 0;
+  const refresh = async () => {
+    const version = ++generation;
+    try {
+      const source = await getPhoto(id);
+      if (!source) return;
+      const blob = await compressImage(source, 500, { angle, ratio });
+      if (version !== generation || !preview.isConnected) return;
+      const url = URL.createObjectURL(blob);
+      preview.src = url;
+      try { await preview.decode(); } finally { URL.revokeObjectURL(url); }
+    } catch { /* Le fichier reste disponible pour une autre tentative. */ }
+  };
+  openSheet('Recadrer ou tourner', el('div', { class: 'stack' }, display,
+    managedPhotoSelect('Format', [['0', 'Original'], ['1', 'Carré'], ['1.3333333333', 'Paysage 4:3'], ['0.75', 'Portrait 3:4']], '0', (value) => { ratio = Number(value); refresh(); }),
+    el('button', { type: 'button', class: 'btn', onclick: () => { angle = (angle + 90) % 360; refresh(); } }, ico('rotate-cw'), 'Tourner d’un quart de tour'),
+    el('button', { type: 'button', class: 'btn c-add solid', onclick: async () => {
+      const source = await getPhoto(id).catch(() => null);
+      if (!source) { toast('Photo introuvable.', true); return; }
+      if (angle || ratio) changeManagedFiles(group.key, id, [source], { angle, ratio }, () => openManagedGroup(group.key));
+    } }, ico('check'), 'Enregistrer'),
+    foot(backBtn(named('Photo', () => openManagedPhoto(group.key, id))))), { tall: true, name: 'gestion-photos:recadrer' });
+  refresh();
+}
+
+function openPhotoTransfer(source, id) {
+  const targets = managedPhotoGroups().filter((g) => g.kind !== 'outing' && g.key !== source.key)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const target = el('select', {}, el('option', { value: '' }, 'Choisir un lieu'),
+    targets.map((g) => el('option', { value: g.key }, g.name)));
+  const transfer = (move) => runPhotoChange(async () => {
+    if (!target.value) { target.focus(); return; }
+    const destination = target.value;
+    const blob = await getPhoto(id);
+    if (!blob) throw new Error('Photo introuvable.');
+    const copyId = move ? id : newPhotoId();
+    if (!move) await putPhoto(copyId, blob);
+    try { applyPhotoChange(() => {
+      const groups = managedPhotoGroups();
+      const from = groups.find((g) => g.key === source.key);
+      const to = groups.find((g) => g.key === destination);
+      if (!from?.ids.includes(id) || !to) throw new Error('La photo ou le lieu a changé.');
+      if (to.ids.includes(id)) throw new Error('Cette photo est déjà associée à ce lieu.');
+      mutateManagedPhoto(to, null, copyId);
+      if (move) mutateManagedPhoto(from, id, null);
+    }); } catch (error) {
+      if (!move) await forgetStaged([copyId]);
+      throw error;
+    }
+    openManagedGroup(destination);
+    toast(move ? 'Photo déplacée' : 'Photo copiée');
+  });
+  openSheet('Déplacer ou copier', el('div', { class: 'stack' },
+    el('label', { class: 'gestion-photo-field' }, 'Lieu de destination', target),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => transfer(false) }, ico('copy'), 'Copier'),
+    el('button', { type: 'button', class: 'btn c-add', onclick: () => transfer(true) }, ico('arrow-right'), 'Déplacer'),
+    foot(backBtn(named('Photo', () => openManagedPhoto(source.key, id))))), { name: 'gestion-photos:transfert' });
+}
+
+function openPhotoTrash() {
+  const entries = cleanPhotoTrash(state.photoTrash).filter((x) => Date.now() - x.at < TRASH_MS);
+  const restore = (entry) => runPhotoChange(async () => {
+    if (Date.now() - entry.at >= TRASH_MS) throw new Error('Cette photo a expiré.');
+    if (!await getPhoto(entry.id)) throw new Error('Photo introuvable.');
+    applyPhotoChange(() => {
+      const group = managedPhotoGroups(true).find((g) => g.key === `${entry.kind}:${entry.owner}`);
+      if (!group && entry.kind === 'venue' && !venuePhotoOf(entry.name, venuePhotos)) {
+        mutateManagedPhoto({ kind: 'venue', name: entry.name }, null, entry.id);
+      } else if (!group) throw new Error('La fiche d’origine a été retirée.');
+      else if (group.kind === 'point') {
+        const p = group.point;
+        const times = new Set(Array.isArray(entry.passages) ? entry.passages : []);
+        const restored = p.passages?.filter((x) => times.has(x.at) && !x.photo).length ?? 0;
+        p.passages = p.passages?.map((x) => times.has(x.at) && !x.photo ? { ...x, photo: entry.id } : x);
+        if (entry.album || !restored) p.photos = restorePhotoOrder(p.photos ?? [], [entry]);
+      } else if (group.kind === 'venue') {
+        venuePhotos = setVenueAlbum(venuePhotos, group.name, restorePhotoOrder(group.ids, [entry]));
+      } else {
+        if (group.ids.length) throw new Error('La fiche a déjà une photo. Retire-la avant de restaurer celle-ci.');
+        mutateManagedPhoto(group, null, entry.id);
+      }
+      state.photoTrash = state.photoTrash.filter((x) => x.key !== entry.key);
+    });
+    openPhotoTrash();
+    toast('Photo restaurée');
+  });
+  openSheet([ico('trash-2'), ' Corbeille'], el('div', { class: 'stack' },
+    el('p', { class: 'help' }, entries.length ? 'Touche une ligne pour restaurer sa photo.' : 'La corbeille est vide.'),
+    el('div', { class: 'menu' }, entries.map((entry) => settingsRow('rotate-cw', entry.name,
+      plural(Math.ceil((entry.at + TRASH_MS - Date.now()) / 86400000), 'jour restant', 'jours restants'), () => restore(entry)))),
+    foot(backBtn(named('Gestionnaire de photos', openPhotoManager)))), { tall: true, name: 'gestion-photos:corbeille' });
 }
 
 /** Photos en plein écran ; le retour d'Android, la croix (v329) ou un appui ferme. Avec plusieurs photos, glisser de côté passe à la suivante ou à la précédente (v201). */
@@ -7947,7 +8389,7 @@ const BOOKING_TEXT = { required: 'Réservation obligatoire', advised: 'Réservat
 function openEventPage(e, back = null, { label = '', icon = '' , deck = null } = {}) {
   const expo = isExpo(e);
   const genre = genreOf(e, { expo });
-  const d = startPos() ? distanceM(startPos(), e) : null;
+  const d = !e.withoutDistance && startPos() ? distanceM(startPos(), e) : null;
   const dk = state.evSwipe !== false && deck?.items[deck.i]?.e === e ? deck : null; // v518 : glisser entre les sorties (éteint dans Réglages : rien)
   const again = () => openEventPage(e, back, { label, icon, deck: dk });
   openSheet([ico(icon || GENRE_ICON[genre] || 'calendar-days'), ` ${e.title}`], el('div', { class: 'stack' },
@@ -8713,9 +9155,15 @@ async function saveVenuePhotoFile(name, f) {
   try { blob = await compressImage(f, VENUE_PHOTO_SIDE); } catch { toast('Photo illisible.', true); return false; }
   const id = `salle-${newPhotoId()}`;
   try { await putPhoto(id, blob); } catch { toast('Photo non enregistrée : le téléphone manque peut-être de place.', true); return false; }
+  const previous = venuePhotos;
   const r = setVenuePhoto(venuePhotos, name, id);
-  venuePhotos = r.list; saveVenuePhotos();
-  if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
+  venuePhotos = r.list;
+  if (!venuePhotoOf(name, venuePhotos) || !saveVenuePhotos()) {
+    venuePhotos = previous;
+    await deletePhoto(id).catch(() => {});
+    return false;
+  }
+  if (r.old) deleteUnusedPhoto(r.old).catch(() => {});
   return true;
 }
 function openVenuePhoto(name, back) {
@@ -8738,14 +9186,11 @@ function openVenuePhoto(name, back) {
   const zone = el('div', { class: 'stack' });
   const show = () => fill(zone, cur ? el('button', { type: 'button', class: 'btn danger', onclick: ask }, ico('trash-2'), 'Retirer la photo') : null);
   const ask = () => fill(zone,
-    el('p', { class: 'warn', role: 'alert' }, `Retirer ta photo de ${name} ? Elle est effacée du téléphone.`),
+    el('p', { class: 'warn', role: 'alert' }, `Retirer ta photo de ${name} ?`),
     el('div', { class: 'row' },
       el('button', { type: 'button', class: 'btn', onclick: show }, 'Annuler'),
       el('button', { type: 'button', class: 'btn danger solid', onclick: () => {
-        const r = removeVenuePhoto(venuePhotos, name);
-        venuePhotos = r.list; saveVenuePhotos();
-        if (r.old) { deletePhoto(r.old).catch(() => {}); photoUrls.delete(r.old); }
-        again(); toast('Photo retirée');
+        confirmPhotoRemoval([{ group: `venue:${artistKey(name)}`, id: cur.id }], again);
       } }, 'Oui, retirer')));
   show();
   openSheet([ico('camera'), ` ${name}`], el('div', { class: 'stack' },
@@ -9052,17 +9497,138 @@ function openSortiesHelp() {
     foot(backBtn(named('Sorties', () => openEvents())))), { name: 'sorties-aide' });
 }
 
+let parisSort = 'arr';
+let parisQuery = '';
+let parisLimit = 60;
+let parisFit = false;
+const PARIS_SORTIES_KEY = 'carte-paris.sorties-tout-paris';
+let parisEvents = (() => {
+  try { return storage.getItem(PARIS_SORTIES_KEY) === '1'; } catch { return false; }
+})();
+parisFit = parisEvents;
+
+function setParisEvents(on) {
+  parisFit = on && !parisEvents;
+  parisEvents = on;
+  try { storage.setItem(PARIS_SORTIES_KEY, on ? '1' : '0'); } catch { /* Le choix vaut pour cette session. */ }
+}
+
+function fitParisEvents() {
+  const bounds = L.latLngBounds((arrData.arr ?? []).flatMap((a) => a.rings.flat().map(([lng, lat]) => [lat, lng])));
+  if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [14, 65], paddingBottomRight: [66, 106], maxZoom: 13, animate: false });
+}
+
+function showParisEventsMap(items, open, fit = true) {
+  closeSheet();
+  endPeek();
+  nearLayer.clearLayers();
+  if (fit) fitParisEvents();
+  const back = named('Tout Paris', () => showParisEventsMap(items, open, false));
+  const draw = () => {
+    peekLayer.clearLayers();
+    const zoom = map.getZoom();
+    const { groups, single } = groupPoints(items, (p) => map.project([p.lat, p.lng], zoom), zoom, null);
+    for (const item of single) {
+      L.marker([item.lat, item.lng], { title: item.title, icon: L.divIcon({
+        className: 'pin-wrap', html: `<span class="peek-pin">${svgIcon('calendar-days', { size: 15 })}</span>`, iconSize: [30, 30],
+      }) }).on('click', () => open(item, back)).addTo(peekLayer);
+    }
+    for (const group of groups) {
+      const center = groupCenter(group);
+      L.marker([center.lat, center.lng], { title: plural(group.length, 'sortie', 'sorties'), icon: L.divIcon({
+        className: 'pin-wrap', html: `<span class="peek-pin paris-sorties-pin">${group.length}</span>`, iconSize: [36, 36],
+      }) }).on('click', () => {
+        if (map.getZoom() < 16) map.setView([center.lat, center.lng], map.getZoom() + 2);
+      }).addTo(peekLayer);
+    }
+  };
+  map.on('zoomend', draw);
+  peekOff = () => map.off('zoomend', draw);
+  draw();
+  showPeekCard('Tout Paris', plural(items.length, 'sortie', 'sorties'), openEvents);
+}
+
+async function openParisEvents() {
+  endPeek();
+  nearLayer.clearLayers();
+  const title = [ico('calendar-days'), ' Sorties'];
+  const day = new Date();
+  let agenda;
+  try {
+    openSheet(title, el('p', { class: 'help' }, 'Lecture de l’agenda et des contours de Paris…'), { name: 'events' });
+    [agenda] = await Promise.all([eventsMode === 'navigo' ? loadNavigo() : eventsOfDay(day, isExpo), loadArr()]);
+    if (!arrData) throw new Error('Contours indisponibles');
+  } catch {
+    if (sheet.hidden || shownKey !== 'events' || !parisEvents) return;
+    openSheet(title, el('div', { class: 'stack' },
+      evFromBtn({ kind: 'paris' }), el('p', { class: 'warn' }, 'L’agenda ou les contours de Paris sont indisponibles.'),
+      el('button', { type: 'button', class: 'btn', onclick: () => openEvents() }, 'Réessayer')), { name: 'events' });
+    return;
+  }
+  if (sheet.hidden || shownKey !== 'events' || !parisEvents) return;
+  if (parisFit) { fitParisEvents(); parisFit = false; }
+  const isNavigo = eventsMode === 'navigo';
+  const where = eventsMode === 'all' || eventsMode === 'free' ? evWhere : '';
+  const open = isNavigo ? (e, back) => openNavigo(e, back) : (e, back) => openEventPage(e, back);
+  const base = (isNavigo ? (navigoItems ?? []).map((e) => ({ ...e, title: e.name, withoutDistance: true })) : nearbyEvents(agenda, WK_ALL, Infinity).map((e) => ({ ...e, d: null, withoutDistance: true })))
+    .map((e) => ({ ...e, arr: arrOfPoint(e) })).filter((e) => e.arr
+      && (!where || passWhere(e.indoor, where))
+      && (eventsMode !== 'free' || e.free) && (eventsMode !== 'art' || isExpo(e)));
+  const output = el('div', { class: 'stack' });
+  const render = () => {
+    const q = fold(parisQuery.trim());
+    const hits = base.filter((e) => (!q || fold([e.title, e.place, e.address, e.org].filter(Boolean).join(' ')).includes(q))
+      && (isNavigo ? navigoPass(e, navigoKinds) : evOk(e)));
+    const byName = (a, b) => a.title.localeCompare(b.title, 'fr');
+    const time = (e) => (e.slotStart ?? e.start)?.getTime() ?? Infinity;
+    hits.sort((a, b) => (parisSort === 'arr' ? a.arr - b.arr : parisSort === 'time' ? time(a) - time(b) : 0) || byName(a, b));
+    const shown = hits.slice(0, parisLimit);
+    const groups = new Map();
+    for (const e of shown) {
+      const key = parisSort === 'arr' ? arrOrd(e.arr) : '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    }
+    fill(output, el('p', { class: 'summary', 'aria-live': 'polite' }, plural(hits.length, 'sortie', 'sorties')),
+      el('button', { type: 'button', class: 'btn c-disc ev-mapbtn', disabled: !hits.length, onclick: () => showParisEventsMap(hits, open) }, ico('map'), 'Voir sur la carte'),
+      ...[...groups].flatMap(([key, entries]) => [key ? el('h3', { class: 'ring-title' }, key) : null,
+        el('ul', { class: 'items ev-list' }, entries.map((e) => isNavigo ? navigoRow(e, openEvents) : eventRow(e, named('Tout Paris', openEvents))))]),
+      shown.length < hits.length ? el('button', { type: 'button', class: 'btn', onclick: () => { parisLimit += 60; render(); } }, 'Afficher la suite') : null);
+  };
+  const search = el('input', { type: 'search', value: parisQuery, placeholder: 'Une sortie, un lieu…',
+    oninput: (e) => { parisQuery = e.target.value; parisLimit = 60; render(); } });
+  const filters = isNavigo ? null : el('div', { class: 'chips-scroll' }, [['out', 'Dehors'], ['in', 'À l’abri']]
+    .map(([value, name]) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(evWhere === value),
+      onclick: () => { evWhere = evWhere === value ? '' : value; openEvents(); } }, name)));
+  openSheet(title, el('div', { class: 'stack ev-page' },
+    evTabs(eventsMode),
+    el('div', { class: 'row' }, evFromBtn({ kind: 'paris' }), isNavigo ? null : evTypesBtn(openEvents)),
+    el('p', { class: 'help' }, 'Tout Paris, sans distance'),
+    el('label', { class: 'gestion-photo-field' }, 'Chercher', search),
+    managedPhotoSelect('Classement', [['arr', 'Arrondissement'], ['time', 'Heure'], ['name', 'Nom']], parisSort,
+      (value) => { parisSort = value; parisLimit = 60; render(); }),
+    where || ['all', 'free'].includes(eventsMode) ? filters : null,
+    !isNavigo ? evTypesNote(openEvents) : null, output,
+    eventsMode === 'all' ? weekendHero(null) : null,
+    eventsMode === 'all' ? venueBox(openEvents) : null), { tall: true, name: 'events', again: openEvents });
+  render();
+}
+
 const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), le temps de la session
 /** Sorties → « Autour de … ▾ » : d'où partent les distances. again (v450) : la page de Sorties à rouvrir (Grands lieux…), sinon Sorties. */
 function openEventsFrom(again = null) {
-  const o = evFrom;
-  const go = (start) => { if (again) { setEvFrom(start); again(); } else openEvents(start); };
+  const o = parisEvents && !again ? null : evFrom;
+  const go = (start) => {
+    if (!again) setParisEvents(false);
+    if (again) { setEvFrom(start); again(); } else openEvents(start);
+  };
   // 28 nov. : la ligne choisie encadrée, comme « À l'ouverture » (role radio, CHARTE § 4) ; la coche seule ne se voyait pas
   const opt = (on, icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', role: 'radio', 'aria-checked': String(on), onclick },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
   openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
     el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Distances depuis' },
+      again ? null : opt(parisEvents, 'map-pin-off', 'Tout Paris', 'Sans distance', () => { setParisEvents(true); openEvents(); }),
       opt(o?.kind === 'map' && !o.area, 'map', 'Le centre de la carte', 'Sans ta position', () => go('map')),
       opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', () => eventsFromMe(again)),
       cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); go('home'); }) : null,
@@ -9116,13 +9682,13 @@ async function evPoint() {
 /** « Autour de toi ▾ » : d'où partent les distances, le même bouton qu'en haut de Sorties ; again rouvre la page (v450). */
 /** « de toi », « de chez toi », « du centre de la carte », « de Châtelet » : la fin de « Distances depuis … » (v450). */
 const evFromWords = (o) => (o.kind === 'map' ? 'du centre de la carte' : o.kind === 'home' ? 'de chez toi' : o.kind === 'station' && o.label ? `de ${o.label}` : 'de toi');
-function evFromLabel(o) { return o.kind === 'map' ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi']; }
+function evFromLabel(o) { return o.kind === 'paris' ? ['', 'Tout Paris'] : o.kind === 'map' ? ['', 'Centre de la carte'] : o.kind === 'station' ? ['', o.label] : o.kind === 'home' ? ['', 'Chez moi'] : ['Autour de ', 'toi']; }
 function evFromBtn(o, again) {
   // v546 (mes choix 1B et « Oui » du 28 nov.) : partout dans Sorties, le point de départ est une icône de 48 px (épingle : centre de
   // la carte ; viseur : toi ; canapé : chez toi ; train : une station) ; sa petite flèche dit qu'on le change
   const label = evFromLabel(o);
   return el('button', { type: 'button', class: 'btn ev-fromicon', onclick: () => openEventsFrom(again), 'aria-label': `Point de départ des distances : ${label.join('')}. Changer`, title: label.join('') },
-    ico(o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed', { size: 24 }), el('span', { class: 'ev-fromdot', 'aria-hidden': 'true' }, ico('chevron-down', { size: 12 })));
+    ico(o.kind === 'paris' ? 'map-pin-off' : o.kind === 'map' ? 'map-pin' : o.kind === 'station' ? 'train-front' : o.kind === 'home' ? 'sofa' : 'locate-fixed', { size: 24 }), el('span', { class: 'ev-fromdot', 'aria-hidden': 'true' }, ico('chevron-down', { size: 12 })));
 }
 /** Les onglets de Sorties, soulignés, toujours à la même place (aussi quand l'agenda ne répond pas, v298). */
 const evTabList = () => [['all', 'Tout'], ['free', 'Gratuit'], ['art', 'Expos'], ['navigo', 'Navigo']].filter(([m]) => m !== 'navigo' || state.navigo !== false); /* v282 : le dernier, les autres ne bougent pas */
@@ -9370,6 +9936,7 @@ function openWeekendRubrique(o, id, back) {
 
 async function openEvents(start = null) {
   track('Sorties');
+  if (parisEvents) return openParisEvents();
   setEvFrom(start);
   await freshEvFrom(); // v450 : une position de plus de 10 min est redemandée ; loin de Paris : le centre de la carte (v217)
   if (!evFrom) { openNear(); return; }
@@ -9608,7 +10175,7 @@ function pickEventsArea(again = null, onPick = null) { // onPick (v560) : Ce wee
   const box = document.getElementById('map');
   box.append(el('span', { class: 'area-cross', 'aria-hidden': 'true' }, ico('plus')));
   peekCard = el('div', { class: 'now-card peek-card', role: 'region', 'aria-label': 'Choisir le quartier des sorties' },
-    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (onPick) { onPick({ ...mapPoint(), area: true }); again?.(); } else if (again) { setEvFrom('area'); again(); } else openEvents('area'); } },
+    el('button', { type: 'button', class: 'now-open', onclick: () => { endPeek(); if (onPick) { onPick({ ...mapPoint(), area: true }); again?.(); } else if (again) { setEvFrom('area'); again(); } else { setParisEvents(false); openEvents('area'); } } },
       el('span', { class: 'now-text' }, el('span', { class: 'now-kicker' }, again ? backLabel(again) : 'Sorties'), el('span', { class: 'now-name' }, 'Déplace la carte'), el('span', { class: 'now-sub' }, again ? 'La croix au centre, puis touche ici : distances depuis la croix' : 'La croix au centre, puis touche ici : sorties autour de la croix')),
       el('span', { class: 'now-chev', 'aria-hidden': 'true' }, '›')),
     el('button', { type: 'button', class: 'now-close', 'aria-label': 'Annuler', onclick: endPeek }, ico('x')));
@@ -9623,7 +10190,7 @@ async function eventsFromMe(again = null) {
     const pos = await locate();
     hideToast();
     const here0 = { lat: pos.lat, lng: pos.lng, time: pos.time, kind: 'here' }; // v450 : son heure, pour la redemander après 10 min
-    if (again) { setEvFrom(here0); again(); } else openEvents(here0);
+    if (again) { setEvFrom(here0); again(); } else { setParisEvents(false); openEvents(here0); }
   } catch (e) { toast(e.message, true); }
 }
 /** Le bandeau de « Voir sur la carte » : ce qui est montré, un appui pour revenir, la croix pour tout retirer. */
@@ -10782,7 +11349,7 @@ const navigoRow = (x, back) => sortieCard({ genre: navigoGenre(x.kind), name: x.
   buttons: [compassBtn(x), metroBtn(x, back)] });
 
 function openNavigo(x, back = null) {
-  const d = startPos() ? distanceM(startPos(), x) : null;
+  const d = !x.withoutDistance && startPos() ? distanceM(startPos(), x) : null;
   const again = () => openNavigo(x, back);
   openSheet([ico('badge-percent'), ` ${x.name}`], el('div', { class: 'stack' },
     el('p', { class: 'summary' }, [x.kind, d != null ? topWalk(d) : ''].filter(Boolean).join(' · ')),
@@ -11865,7 +12432,6 @@ function jardinPhoto(j, back, add) {
     if (!f) return;
     const mine = myJardinPlace(j);
     if (mine) {
-      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
       if (await savePhotos(mine, [f])) { renderMarkers(); openJardin(j, back); }
       return;
     }
@@ -11878,7 +12444,7 @@ function jardinPhoto(j, back, add) {
     toast(`${j.name} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
-      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      for (const id of np.photos ?? []) { await deleteUnusedPhoto(id).catch(() => {}); }
       renderMarkers();
       if (view === `jardin:${j.id}`) openJardin(j, back);
       toast('Jardin retiré de tes lieux, photo effacée');
@@ -12009,7 +12575,6 @@ function tombPhoto(j, t, back, add, done = null) { // v467 : `done` = À mettre 
     if (!f) return;
     const mine = myTombPlace(t, place);
     if (mine) {
-      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
       if (await savePhotos(mine, [f])) { renderMarkers(); if (done) done(); else openTombe(j, t, back); }
       return;
     }
@@ -12021,7 +12586,7 @@ function tombPhoto(j, t, back, add, done = null) { // v467 : `done` = À mettre 
     toast(`${t.name} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
-      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      for (const id of np.photos ?? []) { await deleteUnusedPhoto(id).catch(() => {}); }
       renderMarkers();
       if (view === `tombe:${c.id}:${t.key}:${t.div}`) openTombe(j, t, back);
       else if (done && view === 'averifier') done();
@@ -12127,7 +12692,6 @@ function arcadePhoto(a, back, add) {
     if (!f) return;
     const mine = myArcadePlace(state.points, a);
     if (mine) {
-      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
       if (await savePhotos(mine, [f])) { renderMarkers(); openArcade(a, back); }
       return;
     }
@@ -12140,7 +12704,7 @@ function arcadePhoto(a, back, add) {
     toast(`${a.nom} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
-      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      for (const id of np.photos ?? []) { await deleteUnusedPhoto(id).catch(() => {}); }
       renderMarkers();
       if (view === `passage:${a.id}`) openArcade(a, back);
       toast('Passage retiré de tes lieux, photo effacée');
@@ -12211,7 +12775,6 @@ function vuePhoto(v, back, add, done = null) { // v467 : `done` = À mettre à j
     if (!f) return;
     const mine = myArcadePlace(state.points, v);
     if (mine) {
-      if ((mine.photos?.length ?? 0) >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos au plus par lieu.`, true); return; }
       if (await savePhotos(mine, [f])) { renderMarkers(); if (done) done(); else openVue(v, back); }
       return;
     }
@@ -12224,7 +12787,7 @@ function vuePhoto(v, back, add, done = null) { // v467 : `done` = À mettre à j
     toast(`${v.nom} : dans tes lieux, avec ta photo`, false, { label: 'Annuler', fn: async () => {
       state.points = state.points.filter((p) => p !== np);
       persist();
-      for (const id of np.photos ?? []) { await deletePhoto(id).catch(() => {}); photoUrls.delete(id); }
+      for (const id of np.photos ?? []) { await deleteUnusedPhoto(id).catch(() => {}); }
       renderMarkers();
       if (view === `vue:${v.id}`) openVue(v, back);
       else if (done && view === 'averifier') done();
@@ -12544,6 +13107,7 @@ const SETTINGS_FIND = [
   ['circle-help', 'Aide de l\'appli', R, 'aide comment nouveautes probleme', () => openHelp()],
   ['save', 'Sauvegarde', R, 'sauvegarder exporter fichier drive perdre telephone prenom', (b) => openSettings('sauvegarde', b)],
   ['upload', 'Restaurer ou importer', R, 'restaurer importer google maps proche fichier reglages', (b) => openSettings('importer', b)],
+  ['images', 'Gestionnaire de photos', R, 'galerie appareil photo corbeille sans photo', () => openPhotoManager()],
   ['map', 'Mon Paris', R, 'journal planning arrondissements marche chiffres', () => openMyParis('settings')],
   ['house', 'Mes stations', R, 'maison travail rentrer station metro bus', () => openMyStations()],
   ['tags', 'Catégories et listes', R, 'categorie liste couleur icone sous-categorie', (b) => openSettings('categories', b)],
@@ -13344,10 +13908,7 @@ function openSettings(section = null, from = null) {
   }
 
   // Sommaire
-  const row = (icon, title, summary, onclick, warn = false, family = 'c-info') => el('button', { type: 'button', class: `menu-row ${family}${warn ? ' warn-row' : ''}`, onclick },
-    el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, typeof icon === 'string' && ICON_NAMES.has(icon) ? ico(icon) : icon),
-    el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, summary)),
-    el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›'));
+  const row = settingsRow;
   // v214 : interrupteurs et valeurs à − et + des pages « Alertes et bandeau », « Fiche d'un lieu » et « Distances et durées »
   const onOff = (key, icon, title, sub, on, flip) => el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(on), 'data-sw': key, onclick: () => {
     flip(); persist(); openSettings(section);
@@ -13707,6 +14268,7 @@ function openSettings(section = null, from = null) {
       el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, 'Sauvegarde'), el('span', { class: 'menu-sub' }, unsaved ? plural(unsaved, 'changement non sauvegardé', 'changements non sauvegardés') : saveSummary)),
       el('span', { class: unsaved ? 'tag due' : 'tag open' }, unsaved ? 'À faire' : 'À jour'),
       el('span', { class: 'menu-chev', 'aria-hidden': 'true' }, '›')),
+    row('images', 'Gestionnaire de photos', placesWithoutPhotos(), openPhotoManager, false, 'c-add'),
     row('upload', 'Restaurer ou importer', 'Sauvegarde, proche, Google Maps', () => openSettings('importer'), false, 'c-add'),
     // v322 : ligne d'alerte (seulement quand une donnée est à mettre à jour), avec la sauvegarde
     dataDue(dataDates()).length ? row('database', 'Données de l\'appli', `${plural(dataDue(dataDates()).length, 'donnée à mettre à jour', 'données à mettre à jour')}`, () => openSettings('donnees'), true, 'c-info') : null,
@@ -13867,15 +14429,36 @@ async function importPhotos(text, st, mine = true) {
     if (venuePhotoOf(x.name, venuePhotos) || typeof photos[x.id] !== 'string') continue;
     const blob = await dataUrlToBlob(photos[x.id]).catch(() => null);
     if (!blob) continue;
-    try { await putPhoto(x.id, blob); } catch { continue; }
-    venuePhotos = cleanVenuePhotos([...venuePhotos, x]); added++;
+    try { if (!await getPhoto(x.id)) await putPhoto(x.id, await compressImage(blob, VENUE_PHOTO_SIDE)); } catch { continue; }
+    const ids = [x.id];
+    for (const id of venuePhotoIds(x).slice(1)) {
+      const extra = await dataUrlToBlob(photos[id]).catch(() => null);
+      if (!extra) continue;
+      try {
+        if (!await getPhoto(id)) await putPhoto(id, await compressImage(extra));
+        ids.push(id);
+      } catch { /* Les autres photos de la salle restent restaurées. */ }
+    }
+    venuePhotos = setVenueAlbum(venuePhotos, x.name, ids, x.at);
+    added++;
   }
   if (added) saveVenuePhotos();
-  const wanted = new Set([...st.points.flatMap((p) => photoIds(p)), ...cleanOutings(st.outings).map((o) => o.photo).filter(Boolean)]);
+  const trash = mine ? cleanPhotoTrash(file.photoTrash).filter((x) => Date.now() - x.at < TRASH_MS) : [];
+  const wanted = new Set([...st.points.flatMap((p) => photoIds(p)), ...cleanOutings(st.outings).map((o) => o.photo).filter(Boolean), ...trash.map((x) => x.id)]);
+  const restored = new Set();
   for (const [id, url] of Object.entries(photos)) {
     if (!wanted.has(id)) continue;
     const blob = await dataUrlToBlob(url).catch(() => null);
-    if (blob) await putPhoto(id, blob).catch(() => {});
+    if (!blob) continue;
+    try {
+      if (!await getPhoto(id)) await putPhoto(id, await compressImage(blob));
+      restored.add(id);
+    } catch { /* La photo reste signalée comme introuvable. */ }
+  }
+  if (trash.length) {
+    const previous = state.photoTrash ?? [];
+    state.photoTrash = [...new Map([...trash.filter((x) => restored.has(x.id)), ...previous].map((x) => [x.key, x])).values()];
+    if (!persist()) state.photoTrash = previous;
   }
 }
 
@@ -14102,8 +14685,19 @@ async function backupText(withPhotos, withTtb = false, withKey = false, withPdf 
     }
     // v327 (mon choix 1B du 20 nov.) : mes photos des salles aussi ; jamais dans l'export de Vu en passant ni pour un proche
     const vp = cleanVenuePhotos(venuePhotos);
-    for (const x of vp) { const b = await getPhoto(x.id).catch(() => null); if (b) obj.photos[x.id] = await blobToDataUrl(b); }
-    if (vp.some((x) => obj.photos[x.id])) obj.venuePhotos = vp.filter((x) => obj.photos[x.id]);
+    const corbeille = cleanPhotoTrash(state.photoTrash).filter((x) => Date.now() - x.at < TRASH_MS);
+    for (const id of new Set(corbeille.map((x) => x.id))) {
+      if (obj.photos[id]) continue;
+      const b = await getPhoto(id).catch(() => null);
+      if (b) obj.photos[id] = await blobToDataUrl(b);
+    }
+    if (corbeille.length) obj.photoTrash = corbeille.filter((x) => obj.photos[x.id]);
+    for (const id of new Set(vp.flatMap(venuePhotoIds))) {
+      const b = await getPhoto(id).catch(() => null);
+      if (b) obj.photos[id] = await blobToDataUrl(b);
+    }
+    if (vp.some((x) => obj.photos[x.id])) obj.venuePhotos = vp.filter((x) => obj.photos[x.id])
+      .map((x) => ({ ...x, ...(x.photos ? { photos: x.photos.filter((id) => obj.photos[id]) } : {}) }));
   }
   return JSON.stringify(obj);
 }
@@ -15288,7 +15882,7 @@ const HELP = [
     '**Le formulaire** : nom, catégorie, puis {camera} **Photo**, {star} **Favori** et ton commentaire. « Plus de détails » garde l\'état, les étoiles, les listes, « Abrité de la pluie » et « Le bon moment » ; tout en bas, « Café ou snack sur place » et « Boutique sur place » (pas pour un resto ni une boutique), chacun avec une ligne de commentaire quand il est allumé.',
     '**La fiche** s\'ouvre quand tu touches une goutte.',
     '**Y aller** ouvre Google Maps. {compass} **Boussole** : une flèche et une voix te guident.',
-    '**M Métro** : la ligne et la correspondance (en dessous, « Autres stations près de toi » : le temps depuis chacune des 3 stations les plus proches de toi) ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : « Depuis ma galerie » ou « Prendre une photo », 6 photos par lieu.',
+    '**M Métro** : la ligne et la correspondance (en dessous, « Autres stations près de toi » : le temps depuis chacune des 3 stations les plus proches de toi) ; « À pied » quand c\'est plus court, « Pas de trajet simple en métro » quand l\'appli n\'en trouve pas (Google Maps le donne). {camera} **Photo** : « Depuis ma galerie » ou « Prendre une photo », sans limite fixe par lieu.',
     '**Aujourd\'hui** et **Métro**, juste sous les boutons du haut : ouvert, ferme à…, ferme dans 30 min, ou fermé ce jour (« horaires notés en mars 2024 » quand ils ont été copiés il y a plus d\'un an : vérifie avant de faire le trajet) ; la station la plus proche et, sous elle, la sortie de métro la plus proche du lieu (numéro et nom des panneaux RATP ; une sortie fermée pour travaux n\'est pas connue). Touche la station (›) : les 3 stations proches du lieu et, avec ta station Maison, par laquelle rentrer le plus vite.',
     '{star} **Favori** et {check} **Déjà visité** : un appui allume, un autre éteint. Le mot change selon la catégorie si tu l\'as choisi (« Déjà goûté », « Déjà vu »…) : {settings} → Catégories et listes.',
     '{alarm-clock} **Prévoir** : sous Favori, à côté d\'« Impression ». Une fois prévue, le bouton dit quand (« Prévu 15 h », « Prévu dès 19 h », « Prévu demain », « Prévu sam. 21 ») ; l\'heure et avec qui sont dans Prévoir.',
@@ -15424,6 +16018,8 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{images} **Gestionnaire de photos** dans Réglages : compteurs, filtres, galerie, retouches, transfert et corbeille de 30 jours. Les photos restent sur ton téléphone.',
+    '{map} **Tout Paris** dans Sorties → Distances depuis… : les résultats par arrondissement, sans distance, et les groupes de sorties sur la carte.',
     '{dumbbell} **Sport, sous-thèmes et étiquettes** : Ce week-end a une rubrique Sport (avant dans Autres sorties) ; une rubrique de plus de 40 sorties montre des puces de sous-thèmes (Photo, Peinture, Art contemporain…) ; sur chaque grande photo, son sous-thème et « Dernier jour » quand une expo ferme ce week-end.',
     '{landmark} **Gratuit ce week-end** : la première tuile de Ce week-end réunit les sorties gratuites (« sous condition » quand l\'agenda le dit) et, en tête, les musées gratuits exceptionnellement ces jours-là ; les musées de la Ville, toujours gratuits, sont repliés dessous.',
     '{list-filter} **Je ne veux pas** : en bas de Types de sorties, les mots à écarter (« enfants », « yoga »…) : une sortie qui en cite un est masquée, sauf si elle cite ton artiste ou ton thème. La ligne du haut compte les masquées ; « Tout voir » montre tout le temps de cette ouverture, « Remettre » rallume tes choix.',
@@ -15432,8 +16028,6 @@ const HELP = [
     '{calendar-days} **Sorties nouvelles** : sous la bannière Ce week-end, « 12 nouvelles depuis mercredi » quand l\'agenda de la Ville a des sorties qui n\'y étaient pas à ta dernière ouverture de Sorties (selon tes types). Un appui : leur liste ; ensuite, elles ne sont plus nouvelles.',
     '{calendar-days} **Ce week-end sur tout Paris** : sans distance, par heure (les expos qui ferment ce week-end d\'abord), l\'arrondissement sous chaque sortie, 60 par rubrique puis « Voir les 60 suivantes ». Le viseur à côté de « Voir sur la carte » : du plus proche au plus loin de toi ; un autre appui revient à tout Paris.',
     '{list-filter} **Types de sorties** : dans Sorties, l\'icône de filtre (à côté du point de départ) choisit les types à montrer (Expos, Concerts…), partout dans Sorties et Ce week-end ; une ligne le rappelle, « Tout voir » remet tout. Plus bas, Mes artistes et mes thèmes (« jazz », « photo », « Japon ») : une sortie qui en cite un s\'affiche aussi, avec un cœur, en tête.',
-    '{calendar-days} **Agenda complet** : les jours chargés (plus de 1000 sorties, comme ce samedi), Trouver une sortie et Ce week-end lisent tout l\'agenda du jour, rien n\'est coupé.',
-    '{train-front} **SOS : SMS transports 31177** : dans la page Secours, sous le SMS au 114, sur toute la largeur. Message prêt (« Je ne peux pas parler », ligne, station) : écris la ligne et la station, touche Envoyer.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

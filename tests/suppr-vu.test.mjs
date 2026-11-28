@@ -11,7 +11,7 @@ const zone = app.slice(app.indexOf('function seenDeleteZone('), app.indexOf('/**
 test('2A : la photo et sa note ; rattachée à un de mes lieux, seulement son impression', () => {
   assert.match(del, /if \(inPass\) place\.passages = \(place\.passages \?\? \[\]\)\.filter\(\(x\) => x\.photo !== id\);/);
   assert.match(del, /if \(!place\.photos\.length\) \{[\s\S]*state\.points = state\.points\.filter\(\(x\) => x\.id !== place\.id\);/);
-  assert.match(del, /deletePhoto\(id\)/, 'la photo est effacée du téléphone');
+  assert.match(del, /deleteUnusedPhoto\(id\)/, 'la photo est effacée du téléphone');
 });
 
 test('4A : la catégorie ne part que si elle ne contient rien d\'autre (ni mes autres lieux, ni ceux d\'un proche)', () => {

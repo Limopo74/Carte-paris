@@ -100,7 +100,8 @@ test('Mes photos des salles : dans la sauvegarde générale (mon choix 1B), jama
   assert.ok(VENUE_PHOTO_SIDE >= 400 && VENUE_PHOTO_SIDE <= 800, 'réduite : assez pour la vignette et le bandeau');
   const st = memStorage();
   saveState(st, { ...loadState(st), venuePhotos: [{ name: 'Le Baiser Salé', id: 'salle-abc123' }] });
-  assert.doesNotMatch(st.getItem(KEY), /salle-abc123/, 'liste à part, pas dans l\'état des lieux');
+  assert.equal(loadState(st).venuePhotos[0].id, 'salle-abc123', 'la salle est persistée avec les associations de photos');
+  assert.deepEqual(loadState(st).points, [], 'la salle reste distincte des lieux personnels');
   const bk = app.slice(app.indexOf('async function backupText('), app.indexOf('function backupFile('));
   assert.match(bk, /if \(withPhotos\) \{[\s\S]*const vp = cleanVenuePhotos\(venuePhotos\);[\s\S]*obj\.venuePhotos = vp\.filter/, 'avec les photos de la sauvegarde');
   const imp = app.slice(app.indexOf('async function importPhotos('), app.indexOf('async function importPhotos(') + 1500);
@@ -111,7 +112,7 @@ test('Mes photos des salles : dans la sauvegarde générale (mon choix 1B), jama
   assert.doesNotMatch(vu, /venuePhoto/, 'pas dans Exporter de Vu en passant');
   const friend = app.slice(app.indexOf('const obj = exportForFriend('), app.indexOf('const obj = exportForFriend(') + 800);
   assert.doesNotMatch(friend, /venuePhoto/, 'jamais pour un proche');
-  assert.match(app, /storage\.setItem\(VENUE_PHOTOS_KEY,/, 'sa propre clé, dans la mémoire de l\'essai pendant un essai');
+  assert.match(app, /state\.venuePhotos \?\? JSON\.parse\(storage\.getItem\(VENUE_PHOTOS_KEY\)/, 'la clé historique reste lisible, y compris en mode essai');
   assert.match(app, /compressImage\(f, VENUE_PHOTO_SIDE\)/, 'réduite sur le téléphone, position effacée');
 });
 

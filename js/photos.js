@@ -1,10 +1,11 @@
+import { photoCrop } from './photo-crop.js';
+
 // Photos des lieux : réduites sur le téléphone et rangées dans sa base locale (IndexedDB).
 // Elles ne partent nulle part. Le réencodage efface les données EXIF, dont la position GPS.
 
 const DB = 'carte-paris-photos';
 const STORE = 'photos';
 export const MAX_SIDE = 1280;
-export const MAX_PHOTOS = 6;
 
 let dbPromise = null;
 function db() {
@@ -25,7 +26,7 @@ function tx(mode, fn) {
     const t = d.transaction(STORE, mode);
     const r = fn(t.objectStore(STORE));
     t.oncomplete = () => resolve(r?.result);
-    t.onerror = () => reject(t.error ?? new Error('Photo non enregistrée (stockage plein ?).'));
+    t.onabort = () => reject(t.error ?? new Error('Photo non enregistrée (stockage plein ?).'));
   }));
 }
 
@@ -52,14 +53,22 @@ export function fitSize(w, h, max = MAX_SIDE) {
 }
 
 /** Réduit et réencode une photo en JPEG (orientation respectée, EXIF effacé) ; `max` : côté le plus long (v327 : plus petit pour une salle). */
-export async function compressImage(file, max = MAX_SIDE) {
+export async function compressImage(file, max = MAX_SIDE, { angle = 0, ratio = 0 } = {}) {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const { w, h } = fitSize(bmp.width, bmp.height, max);
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
+  const turn = Math.abs(angle % 180) === 90;
+  try {
+    const { x, y, w, h } = photoCrop(bmp.width, bmp.height, turn && ratio ? 1 / ratio : ratio);
+    const size = fitSize(w, h, max);
+    canvas.width = Math.max(1, turn ? size.h : size.w);
+    canvas.height = Math.max(1, turn ? size.w : size.h);
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(angle * Math.PI / 180);
+    ctx.drawImage(bmp, x, y, w, h, -size.w / 2, -size.h / 2, size.w, size.h);
+  } finally {
+    bmp.close?.();
+  }
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Photo illisible.'))), 'image/jpeg', 0.8));
 }
 

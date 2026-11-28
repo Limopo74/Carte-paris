@@ -77,6 +77,8 @@ Tous les textes atteignent au moins 4,5:1 sur papier et sur kraft ; les étoiles
 - **La grosse lettre terre cuite** (« Édito lettrine », v327) ne veut dire qu'une chose : **le genre d'une sortie sans photo**, dans sa vignette de 56 × 76 (« Photos dans Sorties » allumé), le genre écrit dessous à l'horizontale. Nulle part ailleurs : ni titres, fiches, listes de lieux, carte, Aide, écrans vides, premier lancement, ni icône de l'appli ; ni mot vertical ou empilé (mes choix du 20 nov. 2026, essayés en maquette puis écartés).
 
 ## 7 bis. Photos (règle du 20 novembre 2026, mon choix A)
+
+Le gestionnaire de photos dans Réglages peut afficher une mosaïque de photos personnelles. Ces miniatures suivent les mêmes dimensions et les mêmes emplacements dans Papier, Verre, Signalétique et Pop.
 1. **Ma photo d'abord** : elle seule va sur mes lieux. Réduite à 1280 px, sans position (EXIF effacé), gardée sur le téléphone, jamais envoyée par l'appli. Exception (mon choix du 20 nov. 2026, v307) : « Exporter » de Mes Vu en passant, que je lance moi-même, remet la position, la date et ma ligne dans chaque photo du fichier, avec un rappel visible (« qui les reçoit le voit »).
 2. **Une photo officielle** seulement si la source de la donnée la fournit (agenda de la Ville) ou si la liste est courte et chaque photo choisie à la main. **Jamais appariée automatiquement** (une photo de Wikidata n'est pas toujours le bon lieu).
 3. Copiée dans l'appli ou servie par la source de la donnée : pas de nouveau service d'images (seule exception aujourd'hui : cdn.paris.fr, pour l'agenda).

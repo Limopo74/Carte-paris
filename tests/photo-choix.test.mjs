@@ -20,11 +20,11 @@ test('la page : galerie au-dessus, appareil photo en seule plaque pleine, en bas
   assert.ok(page.includes("onclick: () => galleryPhoto(p, back) }"));
   assert.ok(page.includes("'← Fiche'") && page.includes('foot('));
   assert.ok(page.includes('`photo-add:${p.id}`'), 'un nom d\'écran unique');
-  assert.ok(page.includes('>= MAX_PHOTOS'), '6 photos : la page des photos, comme avant');
+  assert.doesNotMatch(page, /MAX_PHOTOS/, 'la galerie et l’appareil photo restent accessibles quel que soit le nombre de photos');
 });
 
 test('Rangement d\'une photo prise en passant : « Ajouter une photo » ouvre la même page', () => {
-  assert.match(app, /row\('camera', 'Ajouter une photo', `\$\{MAX_PHOTOS\} au plus`, \(\) => choosePhoto\(p, back\)\)/);
+  assert.match(app, /row\('camera', 'Ajouter une photo', null, \(\) => choosePhoto\(p, back\)\)/);
 });
 
 test('l\'aide ne cite plus Rangement → Depuis ma galerie', () => {
