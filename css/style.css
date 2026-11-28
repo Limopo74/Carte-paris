@@ -1748,6 +1748,7 @@ html[data-crise] .look-dot::after { opacity: 1; outline: 2px solid var(--bg); }
 .ev-fromdot .ico svg { width: 12px; height: 12px; }
 .ev-page > .ev-mapbtn { width: 100%; min-height: var(--h-s); }
 .ev-findline > .ev-mapbtn { flex: 1; min-height: var(--h); }
+.wk-mapbtn { width: 100%; min-height: var(--h-s); }
 /* Mosaïque des rubriques : deux colonnes, photo de 96 px, nom et nombre ; © en haut à droite de la photo */
 .wk-days button { flex: 1 1 auto; padding-left: 8px; padding-right: 8px; white-space: nowrap; } /* « Sam. et dim. », « Sam. 28 », « Dim. 29 » sur une ligne à 360 px */
 .wk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

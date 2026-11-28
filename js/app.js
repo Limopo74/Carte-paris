@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (548)';
+const VERSION = '28 novembre 2026 (549)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8963,6 +8963,7 @@ const weekendFromText = (o) => (o.kind === 'map' ? 'du centre de la carte' : o.k
 /** La page « Ce week-end » : les rubriques en mosaïque (mon choix 2C). */
 function openWeekend(o, back = named('Sorties', () => openEvents())) {
   track('Ce week-end');
+  nearLayer.clearLayers(); // v548 : les ronds de Sorties ou d'une rubrique ne restent pas sous la mosaïque
   const days = weekendDays();
   if (!days.some((d) => d.key === weekendDay)) weekendDay = 'both';
   const again = () => openWeekend(o, back);
@@ -9005,7 +9006,15 @@ function openWeekendRubrique(o, id, back) {
     if (!g) { fill(list, el('p', { class: 'empty' }, 'Plus aucune sortie dans cette rubrique pour ce jour. Choisis un autre jour.')); return; }
     const t = document.querySelector('#sheet h2'); if (t) t.replaceChildren(ico(g.icon), ` ${g.name}`);
     const shown = g.items.slice(0, WK_MAX);
+    // v548 (mon choix A du 28 nov.) : « Voir sur la carte », comme dans Sorties : le bandeau parcourt les sorties de la rubrique,
+    // un rond par sortie sur la carte (touché : le bandeau sur cette sortie) ; seulement celles de la liste (60 au plus)
+    const peek = { kicker: g.name, label: plural(shown.length, 'sortie', 'sorties'), icon: g.icon, from: o, back: again, open: (x, b) => x.go(b),
+      items: shown.map((x) => ({ name: x.e.title, lat: x.e.lat, lng: x.e.lng, go: (b) => openEventPage(x.e, b ?? named(g.name, again)),
+        info: () => [weekendWhen(x, today), x.e.free ? 'Gratuit' : '', x.e.booking === 'required' ? 'Sur réservation' : ''] })) };
+    nearLayer.clearLayers();
+    tapRounds(nearLayer, peek.items.map((x) => ({ lat: x.lat, lng: x.lng, style: EV_ROUND })), (k) => showPeek({ ...peek, start: k, stay: true }));
     fill(list,
+      el('button', { type: 'button', class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: () => showPeek(peek) }, ico('map'), 'Voir sur la carte'),
       g.items.length > WK_MAX ? el('p', { class: 'help' }, `Les ${WK_MAX} plus proches, sur ${g.items.length}.`) : null,
       el('ul', { class: 'items wk-list' }, shown.map((x) => {
         const e = x.e; const genre = weekendGenre(e);
@@ -14832,7 +14841,7 @@ const HELP = [
     '{arrow-right} **Y aller**, Boussole et Métro mènent au premier lieu de la liste. **Fait** le passe en Déjà visité (« Annuler » dans le message) et le suivant prend sa place. « Modifier la liste » : des flèches pour ranger à ta façon, et × pour retirer un lieu d\'aujourd\'hui (il reste sur ta carte ; « Annuler » dans le message). « Tout le parcours · Google Maps » : de 2 à 4 lieux, à pied, dans ton ordre.',
     '{footprints} **Entre deux lieux du jour** : sous chaque lieu, les minutes à pied depuis le précédent (« 8 min du n° 1 ») ; sous la liste, le total. Par les rues si le plan des rues de Mes parcours est sur ton téléphone, sinon estimées (« ≈ »).',
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
-    '{calendar-days} **Ce week-end**, en tête de Sorties : la grande bannière à photos. Un appui : les rubriques du samedi et du dimanche (Expos, Concerts, Spectacles, En famille…) ; un appui sur une rubrique : ses sorties en grandes photos, les plus proches d\'abord. « Sam. et dim. », « Sam. », « Dim. » choisissent le jour. Agenda de la Ville, seulement ce qui a un horaire ces jours-là (et les expos ouvertes) ; une sortie que l\'appli ne sait pas classer est dans « Autres sorties ». Touche © sur une photo : son auteur.',
+    '{calendar-days} **Ce week-end**, en tête de Sorties : la grande bannière à photos. Un appui : les rubriques du samedi et du dimanche (Expos, Concerts, Spectacles, En famille…) ; un appui sur une rubrique : ses sorties en grandes photos, les plus proches d\'abord, et « Voir sur la carte » (un rond par sortie). « Sam. et dim. », « Sam. », « Dim. » choisissent le jour. Agenda de la Ville, seulement ce qui a un horaire ces jours-là (et les expos ouvertes) ; une sortie que l\'appli ne sait pas classer est dans « Autres sorties ». Touche © sur une photo : son auteur.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
     '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Sorties → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
     '{alarm-clock} **Prévoir un autre jour**, en bas de Mon planning, sous Trouver une sortie : « Où ? » d\'abord (un de tes lieux, les plus proches en tête, ou cherché dans Paris), puis le jour et le moment, comme depuis la fiche. Un lieu déjà prévu garde sa sortie : tu la changes.',
@@ -15070,6 +15079,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
     '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
     '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
@@ -15079,7 +15089,6 @@ const HELP = [
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
-    '{triangle-alert} **Mode crise, en grand et sans Grève** : toucher une crise ouvre tout de suite Autour de moi, en grand, les gros boutons d\'abord (toujours en grand tant que le mode est allumé). Quatre crises : crue, coupure, canicule, abri ; Grève n\'ajoutait rien, et si elle était allumée, le mode s\'est éteint.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

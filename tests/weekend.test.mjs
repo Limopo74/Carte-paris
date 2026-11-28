@@ -49,3 +49,11 @@ test('l\'écran : bannière en tête de Sorties, point de départ en icône, © 
   assert.equal(/onclick: openEventsFrom[,}]/.test(app), false, 'jamais l\'appui passé à openEventsFrom');
   assert.match(app, /class: 'wk-credit'/, 'le © de chaque photo (mon choix 5A)');
 });
+
+test('v548 (mon choix A du 28 nov.) : « Voir sur la carte » dans chaque rubrique, un rond par sortie', () => {
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const rub = app.slice(app.indexOf('function openWeekendRubrique('), app.indexOf('async function openEvents('));
+  assert.match(rub, /class: 'btn c-disc ev-mapbtn wk-mapbtn', onclick: \(\) => showPeek\(peek\)/);
+  assert.match(rub, /items: shown\.map\(/, 'seulement les sorties de la liste');
+  assert.match(rub, /tapRounds\(nearLayer, peek\.items/, 'les ronds, comme dans Sorties');
+});
