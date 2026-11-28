@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (550)';
+const VERSION = '28 novembre 2026 (551)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8817,11 +8817,12 @@ const evOpen = new Set(); // rubriques de Sorties dépliées (« Les N … »), 
 function openEventsFrom(again = null) {
   const o = evFrom;
   const go = (start) => { if (again) { setEvFrom(start); again(); } else openEvents(start); };
-  const opt = (on, icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', 'aria-pressed': String(on), onclick },
+  // 28 nov. : la ligne choisie encadrée, comme « À l'ouverture » (role radio, CHARTE § 4) ; la coche seule ne se voyait pas
+  const opt = (on, icon, title, sub, onclick) => el('button', { type: 'button', class: 'menu-row c-disc', role: 'radio', 'aria-checked': String(on), onclick },
     el('span', { class: 'menu-ico', 'aria-hidden': 'true' }, ico(on ? 'check' : icon)),
     el('span', { class: 'menu-text' }, el('span', { class: 'menu-title' }, title), el('span', { class: 'menu-sub' }, sub)));
   openSheet([ico('map-pin'), ' Distances depuis…'], el('div', { class: 'stack' },
-    el('div', { class: 'menu' },
+    el('div', { class: 'menu', role: 'radiogroup', 'aria-label': 'Distances depuis' },
       opt(o?.kind === 'map', 'map', 'Le centre de la carte', 'Sans ta position', () => go('map')),
       opt(o && o.kind !== 'map' && o.kind !== 'station' && o.kind !== 'home', 'locate-fixed', 'Ma position', 'Demandée seulement maintenant', () => eventsFromMe(again)),
       cleanHome(state.home) ? opt(o?.kind === 'home', 'sofa', 'Chez moi', `${homeShort(state.home)} · vaut pour toute l'appli`, () => { setHomeOn(true, { quiet: true }); go('home'); }) : null,
@@ -15080,6 +15081,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{map-pin} **Distances depuis… : le choix se voit** : la ligne choisie (centre de la carte, ma position, chez moi) est encadrée sur fond clair, comme dans « À l\'ouverture ».',
     '{calendar-days} **Ce week-end avec TalkBack** : sur une grande photo, le titre de la sortie est lu en premier (avant : la légende de la photo, parfois très longue).',
     '{map} **Ce week-end sur la carte** : dans chaque rubrique, « Voir sur la carte » montre ses sorties, un rond par sortie ; le bandeau les fait défiler, un appui ouvre la sortie.',
     '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
@@ -15089,7 +15091,6 @@ const HELP = [
     '{ellipsis} **⋯ Plus et Filtres, mêmes noms** : dans ⋯ Plus, deux titres comme dans Filtres (« Filtrer mes lieux », « Afficher aussi sur la carte ») ; une couche porte le même nom et la même petite ligne aux deux endroits (Vélib\' sur la carte, Fontaines et WC sur la carte…). Signalements Dans ma rue est aussi dans Filtres.',
     '{alarm-clock} **Prévoir un autre jour** : en bas de Mon planning, choisis le lieu (« Où ? »), puis le jour. « Autre jour » montre les 7 jours suivants par leur nom (« Lundi 30 », « Mardi 1er déc. ») : un appui, sans ouvrir le calendrier.',
     '{git-commit-horizontal} **Rues d\'intérêt reconnaissables** : sur la carte, leur goutte montre le symbole rue au lieu de l\'icône de la catégorie ; la couleur reste celle de la catégorie.',
-    '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];
