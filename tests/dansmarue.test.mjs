@@ -14,7 +14,11 @@ const wf = readFileSync(new URL('../.github/workflows/maj-donnees.yml', import.m
 const D = { source: 'x', updated: '2026-11-25', from: '2025-08-21', to: '2026-08-20', origin: [48.8, 2.22], step: [0.0009, 0.00136], cuts: [4, 10], cells: [[90, 85, 2], [90, 86, 5], [91, 85, 12], [1, 1, 0]] };
 
 test('le fichier relu : vide ou faux = rien (la couche attend le robot) ; trois niveaux par seuils', () => {
-  assert.equal(cleanDmr(JSON.parse(readFileSync(new URL('../data/dansmarue.json', import.meta.url), 'utf8'))), null, 'vide avant le premier passage du robot');
+  // 28 nov. : ce test exigeait un fichier vide ; rempli par le robot, il faisait échouer tout le passage (rien publié depuis le 25 nov.).
+  // Vide avant le premier passage du robot, lisible ensuite.
+  const real = JSON.parse(readFileSync(new URL('../data/dansmarue.json', import.meta.url), 'utf8'));
+  if (real.cells?.length) assert.ok(cleanDmr(real), 'le fichier du robot se lit dans l\'appli');
+  else assert.equal(cleanDmr(real), null, 'vide avant le premier passage du robot');
   assert.equal(cleanDmr({ ...D, cuts: [5, 3] }), null);
   const d = cleanDmr(D);
   assert.equal(d.cells.length, 3, 'un carré sans signalement est écarté');
