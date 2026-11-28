@@ -1,5 +1,5 @@
 // v327 (mes choix 2C 3A 4A du 20 nov., puis 1B) : mes photos des salles.
-// Une photo par salle, prise ou choisie dans Réglages → Photos des salles, réduite sur le téléphone (EXIF effacé),
+// Une photo par salle, prise ou choisie dans Réglages → Autres réglages → Sorties → Photos des salles, réduite sur le téléphone (EXIF effacé),
 // rangée dans la base des photos. Elle remplace l'icône du genre dans les listes de Sorties seulement quand l'agenda
 // n'a pas de photo pour une sortie de cette salle, ou que sa photo ne se charge pas. La liste a sa propre clé de stockage ;
 // elle va dans la sauvegarde générale (avec les photos), jamais dans l'export de Vu en passant ni dans le fichier pour un proche.

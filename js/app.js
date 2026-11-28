@@ -94,7 +94,7 @@ import {
 } from './move.js';
 
 const L = window.L;
-const VERSION = '28 novembre 2026 (547)';
+const VERSION = '28 novembre 2026 (548)';
 const VERSION_NUM = VERSION.match(/\((\d+)\)/)?.[1] ?? ''; // v299 : le numéro seul, à côté du titre Réglages
 /** v334 (mon choix 2A du 20 nov.) : le texte Confidentialité, en un seul endroit ; Réglages le montre d'un bloc, l'Aide ligne à ligne. */
 const PRIVACY_LINES = [
@@ -8203,7 +8203,7 @@ function latePlanBtn(p, day, again) {
   return el('button', { type: 'button', class: 'btn c-disc', onclick: () => openPlan(plan, named(p.name, again), { done: again }) },
     ico('alarm-clock'), known ? `Prévu ${planShort(known.ticket)}` : `Prévoir ${lateWhen(w.k, w.date)}`);
 }
-/** Le bloc replié du bas de Mon planning (Réglages → Autres réglages → Nocturnes au planning, éteint au départ). */
+/** Le bloc replié du bas de Mon planning (Réglages → Autres réglages → Sorties → Nocturnes au planning, éteint au départ). */
 function lateWeekBlock(back) {
   if (state.lateWeek !== true) return null;
   const days = lateWeekDays();
@@ -8570,7 +8570,7 @@ const SORTIES_LINKS = [
 /** Clé d'une sortie, la même dans l'agenda du jour et dans celui de la semaine (titre et position). */
 const evKey = (e) => `${e.title}|${Math.round(e.lat * 1e3)}|${Math.round(e.lng * 1e3)}`;
 /** Les clés des 3 rendez-vous de mes salles montrés en tête de Sorties → Tout (v186 : pas répétés plus bas). */
-/* ---------- v327 (mes choix 2C 3A 4A 1B du 20 nov.) : Réglages → Autres réglages → Photos des salles ----------
+/* ---------- v327 (mes choix 2C 3A 4A 1B du 20 nov.) : Réglages → Autres réglages → Sorties → Photos des salles ----------
    Ma photo d'une salle remplace l'icône du genre dans les listes de Sorties seulement quand l'agenda n'a pas de photo pour
    une sortie de cette salle, ou que la sienne ne se charge pas : la photo de l'agenda passe toujours avant. */
 function venuePhotoSub() {
@@ -9034,7 +9034,7 @@ async function openEvents(start = null) {
   const day = new Date().toDateString();
   const title = [ico('calendar-days'), ' Sorties'];
   // v377 (mes choix 1A 2A du 21 nov., puis A du 23 nov.) : la roue vient au bout du titre, après l'image « Photos dans Sorties » (v370) qui ne bouge pas
-  const gear = settingsGear('distances', 'Régler la distance des sorties', named('Sorties', () => openEvents()));
+  const gear = settingsGear('sorties', 'Régler Sorties', named('Sorties', () => openEvents()));
   if (eventsMode === 'navigo' && state.navigo === false) eventsMode = 'all'; // v282 : onglet masqué, on repart de Tout
   if (eventsMode === 'navigo') await loadNavigo(); // onglet Navigo : fichier de l'appli, l'agenda n'est pas nécessaire
   else if (!eventsCache || eventsCache.day !== day) {
@@ -12179,7 +12179,7 @@ window.addEventListener('popstate', () => { if (!compassOpen) return; if (compas
  * `section` : null (sommaire), 'sauvegarde', 'categories', 'favoris', 'cercles', 'marche', 'appli'.
  */
 /** v322 : les pages de Réglages rangées dans « Autres réglages » (leur retour y ramène). */
-const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'pastille', 'astuces']; // 1A : Apparence revient à Réglages
+const OTHER_SECTIONS = ['vu', 'distances', 'pas', 'style', 'alertes', 'fiche', 'appli', 'ouverture', 'pastille', 'astuces', 'sorties']; // 1A : Apparence revient à Réglages
 const toOthers = () => named('Autres réglages', () => openSettings('autres'));
 /** v365 : Réglages ouverts depuis un écran de l'appli (roue du titre, « Choisir ce qui va dans Plus ») : { section, back }.
  *  Gardé tant qu'on reste dans les Réglages ouverts ainsi (un interrupteur redessine la page) ; oublié en ouvrant Réglages ou Autres réglages. */
@@ -12226,10 +12226,13 @@ const SETTINGS_FIND = [
   ['map-pin', 'Noms de mes lieux', RA, 'noms gouttes ecrits', () => openSettings('autres')],
   ['sliders-horizontal', 'Filtres affichés', RA, 'filtres lignes masquer', (b) => openFilterChoice(b)],
   ['file-text', 'Fiche d\'un lieu', RA, 'fiche qr code avis google uber etoiles chemin a pied horaires partager masquer', (b) => openSettings('fiche', b)],
-  ['camera', 'Photos des salles', RA, 'photos salles concerts theatre', (b) => openVenuePhotos(b)],
+  ['calendar-days', 'Sorties', RA, 'sorties agenda expos concerts distance km photos navigo glisser nocturnes', (b) => openSettings('sorties', b)],
+  ['camera', 'Photos des salles', `${RA} → Sorties`, 'photos salles concerts theatre', (b) => openSettings('sorties', b)],
+  ['image', 'Photos dans Sorties', `${RA} → Sorties`, 'photos sorties agenda vignette', (b) => openSettings('sorties', b)],
+  ['badge-percent', 'J\'ai un passe Navigo', `${RA} → Sorties`, 'navigo avantages passe', (b) => openSettings('sorties', b)],
+  ['arrow-left-right', 'Glisser entre les sorties', `${RA} → Sorties`, 'glisser suivante voisine fiche', (b) => openSettings('sorties', b)],
+  ['moon', 'Nocturnes au planning', `${RA} → Sorties`, 'nocturnes soir tard planning', (b) => openSettings('sorties', b)],
   ['map-pinned', 'À mettre à jour sur place', RA, 'verifier mettre a jour photos ouvert ferme horaires tombes points de vue salles tournee', (b) => openToCheck(b)],
-  ['image', 'Photos dans Sorties', RA, 'photos sorties agenda vignette', () => openSettings('autres')],
-  ['badge-percent', 'J\'ai un passe Navigo', RA, 'navigo avantages passe', () => openSettings('autres')],
   ['spell-check', 'Écrire au masculin', RA, 'masculin feminin homme accord', () => openSettings('autres')],
   ['signpost', 'Circuits de visite', RA, 'circuits visites eteindre', () => openSettings('autres')],
   ['compass', 'Boussole', RA, 'boussole direction eteindre', () => openSettings('autres')],
@@ -12280,6 +12283,10 @@ function openSettingsSearch(q = '') {
   requestAnimationFrame(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
 }
 
+/** 1A (28 nov.) : la petite ligne de Sorties dans Autres réglages : la distance, puis les photos. */
+function sortiesSub() {
+  return `Jusqu'à ${tuningText('eventsM', tune('eventsM'))} · ${state.evThumbs === true ? 'avec photos' : 'sans photo'}`;
+}
 /** 1A (25 nov.) : la petite ligne d'Apparence dans Réglages : le style du jour, puis clair ou sombre. */
 function appearanceSub() {
   if (cleanLook(state.look) === 'signal') return 'Signalétique · sombre jour et nuit'; // v464
@@ -13214,6 +13221,39 @@ function openSettings(section = null, from = null) {
   }
 
 
+  if (section === 'sorties') { // 1A (28 nov.) : Réglages → Autres réglages → Sorties ; la roue du titre de Sorties y mène
+    openSheet([ico('calendar-days'), ' Sorties'], el('div', { class: 'stack' },
+      el('h3', { class: 'fiche-sec' }, 'Distance'),
+      tuneRow('eventsM', (v) => `Jusqu'à ${v}`, 'Tous les onglets, et Dans la rue'), /* le même réglage que Distances et durées */
+      el('h3', { class: 'fiche-sec' }, 'Ce qui s\'affiche'),
+      el('div', { class: 'menu' },
+        // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
+        row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Sorties', () => openSettings('sorties'))), false, 'c-add'),
+        // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
+        onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
+          state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
+        }),
+        // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
+        onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Sorties, fiches, loupe' : 'Avantages masqués partout', state.navigo !== false, () => {
+          state.navigo = state.navigo === false;
+          toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
+        }),
+        // v518 (mes choix 1A à 4A du 25 nov.) : sous Boussole, tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ
+        onOff('evSwipe', 'arrow-left-right', 'Glisser entre les sorties', state.evSwipe !== false ? 'Fiche : la voisine de la liste' : 'Éteint : la fiche ne change pas', state.evSwipe !== false, () => {
+          state.evSwipe = state.evSwipe === false;
+          toast(state.evSwipe ? 'Sur la fiche d\'une sortie, glisse de côté : la voisine de la liste' : 'Glisser entre les sorties éteint');
+        }),
+        // v519 (mon choix 4A du 25 nov.) : sous Glisser entre les sorties, tout en bas de « Ce qui s'affiche », il ne pousse rien ; éteint au départ
+        onOff('lateWeek', 'moon', 'Nocturnes au planning', state.lateWeek === true ? 'En bas, 7 soirs' : 'Éteint : dans Expos', state.lateWeek === true, () => {
+          state.lateWeek = state.lateWeek !== true;
+          toast(state.lateWeek ? 'Ouvert tard cette semaine : en bas de Mon planning' : 'Nocturnes retirées de Mon planning');
+        }),
+      ),
+      backBtn,
+    ), { tall: true, name: 'settings:sorties', again: () => openSettings('sorties') });
+    return;
+  }
+
   // Numéros des arrondissements sur la carte vue de loin (v193), allumés au départ
   const arrNumsSwitch = el('button', { type: 'button', class: 'menu-row c-guide', role: 'switch', 'aria-checked': String(state.showArrNums !== false), onclick: () => {
     state.showArrNums = state.showArrNums === false; persist(); drawArrNums(); openSettings('autres');
@@ -13253,20 +13293,12 @@ function openSettings(section = null, from = null) {
     el('h3', { class: 'ring-title menu-group' }, 'Ce qui s\'affiche'),
     row('sliders-horizontal', 'Filtres affichés', (state.hiddenFilters ?? []).length ? `${plural(state.hiddenFilters.length, 'ligne masquée', 'lignes masquées')} dans Filtres` : 'Toutes les lignes de Filtres', () => openFilterChoice(named('Autres réglages', () => openSettings('autres'))), false, 'c-guide'),
     row('file-text', 'Fiche d\'un lieu', cleanFicheHidden(state.ficheHidden).length ? `${plural(cleanFicheHidden(state.ficheHidden).length, 'ligne masquée', 'lignes masquées')} dans la fiche` : 'QR code, Avis, Uber, étoiles, Chemin, Horaires, Partager', () => openSettings('fiche'), false, 'c-guide'),
-    // v327 (mes choix 2C 3A 4A du 20 nov.) : mes photos des salles, en secours quand l'agenda n'a pas de photo
-    row('camera', 'Photos des salles', venuePhotoSub(), () => openVenuePhotos(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'),
+    // 1A (ma demande du 28 nov., « tout conseillé ») : tout ce qui règle Sorties sur une page, à la place de la ligne Photos des salles ;
+    // Photos des salles, Photos dans Sorties, J'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning y passent
+    row('calendar-days', 'Sorties', sortiesSub(), () => openSettings('sorties'), false, 'c-guide'),
     row('map-pinned', 'À mettre à jour sur place', 'Les 5 lieux à vérifier près de toi', () => openToCheck(named('Autres réglages', () => openSettings('autres'))), false, 'c-add'), // v467 (mon choix A du 25 nov.)
     // v479 (mes choix 7 bis A et 7 ter du 25 nov.) : la dernière ligne de « Ce qui s'affiche », au-dessus de ses interrupteurs (v359 : ils restent ensemble, en bas)
     row('thermometer-sun', 'Pastille météo', wxSub(), () => openSettings('pastille'), false, 'c-guide'),
-    // v327 (mes choix 6A 7A du 20 nov.) : en bas de « Ce qui s'affiche » ; v359 (mon choix B du 21 nov.) : premier interrupteur, sous Photos des salles, éteint au départ ; la photo de l'agenda dans chaque liste de sorties
-    onOff('evThumbs', 'image', 'Photos dans Sorties', state.evThumbs === true ? 'La photo de l\'agenda à gauche' : 'Éteint : l\'icône du genre', state.evThumbs === true, () => {
-      state.evThumbs = state.evThumbs !== true; toast(state.evThumbs ? 'Photos dans Sorties : la photo de l\'agenda à gauche' : 'Sorties sans photo : l\'icône du genre');
-    }),
-    // v282 (mon choix 4A) : tout en bas, il ne pousse rien ; allumé au départ
-    onOff('navigo', 'badge-percent', 'J\'ai un passe Navigo', state.navigo !== false ? 'Sorties, fiches, loupe' : 'Avantages masqués partout', state.navigo !== false, () => {
-      state.navigo = state.navigo === false;
-      toast(state.navigo ? 'Avantages Navigo de retour : Sorties, fiches, loupe' : 'Avantages Navigo masqués (rien n\'est supprimé)');
-    }),
     // v286 (mon choix 3A) : tout en bas, éteint au départ ; l'appli s'adresse à moi au féminin (v223)
     onOff('masculin', 'spell-check', 'Écrire au masculin', state.masculin === true ? '« Tu y es allée ? »' /* affiché au masculin par accord() */ : 'Au féminin : « Tu y es allée ? »', state.masculin === true, () => {
       state.masculin = state.masculin !== true; setMasculin(state.masculin); refresh(); updateNow(true);
@@ -13281,16 +13313,6 @@ function openSettings(section = null, from = null) {
     onOff('compassOn', 'compass', 'Boussole', compassOff() ? 'Éteinte : Google Maps à pied' : 'Fiches, listes, Balade guidée', !compassOff(), () => {
       state.compassOn = compassOff();
       toast(compassOff() ? 'Boussole éteinte partout (Balade guidée comprise)' : 'Boussole de retour : fiches, listes, Balade guidée');
-    }),
-    // v518 (mes choix 1A à 4A du 25 nov.) : sous Boussole, tout en bas de « Ce qui s'affiche », il ne pousse rien ; allumé au départ
-    onOff('evSwipe', 'arrow-left-right', 'Glisser entre les sorties', state.evSwipe !== false ? 'Fiche : la voisine de la liste' : 'Éteint : la fiche ne change pas', state.evSwipe !== false, () => {
-      state.evSwipe = state.evSwipe === false;
-      toast(state.evSwipe ? 'Sur la fiche d\'une sortie, glisse de côté : la voisine de la liste' : 'Glisser entre les sorties éteint');
-    }),
-    // v519 (mon choix 4A du 25 nov.) : sous Glisser entre les sorties, tout en bas de « Ce qui s'affiche », il ne pousse rien ; éteint au départ
-    onOff('lateWeek', 'moon', 'Nocturnes au planning', state.lateWeek === true ? 'En bas, 7 soirs' : 'Éteint : dans Expos', state.lateWeek === true, () => {
-      state.lateWeek = state.lateWeek !== true;
-      toast(state.lateWeek ? 'Ouvert tard cette semaine : en bas de Mon planning' : 'Nocturnes retirées de Mon planning');
     }),
     el('h3', { class: 'ring-title menu-group' }, 'Appli'),
     row('info', 'Mise à jour et confidentialité', 'Version, données, partager', () => openSettings('appli')),
@@ -14812,7 +14834,7 @@ const HELP = [
     '**Passé minuit**, ce qui reste dans la liste du jour s\'efface sans question : les lieux restent sur ta carte.',
     '{calendar-days} **Ce week-end**, en tête de Sorties : la grande bannière à photos. Un appui : les rubriques du samedi et du dimanche (Expos, Concerts, Spectacles, En famille…) ; un appui sur une rubrique : ses sorties en grandes photos, les plus proches d\'abord. « Sam. et dim. », « Sam. », « Dim. » choisissent le jour. Agenda de la Ville, seulement ce qui a un horaire ces jours-là (et les expos ouvertes) ; une sortie que l\'appli ne sait pas classer est dans « Autres sorties ». Touche © sur une photo : son auteur.',
     '{calendar-days} **Trouver une sortie**, en bas de Mon planning : choisis le jour (Demain, Samedi…). L\'agenda de la Ville montre ce qui a un horaire ce jour-là, autour du centre de la carte, par heure. Touche une sortie, puis Prévoir.',
-    '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
+    '{moon} **Ouvert tard cette semaine**, tout en bas de Mon planning, si tu l\'allumes ({settings} → Autres réglages → Sorties → Nocturnes au planning) : les nocturnes des grands lieux des 7 prochains soirs, repliées. Touche un lieu, puis « Prévoir jeudi soir ».',
     '{alarm-clock} **Prévoir un autre jour**, en bas de Mon planning, sous Trouver une sortie : « Où ? » d\'abord (un de tes lieux, les plus proches en tête, ou cherché dans Paris), puis le jour et le moment, comme depuis la fiche. Un lieu déjà prévu garde sa sortie : tu la changes.',
     '{alarm-clock} **Prévoir**, dans la fiche d\'un lieu, sous Favori : touche le jour (Aujourd\'hui, Demain, Samedi…, ou « Autre jour » : les 7 jours suivants par leur nom ; plus loin, « Plus loin : calendrier ») puis le moment (Matin, Midi, Après-midi, Soir) ou « Heure précise ». Avec qui : facultatif. Si le lieu a un jour gratuit dans les 5 semaines (1er dimanche du mois…), la page le dit sous « Avec qui ». Annuler et Enregistrer sont en bas, toujours visibles.',
     '**Le jour même**, « Maintenant » rappelle la sortie. Avec une heure précise, il dit aussi à quelle heure partir.',
@@ -14822,8 +14844,8 @@ const HELP = [
     '{sparkles} **Temps forts** (Nuit Blanche…) : annoncés en haut de Sorties la semaine où ils ont lieu.',
     `**Gratuités** : liste vérifiée le ${FREE_CHECKED} ; **temps forts** : le ${HIGHLIGHTS_CHECKED} ; **Kiosque Théâtre** : le ${KIOSQUE_CHECKED}. Vérifie aussi sur le site du lieu.`,
     '{calendar-days} **Au programme** : sur la fiche d\'un grand lieu (Grand Palais, Philharmonie…) ou d\'une salle que tu suis, dernière ligne de Pratique. Un appui ouvre ses rendez-vous de la semaine dans l\'agenda de la Ville, avec son programme officiel (l\'agenda n\'a pas tout).',
-    '{image} **Photos dans Sorties** : {settings} → Autres réglages → Photos dans Sorties, éteint au départ. Allumé, chaque sortie montre à gauche la photo de l\'agenda ; sans elle, ta photo de la salle si tu en as pris une ({settings} → Autres réglages → Photos des salles).',
-    '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Glisser entre les sorties.',
+    '{image} **Photos dans Sorties** : {settings} → Autres réglages → Sorties → Photos dans Sorties, éteint au départ. Allumé, chaque sortie montre à gauche la photo de l\'agenda ; sans elle, ta photo de la salle si tu en as pris une ({settings} → Autres réglages → Sorties → Photos des salles).',
+    '{arrow-left-right} **Glisser entre les sorties** : sur la fiche d\'une sortie ouverte depuis une liste (Sorties, Mes salles, Trouver une sortie), glisse le doigt de côté : vers la gauche la suivante, vers la droite celle d\'avant, dans l\'ordre de la liste. « 3 / 24 » sous le titre dit où tu en es ; au bout, ça s\'arrête. Pour l\'éteindre : {settings} → Autres réglages → Sorties → Glisser entre les sorties.',
   ]],
   ['map-pinned', 'Autour de moi', [
     '{map-pinned} **Autour de moi**, en bas à droite : tes lieux du plus proche au plus loin, rangés par cercles. « Fermé à ton arrivée » : le lieu est encore ouvert, mais il aura fermé le temps d\'y aller à pied (5 min de marge ; la marche est une estimation).',
@@ -14986,7 +15008,7 @@ const HELP = [
     '**Partager l\'appli** : {settings} → Autres réglages → Mise à jour et confidentialité → Envoyer, ou QR code. Elle arrive vide chez ton ami.',
   ]],
   ['settings', 'Régler l\'appli', [
-    '{settings} **La petite roue à côté d\'un titre** : dans Sorties, Autour de moi, la page d\'un circuit et Mes Vu en passant, elle ouvre les réglages de cet écran (Distances et durées, ou Vu en passant). « ← » en bas te ramène à l\'écran d\'où tu viens.',
+    '{settings} **La petite roue à côté d\'un titre** : dans Sorties, Autour de moi, la page d\'un circuit et Mes Vu en passant, elle ouvre les réglages de cet écran (Sorties, Distances et durées, ou Vu en passant). « ← » en bas te ramène à l\'écran d\'où tu viens.',
     '{sofa} **Chez moi** : {settings} → Chez moi. Enregistre ton adresse une fois ; allumé, les distances, les durées, les listes et « Pars à … » partent de chez toi au lieu de ta position. Le canapé dans la pastille météo te le rappelle : touche la pastille, la page Météo et air commence par l\'interrupteur « Partir de chez moi ». Il s\'éteint aussi tout seul quand l\'appli sait que tu es à plus de 500 m de chez toi. Rentrer, M, la boussole, Où suis-je ? et « Y aller » (Google Maps) partent toujours de là où tu es.',
     '{footprints} **Mon pas** : Rapide, Normal ou Tranquille. Tu règles la vitesse de chacun, de 2 à 7 km/h. Pour la trouver : « Mesurer Normal » ou « Mesurer Rapide », un chrono qui s\'arrête seul au bout de 1 km.',
     '{footprints} **Mon allure en courant** : Réglages → Autres réglages → Mon pas, sous Mesurer ma vitesse. De 4 à 10 min par km. Elle donne la durée en courant de la Boucle à courir et de Mes parcours ; sans elle, rien en courant ne s\'affiche.',
@@ -15023,7 +15045,7 @@ const HELP = [
     '{spell-check} **Écrire au masculin** : {settings} → Autres réglages. L\'appli s\'adresse à toi au féminin (« Tu y es allée ? ») ; allumé, au masculin. Ce réglage ne passe pas d\'un téléphone à l\'autre.',
     '{hand} **Essayer le premier lancement** : {settings} → Autres réglages. L\'appli redémarre comme neuve, le temps de l\'essai ; tes lieux restent. « Essai en cours · Terminer », en haut, la remet comme avant.',
     '{users} **Préparer le démarrage d\'un proche** : {settings} → Autres réglages. Choisis ses réglages de départ, puis envoie un lien ou montre un QR code : son appli démarre avec tes choix. Jamais tes lieux ni ta liste TTB ; ta clé CARTO seulement si tu la coches.',
-    '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
+    '{moon} **Nocturnes au planning** : {settings} → Autres réglages → Sorties → Nocturnes au planning, éteint au départ. Allumé, le bas de Mon planning montre « Ouvert tard cette semaine », replié : les nocturnes des grands lieux des 7 prochains soirs. Touche un lieu (aussi depuis Expos → Ouvert tard) : « Prévoir jeudi soir » le met dans Mon planning, au moment Soir.',
   ]],
   ['wrench', 'Ça ne marche pas ?', [
     '**Position refusée** : appli installée, appui long sur son icône → Infos sur l\'appli → Autorisations → Position → Autoriser. Dans Chrome : ⋮ → Paramètres → Paramètres des sites → Position, autorise limopo74.github.io. Allume aussi la Position du téléphone.',
@@ -15048,6 +15070,7 @@ const HELP = [
     '**Perdue sur la carte** : {locate-fixed} te ramène sur toi, Paris au centre.',
   ]],
   ['sparkles', 'Nouveautés', [
+    '{calendar-days} **Réglages de Sorties sur une page** : {settings} → Autres réglages → Sorties : la distance, Photos des salles, Photos dans Sorties, J\'ai un passe Navigo, Glisser entre les sorties et Nocturnes au planning, réunis. La petite roue du titre de Sorties ouvre cette page.',
     '{map-pin} **Point de départ en icône partout dans Sorties** : aussi dans Grands lieux, à côté de « Voir sur la carte ». Corrigé : choisir un autre point de départ depuis le haut de Sorties ne faisait rien.',
     '{calendar-days} **Ce week-end** : en tête de Sorties, une bannière à photos ouvre les sorties du samedi et du dimanche, rangées par rubrique, en grandes photos (© : l\'auteur de la photo). Le point de départ des distances devient une icône (épingle : centre de la carte ; viseur : toi), à côté de Chercher ; « Carte » devient « Voir sur la carte ».',
     '{flower-2} **Cimetières visibles de loin** : Jardins publics allumé, le Père-Lachaise, le Montparnasse et Montmartre portent leur nom et la fleur dès la vue de loin (un appui : la page du cimetière) ; de près, leur contour est à l\'encre, ouvert ou fermé. Le vert dit toujours « ouvert ».',
@@ -15057,7 +15080,6 @@ const HELP = [
     '{train-front} **Transports 3117** (alerte RATP et SNCF, gratuit) : dans Où suis-je ?, les numéros passent sur deux rangées de deux (Urgences 112, Samu 15 / Police 17, Transports 3117) ; dans Alerter en silence, sous Police 17. Le SMS au 31177 reste en haut d\'Alerter en silence.',
     '{map-pin} **Position bloquée, plus lisible** : le message commence par « Allume la Position » (la cause la plus courante), puis donne les étapes de l\'autorisation, une par ligne, mots à toucher en gras ; il reste affiché jusqu\'à « Compris ».',
     '{triangle-alert} **Mode crise, en grand et sans Grève** : toucher une crise ouvre tout de suite Autour de moi, en grand, les gros boutons d\'abord (toujours en grand tant que le mode est allumé). Quatre crises : crue, coupure, canicule, abri ; Grève n\'ajoutait rien, et si elle était allumée, le mode s\'est éteint.',
-    '{clipboard-list} **Préparer** : en bas de Mon Paris, une page réunit ce qui se règle une fois (Chez moi, station Maison, proches, points de rendez-vous, kit, hors ligne, documents, sauvegarde), avec ce qui est fait. Préparer hors ligne et Mon kit 72 h y sont rangés.',
   ]],
   ['lock', 'Confidentialité', [...PRIVACY_LINES, USAGE_PRIVACY]], // v334 (mon choix 2A du 20 nov.) : tout en bas, il ne pousse rien ; le même texte que Réglages → Autres réglages → Mise à jour et confidentialité
 ];

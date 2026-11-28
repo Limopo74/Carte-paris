@@ -115,18 +115,19 @@ test('Mes photos des salles : dans la sauvegarde générale (mon choix 1B), jama
   assert.match(app, /compressImage\(f, VENUE_PHOTO_SIDE\)/, 'réduite sur le téléphone, position effacée');
 });
 
-test('Autres réglages → Ce qui s\'affiche : « Photos des salles » sous Fiche d\'un lieu, puis les interrupteurs, Photos dans Sorties en premier (v359)', () => {
+test('Autres réglages → Ce qui s\'affiche : « Sorties » à la place de « Photos des salles » ; la page Sorties : Photos des salles, puis les interrupteurs, Photos dans Sorties en premier (1A du 28 nov. ; v359)', () => {
   const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
   const f = page.indexOf("'Fiche d\\'un lieu'");
-  const c = page.indexOf("row('camera', 'Photos des salles'");
-  const b = page.indexOf("onOff('evThumbs', 'image', 'Photos dans Sorties'"); // 6A (25 nov.) : l'image du bouton de Sorties
-  const a = page.indexOf("onOff('masculin'");
-  const d = page.indexOf("'ring-title menu-group' }, 'Appli')");
-  assert.ok(f > 0 && c > f && b > c && a > b && d > a);
-  // v467 (mon choix A du 25 nov.) : « À mettre à jour sur place » se glisse entre les deux, rien d'autre
-  // v479 (mes choix 7 bis A et 7 ter du 25 nov.) : puis « Pastille météo », la dernière ligne au-dessus des interrupteurs
-  assert.ok(!page.slice(c + 10, b).replace("row('map-pinned', 'À mettre à jour sur place'", '').replace("row('thermometer-sun', 'Pastille météo'", '').includes('row('), 'les deux lignes Photos côte à côte, À mettre à jour et Pastille météo seuls entre elles');
-  const notStyle = (t) => t.replace("row('palette', 'Style de l\\'appli'", ''); // v452 : Style de l'appli, une ligne de plus tout en bas
-  assert.ok(!notStyle(page.slice(b, d)).includes('row('), 'les interrupteurs ensemble, en bas du groupe');
+  const s = page.indexOf("row('calendar-days', 'Sorties', sortiesSub(), () => openSettings('sorties')");
+  const m = page.indexOf("row('map-pinned', 'À mettre à jour sur place'");
+  assert.ok(f > 0 && s > f && m > s, 'à la place de Photos des salles');
+  for (const k of ['evThumbs', 'navigo', 'evSwipe', 'lateWeek']) assert.ok(!page.includes(`onOff('${k}'`), `${k} plus dans Autres réglages`);
+  assert.ok(!page.includes("row('camera', 'Photos des salles'"));
+  const sp = app.slice(app.indexOf("if (section === 'sorties') {"), app.indexOf("name: 'settings:sorties'"));
+  const d = sp.indexOf("tuneRow('eventsM'");
+  const c = sp.indexOf("row('camera', 'Photos des salles'");
+  const order = ['evThumbs', 'navigo', 'evSwipe', 'lateWeek'].map((k) => sp.indexOf(`onOff('${k}'`));
+  assert.ok(d > 0 && c > d && order[0] > c && order.every((x, i) => i === 0 || x > order[i - 1]), 'distance, Photos des salles, puis les quatre interrupteurs');
+  assert.match(sp, /backBtn,\n\s*\), \{ tall: true, $/, 'le retour en bas');
   assert.match(app, /'Dans Sorties, la photo de l\\'agenda passe toujours avant la tienne\.'/);
 });

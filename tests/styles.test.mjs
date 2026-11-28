@@ -109,7 +109,7 @@ test('Réglages → Apparence (1A du 25 nov.) : à la place de Mode sombre ; Le 
   assert.match(page, /Signalétique/);
   assert.match(page, /backBtn,\n\s*\), \{ tall: true, name: 'settings:apparence'/);
   assert.match(app, /if \(section === 'look'\) section = 'apparence';/, 'l\'ancien nom mène à la page');
-  assert.match(app, /const OTHER_SECTIONS = \[[^\]]*'ouverture', 'pastille', 'astuces'\];/, 'Apparence revient à Réglages');
+  assert.match(app, /const OTHER_SECTIONS = \[[^\]]*'ouverture', 'pastille', 'astuces', 'sorties'\];/, 'Apparence revient à Réglages');
   assert.ok(!/const OTHER_SECTIONS = \[[^\]]*'apparence'/.test(app), 'Apparence pas dans Autres réglages');
 });
 

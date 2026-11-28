@@ -1,6 +1,6 @@
 // v518 (mes choix 1A 2A 3A 4A du 25 nov.) : sur la fiche d'une sortie, glisser de côté ouvre la sortie voisine
 // de la liste d'où l'on vient, dans l'ordre affiché ; on s'arrête aux bouts ; repère « 3 / 24 » sous le titre.
-// Réglages → Autres réglages → Glisser entre les sorties (allumé au départ).
+// Réglages → Autres réglages → Sorties → Glisser entre les sorties (allumé au départ).
 import { swipeIndex } from './photos.js';
 
 /**

@@ -27,11 +27,11 @@ test('Passe Navigo éteint : onglet, ligne de la fiche et loupe suivent le régl
   assert.match(app, /state\.navigo === false \? \[\] : block\('Avantages Navigo'/, 'loupe');
 });
 
-test('Passe Navigo : l\'interrupteur est dans Autres réglages → Ce qui s\'affiche, dans les interrupteurs du groupe (v322 ; v359 : sous Photos dans Sorties)', () => {
-  const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
+test('Passe Navigo : l\'interrupteur est dans Autres réglages → Sorties, sous Photos dans Sorties (v322 ; v359 ; 1A du 28 nov.)', () => {
+  const page = app.slice(app.indexOf("if (section === 'sorties') {"), app.indexOf("name: 'settings:sorties'"));
   const a = page.indexOf("onOff('evThumbs'");
   const b = page.indexOf("onOff('navigo', 'badge-percent', 'J\\'ai un passe Navigo'");
-  const c = page.indexOf("onOff('masculin'");
-  assert.ok(a > 0 && b > a && c > b, 'sous Photos dans Sorties, au-dessus d\'Écrire au masculin');
+  const c = page.indexOf("onOff('evSwipe'");
+  assert.ok(a > 0 && b > a && c > b, 'sous Photos dans Sorties, au-dessus de Glisser entre les sorties');
   assert.ok(!page.slice(a, b).includes('row('), 'rien entre les deux');
 });

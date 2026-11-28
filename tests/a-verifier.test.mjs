@@ -47,12 +47,13 @@ test('les petites lignes tiennent sur une ligne', () => {
   assert.equal(checkWhat({ kind: 'tomb' }), 'Photo de la tombe');
 });
 
-test('la ligne est dans Autres réglages, sous Photos des salles, et dans la recherche des réglages', () => {
+test('la ligne est dans Autres réglages, sous Sorties (avant : Photos des salles), et dans la recherche des réglages', () => {
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   const page = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
-  const a = page.indexOf("row('camera', 'Photos des salles'");
+  // 1A (28 nov.) : Photos des salles passe dans la page Sorties ; sa ligne d'Autres réglages devient « Sorties », à la même place
+  const a = page.indexOf("row('calendar-days', 'Sorties', sortiesSub()");
   const b = page.indexOf("row('map-pinned', 'À mettre à jour sur place'");
-  const c = page.indexOf("onOff('evThumbs'");
+  const c = page.indexOf("onOff('masculin'");
   assert.ok(a > 0 && b > a && c > b);
   assert.ok(app.includes("['map-pinned', 'À mettre à jour sur place', RA,"));
   assert.ok(readFileSync(new URL('../sw.js', import.meta.url), 'utf8').includes("'js/a-verifier.js'"));

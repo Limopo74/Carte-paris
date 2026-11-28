@@ -46,10 +46,10 @@ test('Prévoir … soir : moment Soir, jamais une heure inventée ; déjà prév
   assert.ok(block.indexOf('lateLine(p) ?') < block.indexOf('latePlanBtn(p,'), 'sous la ligne Ouvert tard');
 });
 
-test('Réglage : tout en bas de « Ce qui s\'affiche », sous Glisser entre les sorties', () => {
-  const autres = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
+test('Réglage : en bas de la page Sorties d\'Autres réglages, sous Glisser entre les sorties (1A du 28 nov.)', () => {
+  const autres = app.slice(app.indexOf("if (section === 'sorties') {"), app.indexOf("name: 'settings:sorties'"));
   const a = autres.indexOf("onOff('evSwipe'");
   const b = autres.indexOf("onOff('lateWeek', 'moon', 'Nocturnes au planning'");
-  const c = autres.indexOf("'Appli'");
+  const c = autres.indexOf('backBtn');
   assert.ok(a > 0 && a < b && b < c);
 });

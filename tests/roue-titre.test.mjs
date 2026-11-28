@@ -7,9 +7,9 @@ import { readFileSync } from 'node:fs';
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const settings = app.slice(app.indexOf('function openSettings('), app.indexOf("if (section === 'sauvegarde')"));
 
-test('roue : Sorties, Autour de moi et la page d\'un circuit ouvrent Distances et durées, avec leur retour', () => {
+test('roue : Sorties ouvre la page Sorties (1A du 28 nov.) ; Autour de moi et la page d\'un circuit ouvrent Distances et durées, avec leur retour', () => {
   // v377 (mon choix A du 23 nov.) : dans Sorties, la roue après l'image « Photos dans Sorties », qui ne bouge pas
-  assert.match(app, /const gear = settingsGear\('distances', '[^']+', named\('Sorties', \(\) => openEvents\(\)\)\);/);
+  assert.match(app, /const gear = settingsGear\('sorties', '[^']+', named\('Sorties', \(\) => openEvents\(\)\)\);/);
   assert.match(app, /openSheet\(\[\.\.\.title, photoBtn, gear\]\.filter\(Boolean\), el\('div', \{ class: 'stack ev-page' \}/);
   assert.match(app, /withGear\(nearTitle\(\), settingsGear\('distances', '[^']+', named\('Autour de moi', nearAgain\)\)\)/);
   assert.match(app, /withGear\(c\.titre, (circuitsOff\(\) \? null : )?settingsGear\('distances', '[^']+', self\)\)/); // v390 : pas de roue quand les circuits sont éteints

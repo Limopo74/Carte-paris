@@ -67,7 +67,7 @@ test('la page et la pastille : six interrupteurs, la ligne dans Autres réglages
   assert.ok(!page.includes("'calendar-days'"), 'v480 : l\'icône de Sorties n\'est pas celle de Dimanche ou férié');
   const autres = app.slice(app.indexOf("if (section === 'autres') {"), app.indexOf("), { name: 'settings:autres'"));
   assert.ok(autres.indexOf("row('thermometer-sun', 'Pastille météo'") > autres.indexOf("row('map-pinned', 'À mettre à jour sur place'"));
-  assert.ok(autres.indexOf("row('thermometer-sun', 'Pastille météo'") < autres.indexOf("onOff('evThumbs'"), 'au-dessus des interrupteurs');
+  assert.ok(autres.indexOf("row('thermometer-sun', 'Pastille météo'") < autres.indexOf("onOff('masculin'"), 'au-dessus des interrupteurs'); // 1A (28 nov.) : Photos dans Sorties passe dans la page Sorties
   const draw = app.slice(app.indexOf('function drawWx() {'), app.indexOf('const AIR_ADVICE'));
   assert.match(draw, /const h = homeOn\(\);/, 'le canapé ne dépend d\'aucun interrupteur');
   assert.match(draw, /const a = h \|\| !wxOn\('arr'\) \? null : arrHere\(\);/);
