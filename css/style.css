@@ -1598,6 +1598,7 @@ body:has(#sheet:not([hidden])) .map-btn:is(.style-btn, .backup-btn), body:has(.p
 .map-btn.remark-btn[hidden] { display: none; }
 .map-btn.sos-btn { border-radius: 50%; background: var(--danger); color: var(--on-danger); border-color: var(--danger); font: 800 var(--t16)/1 var(--display); letter-spacing: .02em; } /* v553 : rond rouge plein en haut de la colonne (CHARTE.md § 1, exception SOS) */
 .sos-tools .tool { white-space: normal; }
+.sos-tools .tool.sos-wide { grid-column: 1 / -1; } /* v555 : SMS transports 31177, 7e bouton, sur toute la largeur sous le 114 */
 body:has(#sheet:not([hidden])) .map-btn.sos-btn { visibility: hidden; }
 .sheet.sos-sheet .sheet-head { background: var(--danger); color: var(--on-danger); border-bottom-color: var(--danger); border-radius: inherit; border-bottom-left-radius: 0; border-bottom-right-radius: 0; } /* v554 (1A) : le bandeau du titre de Secours en rouge, comme le rond SOS ; les boutons restent sans couleur (2A) */
 .sheet.sos-sheet .sheet-head::before { background: var(--on-danger); opacity: .6; }

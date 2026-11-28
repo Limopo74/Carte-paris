@@ -52,3 +52,10 @@ test('Secours (v554) : bandeau du titre rouge par jetons, boutons de la page san
   assert.doesNotMatch(css, /\.sos-tools[^{]*\{[^}]*danger/, 'les gros boutons restent sans rouge');
   assert.match(charte, /Le bandeau du titre de la page Secours prend le même rouge/);
 });
+
+test('Secours (v555) : SMS transports 31177 en dernier, sur toute la largeur, message prêt', () => {
+  const b = body('openSos');
+  assert.match(b, /smsHref\(TRANSPORT_SMS, sms31177Text\(\)\)/);
+  assert.ok(b.indexOf('sms31177Text') > b.indexOf("smsHref('114'"), 'sous le SMS au 114');
+  assert.match(css, /\.sos-tools \.tool\.sos-wide \{ grid-column: 1 \/ -1; \}/);
+});
